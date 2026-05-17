@@ -9,7 +9,15 @@ window._supabaseClient = null;
 function getSupabase() {
   if (!window._supabaseClient) {
     if (window.supabase && window.supabase.createClient) {
-      window._supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      window._supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: true,
+          storageKey: 'xiaocainiao_session',
+          storage: window.localStorage,
+          autoRefreshToken: true,
+          detectSessionInUrl: false
+        }
+      });
     }
   }
   return window._supabaseClient;
