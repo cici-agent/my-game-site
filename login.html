@@ -118,6 +118,8 @@
     });
 
     async function checkLoginState() {
+      // 等待 Supabase session 初始化
+      await new Promise(function(r) { setTimeout(r, 300); });
       var user = await getCurrentUser();
       if (user) {
         var profile = await getUserProfile(user.id);
