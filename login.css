@@ -1,60 +1,4 @@
-/* ===== 登录/注册/个人中心 样式 - PBS Kids 升级版 ===== */
-
-/* 导航栏 - 复用 login 页面的旧导航，升级为新风格 */
-#mainNav {
-  background: linear-gradient(135deg, var(--primary) 0%, #ff8c5a 100%);
-  padding: 14px 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  box-shadow: 0 4px 20px rgba(255, 107, 53, 0.35);
-}
-
-#mainNav .logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 22px;
-  font-weight: 900;
-  color: var(--text-white);
-  transition: transform 0.3s;
-}
-
-#mainNav .logo:hover {
-  transform: scale(1.05);
-}
-
-#mainNav .logo img {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  object-fit: cover;
-}
-
-#mainNav .nav-links {
-  display: flex;
-  gap: 12px;
-}
-
-#mainNav .nav-links a {
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--text-white);
-  padding: 10px 22px;
-  border-radius: var(--radius-full);
-  font-size: 15px;
-  font-weight: 700;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-#mainNav .nav-links a:hover {
-  background: rgba(255, 255, 255, 0.4);
-  transform: translateY(-3px) scale(1.05);
-}
+/* ===== 登录/注册/个人中心/上传 样式 - PBS Kids 升级版 ===== */
 
 /* 登录/注册卡片 */
 .auth-box {
@@ -129,7 +73,7 @@
   font-weight: 500;
 }
 
-.auth-box .input-field {
+.input-field {
   width: 100%;
   padding: 16px 20px;
   border: 3px solid #eee;
@@ -140,15 +84,32 @@
   transition: all 0.3s;
   background: #fafafa;
   font-weight: 500;
+  font-family: inherit;
 }
 
-.auth-box .input-field:focus {
+.input-field:focus {
   border-color: var(--primary);
   background: white;
   box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.1);
 }
 
-.auth-box .btn-primary {
+.textarea-field {
+  min-height: 100px;
+  resize: vertical;
+  border-radius: var(--radius-sm);
+}
+
+select.input-field {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23636e72' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 40px;
+}
+
+.auth-box .btn-primary,
+.upload-box .btn-primary {
   width: 100%;
   background: linear-gradient(135deg, var(--primary), var(--primary-light));
   color: white;
@@ -159,19 +120,26 @@
   font-weight: 800;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  text-decoration: none;
-  display: inline-block;
   box-shadow: 0 4px 15px var(--primary-glow);
   margin-top: 8px;
 }
 
-.auth-box .btn-primary:hover {
+.auth-box .btn-primary:hover,
+.upload-box .btn-primary:hover {
   transform: translateY(-3px) scale(1.02);
   box-shadow: 0 8px 25px var(--primary-glow);
 }
 
-.auth-box .btn-primary:active {
+.auth-box .btn-primary:active,
+.upload-box .btn-primary:active {
   transform: translateY(0) scale(0.98);
+}
+
+.auth-box .btn-primary:disabled,
+.upload-box .btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .btn-secondary {
@@ -266,14 +234,15 @@
   display: flex;
   gap: 14px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .profile-actions .btn-primary {
+  width: auto;
   padding: 12px 28px;
   border-radius: var(--radius-full);
   font-size: 0.95rem;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
   color: white;
   box-shadow: 0 4px 12px var(--primary-glow);
   transition: all 0.3s;
@@ -319,10 +288,17 @@
   box-shadow: 0 4px 15px var(--primary-glow);
 }
 
+.tab-content {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
 .empty-tip {
   color: #aaa;
   text-align: center;
-  padding: 50px;
+  padding: 40px;
   font-size: 1.1rem;
   font-weight: 600;
 }
@@ -333,29 +309,201 @@
   text-decoration: underline;
 }
 
-/* Footer */
-footer {
-  background: linear-gradient(135deg, #2d3436 0%, #3d4a4c 100%);
-  color: var(--text-white);
-  text-align: center;
-  padding: 36px 24px;
-  margin-top: auto;
-  position: relative;
+/* 我的游戏列表 */
+.my-games-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-footer::before {
+.my-game-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #f9f9f9;
+  border-radius: var(--radius-sm);
+  transition: all 0.3s;
+}
+
+.my-game-item:hover {
+  background: #f0f0f0;
+  transform: translateX(4px);
+}
+
+.my-game-name {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-badge.online {
+  background: linear-gradient(135deg, #d4edda, #c3e6cb);
+  color: #155724;
+}
+
+.status-badge.pending {
+  background: linear-gradient(135deg, #fff3cd, #ffeeba);
+  color: #856404;
+}
+
+/* ===== 上传页面 ===== */
+.upload-box {
+  max-width: 600px;
+  margin: 40px auto;
+  background: white;
+  border-radius: var(--radius-xl);
+  padding: 44px 40px;
+  box-shadow: var(--shadow-card);
+  animation: bounce-in 0.6s ease-out;
+  border: 3px solid rgba(255, 107, 53, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-box::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--primary), var(--yellow), var(--green), var(--blue), var(--purple));
+  height: 5px;
+  background: linear-gradient(90deg, var(--blue), var(--green), var(--primary));
+}
+
+.upload-box h1 {
+  font-size: 1.8rem;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.upload-form {
+  margin-top: 28px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 8px;
+}
+
+.file-upload-area {
+  border: 3px dashed #ddd;
+  border-radius: var(--radius-lg);
+  padding: 30px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: #fafafa;
+}
+
+.file-upload-area:hover {
+  border-color: var(--primary);
+  background: rgba(255, 107, 53, 0.02);
+}
+
+.file-upload-area .upload-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+
+.file-upload-area p {
+  font-size: 14px;
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.file-upload-area .upload-hint {
+  font-size: 12px;
+  color: #bbb;
+  margin-top: 4px;
+}
+
+.file-name-display {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--green);
+  font-weight: 700;
+}
+
+/* 进度条 */
+.progress-bar {
+  background: #f0f0f0;
+  border-radius: var(--radius-full);
+  height: 36px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  border-radius: var(--radius-full);
+  transition: width 0.3s;
+  width: 0%;
+}
+
+.progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+/* 管理后台 Tab */
+.admin-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.admin-tab {
+  padding: 12px 28px;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--primary);
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: white;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.admin-tab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.admin-tab.active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  font-weight: 800;
+  border-color: transparent;
+  box-shadow: 0 4px 15px var(--primary-glow);
 }
 
 /* 响应式 */
 @media (max-width: 768px) {
-  .auth-box {
+  .auth-box,
+  .upload-box {
     margin: 30px 16px;
     padding: 32px 24px;
   }
@@ -373,5 +521,9 @@ footer::before {
   .tabs {
     justify-content: center;
   }
-}
 
+  .admin-tabs {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}

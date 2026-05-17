@@ -17,7 +17,7 @@
     <div class="nav-links" id="navLinks"></div>
   </nav>
 
-  <div class="admin-container">
+  <div class="admin-container" id="adminContent" style="display:none">
     <!-- 标题 -->
     <div class="admin-header">
       <h1>⚙️ 管理后台</h1>
@@ -33,45 +33,30 @@
       </div>
       <div class="stat-card">
         <div class="stat-icon">🎮</div>
-        <div class="stat-value" id="statGames">6</div>
+        <div class="stat-value" id="statGames">0</div>
         <div class="stat-label">游戏总数</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">🪙</div>
-        <div class="stat-value" id="statCoins">0</div>
-        <div class="stat-label">金币流通</div>
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value" id="statPending">0</div>
+        <div class="stat-label">待审核</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">📊</div>
-        <div class="stat-value" id="statPlays">1,234</div>
-        <div class="stat-label">今日游玩</div>
+        <div class="stat-icon">✅</div>
+        <div class="stat-value" id="statOnline">0</div>
+        <div class="stat-label">已上线</div>
       </div>
     </div>
 
-    <!-- 用户管理 -->
-    <div class="admin-panel">
-      <div class="panel-header">👥 用户管理</div>
-      <div class="panel-body">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>账号</th>
-              <th>角色</th>
-              <th>金币</th>
-              <th>注册时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody id="userTableBody">
-            <!-- 由JS动态渲染 -->
-          </tbody>
-        </table>
-      </div>
+    <!-- 管理 Tab -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="switchAdminTab(this, 'gamesPanel')">🎮 游戏管理</button>
+      <button class="admin-tab" onclick="switchAdminTab(this, 'usersPanel')">👥 用户管理</button>
     </div>
 
-    <!-- 游戏审核 -->
-    <div class="admin-panel">
-      <div class="panel-header">🎮 游戏审核</div>
+    <!-- 游戏管理 -->
+    <div class="admin-panel" id="gamesPanel">
+      <div class="panel-header">🎮 游戏管理</div>
       <div class="panel-body">
         <table class="admin-table">
           <thead>
@@ -80,123 +65,200 @@
               <th>作者</th>
               <th>分类</th>
               <th>状态</th>
+              <th>游玩次数</th>
               <th>操作</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="gameTableBody">
+            <tr><td colspan="6" style="text-align:center;padding:30px;color:#aaa;">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 用户管理 -->
+    <div class="admin-panel" id="usersPanel" style="display:none">
+      <div class="panel-header">👥 用户管理</div>
+      <div class="panel-body">
+        <table class="admin-table">
+          <thead>
             <tr>
-              <td>太空冒险</td>
-              <td>小明同学</td>
-              <td>射击</td>
-              <td><span class="status-badge online">已上线</span></td>
-              <td>
-                <div class="action-btns">
-                  <button class="btn-offline" onclick="alert('已下线')">下线</button>
-                </div>
-              </td>
+              <th>用户名</th>
+              <th>角色</th>
+              <th>金币</th>
+              <th>注册时间</th>
+              <th>操作</th>
             </tr>
-            <tr>
-              <td>猫咪跑酷</td>
-              <td>喵喵</td>
-              <td>跑酷</td>
-              <td><span class="status-badge online">已上线</span></td>
-              <td>
-                <div class="action-btns">
-                  <button class="btn-offline" onclick="alert('已下线')">下线</button>
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td>恐龙大战</td>
-              <td>小恐龙</td>
-              <td>射击</td>
-              <td><span class="status-badge pending">待审核</span></td>
-              <td>
-                <div class="action-btns">
-                  <button class="btn-online" onclick="alert('已上线')">上线</button>
-                  <button class="btn-offline" onclick="alert('已拒绝')">拒绝</button>
-                </div>
-              </td>
-            </tr>
+          </thead>
+          <tbody id="userTableBody">
+            <tr><td colspan="5" style="text-align:center;padding:30px;color:#aaa;">加载中...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
+  <!-- 无权限提示 -->
+  <div class="container" id="noAccess" style="display:none">
+    <div class="auth-box" style="max-width:400px;margin:80px auto;text-align:center;">
+      <h2>🔒 无权访问</h2>
+      <p class="subtitle">只有管理员才能访问后台哦！</p>
+      <a href="index.html" class="btn btn-primary" style="margin-top:20px;">回到首页</a>
+    </div>
+  </div>
+
   <!-- Footer -->
   <footer class="footer">
     <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
-    <div class="footer-links">
-      <a href="index.html">首页</a>
-      <a href="login.html">登录</a>
-      <a href="#">关于我们</a>
-      <a href="#">联系我们</a>
-    </div>
   </footer>
 
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
   <script src="auth.js"></script>
   <script>
-    // 检查管理员权限
-    if (!Auth.isAdmin()) {
-      alert('只有管理员才能访问后台哦！');
-      window.location.href = 'index.html';
+    // ===== 管理后台逻辑 =====
+
+    document.addEventListener('DOMContentLoaded', async function() {
+      var user = await getCurrentUser();
+      if (!user) {
+        document.getElementById('noAccess').style.display = 'block';
+        return;
+      }
+      var profile = await getUserProfile(user.id);
+      if (!profile || profile.role !== 'admin') {
+        document.getElementById('noAccess').style.display = 'block';
+        return;
+      }
+      // 是管理员，显示后台
+      document.getElementById('adminContent').style.display = 'block';
+      loadStats();
+      loadGames();
+      loadUsers();
+    });
+
+    // 加载统计
+    async function loadStats() {
+      var sb = getSupabase();
+      var usersResult = await sb.from('profiles').select('id', { count: 'exact' });
+      var gamesResult = await sb.from('games').select('id', { count: 'exact' });
+      var pendingResult = await sb.from('games').select('id', { count: 'exact' }).eq('status', 'pending');
+      var onlineResult = await sb.from('games').select('id', { count: 'exact' }).eq('status', 'online');
+
+      document.getElementById('statUsers').textContent = usersResult.count || 0;
+      document.getElementById('statGames').textContent = gamesResult.count || 0;
+      document.getElementById('statPending').textContent = pendingResult.count || 0;
+      document.getElementById('statOnline').textContent = onlineResult.count || 0;
     }
 
-    // 渲染用户列表
-    function renderUsers() {
-      const users = Auth.getUsers();
-      const tbody = document.getElementById('userTableBody');
-      document.getElementById('statUsers').textContent = users.length;
-      
-      // 计算总金币
-      const totalCoins = users.reduce((sum, u) => sum + (u.coins || 0), 0);
-      document.getElementById('statCoins').textContent = totalCoins;
+    // 加载游戏列表
+    async function loadGames() {
+      var sb = getSupabase();
+      var result = await sb.from('games').select('*').order('created_at', { ascending: false });
+      var tbody = document.getElementById('gameTableBody');
 
-      if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:30px;">暂无注册用户</td></tr>';
+      if (!result.data || result.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#aaa;">暂无游戏</td></tr>';
         return;
       }
 
-      tbody.innerHTML = users.map(user => `
-        <tr>
-          <td>${user.username}</td>
-          <td>${user.role === 'admin' ? '管理员' : '普通用户'}</td>
-          <td>🪙 ${user.coins || 0}</td>
-          <td>${new Date(user.createdAt).toLocaleDateString()}</td>
-          <td>
-            <div class="action-btns">
-              <button class="btn-reset" onclick="resetPassword('${user.id}')">重置密码</button>
-              ${user.role !== 'admin' ? `<button class="btn-delete" onclick="deleteUser('${user.id}')">删除</button>` : ''}
-            </div>
-          </td>
-        </tr>
-      `).join('');
+      var html = '';
+      for (var i = 0; i < result.data.length; i++) {
+        var game = result.data[i];
+        // 获取作者名
+        var authorName = '未知';
+        if (game.author_id) {
+          var profileResult = await sb.from('profiles').select('username').eq('id', game.author_id).single();
+          if (profileResult.data) authorName = profileResult.data.username;
+        }
+        var statusClass = game.status === 'online' ? 'online' : (game.status === 'pending' ? 'pending' : 'offline');
+        var statusText = game.status === 'online' ? '已上线' : (game.status === 'pending' ? '待审核' : '已下线');
+
+        html += '<tr>' +
+          '<td>' + game.name + '</td>' +
+          '<td>' + authorName + '</td>' +
+          '<td>' + (game.category || '--') + '</td>' +
+          '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>' +
+          '<td>' + (game.play_count || 0) + '</td>' +
+          '<td><div class="action-btns">';
+
+        if (game.status !== 'online') {
+          html += '<button class="btn-online" onclick="setGameStatus(\'' + game.id + '\', \'online\')">上线</button>';
+        }
+        if (game.status !== 'offline') {
+          html += '<button class="btn-offline" onclick="setGameStatus(\'' + game.id + '\', \'offline\')">下线</button>';
+        }
+        html += '<button class="btn-delete" onclick="deleteGame(\'' + game.id + '\')">删除</button>';
+        html += '</div></td></tr>';
+      }
+      tbody.innerHTML = html;
     }
 
-    // 重置密码
-    function resetPassword(userId) {
-      const users = Auth.getUsers();
-      const user = users.find(u => u.id === userId);
-      if (user) {
-        user.password = '123456';
-        Auth.saveUsers(users);
-        alert(`已将 ${user.username} 的密码重置为 123456`);
+    // 加载用户列表
+    async function loadUsers() {
+      var sb = getSupabase();
+      var result = await sb.from('profiles').select('*').order('created_at', { ascending: false });
+      var tbody = document.getElementById('userTableBody');
+
+      if (!result.data || result.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:#aaa;">暂无用户</td></tr>';
+        return;
       }
+
+      var html = '';
+      result.data.forEach(function(user) {
+        var roleText = user.role === 'admin' ? '管理员' : '普通用户';
+        var createdAt = user.created_at ? new Date(user.created_at).toLocaleDateString('zh-CN') : '--';
+        html += '<tr>' +
+          '<td>' + user.username + '</td>' +
+          '<td>' + roleText + '</td>' +
+          '<td>🪙 ' + (user.coins || 0) + '</td>' +
+          '<td>' + createdAt + '</td>' +
+          '<td><div class="action-btns">';
+        if (user.role !== 'admin') {
+          html += '<button class="btn-delete" onclick="deleteUser(\'' + user.id + '\', \'' + user.username + '\')">删除</button>';
+        }
+        html += '</div></td></tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    // 设置游戏状态
+    async function setGameStatus(gameId, status) {
+      var sb = getSupabase();
+      await sb.from('games').update({ status: status }).eq('id', gameId);
+      loadGames();
+      loadStats();
+    }
+
+    // 删除游戏
+    async function deleteGame(gameId) {
+      if (!confirm('确定要删除这个游戏吗？')) return;
+      var sb = getSupabase();
+      await sb.from('games').delete().eq('id', gameId);
+      loadGames();
+      loadStats();
     }
 
     // 删除用户
-    function deleteUser(userId) {
-      if (!confirm('确定要删除这个用户吗？')) return;
-      let users = Auth.getUsers();
-      users = users.filter(u => u.id !== userId);
-      Auth.saveUsers(users);
-      renderUsers();
+    async function deleteUser(userId, username) {
+      if (!confirm('确定要删除用户 "' + username + '" 吗？')) return;
+      var sb = getSupabase();
+      // 删除用户的游戏
+      await sb.from('games').delete().eq('author_id', userId);
+      // 删除用户资料
+      await sb.from('profiles').delete().eq('id', userId);
+      loadUsers();
+      loadStats();
     }
 
-    // 初始化
-    renderUsers();
+    // Tab 切换
+    function switchAdminTab(btn, panelId) {
+      document.querySelectorAll('.admin-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.admin-panel').forEach(function(p) { p.style.display = 'none'; });
+      btn.classList.add('active');
+      document.getElementById(panelId).style.display = 'block';
+    }
   </script>
 </body>
 </html>
-

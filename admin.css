@@ -24,7 +24,7 @@
   font-weight: 500;
 }
 
-/* 统计卡片 - 更活泼 */
+/* 统计卡片 */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -96,7 +96,7 @@
   font-weight: 600;
 }
 
-/* 管理面板 - 更圆润 */
+/* 管理面板 */
 .admin-panel {
   background: var(--bg-card);
   border-radius: var(--radius-xl);
@@ -121,9 +121,10 @@
 
 .admin-panel .panel-body {
   padding: 24px 28px;
+  overflow-x: auto;
 }
 
-/* 表格 - 更友好 */
+/* 表格 */
 .admin-table {
   width: 100%;
   border-collapse: collapse;
@@ -137,8 +138,7 @@
   color: var(--text-light);
   font-weight: 700;
   font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .admin-table td {
@@ -163,6 +163,7 @@
 .admin-table .action-btns {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .admin-table .action-btns button {
@@ -171,6 +172,7 @@
   font-size: 12px;
   font-weight: 700;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  white-space: nowrap;
 }
 
 .admin-table .action-btns button:hover {
@@ -244,7 +246,5 @@
   
   .admin-panel .panel-body {
     padding: 16px;
-    overflow-x: auto;
   }
 }
-

@@ -17,114 +17,187 @@
     <div class="nav-links" id="navLinks"></div>
   </nav>
 
-  <!-- 游戏信息 -->
-  <div class="game-detail">
-    <div class="game-hero">
-      <div class="hero-cover">🚀</div>
-      <div class="hero-info">
-        <h1>太空冒险</h1>
-        <div class="hero-meta">
-          <span>🏷️ 射击</span>
-          <span>👤 小明同学</span>
-          <span>⭐ 4.8 分</span>
-          <span>🎮 1,234 人玩过</span>
+  <!-- 游戏详情 - 宽屏左右分栏 -->
+  <div class="game-layout">
+    <!-- 左侧：游戏区域 -->
+    <div class="game-left">
+      <div class="game-play-area">
+        <div class="play-frame" id="gameFrame">
+          <div class="placeholder" id="gamePlaceholder">
+            <div class="icon">🎮</div>
+            <p>点击下方按钮开始游戏</p>
+          </div>
+        </div>
+        <div class="game-controls">
+          <button class="btn btn-primary play-btn" id="startGameBtn">▶️ 开始游戏</button>
         </div>
       </div>
     </div>
 
-    <!-- 游戏运行区域 -->
-    <div class="game-play-area">
-      <div class="play-frame">
-        <div class="placeholder">
-          <div class="icon">🎮</div>
-          <p>点击下方按钮开始游戏</p>
+    <!-- 右侧：游戏信息 + 评论 -->
+    <div class="game-right">
+      <!-- 游戏信息卡片 -->
+      <div class="game-info-card">
+        <h1 id="gameName">加载中...</h1>
+        <div class="game-meta" id="gameMeta">
+          <span>🏷️ --</span>
+          <span>👤 --</span>
+          <span>⭐ --</span>
+          <span>🎮 -- 人玩过</span>
         </div>
+        <p class="game-desc" id="gameDesc">游戏描述加载中...</p>
+        <div class="coin-tip">🪙 每玩 5 分钟消耗 1 金币</div>
       </div>
-      <div class="coin-tip">🪙 每玩 5 分钟消耗 1 金币</div>
-      <br><br>
-      <button class="btn btn-primary play-btn" id="startGameBtn">▶️ 开始游戏</button>
-    </div>
 
-    <!-- 用户点评区 -->
-    <div class="comments-section">
-      <h3>💬 玩家点评</h3>
-      <div class="comment-form">
-        <input type="text" id="commentInput" placeholder="说说你的游戏体验...">
-        <button id="commentBtn">发表</button>
+      <!-- 评论区 -->
+      <div class="comments-section">
+        <h3>💬 玩家点评</h3>
+        <div class="comment-form">
+          <input type="text" id="commentInput" placeholder="说说你的游戏体验...">
+          <button id="commentBtn" onclick="submitComment()">发表</button>
+        </div>
+        <ul class="comment-list" id="commentList">
+          <li class="loading-tip">加载评论中...</li>
+        </ul>
       </div>
-      <ul class="comment-list">
-        <li class="comment-item">
-          <div class="comment-avatar">🦊</div>
-          <div class="comment-body">
-            <div class="comment-name">小狐狸</div>
-            <div class="comment-text">超好玩！我已经通关3次了 😄</div>
-          </div>
-        </li>
-        <li class="comment-item">
-          <div class="comment-avatar">🐰</div>
-          <div class="comment-body">
-            <div class="comment-name">兔兔</div>
-            <div class="comment-text">画面好漂亮，音乐也很好听！</div>
-          </div>
-        </li>
-        <li class="comment-item">
-          <div class="comment-avatar">🐻</div>
-          <div class="comment-body">
-            <div class="comment-name">小熊</div>
-            <div class="comment-text">第三关好难啊，有人能帮帮我吗？</div>
-          </div>
-        </li>
-      </ul>
     </div>
   </div>
 
   <!-- Footer -->
   <footer class="footer">
     <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
-    <div class="footer-links">
-      <a href="index.html">首页</a>
-      <a href="login.html">登录</a>
-      <a href="#">关于我们</a>
-      <a href="#">联系我们</a>
-    </div>
   </footer>
 
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
   <script src="auth.js"></script>
   <script>
-    // 开始游戏按钮
-    document.getElementById('startGameBtn').addEventListener('click', function() {
-      if (!Auth.isLoggedIn()) {
+    // ===== 游戏详情页逻辑 =====
+    var gameId = new URLSearchParams(window.location.search).get('id');
+    var gameData = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      if (gameId) {
+        loadGameDetail();
+        loadComments();
+      } else {
+        document.getElementById('gameName').textContent = '游戏不存在';
+      }
+    });
+
+    async function loadGameDetail() {
+      var sb = getSupabase();
+      if (!sb) return;
+
+      var result = await sb.from('games').select('*').eq('id', gameId).single();
+      if (!result.data) {
+        document.getElementById('gameName').textContent = '游戏不存在';
+        return;
+      }
+
+      gameData = result.data;
+      document.title = gameData.name + ' - 小菜鸟';
+      document.getElementById('gameName').textContent = gameData.name;
+      document.getElementById('gameDesc').textContent = gameData.description || '暂无描述';
+
+      // 获取作者名
+      var authorName = '未知';
+      if (gameData.author_id) {
+        var profileResult = await sb.from('profiles').select('username').eq('id', gameData.author_id).single();
+        if (profileResult.data) authorName = profileResult.data.username;
+      }
+
+      document.getElementById('gameMeta').innerHTML =
+        '<span>🏷️ ' + (gameData.category || '其他') + '</span>' +
+        '<span>👤 ' + authorName + '</span>' +
+        '<span>⭐ ' + (gameData.rating || '0') + ' 分</span>' +
+        '<span>🎮 ' + (gameData.play_count || 0) + ' 人玩过</span>';
+    }
+
+    // 开始游戏 - 从 Supabase Storage 加载
+    document.getElementById('startGameBtn').addEventListener('click', async function() {
+      var user = await getCurrentUser();
+      if (!user) {
         alert('请先登录才能玩游戏哦！');
         window.location.href = 'login.html';
         return;
       }
-      alert('游戏加载中...（功能开发中）');
+      if (!gameData || !gameData.file_path) {
+        alert('游戏文件不存在');
+        return;
+      }
+
+      // 获取游戏文件的公开 URL
+      var sb = getSupabase();
+      var urlResult = sb.storage.from('games').getPublicUrl(gameData.file_path + '/index.html');
+      var gameUrl = urlResult.data.publicUrl;
+
+      // 用 iframe 加载游戏
+      var frame = document.getElementById('gameFrame');
+      frame.innerHTML = '<iframe src="' + gameUrl + '" style="width:100%;height:100%;border:none;border-radius:var(--radius-lg);"></iframe>';
+
+      // 增加游玩次数
+      sb.from('games').update({ play_count: (gameData.play_count || 0) + 1 }).eq('id', gameId);
     });
 
+    // 加载评论
+    async function loadComments() {
+      var sb = getSupabase();
+      if (!sb) return;
+
+      var result = await sb.from('reviews').select('*').eq('game_id', gameId).order('created_at', { ascending: false });
+      var list = document.getElementById('commentList');
+
+      if (!result.data || result.data.length === 0) {
+        list.innerHTML = '<li class="loading-tip">还没有评论，快来第一个点评吧！</li>';
+        return;
+      }
+
+      var html = '';
+      for (var i = 0; i < result.data.length; i++) {
+        var review = result.data[i];
+        // 获取评论者用户名
+        var profileResult = await sb.from('profiles').select('username').eq('id', review.user_id).single();
+        var reviewerName = profileResult.data ? profileResult.data.username : '匿名';
+        html += '<li class="comment-item">' +
+          '<div class="comment-avatar">🐣</div>' +
+          '<div class="comment-body">' +
+            '<div class="comment-name">' + reviewerName + '</div>' +
+            '<div class="comment-text">' + review.content + '</div>' +
+          '</div>' +
+        '</li>';
+      }
+      list.innerHTML = html;
+    }
+
     // 发表评论
-    document.getElementById('commentBtn').addEventListener('click', function() {
-      const input = document.getElementById('commentInput');
-      const text = input.value.trim();
-      if (!text) return;
-      if (!Auth.isLoggedIn()) {
+    async function submitComment() {
+      var user = await getCurrentUser();
+      if (!user) {
         alert('请先登录才能评论哦！');
         return;
       }
-      const user = Auth.getCurrentUser();
-      const list = document.querySelector('.comment-list');
-      const li = document.createElement('li');
-      li.className = 'comment-item';
-      li.innerHTML = `
-        <div class="comment-avatar">${user.avatar || '🐣'}</div>
-        <div class="comment-body">
-          <div class="comment-name">${user.username}</div>
-          <div class="comment-text">${text}</div>
-        </div>
-      `;
-      list.insertBefore(li, list.firstChild);
+      var input = document.getElementById('commentInput');
+      var text = input.value.trim();
+      if (!text) return;
+
+      var sb = getSupabase();
+      var result = await sb.from('reviews').insert({
+        game_id: gameId,
+        user_id: user.id,
+        content: text,
+        rating: 5
+      });
+
+      if (result.error) {
+        alert('评论失败：' + result.error.message);
+        return;
+      }
+
       input.value = '';
-    });
+      loadComments();
+    }
   </script>
 </body>
 </html>
-

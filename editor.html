@@ -57,23 +57,29 @@
     </div>
   </div>
 
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
   <script src="auth.js"></script>
   <script>
     // 检查登录状态
-    if (!Auth.isLoggedIn()) {
-      alert('请先登录才能使用游戏编辑器哦！');
-      window.location.href = 'login.html';
-    }
+    document.addEventListener('DOMContentLoaded', async function() {
+      var user = await getCurrentUser();
+      if (!user) {
+        alert('请先登录才能使用游戏编辑器哦！');
+        window.location.href = 'login.html';
+      }
+    });
 
-    const chatMessages = document.getElementById('chatMessages');
-    const chatInput = document.getElementById('chatInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const voiceBtn = document.getElementById('voiceBtn');
-    const publishBtn = document.getElementById('publishBtn');
+    var chatMessages = document.getElementById('chatMessages');
+    var chatInput = document.getElementById('chatInput');
+    var sendBtn = document.getElementById('sendBtn');
+    var voiceBtn = document.getElementById('voiceBtn');
+    var publishBtn = document.getElementById('publishBtn');
 
     // 添加消息气泡
     function addMessage(text, type) {
-      const bubble = document.createElement('div');
+      var bubble = document.createElement('div');
       bubble.className = 'chat-bubble ' + type;
       bubble.innerHTML = text;
       chatMessages.appendChild(bubble);
@@ -82,14 +88,14 @@
 
     // 发送消息
     function sendMessage() {
-      const text = chatInput.value.trim();
+      var text = chatInput.value.trim();
       if (!text) return;
       
       addMessage(text, 'user');
       chatInput.value = '';
 
       // 模拟 AI 回复
-      setTimeout(() => {
+      setTimeout(function() {
         addMessage('收到！我正在帮你构思这个游戏... 🤔<br><br>（AI 游戏生成功能开发中，敬请期待！）', 'ai');
       }, 1000);
     }
@@ -111,4 +117,3 @@
   </script>
 </body>
 </html>
-

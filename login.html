@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,24 +8,23 @@
   <link rel="stylesheet" href="login.css">
 </head>
 <body>
-  <nav id="mainNav">
-    <a class="logo" href="index.html">
+  <!-- 导航栏 - 登录页只显示首页链接 -->
+  <nav class="navbar" id="navbar">
+    <a href="index.html" class="logo">
       <img src="assets/logo.jpg" alt="小菜鸟" />
-      小菜鸟
+      <span>小菜鸟</span>
     </a>
     <div class="nav-links" id="navLinks">
-      <a href="login.html" id="navLogin">登录</a>
-      <a href="login.html" id="navProfile" style="display:none">我的</a>
-      <a href="admin.html" id="navAdmin" style="display:none">管理后台</a>
+      <a href="index.html">首页</a>
     </div>
   </nav>
 
-  <!-- 登录界面 -->
+  <!-- 登录/注册界面 -->
   <div id="loginSection">
     <div class="auth-box">
       <div class="auth-tabs">
-        <button class="auth-tab active" onclick="showTab('login')">登录</button>
-        <button class="auth-tab" onclick="showTab('register')">注册</button>
+        <button class="auth-tab active" id="tabLogin" onclick="showTab('login')">登录</button>
+        <button class="auth-tab" id="tabRegister" onclick="showTab('register')">注册</button>
       </div>
 
       <!-- 登录表单 -->
@@ -42,7 +41,7 @@
       <div id="registerForm" style="display:none">
         <h2>🐥 加入小菜鸟！</h2>
         <p class="subtitle">只需用户名和密码，马上开始！</p>
-        <input type="text" id="regUsername" placeholder="用户名（只能用字母数字）" class="input-field">
+        <input type="text" id="regUsername" placeholder="用户名（只能用字母数字下划线）" class="input-field">
         <input type="password" id="regPassword" placeholder="密码（至少6位）" class="input-field">
         <input type="password" id="regPassword2" placeholder="再输一次密码" class="input-field">
         <div id="registerError" class="error-msg"></div>
@@ -61,109 +60,185 @@
           <div class="coin-badge">🪙 金币：<span id="profileCoins">0</span></div>
           <div class="profile-actions">
             <a href="editor.html" class="btn-primary">🎮 做游戏</a>
+            <a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,var(--blue),var(--blue-light))">📤 上传游戏</a>
             <button class="btn-secondary" onclick="doLogout()">退出登录</button>
           </div>
         </div>
       </div>
 
       <div class="tabs">
-        <button class="tab active" onclick="switchTab(this, 'myGames')">我发布的游戏</button>
-        <button class="tab" onclick="switchTab(this, 'playedGames')">我玩过的游戏</button>
-        <button class="tab" onclick="switchTab(this, 'coinHistory')">金币记录</button>
+        <button class="tab active" onclick="switchProfileTab(this, 'myGames')">我发布的游戏</button>
+        <button class="tab" onclick="switchProfileTab(this, 'playedGames')">我玩过的游戏</button>
       </div>
 
       <div id="myGames" class="tab-content">
-        <div class="empty-tip">还没有发布游戏，<a href="editor.html">去做一个吧！</a></div>
+        <div class="empty-tip" id="myGamesContent">加载中...</div>
       </div>
       <div id="playedGames" class="tab-content" style="display:none">
         <div class="empty-tip">还没有玩过游戏，<a href="index.html">去看看吧！</a></div>
       </div>
-      <div id="coinHistory" class="tab-content" style="display:none">
-        <div class="empty-tip">暂无金币记录</div>
-      </div>
     </div>
   </div>
 
-  <footer>© 2026 小菜鸟 · 小朋友的游戏乐园 🐣</footer>
+  <!-- Footer -->
+  <footer class="footer">
+    <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
+  </footer>
 
-  <script type="module">
-    import { signIn, signUp, signOut, getProfile, onAuthChange } from './auth.js'
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    // ===== 登录页专属逻辑 =====
 
-    // 检查登录状态
-    onAuthChange(async (event, session) => {
-      if (session) {
-        const profile = await getProfile()
-        if (profile) showProfile(profile)
+    // 登录页不使用 auth.js 的通用 updateNavbar，覆盖它
+    // 登录页导航栏只显示"首页"
+    function updateNavbar() {
+      var navLinks = document.getElementById('navLinks');
+      if (!navLinks) return;
+      // 登录后显示首页 + 管理后台（如果是管理员）
+      getCurrentUser().then(function(user) {
+        if (user) {
+          getUserProfile(user.id).then(function(profile) {
+            var isAdmin = profile && profile.role === 'admin';
+            navLinks.innerHTML = '<a href="index.html">首页</a>' +
+              (isAdmin ? '<a href="admin.html">管理后台</a>' : '');
+          });
+        } else {
+          navLinks.innerHTML = '<a href="index.html">首页</a>';
+        }
+      });
+    }
+
+    // 页面加载时检查登录状态
+    document.addEventListener('DOMContentLoaded', function() {
+      updateNavbar();
+      checkLoginState();
+    });
+
+    async function checkLoginState() {
+      var user = await getCurrentUser();
+      if (user) {
+        var profile = await getUserProfile(user.id);
+        if (profile) {
+          showProfile(profile);
+        } else {
+          showLoginForm();
+        }
       } else {
-        showLogin()
+        showLoginForm();
       }
-    })
+    }
 
     function showProfile(profile) {
-      document.getElementById('loginSection').style.display = 'none'
-      document.getElementById('profileSection').style.display = 'block'
-      document.getElementById('profileUsername').textContent = profile.username
-      document.getElementById('profileCoins').textContent = profile.coins
-      // 导航栏
-      document.getElementById('navLogin').style.display = 'none'
-      document.getElementById('navProfile').style.display = 'inline'
-      if (profile.is_admin) document.getElementById('navAdmin').style.display = 'inline'
+      document.getElementById('loginSection').style.display = 'none';
+      document.getElementById('profileSection').style.display = 'block';
+      document.getElementById('profileUsername').textContent = profile.username;
+      document.getElementById('profileCoins').textContent = profile.coins || 0;
+      updateNavbar();
+      loadMyGames(profile.id);
     }
 
-    function showLogin() {
-      document.getElementById('loginSection').style.display = 'block'
-      document.getElementById('profileSection').style.display = 'none'
-      document.getElementById('navLogin').style.display = 'inline'
-      document.getElementById('navProfile').style.display = 'none'
-      document.getElementById('navAdmin').style.display = 'none'
+    function showLoginForm() {
+      document.getElementById('loginSection').style.display = 'block';
+      document.getElementById('profileSection').style.display = 'none';
     }
 
-    window.showTab = (tab) => {
-      document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none'
-      document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none'
-      document.querySelectorAll('.auth-tab').forEach((t, i) => {
-        t.classList.toggle('active', (i === 0) === (tab === 'login'))
-      })
+    // 加载我发布的游戏
+    async function loadMyGames(userId) {
+      var sb = getSupabase();
+      if (!sb) return;
+      var result = await sb.from('games').select('*').eq('author_id', userId).order('created_at', { ascending: false });
+      var container = document.getElementById('myGamesContent');
+      if (!result.data || result.data.length === 0) {
+        container.innerHTML = '还没有发布游戏，<a href="upload.html">去上传一个吧！</a>';
+        return;
+      }
+      var html = '<div class="my-games-list">';
+      result.data.forEach(function(game) {
+        var statusClass = game.status === 'online' ? 'online' : 'pending';
+        var statusText = game.status === 'online' ? '已上线' : '审核中';
+        html += '<div class="my-game-item">' +
+          '<span class="my-game-name">' + game.name + '</span>' +
+          '<span class="status-badge ' + statusClass + '">' + statusText + '</span>' +
+        '</div>';
+      });
+      html += '</div>';
+      container.innerHTML = html;
     }
 
-    window.doLogin = async () => {
-      const username = document.getElementById('loginUsername').value.trim()
-      const password = document.getElementById('loginPassword').value
-      const errEl = document.getElementById('loginError')
-      if (!username || !password) { errEl.textContent = '请填写用户名和密码'; return }
-      errEl.textContent = '登录中...'
-      const { error } = await signIn(username, password)
-      if (error) { errEl.textContent = error; return }
-      errEl.textContent = ''
+    // Tab 切换
+    function showTab(tab) {
+      document.getElementById('loginForm').style.display = (tab === 'login') ? 'block' : 'none';
+      document.getElementById('registerForm').style.display = (tab === 'register') ? 'block' : 'none';
+      document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+      document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
     }
 
-    window.doRegister = async () => {
-      const username = document.getElementById('regUsername').value.trim()
-      const password = document.getElementById('regPassword').value
-      const password2 = document.getElementById('regPassword2').value
-      const errEl = document.getElementById('registerError')
-      if (!username || !password) { errEl.textContent = '请填写用户名和密码'; return }
-      if (password.length < 6) { errEl.textContent = '密码至少6位'; return }
-      if (password !== password2) { errEl.textContent = '两次密码不一致'; return }
-      if (!/^[a-zA-Z0-9_]+$/.test(username)) { errEl.textContent = '用户名只能用字母、数字和下划线'; return }
-      errEl.textContent = '注册中...'
-      const { error } = await signUp(username, password)
-      if (error) { errEl.textContent = error; return }
-      errEl.textContent = '注册成功！'
+    // 登录
+    async function doLogin() {
+      var username = document.getElementById('loginUsername').value.trim();
+      var password = document.getElementById('loginPassword').value;
+      var errEl = document.getElementById('loginError');
+      if (!username || !password) { errEl.textContent = '请填写用户名和密码'; return; }
+      errEl.textContent = '登录中...';
+      var result = await signIn(username, password);
+      if (result.error) { errEl.textContent = '登录失败：' + result.error; return; }
+      errEl.textContent = '';
+      checkLoginState();
     }
 
-    window.doLogout = async () => {
-      await signOut()
-      showLogin()
+    // 注册
+    async function doRegister() {
+      var username = document.getElementById('regUsername').value.trim();
+      var password = document.getElementById('regPassword').value;
+      var password2 = document.getElementById('regPassword2').value;
+      var errEl = document.getElementById('registerError');
+      if (!username || !password) { errEl.textContent = '请填写用户名和密码'; return; }
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) { errEl.textContent = '用户名只能用字母、数字和下划线'; return; }
+      if (username.length < 2 || username.length > 20) { errEl.textContent = '用户名长度 2-20 个字符'; return; }
+      if (password.length < 6) { errEl.textContent = '密码至少6位'; return; }
+      if (password !== password2) { errEl.textContent = '两次密码不一致'; return; }
+      errEl.textContent = '注册中...';
+      var result = await signUp(username, password);
+      if (result.error) { errEl.textContent = '注册失败：' + result.error; return; }
+      errEl.textContent = '';
+      // 注册成功后自动登录
+      var loginResult = await signIn(username, password);
+      if (!loginResult.error) {
+        checkLoginState();
+      } else {
+        errEl.textContent = '注册成功！请登录';
+        showTab('login');
+      }
     }
 
-    window.switchTab = (btn, tabId) => {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
-      document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none')
-      btn.classList.add('active')
-      document.getElementById(tabId).style.display = 'block'
+    // 登出
+    async function doLogout() {
+      await signOut();
+      showLoginForm();
+      updateNavbar();
     }
+
+    // 个人中心 Tab 切换
+    function switchProfileTab(btn, tabId) {
+      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.tab-content').forEach(function(t) { t.style.display = 'none'; });
+      btn.classList.add('active');
+      document.getElementById(tabId).style.display = 'block';
+    }
+
+    // 回车键提交
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        if (document.getElementById('loginForm').style.display !== 'none') {
+          doLogin();
+        } else {
+          doRegister();
+        }
+      }
+    });
   </script>
 </body>
 </html>
-

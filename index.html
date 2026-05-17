@@ -15,16 +15,15 @@
       <span>小菜鸟</span>
     </a>
     <div class="nav-links" id="navLinks">
-      <!-- 由JS根据登录状态动态渲染 -->
+      <!-- 由 auth.js 根据登录状态动态渲染 -->
     </div>
   </nav>
 
   <!-- 轮播 Banner -->
   <section class="banner-section">
     <div class="banner-wrapper">
-
       <!-- Banner 1: 做游戏 -->
-      <div class="banner-slide active" style="background: linear-gradient(135deg, #ff6b35 0%, #ffd166 60%, #ff8c5a 100%);">
+      <div class="banner-slide active">
         <div class="banner-content">
           <div class="banner-badge">✨ AI 游戏创作</div>
           <h2>开始制作你的游戏！</h2>
@@ -42,7 +41,7 @@
       </div>
 
       <!-- Banner 2: 玩游戏 -->
-      <div class="banner-slide" style="background: linear-gradient(135deg, #4a90e2 0%, #4ecdc4 60%, #52c41a 100%);">
+      <div class="banner-slide">
         <div class="banner-content">
           <div class="banner-badge">🔥 本周热门</div>
           <h2>和小伙伴一起玩！</h2>
@@ -85,86 +84,8 @@
 
   <!-- 游戏卡片列表 -->
   <section class="games-grid" id="gamesGrid">
-    <a href="game.html?id=1" class="game-card">
-      <div class="card-cover cover-1">🚀</div>
-      <div class="card-info">
-        <h3>太空冒险</h3>
-        <div class="card-meta">
-          <span>射击</span>
-          <span class="rating">⭐ 4.8</span>
-        </div>
-      </div>
-    </a>
-    <a href="game.html?id=2" class="game-card">
-      <div class="card-cover cover-2">🐱</div>
-      <div class="card-info">
-        <h3>猫咪跑酷</h3>
-        <div class="card-meta">
-          <span>跑酷</span>
-          <span class="rating">⭐ 4.6</span>
-        </div>
-      </div>
-    </a>
-    <a href="game.html?id=3" class="game-card">
-      <div class="card-cover cover-3">🧙</div>
-      <div class="card-info">
-        <h3>魔法学院</h3>
-        <div class="card-meta">
-          <span>RPG</span>
-          <span class="rating">⭐ 4.9</span>
-        </div>
-      </div>
-    </a>
-    <a href="game.html?id=4" class="game-card">
-      <div class="card-cover cover-4">🏰</div>
-      <div class="card-info">
-        <h3>城堡守卫</h3>
-        <div class="card-meta">
-          <span>塔防</span>
-          <span class="rating">⭐ 4.5</span>
-        </div>
-      </div>
-    </a>
-    <a href="game.html?id=5" class="game-card">
-      <div class="card-cover cover-5">🧮</div>
-      <div class="card-info">
-        <h3>数学大冒险</h3>
-        <div class="card-meta">
-          <span>学习</span>
-          <span class="rating">⭐ 4.7</span>
-        </div>
-      </div>
-    </a>
-    <a href="game.html?id=6" class="game-card">
-      <div class="card-cover cover-6">🌸</div>
-      <div class="card-info">
-        <h3>花园物语</h3>
-        <div class="card-meta">
-          <span>养成</span>
-          <span class="rating">⭐ 4.4</span>
-        </div>
-      </div>
-    </a>
-    <a href="game.html?id=7" class="game-card">
-      <div class="card-cover cover-1">🎯</div>
-      <div class="card-info">
-        <h3>泡泡射手</h3>
-        <div class="card-meta">
-          <span>休闲</span>
-          <span class="rating">⭐ 4.3</span>
-        </div>
-      </div>
-    </a>
-    <a href="game.html?id=8" class="game-card">
-      <div class="card-cover cover-2">🐉</div>
-      <div class="card-info">
-        <h3>驯龙记</h3>
-        <div class="card-meta">
-          <span>养成</span>
-          <span class="rating">⭐ 4.8</span>
-        </div>
-      </div>
-    </a>
+    <!-- 由 JS 从 Supabase 加载，下面是加载中提示 -->
+    <div class="loading-tip" id="gamesLoading">🎮 加载游戏中...</div>
   </section>
 
   <!-- Footer -->
@@ -172,11 +93,10 @@
     <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
   </footer>
 
-  <!-- Supabase CDN -->
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="supabase.js"></script>
   <script src="auth.js"></script>
   <script src="index.js"></script>
 </body>
 </html>
-

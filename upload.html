@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>上传游戏 - 小菜鸟</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar" id="navbar">
+    <a href="index.html" class="logo">
+      <img src="assets/logo.jpg" alt="小菜鸟" />
+      <span>小菜鸟</span>
+    </a>
+    <div class="nav-links" id="navLinks"></div>
+  </nav>
+
+  <div class="container">
+    <div class="upload-box">
+      <h1>📤 上传游戏</h1>
+      <p class="subtitle">把你做好的游戏分享给小伙伴们！</p>
+
+      <div class="upload-form">
+        <div class="form-group">
+          <label>游戏名称 *</label>
+          <input type="text" id="gameName" placeholder="给你的游戏起个名字" class="input-field">
+        </div>
+
+        <div class="form-group">
+          <label>游戏分类 *</label>
+          <select id="gameCategory" class="input-field">
+            <option value="">选择分类</option>
+            <option value="shooter">💥 射击</option>
+            <option value="tower">🏰 塔防</option>
+            <option value="learn">📚 学习</option>
+            <option value="runner">🏃 跑酷</option>
+            <option value="casual">🎪 休闲</option>
+            <option value="nurture">🌱 养成</option>
+            <option value="rpg">⚔️ RPG</option>
+            <option value="other">🎮 其他</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>游戏描述</label>
+          <textarea id="gameDesc" placeholder="介绍一下你的游戏，怎么玩、有什么特色..." class="input-field textarea-field"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>封面图片（可选）</label>
+          <div class="file-upload-area" id="coverArea" onclick="document.getElementById('coverFile').click()">
+            <div class="upload-icon">🖼️</div>
+            <p>点击选择封面图片</p>
+            <p class="upload-hint">支持 JPG、PNG，建议 400x300</p>
+          </div>
+          <input type="file" id="coverFile" accept="image/*" style="display:none" onchange="previewCover(this)">
+          <div id="coverPreview" style="display:none"></div>
+        </div>
+
+        <div class="form-group">
+          <label>游戏文件 * （ZIP 压缩包）</label>
+          <div class="file-upload-area" id="gameFileArea" onclick="document.getElementById('gameFile').click()">
+            <div class="upload-icon">📦</div>
+            <p>点击选择游戏 ZIP 文件</p>
+            <p class="upload-hint">ZIP 包内必须包含 index.html</p>
+          </div>
+          <input type="file" id="gameFile" accept=".zip" style="display:none" onchange="showFileName(this)">
+          <div id="gameFileName" class="file-name-display"></div>
+        </div>
+
+        <div id="uploadError" class="error-msg"></div>
+        <div id="uploadProgress" class="progress-bar" style="display:none">
+          <div class="progress-fill" id="progressFill"></div>
+          <span class="progress-text" id="progressText">0%</span>
+        </div>
+
+        <button class="btn-primary" onclick="uploadGame()" id="uploadBtn">🚀 上传游戏</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    // ===== 游戏上传逻辑 =====
+
+    // 检查登录
+    document.addEventListener('DOMContentLoaded', async function() {
+      var user = await getCurrentUser();
+      if (!user) {
+        alert('请先登录才能上传游戏哦！');
+        window.location.href = 'login.html';
+      }
+    });
+
+    // 封面预览
+    function previewCover(input) {
+      if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('coverPreview').style.display = 'block';
+          document.getElementById('coverPreview').innerHTML = '<img src="' + e.target.result + '" style="max-width:200px;border-radius:12px;margin-top:10px;">';
+          document.getElementById('coverArea').style.display = 'none';
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    // 显示文件名
+    function showFileName(input) {
+      if (input.files && input.files[0]) {
+        var name = input.files[0].name;
+        var size = (input.files[0].size / 1024 / 1024).toFixed(2);
+        document.getElementById('gameFileName').innerHTML = '📦 ' + name + ' (' + size + ' MB)';
+        document.getElementById('gameFileArea').style.borderColor = 'var(--green)';
+      }
+    }
+
+    // 上传游戏
+    async function uploadGame() {
+      var user = await getCurrentUser();
+      if (!user) {
+        alert('请先登录！');
+        window.location.href = 'login.html';
+        return;
+      }
+
+      var name = document.getElementById('gameName').value.trim();
+      var category = document.getElementById('gameCategory').value;
+      var desc = document.getElementById('gameDesc').value.trim();
+      var gameFile = document.getElementById('gameFile').files[0];
+      var coverFile = document.getElementById('coverFile').files[0];
+      var errEl = document.getElementById('uploadError');
+
+      // 验证
+      if (!name) { errEl.textContent = '请填写游戏名称'; return; }
+      if (!category) { errEl.textContent = '请选择游戏分类'; return; }
+      if (!gameFile) { errEl.textContent = '请选择游戏 ZIP 文件'; return; }
+      if (!gameFile.name.endsWith('.zip')) { errEl.textContent = '只支持 ZIP 格式'; return; }
+      if (gameFile.size > 50 * 1024 * 1024) { errEl.textContent = '文件不能超过 50MB'; return; }
+
+      errEl.textContent = '';
+      document.getElementById('uploadBtn').disabled = true;
+      document.getElementById('uploadBtn').textContent = '上传中...';
+      document.getElementById('uploadProgress').style.display = 'block';
+
+      var sb = getSupabase();
+      var timestamp = Date.now();
+      var filePath = user.id + '/' + timestamp;
+
+      try {
+        // 1. 上传游戏 ZIP 到 Storage
+        updateProgress(20, '上传游戏文件...');
+        var uploadResult = await sb.storage.from('games').upload(
+          filePath + '/game.zip',
+          gameFile,
+          { contentType: 'application/zip' }
+        );
+        if (uploadResult.error) throw new Error('上传游戏文件失败：' + uploadResult.error.message);
+
+        // 2. 上传封面图（如果有）
+        var coverUrl = '';
+        if (coverFile) {
+          updateProgress(50, '上传封面图...');
+          var coverExt = coverFile.name.split('.').pop();
+          var coverResult = await sb.storage.from('games').upload(
+            filePath + '/cover.' + coverExt,
+            coverFile,
+            { contentType: coverFile.type }
+          );
+          if (!coverResult.error) {
+            var urlResult = sb.storage.from('games').getPublicUrl(filePath + '/cover.' + coverExt);
+            coverUrl = urlResult.data.publicUrl;
+          }
+        }
+
+        // 3. 在数据库中创建游戏记录
+        updateProgress(80, '保存游戏信息...');
+        var profile = await getUserProfile(user.id);
+        var isAdmin = profile && profile.role === 'admin';
+
+        var insertResult = await sb.from('games').insert({
+          name: name,
+          category: category,
+          description: desc,
+          author_id: user.id,
+          file_path: filePath,
+          cover_url: coverUrl,
+          status: isAdmin ? 'online' : 'pending',
+          play_count: 0,
+          rating: 0
+        });
+
+        if (insertResult.error) throw new Error('保存游戏信息失败：' + insertResult.error.message);
+
+        updateProgress(100, '上传成功！');
+        setTimeout(function() {
+          alert('🎉 游戏上传成功！' + (isAdmin ? '已自动上线' : '等待管理员审核'));
+          window.location.href = 'login.html';
+        }, 500);
+
+      } catch (err) {
+        errEl.textContent = err.message;
+        document.getElementById('uploadBtn').disabled = false;
+        document.getElementById('uploadBtn').textContent = '🚀 上传游戏';
+        document.getElementById('uploadProgress').style.display = 'none';
+      }
+    }
+
+    function updateProgress(percent, text) {
+      document.getElementById('progressFill').style.width = percent + '%';
+      document.getElementById('progressText').textContent = text || (percent + '%');
+    }
+  </script>
+</body>
+</html>
