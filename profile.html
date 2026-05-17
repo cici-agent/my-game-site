@@ -79,18 +79,18 @@
       }).join('');
     }
 
-    window.addEventListener('load', async function() {
+    // 不依赖 auth.js 的 DOMContentLoaded，自己控制加载
+    async function initProfile() {
+      var sb = getSupabase();
+      if (!sb) { setTimeout(initProfile, 100); return; }
       var user = await getCurrentUser();
       if (!user) {
         window.location.href = 'login.html?redirect=profile.html';
         return;
       }
-      var profile = await getUserProfile(user.id);
-      if (!profile) {
-        // 重试一次
-        await new Promise(function(r) { setTimeout(r, 800); });
-        profile = await getUserProfile(user.id);
-      }
+      // 直接查 profiles 表
+      var result = await sb.from('profiles').select('*').eq('id', user.id).single();
+      var profile = result.data;
       if (profile) {
         document.getElementById('profileUsername').textContent = profile.username;
         document.getElementById('profileCoins').textContent = profile.coins || 0;
@@ -98,8 +98,18 @@
       } else {
         var uname = user.email ? user.email.replace('@xiaocainiao.app', '') : '用户';
         document.getElementById('profileUsername').textContent = uname;
+        loadMyGames(user.id);
       }
       document.body.style.opacity = '1';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      // 等 Supabase CDN 加载完
+      var check = setInterval(function() {
+        if (window.supabase && window.supabase.createClient) {
+          clearInterval(check);
+          initProfile();
+        }
+      }, 50);
     });
   </script>
 </body>
