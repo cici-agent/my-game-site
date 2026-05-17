@@ -22,10 +22,8 @@
       <div class="profile-info">
         <h1 id="profileUsername">加载中...</h1>
         <div class="coin-badge">🪙 金币：<span id="profileCoins">0</span></div>
-        <div class="profile-actions">
-          <a href="editor.html" class="btn-primary">🎮 做游戏</a>
-          <a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,var(--blue),var(--blue-light))">📤 上传游戏</a>
-          <button class="btn-secondary" onclick="doLogout()">退出登录</button>
+        <div class="profile-actions" id="profileActions">
+          <!-- 动态渲染 -->
         </div>
       </div>
     </div>
@@ -91,15 +89,17 @@
       // 直接查 profiles 表
       var result = await sb.from('profiles').select('*').eq('id', user.id).single();
       var profile = result.data;
-      if (profile) {
-        document.getElementById('profileUsername').textContent = profile.username;
-        document.getElementById('profileCoins').textContent = profile.coins || 0;
-        loadMyGames(user.id);
-      } else {
-        var uname = user.email ? user.email.replace('@xiaocainiao.app', '') : '用户';
-        document.getElementById('profileUsername').textContent = uname;
-        loadMyGames(user.id);
-      }
+      var uname = profile ? profile.username : (user.email ? user.email.replace('@xiaocainiao.app', '') : '用户');
+      var isAdmin = profile && profile.role === 'admin';
+      document.getElementById('profileUsername').textContent = uname;
+      document.getElementById('profileCoins').textContent = profile ? (profile.coins || 0) : 0;
+      // 动态渲染按钮
+      document.getElementById('profileActions').innerHTML =
+        '<a href="editor.html" class="btn-primary">🎮 做游戏</a>' +
+        '<a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,var(--blue),var(--blue-light))">📤 上传游戏</a>' +
+        (isAdmin ? '<a href="admin.html" class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#a78bfa)">⚙️ 管理后台</a>' : '') +
+        '<button class="btn-secondary" onclick="doLogout()">退出登录</button>';
+      loadMyGames(user.id);
       document.body.style.opacity = '1';
     }
     document.addEventListener('DOMContentLoaded', function() {
