@@ -73,6 +73,20 @@ async function getMyProfile() {
   return await getUserProfile(user.id);
 }
 
+// ===== 登录拦截工具函数 =====
+// 检查是否已登录，未登录则跳转到登录页并携带 redirect 参数
+// redirectUrl: 登录后要跳回的页面（默认为当前页面）
+// 返回 true 表示已登录，返回 false 表示未登录（已跳转）
+async function requireLogin(redirectUrl) {
+  var user = await getCurrentUser();
+  if (!user) {
+    var target = redirectUrl || (window.location.pathname.split('/').pop() + window.location.search);
+    window.location.href = 'login.html?redirect=' + encodeURIComponent(target);
+    return false;
+  }
+  return true;
+}
+
 // 更新导航栏（根据登录状态）- 所有页面通用
 async function updateNavbar() {
   var navLinks = document.getElementById('navLinks');

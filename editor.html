@@ -62,13 +62,10 @@
   <script src="supabase.js"></script>
   <script src="auth.js"></script>
   <script>
-    // 检查登录状态
+    // 检查登录状态 - 未登录跳转到登录页，登录后自动跳回
     document.addEventListener('DOMContentLoaded', async function() {
-      var user = await getCurrentUser();
-      if (!user) {
-        alert('请先登录才能使用游戏编辑器哦！');
-        window.location.href = 'login.html';
-      }
+      var loggedIn = await requireLogin('editor.html');
+      if (!loggedIn) return;
     });
 
     var chatMessages = document.getElementById('chatMessages');
@@ -117,3 +114,4 @@
   </script>
 </body>
 </html>
+

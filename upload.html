@@ -93,13 +93,10 @@
   <script>
     // ===== 游戏上传逻辑 =====
 
-    // 检查登录
+    // 检查登录 - 未登录跳转到登录页，登录后自动跳回
     document.addEventListener('DOMContentLoaded', async function() {
-      var user = await getCurrentUser();
-      if (!user) {
-        alert('请先登录才能上传游戏哦！');
-        window.location.href = 'login.html';
-      }
+      var loggedIn = await requireLogin('upload.html');
+      if (!loggedIn) return;
     });
 
     // 封面预览
@@ -129,8 +126,7 @@
     async function uploadGame() {
       var user = await getCurrentUser();
       if (!user) {
-        alert('请先登录！');
-        window.location.href = 'login.html';
+        requireLogin('upload.html');
         return;
       }
 
@@ -223,3 +219,5 @@
   </script>
 </body>
 </html>
+
+

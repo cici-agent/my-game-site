@@ -22,6 +22,11 @@
   <!-- 登录/注册界面 -->
   <div id="loginSection">
     <div class="auth-box">
+      <!-- 登录引导提示（有 redirect 参数时显示） -->
+      <div id="redirectHint" style="display:none;background:linear-gradient(135deg,#fff3e0,#ffe0b2);border-radius:16px;padding:12px 18px;margin-bottom:16px;font-size:15px;color:#e65100;font-weight:600;text-align:center;">
+        🔒 登录后即可继续
+      </div>
+
       <div class="auth-tabs">
         <button class="auth-tab active" id="tabLogin" onclick="showTab('login')">登录</button>
         <button class="auth-tab" id="tabRegister" onclick="showTab('register')">注册</button>
@@ -92,12 +97,22 @@
   <script>
     // ===== 登录页专属逻辑 =====
 
+    // 读取 redirect 参数
+    var _redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '';
+
+    // 登录/注册成功后跳转
+    function doRedirectAfterLogin() {
+      if (_redirectUrl) {
+        window.location.href = _redirectUrl;
+      } else {
+        window.location.href = 'index.html';
+      }
+    }
+
     // 登录页不使用 auth.js 的通用 updateNavbar，覆盖它
-    // 登录页导航栏只显示"首页"
     function updateNavbar() {
       var navLinks = document.getElementById('navLinks');
       if (!navLinks) return;
-      // 登录后显示首页 + 管理后台（如果是管理员）
       getCurrentUser().then(function(user) {
         if (user) {
           getUserProfile(user.id).then(function(profile) {
@@ -113,6 +128,10 @@
 
     // 页面加载时检查登录状态
     document.addEventListener('DOMContentLoaded', function() {
+      // 如果有 redirect 参数，显示引导提示
+      if (_redirectUrl) {
+        document.getElementById('redirectHint').style.display = 'block';
+      }
       updateNavbar();
       checkLoginState();
     });
@@ -122,11 +141,15 @@
       await new Promise(function(r) { setTimeout(r, 300); });
       var user = await getCurrentUser();
       if (user) {
+        // 已登录：如果有 redirect 参数，直接跳转
+        if (_redirectUrl) {
+          doRedirectAfterLogin();
+          return;
+        }
         var profile = await getUserProfile(user.id);
         if (profile) {
           showProfile(profile);
         } else {
-          // profile 还没写入，用 user 信息临时显示，稍后重试一次
           var uname = user.email ? user.email.replace('@xiaocainiao.app', '') : '用户';
           setTimeout(async function() {
             var retryProfile = await getUserProfile(user.id);
@@ -197,7 +220,8 @@
       var result = await signIn(username, password);
       if (result.error) { errEl.textContent = '登录失败：' + result.error; return; }
       errEl.textContent = '';
-      checkLoginState();
+      // 登录成功后跳转
+      doRedirectAfterLogin();
     }
 
     // 注册
@@ -218,7 +242,8 @@
       // 注册成功后自动登录
       var loginResult = await signIn(username, password);
       if (!loginResult.error) {
-        checkLoginState();
+        // 登录成功后跳转
+        doRedirectAfterLogin();
       } else {
         errEl.textContent = '注册成功！请登录';
         showTab('login');
@@ -253,3 +278,4 @@
   </script>
 </body>
 </html>
+

@@ -77,7 +77,11 @@
     var gameId = new URLSearchParams(window.location.search).get('id');
     var gameData = null;
 
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
+      // 游戏详情页需要登录才能查看
+      var loggedIn = await requireLogin('game.html' + (gameId ? '?id=' + gameId : ''));
+      if (!loggedIn) return;
+
       if (gameId) {
         loadGameDetail();
         loadComments();
@@ -119,8 +123,7 @@
     document.getElementById('startGameBtn').addEventListener('click', async function() {
       var user = await getCurrentUser();
       if (!user) {
-        alert('请先登录才能玩游戏哦！');
-        window.location.href = 'login.html';
+        requireLogin('game.html' + (gameId ? '?id=' + gameId : ''));
         return;
       }
       if (!gameData || !gameData.file_path) {
@@ -175,7 +178,7 @@
     async function submitComment() {
       var user = await getCurrentUser();
       if (!user) {
-        alert('请先登录才能评论哦！');
+        requireLogin('game.html' + (gameId ? '?id=' + gameId : ''));
         return;
       }
       var input = document.getElementById('commentInput');
@@ -201,3 +204,6 @@
   </script>
 </body>
 </html>
+
+
+

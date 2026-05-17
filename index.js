@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         coverHtml = '<div class="card-cover" style="background:' + bg + '">' + emoji + '</div>';
       }
-      html += '<a href="game.html?id=' + game.id + '" class="game-card">' +
+      html += '<a href="game.html?id=' + game.id + '" class="game-card" onclick="return goToGame(event, \'' + game.id + '\')">' +
         coverHtml +
         '<div class="card-info">' +
           '<h3>' + game.name + '</h3>' +
@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
     ];
     var html = '';
     placeholders.forEach(function(g) {
-      html += '<a href="game.html" class="game-card">' +
+      html += '<a href="game.html" class="game-card" onclick="return goToGame(event, null)">' +
         '<div class="card-cover ' + g.color + '">' + g.emoji + '</div>' +
         '<div class="card-info">' +
           '<h3>' + g.name + '</h3>' +
@@ -149,3 +149,15 @@ document.addEventListener('DOMContentLoaded', function() {
   // 初始加载
   loadGames('all');
 });
+
+// 游戏卡片点击 - 登录拦截
+async function goToGame(e, gameId) {
+  e.preventDefault();
+  var dest = gameId ? ('game.html?id=' + gameId) : 'game.html';
+  var loggedIn = await requireLogin(dest);
+  if (loggedIn) window.location.href = dest;
+  return false;
+}
+
+
+

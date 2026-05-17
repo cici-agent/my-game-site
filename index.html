@@ -28,7 +28,7 @@
           <div class="banner-badge">✨ AI 游戏创作</div>
           <h2>开始制作你的游戏！</h2>
           <p>用语音告诉 AI 你的想法，几秒钟就能做出一个游戏 🎮</p>
-          <a href="editor.html" class="banner-btn">🚀 马上试试</a>
+          <a href="editor.html" class="banner-btn" onclick="return bannerGoEditor(event)">🚀 马上试试</a>
         </div>
         <div class="banner-deco">
           <div class="deco-circle c1"></div>
@@ -46,7 +46,7 @@
           <div class="banner-badge">🔥 本周热门</div>
           <h2>和小伙伴一起玩！</h2>
           <p>小朋友们自己做的游戏，好玩又有趣，快来发现新宝藏 🌟</p>
-          <a href="#gamesGrid" class="banner-btn banner-btn-blue">🎲 去玩游戏</a>
+          <a href="#gamesGrid" class="banner-btn banner-btn-blue" onclick="return bannerGoPlay(event)">🎲 去玩游戏</a>
         </div>
         <div class="banner-deco">
           <div class="deco-circle c1"></div>
@@ -98,5 +98,25 @@
   <script src="supabase.js"></script>
   <script src="auth.js"></script>
   <script src="index.js"></script>
+  <script>
+    // Banner 按钮登录拦截
+    async function bannerGoEditor(e) {
+      e.preventDefault();
+      var loggedIn = await requireLogin('editor.html');
+      if (loggedIn) window.location.href = 'editor.html';
+      return false;
+    }
+    async function bannerGoPlay(e) {
+      e.preventDefault();
+      var loggedIn = await requireLogin('index.html#gamesGrid');
+      if (loggedIn) {
+        document.getElementById('gamesGrid').scrollIntoView({ behavior: 'smooth' });
+      }
+      return false;
+    }
+  </script>
 </body>
 </html>
+
+
+
