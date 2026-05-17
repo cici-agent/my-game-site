@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>游戏详情 - 小菜鸟</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; background: #f0f8ff; color: #333; }
+    nav { background: #ff6b35; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+    nav .logo { font-size: 1.6rem; font-weight: bold; color: white; text-decoration: none; }
+    nav .nav-links a { color: white; text-decoration: none; margin-left: 16px; }
+    .container { max-width: 900px; margin: 32px auto; padding: 0 24px; }
+    .game-header { display: flex; gap: 24px; margin-bottom: 32px; }
+    .game-thumb { width: 160px; height: 120px; background: #ffe0cc; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 4rem; flex-shrink: 0; }
+    .game-info h1 { font-size: 1.8rem; margin-bottom: 8px; }
+    .game-info .tags span { background: #ff6b35; color: white; padding: 4px 12px; border-radius: 16px; font-size: 0.85rem; margin-right: 8px; }
+    .game-info .meta { color: #888; margin-top: 8px; font-size: 0.9rem; }
+    .game-frame { background: #222; border-radius: 16px; height: 400px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 1.2rem; margin-bottom: 32px; }
+    .coin-notice { background: #fff8e1; border: 2px solid #ffd700; border-radius: 12px; padding: 16px; margin-bottom: 24px; font-size: 0.95rem; }
+    .btn { background: #ff6b35; color: white; border: none; padding: 12px 32px; border-radius: 32px; font-size: 1rem; cursor: pointer; }
+    .reviews h2 { font-size: 1.4rem; margin-bottom: 16px; color: #ff6b35; }
+    .review-card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .review-card .author { font-weight: bold; margin-bottom: 4px; }
+    .review-card p { color: #555; font-size: 0.95rem; }
+    footer { background: #333; color: #aaa; text-align: center; padding: 24px; margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="logo" href="index.html">🐥 小菜鸟</a>
+    <div class="nav-links">
+      <a href="index.html">首页</a>
+      <a href="editor.html">做游戏</a>
+      <a href="profile.html">我的</a>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="game-header">
+      <div class="game-thumb">🚀</div>
+      <div class="game-info">
+        <h1>太空冒险</h1>
+        <div class="tags"><span>射击类</span></div>
+        <div class="meta">👤 作者：小星星 &nbsp;|&nbsp; 👁 已玩：1,234次 &nbsp;|&nbsp; ⭐ 4.8分</div>
+      </div>
+    </div>
+    <div class="coin-notice">🪙 每玩5分钟消耗 <strong>10金币</strong>，你当前有 <strong>50金币</strong></div>
+    <div class="game-frame">🎮 游戏加载区域（iframe）</div>
+    <button class="btn">开始游戏</button>
+    <div class="reviews" style="margin-top:32px">
+      <h2>💬 玩家点评</h2>
+      <div class="review-card"><div class="author">小明 ⭐⭐⭐⭐⭐</div><p>超好玩！我玩了好多次！</p></div>
+      <div class="review-card"><div class="author">小红 ⭐⭐⭐⭐</div><p>画面很好看，下次还来玩。</p></div>
+    </div>
+  </div>
+  <footer>© 2026 小菜鸟 · 小朋友的游戏乐园</footer>
+</body>
+</html>

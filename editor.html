@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>做游戏 - 小菜鸟</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; background: #f0f8ff; color: #333; }
+    nav { background: #ff6b35; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+    nav .logo { font-size: 1.6rem; font-weight: bold; color: white; text-decoration: none; }
+    nav .nav-links a { color: white; text-decoration: none; margin-left: 16px; }
+    .editor-layout { display: grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 56px); }
+    .left-panel { padding: 24px; display: flex; flex-direction: column; gap: 16px; border-right: 2px solid #ddd; }
+    .left-panel h2 { font-size: 1.3rem; color: #ff6b35; }
+    .chat-area { flex: 1; background: white; border-radius: 16px; padding: 16px; overflow-y: auto; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .msg { margin-bottom: 12px; }
+    .msg.ai { background: #fff3e0; border-radius: 12px; padding: 10px 14px; max-width: 85%; }
+    .msg.user { background: #ff6b35; color: white; border-radius: 12px; padding: 10px 14px; max-width: 85%; margin-left: auto; }
+    .input-area { display: flex; gap: 10px; align-items: center; }
+    .input-area input { flex: 1; padding: 12px 16px; border-radius: 24px; border: 2px solid #ff6b35; font-size: 1rem; outline: none; }
+    .input-area button { background: #ff6b35; color: white; border: none; padding: 12px 20px; border-radius: 24px; font-size: 1rem; cursor: pointer; }
+    .voice-btn { background: #ffd700; color: #333; border: none; padding: 12px 16px; border-radius: 24px; font-size: 1.2rem; cursor: pointer; }
+    .right-panel { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .right-panel h2 { font-size: 1.3rem; color: #ff6b35; }
+    .preview { flex: 1; background: #222; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 1.1rem; }
+    .publish-btn { background: #ff6b35; color: white; border: none; padding: 14px; border-radius: 16px; font-size: 1rem; cursor: pointer; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="logo" href="index.html">🐥 小菜鸟</a>
+    <div class="nav-links">
+      <a href="index.html">首页</a>
+      <a href="editor.html">做游戏</a>
+      <a href="profile.html">我的</a>
+    </div>
+  </nav>
+  <div class="editor-layout">
+    <div class="left-panel">
+      <h2>🎙️ 和AI说说你想做什么游戏</h2>
+      <div class="chat-area">
+        <div class="msg ai">👋 你好！告诉我你想做什么游戏，我来帮你做！比如"做一个小鸟飞翔的游戏"</div>
+      </div>
+      <div class="input-area">
+        <button class="voice-btn">🎤</button>
+        <input type="text" placeholder="输入你的想法...">
+        <button>发送</button>
+      </div>
+    </div>
+    <div class="right-panel">
+      <h2>🎮 游戏预览</h2>
+      <div class="preview">游戏会在这里显示</div>
+      <button class="publish-btn">🚀 发布游戏</button>
+    </div>
+  </div>
+</body>
+</html>
