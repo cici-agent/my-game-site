@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的 - 小菜鸟</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="login.css">
+</head>
+<body style="opacity:0;transition:opacity 0.15s">
+  <nav class="navbar" id="navbar">
+    <a href="index.html" class="logo">
+      <img src="assets/logo.jpg" alt="小菜鸟" />
+      <span>小菜鸟</span>
+    </a>
+    <div class="nav-links" id="navLinks"></div>
+  </nav>
+
+  <div class="container" style="padding-top:32px">
+    <div class="profile-header">
+      <div class="avatar">🐥</div>
+      <div class="profile-info">
+        <h1 id="profileUsername">加载中...</h1>
+        <div class="coin-badge">🪙 金币：<span id="profileCoins">0</span></div>
+        <div class="profile-actions">
+          <a href="editor.html" class="btn-primary">🎮 做游戏</a>
+          <a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,var(--blue),var(--blue-light))">📤 上传游戏</a>
+          <button class="btn-secondary" onclick="doLogout()">退出登录</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this, 'myGames')">我发布的游戏</button>
+      <button class="tab" onclick="switchTab(this, 'playedGames')">我玩过的游戏</button>
+    </div>
+    <div id="myGames" class="tab-content">
+      <div class="empty-tip" id="myGamesContent">加载中...</div>
+    </div>
+    <div id="playedGames" class="tab-content" style="display:none">
+      <div class="empty-tip">还没有玩过游戏，<a href="index.html">去看看吧！</a></div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    // 覆盖 auth.js 的 DOMContentLoaded，profile 页自己控制显示
+    document.removeEventListener('DOMContentLoaded', arguments.callee);
+
+    function switchTab(btn, tabId) {
+      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.tab-content').forEach(function(t) { t.style.display = 'none'; });
+      btn.classList.add('active');
+      document.getElementById(tabId).style.display = 'block';
+    }
+
+    async function doLogout() {
+      await signOut();
+      window.location.href = 'index.html';
+    }
+
+    async function loadMyGames(userId) {
+      var sb = getSupabase();
+      if (!sb) return;
+      var result = await sb.from('games').select('*').eq('author_id', userId).order('created_at', { ascending: false });
+      var container = document.getElementById('myGamesContent');
+      if (!result.data || result.data.length === 0) {
+        container.innerHTML = '还没有发布游戏，<a href="upload.html">去上传一个吧！</a>';
+        return;
+      }
+      container.innerHTML = result.data.map(function(g) {
+        return '<div class="game-card"><h3>' + g.title + '</h3><p>' + (g.description || '') + '</p></div>';
+      }).join('');
+    }
+
+    window.addEventListener('load', async function() {
+      var user = await getCurrentUser();
+      if (!user) {
+        window.location.href = 'login.html?redirect=profile.html';
+        return;
+      }
+      var profile = await getUserProfile(user.id);
+      if (!profile) {
+        // 重试一次
+        await new Promise(function(r) { setTimeout(r, 800); });
+        profile = await getUserProfile(user.id);
+      }
+      if (profile) {
+        document.getElementById('profileUsername').textContent = profile.username;
+        document.getElementById('profileCoins').textContent = profile.coins || 0;
+        loadMyGames(user.id);
+      } else {
+        var uname = user.email ? user.email.replace('@xiaocainiao.app', '') : '用户';
+        document.getElementById('profileUsername').textContent = uname;
+      }
+      document.body.style.opacity = '1';
+    });
+  </script>
+</body>
+</html>
+

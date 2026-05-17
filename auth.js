@@ -101,7 +101,7 @@ async function updateNavbar() {
     navLinks.innerHTML =
       '<a href="index.html">首页</a>' +
       (isAdmin ? '<a href="admin.html">管理后台</a>' : '') +
-      '<a href="login.html">' + '👤 ' + username + '</a>';
+      '<a href="profile.html">👤 ' + username + '</a>';
   } else {
     navLinks.innerHTML =
       '<a href="index.html">首页</a>' +
