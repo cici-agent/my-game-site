@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="login.css">
 </head>
-<body>
+<body style="opacity:0;transition:opacity 0.15s">
   <!-- 导航栏 - 登录页只显示首页链接 -->
   <nav class="navbar" id="navbar">
     <a href="index.html" class="logo">
@@ -128,21 +128,17 @@
 
     // 页面加载时检查登录状态
     document.addEventListener('DOMContentLoaded', function() {
-      // 先隐藏登录区域，避免已登录时闪烁
-      document.getElementById('loginSection').style.visibility = 'hidden';
       // 如果有 redirect 参数，显示引导提示
       if (_redirectUrl) {
         document.getElementById('redirectHint').style.display = 'block';
       }
       updateNavbar();
       checkLoginState().then(function() {
-        document.getElementById('loginSection').style.visibility = 'visible';
+        document.body.style.opacity = '1';
       });
     });
 
     async function checkLoginState() {
-      // 等待 Supabase session 初始化
-      await new Promise(function(r) { setTimeout(r, 300); });
       var user = await getCurrentUser();
       if (user) {
         // 已登录：如果有 redirect 参数，直接跳转
