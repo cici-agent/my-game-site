@@ -124,14 +124,16 @@
         if (profile) {
           showProfile(profile);
         } else {
-          // profile 还没写入，用 user 信息临时显示
-          var fallbackProfile = {
-            id: user.id,
-            username: user.email ? user.email.replace('@xiaocainiao.app', '') : '用户',
-            coins: 0,
-            role: 'user'
-          };
-          showProfile(fallbackProfile);
+          // profile 还没写入，用 user 信息临时显示，稍后重试一次
+          var uname = user.email ? user.email.replace('@xiaocainiao.app', '') : '用户';
+          setTimeout(async function() {
+            var retryProfile = await getUserProfile(user.id);
+            if (retryProfile) {
+              showProfile(retryProfile);
+            } else {
+              showProfile({ id: user.id, username: uname, coins: 0, role: uname === 'admin' ? 'admin' : 'user' });
+            }
+          }, 1500);
         }
       } else {
         showLoginForm();
