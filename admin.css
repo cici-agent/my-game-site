@@ -1,85 +1,129 @@
-/* ===== 管理后台样式 ===== */
+/* ===== 管理后台样式 - PBS Kids 升级版 ===== */
 
 .admin-container {
   max-width: 1000px;
-  margin: 30px auto;
+  margin: 34px auto;
   padding: 0 24px;
 }
 
 .admin-header {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  animation: slide-up 0.4s ease-out;
 }
 
 .admin-header h1 {
-  font-size: 26px;
-  font-weight: 800;
+  font-size: 28px;
+  font-weight: 900;
   color: var(--text-dark);
 }
 
 .admin-header p {
   color: var(--text-light);
-  font-size: 14px;
-  margin-top: 6px;
+  font-size: 15px;
+  margin-top: 8px;
+  font-weight: 500;
 }
 
-/* 统计卡片 */
+/* 统计卡片 - 更活泼 */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 30px;
+  gap: 18px;
+  margin-bottom: 34px;
+  animation: slide-up 0.5s ease-out;
 }
 
 .stat-card {
   background: var(--bg-card);
-  border-radius: var(--radius);
-  padding: 20px;
-  box-shadow: var(--shadow);
-  text-align: center;
-}
-
-.stat-card .stat-icon {
-  font-size: 36px;
-  margin-bottom: 8px;
-}
-
-.stat-card .stat-value {
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--primary);
-}
-
-.stat-card .stat-label {
-  font-size: 13px;
-  color: var(--text-light);
-  margin-top: 4px;
-}
-
-/* 管理面板 */
-.admin-panel {
-  background: var(--bg-card);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  margin-bottom: 24px;
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  text-align: center;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 3px solid transparent;
+  position: relative;
   overflow: hidden;
 }
 
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+}
+
+.stat-card:nth-child(1)::before { background: var(--primary); }
+.stat-card:nth-child(2)::before { background: var(--blue); }
+.stat-card:nth-child(3)::before { background: var(--yellow); }
+.stat-card:nth-child(4)::before { background: var(--green); }
+
+.stat-card:hover {
+  transform: translateY(-8px) scale(1.03);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.stat-card:nth-child(1):hover { border-color: var(--primary); }
+.stat-card:nth-child(2):hover { border-color: var(--blue); }
+.stat-card:nth-child(3):hover { border-color: var(--yellow); }
+.stat-card:nth-child(4):hover { border-color: var(--green); }
+
+.stat-card .stat-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+  animation: float 3s ease-in-out infinite;
+}
+
+.stat-card:nth-child(2) .stat-icon { animation-delay: 0.5s; }
+.stat-card:nth-child(3) .stat-icon { animation-delay: 1s; }
+.stat-card:nth-child(4) .stat-icon { animation-delay: 1.5s; }
+
+.stat-card .stat-value {
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--primary);
+}
+
+.stat-card:nth-child(2) .stat-value { color: var(--blue); }
+.stat-card:nth-child(3) .stat-value { color: #e6a800; }
+.stat-card:nth-child(4) .stat-value { color: var(--green); }
+
+.stat-card .stat-label {
+  font-size: 14px;
+  color: var(--text-light);
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+/* 管理面板 - 更圆润 */
+.admin-panel {
+  background: var(--bg-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  margin-bottom: 28px;
+  overflow: hidden;
+  border: 3px solid rgba(0, 0, 0, 0.03);
+  animation: slide-up 0.6s ease-out;
+}
+
 .admin-panel .panel-header {
-  padding: 18px 24px;
-  border-bottom: 2px solid #f0f0f0;
-  font-size: 17px;
-  font-weight: 700;
+  padding: 20px 28px;
+  border-bottom: 3px solid #f5f5f5;
+  font-size: 18px;
+  font-weight: 800;
   color: var(--text-dark);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.03), transparent);
 }
 
 .admin-panel .panel-body {
-  padding: 20px 24px;
+  padding: 24px 28px;
 }
 
-/* 表格 */
+/* 表格 - 更友好 */
 .admin-table {
   width: 100%;
   border-collapse: collapse;
@@ -88,17 +132,28 @@
 
 .admin-table th {
   text-align: left;
-  padding: 12px 8px;
-  border-bottom: 2px solid #f0f0f0;
+  padding: 14px 10px;
+  border-bottom: 3px solid #f0f0f0;
   color: var(--text-light);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .admin-table td {
-  padding: 12px 8px;
-  border-bottom: 1px solid #f5f5f5;
+  padding: 14px 10px;
+  border-bottom: 2px solid #f8f8f8;
   color: var(--text-dark);
+  font-weight: 500;
+}
+
+.admin-table tr {
+  transition: all 0.3s;
+}
+
+.admin-table tr:hover td {
+  background: rgba(255, 107, 53, 0.02);
 }
 
 .admin-table tr:last-child td {
@@ -111,51 +166,55 @@
 }
 
 .admin-table .action-btns button {
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
-  font-weight: 600;
-  transition: all 0.3s;
+  font-weight: 700;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.admin-table .action-btns button:hover {
+  transform: translateY(-2px) scale(1.05);
+}
+
+.admin-table .action-btns button:active {
+  transform: translateY(0) scale(0.95);
 }
 
 .admin-table .action-btns .btn-reset {
-  background: var(--accent-blue);
+  background: linear-gradient(135deg, var(--blue), var(--blue-light));
   color: white;
-}
-
-.admin-table .action-btns .btn-reset:hover {
-  opacity: 0.8;
+  box-shadow: 0 3px 8px rgba(74, 144, 226, 0.3);
 }
 
 .admin-table .action-btns .btn-delete {
-  background: #ff6b6b;
+  background: linear-gradient(135deg, var(--red), #ff6b6b);
   color: white;
-}
-
-.admin-table .action-btns .btn-delete:hover {
-  opacity: 0.8;
+  box-shadow: 0 3px 8px rgba(255, 71, 87, 0.3);
 }
 
 .admin-table .action-btns .btn-online {
-  background: var(--accent-green);
+  background: linear-gradient(135deg, var(--green), var(--green-light));
   color: white;
+  box-shadow: 0 3px 8px rgba(82, 196, 26, 0.3);
 }
 
 .admin-table .action-btns .btn-offline {
-  background: #aaa;
+  background: linear-gradient(135deg, #999, #bbb);
   color: white;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
 }
 
 .status-badge {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: 10px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .status-badge.online {
-  background: #d4edda;
+  background: linear-gradient(135deg, #d4edda, #c3e6cb);
   color: #155724;
 }
 
@@ -165,7 +224,7 @@
 }
 
 .status-badge.pending {
-  background: #fff3cd;
+  background: linear-gradient(135deg, #fff3cd, #ffeeba);
   color: #856404;
 }
 
@@ -182,4 +241,10 @@
     flex-direction: column;
     gap: 4px;
   }
+  
+  .admin-panel .panel-body {
+    padding: 16px;
+    overflow-x: auto;
+  }
 }
+

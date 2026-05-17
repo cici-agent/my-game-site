@@ -1,18 +1,19 @@
-/* ===== 首页专属样式 ===== */
+/* ===== 首页专属样式 - PBS Kids 活泼升级版 ===== */
 
-/* 轮播 Banner */
+/* 轮播 Banner - 更大更漂亮 */
 .banner-section {
-  margin: 24px auto;
+  margin: 28px auto;
   max-width: 1200px;
   padding: 0 24px;
 }
 
 .banner-wrapper {
   position: relative;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  height: 280px;
-  box-shadow: var(--shadow);
+  height: 320px;
+  box-shadow: var(--shadow-card);
+  border: 4px solid rgba(255, 255, 255, 0.8);
 }
 
 .banner-slide {
@@ -25,7 +26,7 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.8s ease;
+  transition: opacity 1s ease;
 }
 
 .banner-slide.active {
@@ -33,62 +34,84 @@
 }
 
 .banner-slide:nth-child(1) {
-  background: linear-gradient(135deg, #ff6b35, #ffd166);
+  background: linear-gradient(135deg, #ff6b35 0%, #ffd166 50%, #ff8c5a 100%);
 }
 
 .banner-slide:nth-child(2) {
-  background: linear-gradient(135deg, #4ecdc4, #06d6a0);
+  background: linear-gradient(135deg, #4a90e2 0%, #4ecdc4 50%, #52c41a 100%);
 }
 
 .banner-slide:nth-child(3) {
-  background: linear-gradient(135deg, #a855f7, #ff6b9d);
+  background: linear-gradient(135deg, #a855f7 0%, #ff6b9d 50%, #ff6b35 100%);
 }
 
 .banner-content {
   text-align: center;
   color: white;
   padding: 20px;
+  animation: slide-up 0.8s ease-out;
+}
+
+.banner-content .banner-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin-bottom: 16px;
+  border: 4px solid rgba(255, 255, 255, 0.6);
+  animation: float 3s ease-in-out infinite;
+  object-fit: cover;
 }
 
 .banner-content h2 {
-  font-size: 36px;
-  font-weight: 800;
-  margin-bottom: 12px;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  font-size: 40px;
+  font-weight: 900;
+  margin-bottom: 14px;
+  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  letter-spacing: 1px;
 }
 
 .banner-content p {
-  font-size: 18px;
-  opacity: 0.9;
+  font-size: 20px;
+  opacity: 0.95;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .banner-dots {
   position: absolute;
-  bottom: 16px;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  z-index: 10;
 }
 
 .banner-dots .dot {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.5);
+  background: rgba(255, 255, 255, 0.5);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
 .banner-dots .dot.active {
   background: white;
-  transform: scale(1.3);
+  transform: scale(1.5);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
 }
 
-/* 分类导航 */
+.banner-dots .dot:hover {
+  transform: scale(1.3);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* 分类导航 - 更好玩 */
 .category-nav {
   max-width: 1200px;
-  margin: 0 auto 24px;
+  margin: 0 auto 28px;
   padding: 0 24px;
   overflow-x: auto;
 }
@@ -99,9 +122,9 @@
 
 .category-list {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   list-style: none;
-  padding: 4px 0;
+  padding: 6px 0;
 }
 
 .category-list li {
@@ -110,73 +133,133 @@
 
 .category-list li a {
   display: block;
-  padding: 8px 20px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 600;
+  padding: 10px 24px;
+  border-radius: var(--radius-full);
+  font-size: 15px;
+  font-weight: 700;
   background: var(--bg-card);
   color: var(--text-light);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  transition: all 0.3s;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   white-space: nowrap;
+  border: 2px solid transparent;
 }
 
-.category-list li a:hover,
-.category-list li a.active {
-  background: var(--primary);
-  color: var(--text-white);
+.category-list li a:hover {
+  transform: translateY(-3px) scale(1.05);
   box-shadow: var(--shadow);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
-/* 游戏卡片网格 */
+.category-list li a.active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: var(--text-white);
+  box-shadow: 0 4px 15px var(--primary-glow);
+  border-color: transparent;
+}
+
+/* 游戏卡片网格 - 更好看 */
 .games-grid {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 24px 40px;
+  padding: 0 24px 50px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 24px;
 }
 
 .game-card {
   background: var(--bg-card);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow);
-  transition: all 0.3s;
+  box-shadow: var(--shadow-card);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   cursor: pointer;
+  border: 3px solid transparent;
+  position: relative;
+}
+
+.game-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: var(--radius-lg);
+  border: 3px solid transparent;
+  transition: border-color 0.3s;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .game-card:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--shadow-hover);
+  transform: translateY(-10px) scale(1.03);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.game-card:hover::before {
+  border-color: var(--primary);
+}
+
+.game-card:active {
+  transform: translateY(-4px) scale(0.98);
+}
+
+/* 卡片弹跳动画 */
+@keyframes card-bounce {
+  0% { transform: translateY(-10px) scale(1.03); }
+  50% { transform: translateY(-14px) scale(1.04); }
+  100% { transform: translateY(-10px) scale(1.03); }
+}
+
+.game-card:hover {
+  animation: card-bounce 0.6s ease-in-out infinite;
 }
 
 .game-card .card-cover {
   width: 100%;
-  height: 160px;
+  height: 170px;
   object-fit: cover;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48px;
+  font-size: 56px;
+  position: relative;
+  overflow: hidden;
+}
+
+.game-card .card-cover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.game-card:hover .card-cover::after {
+  left: 100%;
 }
 
 .game-card .card-cover.cover-1 { background: linear-gradient(135deg, #ff6b35, #ffd166); }
-.game-card .card-cover.cover-2 { background: linear-gradient(135deg, #4ecdc4, #06d6a0); }
+.game-card .card-cover.cover-2 { background: linear-gradient(135deg, #4a90e2, #4ecdc4); }
 .game-card .card-cover.cover-3 { background: linear-gradient(135deg, #a855f7, #ff6b9d); }
-.game-card .card-cover.cover-4 { background: linear-gradient(135deg, #ffd166, #ff6b35); }
-.game-card .card-cover.cover-5 { background: linear-gradient(135deg, #06d6a0, #4ecdc4); }
+.game-card .card-cover.cover-4 { background: linear-gradient(135deg, #52c41a, #4ecdc4); }
+.game-card .card-cover.cover-5 { background: linear-gradient(135deg, #ffd166, #ff6b35); }
 .game-card .card-cover.cover-6 { background: linear-gradient(135deg, #ff6b9d, #a855f7); }
 
 .game-card .card-info {
-  padding: 14px;
+  padding: 16px 18px;
 }
 
 .game-card .card-info h3 {
-  font-size: 15px;
-  font-weight: 700;
-  margin-bottom: 6px;
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 8px;
   color: var(--text-dark);
 }
 
@@ -184,35 +267,78 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-light);
+  font-weight: 600;
 }
 
 .game-card .card-info .card-meta .rating {
-  color: var(--secondary);
-  font-weight: 700;
+  color: var(--primary);
+  font-weight: 800;
+  background: rgba(255, 107, 53, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* 欢迎区域标题 */
+.section-title {
+  max-width: 1200px;
+  margin: 0 auto 20px;
+  padding: 0 24px;
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--text-dark);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-title .emoji {
+  font-size: 28px;
+  animation: wiggle 2s ease-in-out infinite;
 }
 
 /* 响应式 */
 @media (max-width: 768px) {
   .banner-wrapper {
-    height: 200px;
+    height: 220px;
+    border-radius: var(--radius-lg);
   }
   
   .banner-content h2 {
-    font-size: 24px;
+    font-size: 26px;
   }
   
   .banner-content p {
-    font-size: 14px;
+    font-size: 15px;
+  }
+  
+  .banner-content .banner-logo {
+    width: 56px;
+    height: 56px;
   }
   
   .games-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 14px;
+    gap: 16px;
   }
   
   .game-card .card-cover {
-    height: 120px;
+    height: 130px;
+    font-size: 40px;
+  }
+  
+  .game-card .card-info {
+    padding: 12px 14px;
+  }
+  
+  .game-card .card-info h3 {
+    font-size: 14px;
+  }
+  
+  .category-list li a {
+    padding: 8px 18px;
+    font-size: 13px;
   }
 }
+

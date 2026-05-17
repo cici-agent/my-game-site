@@ -1,4 +1,4 @@
-/* ===== 游戏详情页样式 ===== */
+/* ===== 游戏详情页样式 - PBS Kids 升级版 ===== */
 
 .game-detail {
   max-width: 900px;
@@ -8,37 +8,51 @@
 
 .game-hero {
   background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  border: 3px solid rgba(255, 107, 53, 0.08);
+  animation: slide-up 0.5s ease-out;
 }
 
 .game-hero .hero-cover {
   width: 100%;
-  height: 240px;
+  height: 260px;
   background: linear-gradient(135deg, #ff6b35, #ffd166);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 80px;
+  font-size: 90px;
+  position: relative;
+  overflow: hidden;
+}
+
+.game-hero .hero-cover::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.1));
 }
 
 .game-hero .hero-info {
-  padding: 24px;
+  padding: 28px;
 }
 
 .game-hero .hero-info h1 {
-  font-size: 28px;
-  font-weight: 800;
+  font-size: 30px;
+  font-weight: 900;
   color: var(--text-dark);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .game-hero .hero-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
   font-size: 14px;
   color: var(--text-light);
   margin-bottom: 16px;
@@ -48,27 +62,46 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  background: #f5f5f5;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.game-hero .hero-meta span:hover {
+  background: rgba(255, 107, 53, 0.1);
+  color: var(--primary);
+  transform: translateY(-2px);
 }
 
 .game-play-area {
   background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  padding: 24px;
-  margin-bottom: 24px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: 28px;
+  margin-bottom: 28px;
   text-align: center;
+  border: 3px solid rgba(74, 144, 226, 0.08);
+  animation: slide-up 0.6s ease-out;
 }
 
 .game-play-area .play-frame {
   width: 100%;
-  height: 400px;
-  border: 3px dashed #e0e0e0;
-  border-radius: var(--radius);
+  height: 420px;
+  border: 4px dashed #e0e0e0;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
-  margin-bottom: 16px;
+  background: linear-gradient(135deg, #fafafa, #f5f5f5);
+  margin-bottom: 20px;
+  transition: border-color 0.3s;
+}
+
+.game-play-area .play-frame:hover {
+  border-color: var(--blue);
+  animation: rainbow-border 3s linear infinite;
 }
 
 .game-play-area .play-frame .placeholder {
@@ -77,77 +110,99 @@
 }
 
 .game-play-area .play-frame .placeholder .icon {
-  font-size: 64px;
-  margin-bottom: 12px;
+  font-size: 72px;
+  margin-bottom: 16px;
+  animation: float 3s ease-in-out infinite;
 }
 
 .game-play-area .play-frame .placeholder p {
-  font-size: 16px;
+  font-size: 17px;
+  font-weight: 600;
 }
 
 .game-play-area .coin-tip {
-  background: var(--secondary);
+  background: linear-gradient(135deg, var(--yellow), #ffe066);
   color: var(--text-dark);
-  padding: 10px 20px;
-  border-radius: 20px;
+  padding: 12px 24px;
+  border-radius: var(--radius-full);
   display: inline-block;
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(255, 209, 102, 0.3);
 }
 
 .game-play-area .play-btn {
-  padding: 14px 48px;
-  font-size: 18px;
+  padding: 16px 56px;
+  font-size: 20px;
+  font-weight: 900;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.game-play-area .play-btn:hover {
+  animation: none;
+  transform: translateY(-4px) scale(1.08);
 }
 
 /* 评论区 */
 .comments-section {
   background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  padding: 24px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: 28px;
+  border: 3px solid rgba(82, 196, 26, 0.08);
+  animation: slide-up 0.7s ease-out;
 }
 
 .comments-section h3 {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 20px;
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 24px;
   color: var(--text-dark);
 }
 
 .comment-form {
   display: flex;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .comment-form input {
   flex: 1;
-  padding: 12px 16px;
-  border: 2px solid #e0e0e0;
-  border-radius: 25px;
-  font-size: 14px;
+  padding: 14px 20px;
+  border: 3px solid #e8e8e8;
+  border-radius: var(--radius-full);
+  font-size: 15px;
+  font-weight: 500;
   outline: none;
-  transition: border-color 0.3s;
+  transition: all 0.3s;
+  background: #fafafa;
 }
 
 .comment-form input:focus {
   border-color: var(--primary);
+  background: white;
+  box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.1);
 }
 
 .comment-form button {
-  padding: 12px 24px;
-  border-radius: 25px;
-  background: var(--primary);
+  padding: 14px 28px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
   color: white;
-  font-weight: 600;
-  font-size: 14px;
-  transition: all 0.3s;
+  font-weight: 800;
+  font-size: 15px;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 4px 12px var(--primary-glow);
 }
 
 .comment-form button:hover {
-  background: var(--primary-dark);
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 6px 20px var(--primary-glow);
+}
+
+.comment-form button:active {
+  transform: translateY(0) scale(0.95);
 }
 
 .comment-list {
@@ -156,9 +211,16 @@
 
 .comment-item {
   display: flex;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid #f0f0f0;
+  gap: 14px;
+  padding: 16px 0;
+  border-bottom: 2px solid #f5f5f5;
+  transition: all 0.3s;
+}
+
+.comment-item:hover {
+  background: rgba(255, 107, 53, 0.02);
+  padding-left: 10px;
+  border-radius: var(--radius-sm);
 }
 
 .comment-item:last-child {
@@ -166,8 +228,15 @@
 }
 
 .comment-item .comment-avatar {
-  font-size: 28px;
+  font-size: 32px;
   flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #fff0e6, #ffe0cc);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .comment-item .comment-body {
@@ -175,24 +244,44 @@
 }
 
 .comment-item .comment-body .comment-name {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   color: var(--text-dark);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .comment-item .comment-body .comment-text {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--text-light);
+  line-height: 1.5;
+  font-weight: 500;
 }
 
 @media (max-width: 768px) {
   .game-hero .hero-cover {
     height: 180px;
-    font-size: 56px;
+    font-size: 60px;
+  }
+  
+  .game-hero .hero-info {
+    padding: 20px;
+  }
+  
+  .game-hero .hero-info h1 {
+    font-size: 24px;
   }
   
   .game-play-area .play-frame {
     height: 280px;
   }
+  
+  .game-play-area .play-btn {
+    padding: 14px 40px;
+    font-size: 17px;
+  }
+  
+  .comment-form {
+    flex-direction: column;
+  }
 }
+
