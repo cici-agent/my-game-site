@@ -99,3 +99,4 @@ async function updateNavbar() {
 document.addEventListener('DOMContentLoaded', function() {
   updateNavbar();
 });
+

@@ -124,7 +124,14 @@
         if (profile) {
           showProfile(profile);
         } else {
-          showLoginForm();
+          // profile 还没写入，用 user 信息临时显示
+          var fallbackProfile = {
+            id: user.id,
+            username: user.email ? user.email.replace('@xiaocainiao.app', '') : '用户',
+            coins: 0,
+            role: 'user'
+          };
+          showProfile(fallbackProfile);
         }
       } else {
         showLoginForm();
