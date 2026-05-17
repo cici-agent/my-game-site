@@ -109,8 +109,10 @@ async function updateNavbar() {
   }
 }
 
-// 页面加载时更新导航栏
+// 页面加载时更新导航栏，完成后显示 body（避免导航栏闪烁）
 document.addEventListener('DOMContentLoaded', function() {
-  updateNavbar();
+  updateNavbar().then(function() {
+    document.body.style.opacity = '1';
+  });
 });
 
