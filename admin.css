@@ -1,0 +1,185 @@
+/* ===== 管理后台样式 ===== */
+
+.admin-container {
+  max-width: 1000px;
+  margin: 30px auto;
+  padding: 0 24px;
+}
+
+.admin-header {
+  margin-bottom: 24px;
+}
+
+.admin-header h1 {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.admin-header p {
+  color: var(--text-light);
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+/* 统计卡片 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.stat-card .stat-icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+
+.stat-card .stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.stat-card .stat-label {
+  font-size: 13px;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+
+/* 管理面板 */
+.admin-panel {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.admin-panel .panel-header {
+  padding: 18px 24px;
+  border-bottom: 2px solid #f0f0f0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-dark);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-panel .panel-body {
+  padding: 20px 24px;
+}
+
+/* 表格 */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.admin-table th {
+  text-align: left;
+  padding: 12px 8px;
+  border-bottom: 2px solid #f0f0f0;
+  color: var(--text-light);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.admin-table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid #f5f5f5;
+  color: var(--text-dark);
+}
+
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table .action-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-table .action-btns button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.admin-table .action-btns .btn-reset {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.admin-table .action-btns .btn-reset:hover {
+  opacity: 0.8;
+}
+
+.admin-table .action-btns .btn-delete {
+  background: #ff6b6b;
+  color: white;
+}
+
+.admin-table .action-btns .btn-delete:hover {
+  opacity: 0.8;
+}
+
+.admin-table .action-btns .btn-online {
+  background: var(--accent-green);
+  color: white;
+}
+
+.admin-table .action-btns .btn-offline {
+  background: #aaa;
+  color: white;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-badge.online {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.offline {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.status-badge.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .admin-table {
+    font-size: 12px;
+  }
+  
+  .admin-table .action-btns {
+    flex-direction: column;
+    gap: 4px;
+  }
+}

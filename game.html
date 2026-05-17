@@ -1,58 +1,129 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>游戏详情 - 小菜鸟</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: sans-serif; background: #f0f8ff; color: #333; }
-    nav { background: #ff6b35; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
-    nav .logo { font-size: 1.6rem; font-weight: bold; color: white; text-decoration: none; }
-    nav .nav-links a { color: white; text-decoration: none; margin-left: 16px; }
-    .container { max-width: 900px; margin: 32px auto; padding: 0 24px; }
-    .game-header { display: flex; gap: 24px; margin-bottom: 32px; }
-    .game-thumb { width: 160px; height: 120px; background: #ffe0cc; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 4rem; flex-shrink: 0; }
-    .game-info h1 { font-size: 1.8rem; margin-bottom: 8px; }
-    .game-info .tags span { background: #ff6b35; color: white; padding: 4px 12px; border-radius: 16px; font-size: 0.85rem; margin-right: 8px; }
-    .game-info .meta { color: #888; margin-top: 8px; font-size: 0.9rem; }
-    .game-frame { background: #222; border-radius: 16px; height: 400px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 1.2rem; margin-bottom: 32px; }
-    .coin-notice { background: #fff8e1; border: 2px solid #ffd700; border-radius: 12px; padding: 16px; margin-bottom: 24px; font-size: 0.95rem; }
-    .btn { background: #ff6b35; color: white; border: none; padding: 12px 32px; border-radius: 32px; font-size: 1rem; cursor: pointer; }
-    .reviews h2 { font-size: 1.4rem; margin-bottom: 16px; color: #ff6b35; }
-    .review-card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-    .review-card .author { font-weight: bold; margin-bottom: 4px; }
-    .review-card p { color: #555; font-size: 0.95rem; }
-    footer { background: #333; color: #aaa; text-align: center; padding: 24px; margin-top: 40px; }
-  </style>
+  <title>小菜鸟 - 游戏详情</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="game.css">
 </head>
 <body>
-  <nav>
-    <a class="logo" href="index.html">🐥 小菜鸟</a>
-    <div class="nav-links">
-      <a href="index.html">首页</a>
-      <a href="editor.html">做游戏</a>
-      <a href="profile.html">我的</a>
-    </div>
+  <!-- 导航栏 -->
+  <nav class="navbar" id="navbar">
+    <a href="index.html" class="logo">
+      <span class="logo-icon">🐣</span>
+      <span>小菜鸟</span>
+    </a>
+    <div class="nav-links" id="navLinks"></div>
   </nav>
-  <div class="container">
-    <div class="game-header">
-      <div class="game-thumb">🚀</div>
-      <div class="game-info">
+
+  <!-- 游戏信息 -->
+  <div class="game-detail">
+    <div class="game-hero">
+      <div class="hero-cover">🚀</div>
+      <div class="hero-info">
         <h1>太空冒险</h1>
-        <div class="tags"><span>射击类</span></div>
-        <div class="meta">👤 作者：小星星 &nbsp;|&nbsp; 👁 已玩：1,234次 &nbsp;|&nbsp; ⭐ 4.8分</div>
+        <div class="hero-meta">
+          <span>🏷️ 射击</span>
+          <span>👤 小明同学</span>
+          <span>⭐ 4.8 分</span>
+          <span>🎮 1,234 人玩过</span>
+        </div>
       </div>
     </div>
-    <div class="coin-notice">🪙 每玩5分钟消耗 <strong>10金币</strong>，你当前有 <strong>50金币</strong></div>
-    <div class="game-frame">🎮 游戏加载区域（iframe）</div>
-    <button class="btn">开始游戏</button>
-    <div class="reviews" style="margin-top:32px">
-      <h2>💬 玩家点评</h2>
-      <div class="review-card"><div class="author">小明 ⭐⭐⭐⭐⭐</div><p>超好玩！我玩了好多次！</p></div>
-      <div class="review-card"><div class="author">小红 ⭐⭐⭐⭐</div><p>画面很好看，下次还来玩。</p></div>
+
+    <!-- 游戏运行区域 -->
+    <div class="game-play-area">
+      <div class="play-frame">
+        <div class="placeholder">
+          <div class="icon">🎮</div>
+          <p>点击下方按钮开始游戏</p>
+        </div>
+      </div>
+      <div class="coin-tip">🪙 每玩 5 分钟消耗 1 金币</div>
+      <br><br>
+      <button class="btn btn-primary play-btn" id="startGameBtn">▶️ 开始游戏</button>
+    </div>
+
+    <!-- 用户点评区 -->
+    <div class="comments-section">
+      <h3>💬 玩家点评</h3>
+      <div class="comment-form">
+        <input type="text" id="commentInput" placeholder="说说你的游戏体验...">
+        <button id="commentBtn">发表</button>
+      </div>
+      <ul class="comment-list">
+        <li class="comment-item">
+          <div class="comment-avatar">🦊</div>
+          <div class="comment-body">
+            <div class="comment-name">小狐狸</div>
+            <div class="comment-text">超好玩！我已经通关3次了 😄</div>
+          </div>
+        </li>
+        <li class="comment-item">
+          <div class="comment-avatar">🐰</div>
+          <div class="comment-body">
+            <div class="comment-name">兔兔</div>
+            <div class="comment-text">画面好漂亮，音乐也很好听！</div>
+          </div>
+        </li>
+        <li class="comment-item">
+          <div class="comment-avatar">🐻</div>
+          <div class="comment-body">
+            <div class="comment-name">小熊</div>
+            <div class="comment-text">第三关好难啊，有人能帮帮我吗？</div>
+          </div>
+        </li>
+      </ul>
     </div>
   </div>
-  <footer>© 2026 小菜鸟 · 小朋友的游戏乐园</footer>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
+    <div class="footer-links">
+      <a href="index.html">首页</a>
+      <a href="login.html">登录</a>
+      <a href="#">关于我们</a>
+      <a href="#">联系我们</a>
+    </div>
+  </footer>
+
+  <script src="auth.js"></script>
+  <script>
+    // 开始游戏按钮
+    document.getElementById('startGameBtn').addEventListener('click', function() {
+      if (!Auth.isLoggedIn()) {
+        alert('请先登录才能玩游戏哦！');
+        window.location.href = 'login.html';
+        return;
+      }
+      alert('游戏加载中...（功能开发中）');
+    });
+
+    // 发表评论
+    document.getElementById('commentBtn').addEventListener('click', function() {
+      const input = document.getElementById('commentInput');
+      const text = input.value.trim();
+      if (!text) return;
+      if (!Auth.isLoggedIn()) {
+        alert('请先登录才能评论哦！');
+        return;
+      }
+      const user = Auth.getCurrentUser();
+      const list = document.querySelector('.comment-list');
+      const li = document.createElement('li');
+      li.className = 'comment-item';
+      li.innerHTML = `
+        <div class="comment-avatar">${user.avatar || '🐣'}</div>
+        <div class="comment-body">
+          <div class="comment-name">${user.username}</div>
+          <div class="comment-text">${text}</div>
+        </div>
+      `;
+      list.insertBefore(li, list.firstChild);
+      input.value = '';
+    });
+  </script>
 </body>
 </html>

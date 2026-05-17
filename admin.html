@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小菜鸟 - 管理后台</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar" id="navbar">
+    <a href="index.html" class="logo">
+      <span class="logo-icon">🐣</span>
+      <span>小菜鸟</span>
+    </a>
+    <div class="nav-links" id="navLinks"></div>
+  </nav>
+
+  <div class="admin-container">
+    <!-- 标题 -->
+    <div class="admin-header">
+      <h1>⚙️ 管理后台</h1>
+      <p>管理用户和游戏内容</p>
+    </div>
+
+    <!-- 数据统计 -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-value" id="statUsers">0</div>
+        <div class="stat-label">注册用户</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🎮</div>
+        <div class="stat-value" id="statGames">6</div>
+        <div class="stat-label">游戏总数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🪙</div>
+        <div class="stat-value" id="statCoins">0</div>
+        <div class="stat-label">金币流通</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-value" id="statPlays">1,234</div>
+        <div class="stat-label">今日游玩</div>
+      </div>
+    </div>
+
+    <!-- 用户管理 -->
+    <div class="admin-panel">
+      <div class="panel-header">👥 用户管理</div>
+      <div class="panel-body">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>账号</th>
+              <th>角色</th>
+              <th>金币</th>
+              <th>注册时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody">
+            <!-- 由JS动态渲染 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 游戏审核 -->
+    <div class="admin-panel">
+      <div class="panel-header">🎮 游戏审核</div>
+      <div class="panel-body">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>游戏名</th>
+              <th>作者</th>
+              <th>分类</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>太空冒险</td>
+              <td>小明同学</td>
+              <td>射击</td>
+              <td><span class="status-badge online">已上线</span></td>
+              <td>
+                <div class="action-btns">
+                  <button class="btn-offline" onclick="alert('已下线')">下线</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>猫咪跑酷</td>
+              <td>喵喵</td>
+              <td>跑酷</td>
+              <td><span class="status-badge online">已上线</span></td>
+              <td>
+                <div class="action-btns">
+                  <button class="btn-offline" onclick="alert('已下线')">下线</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>恐龙大战</td>
+              <td>小恐龙</td>
+              <td>射击</td>
+              <td><span class="status-badge pending">待审核</span></td>
+              <td>
+                <div class="action-btns">
+                  <button class="btn-online" onclick="alert('已上线')">上线</button>
+                  <button class="btn-offline" onclick="alert('已拒绝')">拒绝</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
+    <div class="footer-links">
+      <a href="index.html">首页</a>
+      <a href="login.html">登录</a>
+      <a href="#">关于我们</a>
+      <a href="#">联系我们</a>
+    </div>
+  </footer>
+
+  <script src="auth.js"></script>
+  <script>
+    // 检查管理员权限
+    if (!Auth.isAdmin()) {
+      alert('只有管理员才能访问后台哦！');
+      window.location.href = 'index.html';
+    }
+
+    // 渲染用户列表
+    function renderUsers() {
+      const users = Auth.getUsers();
+      const tbody = document.getElementById('userTableBody');
+      document.getElementById('statUsers').textContent = users.length;
+      
+      // 计算总金币
+      const totalCoins = users.reduce((sum, u) => sum + (u.coins || 0), 0);
+      document.getElementById('statCoins').textContent = totalCoins;
+
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:30px;">暂无注册用户</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = users.map(user => `
+        <tr>
+          <td>${user.username}</td>
+          <td>${user.role === 'admin' ? '管理员' : '普通用户'}</td>
+          <td>🪙 ${user.coins || 0}</td>
+          <td>${new Date(user.createdAt).toLocaleDateString()}</td>
+          <td>
+            <div class="action-btns">
+              <button class="btn-reset" onclick="resetPassword('${user.id}')">重置密码</button>
+              ${user.role !== 'admin' ? `<button class="btn-delete" onclick="deleteUser('${user.id}')">删除</button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // 重置密码
+    function resetPassword(userId) {
+      const users = Auth.getUsers();
+      const user = users.find(u => u.id === userId);
+      if (user) {
+        user.password = '123456';
+        Auth.saveUsers(users);
+        alert(`已将 ${user.username} 的密码重置为 123456`);
+      }
+    }
+
+    // 删除用户
+    function deleteUser(userId) {
+      if (!confirm('确定要删除这个用户吗？')) return;
+      let users = Auth.getUsers();
+      users = users.filter(u => u.id !== userId);
+      Auth.saveUsers(users);
+      renderUsers();
+    }
+
+    // 初始化
+    renderUsers();
+  </script>
+</body>
+</html>

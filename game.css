@@ -1,0 +1,198 @@
+/* ===== 游戏详情页样式 ===== */
+
+.game-detail {
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 0 24px;
+}
+
+.game-hero {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.game-hero .hero-cover {
+  width: 100%;
+  height: 240px;
+  background: linear-gradient(135deg, #ff6b35, #ffd166);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 80px;
+}
+
+.game-hero .hero-info {
+  padding: 24px;
+}
+
+.game-hero .hero-info h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-dark);
+  margin-bottom: 12px;
+}
+
+.game-hero .hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--text-light);
+  margin-bottom: 16px;
+}
+
+.game-hero .hero-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.game-play-area {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.game-play-area .play-frame {
+  width: 100%;
+  height: 400px;
+  border: 3px dashed #e0e0e0;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+  margin-bottom: 16px;
+}
+
+.game-play-area .play-frame .placeholder {
+  text-align: center;
+  color: var(--text-light);
+}
+
+.game-play-area .play-frame .placeholder .icon {
+  font-size: 64px;
+  margin-bottom: 12px;
+}
+
+.game-play-area .play-frame .placeholder p {
+  font-size: 16px;
+}
+
+.game-play-area .coin-tip {
+  background: var(--secondary);
+  color: var(--text-dark);
+  padding: 10px 20px;
+  border-radius: 20px;
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.game-play-area .play-btn {
+  padding: 14px 48px;
+  font-size: 18px;
+}
+
+/* 评论区 */
+.comments-section {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.comments-section h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: var(--text-dark);
+}
+
+.comment-form {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.comment-form input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 25px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.comment-form input:focus {
+  border-color: var(--primary);
+}
+
+.comment-form button {
+  padding: 12px 24px;
+  border-radius: 25px;
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.comment-form button:hover {
+  background: var(--primary-dark);
+}
+
+.comment-list {
+  list-style: none;
+}
+
+.comment-item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.comment-item:last-child {
+  border-bottom: none;
+}
+
+.comment-item .comment-avatar {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.comment-item .comment-body {
+  flex: 1;
+}
+
+.comment-item .comment-body .comment-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 4px;
+}
+
+.comment-item .comment-body .comment-text {
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+@media (max-width: 768px) {
+  .game-hero .hero-cover {
+    height: 180px;
+    font-size: 56px;
+  }
+  
+  .game-play-area .play-frame {
+    height: 280px;
+  }
+}
