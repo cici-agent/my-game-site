@@ -342,3 +342,128 @@
   }
 }
 
+
+/* ===== Banner 升级样式 ===== */
+.banner-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.banner-slide {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 60px;
+  gap: 40px;
+}
+
+.banner-content {
+  flex: 1;
+  text-align: left;
+  z-index: 2;
+}
+
+.banner-badge {
+  display: inline-block;
+  background: rgba(255,255,255,0.3);
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 50px;
+  margin-bottom: 14px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.4);
+}
+
+.banner-content h2 {
+  font-size: 42px;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 3px 10px rgba(0,0,0,0.15);
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+
+.banner-content p {
+  font-size: 18px;
+  color: rgba(255,255,255,0.92);
+  font-weight: 600;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.banner-btn {
+  display: inline-block;
+  background: white;
+  color: #ff6b35;
+  font-size: 18px;
+  font-weight: 800;
+  padding: 14px 32px;
+  border-radius: 50px;
+  text-decoration: none;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.banner-btn:hover {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.2);
+}
+
+.banner-btn-blue {
+  color: #4a90e2;
+}
+
+/* 装饰圆圈和 emoji */
+.banner-deco {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 45%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.deco-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+}
+
+.deco-circle.c1 { width: 220px; height: 220px; top: -60px; right: -40px; }
+.deco-circle.c2 { width: 140px; height: 140px; bottom: -30px; right: 80px; }
+.deco-circle.c3 { width: 80px; height: 80px; top: 40px; right: 160px; }
+
+.deco-emoji {
+  position: absolute;
+  font-size: 52px;
+  animation: float 3s ease-in-out infinite;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+}
+
+.deco-emoji.e1 { top: 30px; right: 120px; animation-delay: 0s; }
+.deco-emoji.e2 { top: 50%; right: 40px; transform: translateY(-50%); animation-delay: 0.8s; }
+.deco-emoji.e3 { bottom: 30px; right: 160px; animation-delay: 1.5s; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+.deco-emoji.e2 {
+  animation: float-mid 3s ease-in-out infinite;
+  animation-delay: 0.8s;
+}
+@keyframes float-mid {
+  0%, 100% { transform: translateY(-50%); }
+  50% { transform: translateY(calc(-50% - 12px)); }
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .banner-slide { padding: 0 24px; }
+  .banner-content h2 { font-size: 26px; }
+  .banner-content p { font-size: 14px; }
+  .banner-btn { font-size: 15px; padding: 10px 22px; }
+  .banner-deco { display: none; }
+}

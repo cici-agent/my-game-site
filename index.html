@@ -22,29 +22,47 @@
   <!-- 轮播 Banner -->
   <section class="banner-section">
     <div class="banner-wrapper">
-      <div class="banner-slide active">
+
+      <!-- Banner 1: 做游戏 -->
+      <div class="banner-slide active" style="background: linear-gradient(135deg, #ff6b35 0%, #ffd166 60%, #ff8c5a 100%);">
         <div class="banner-content">
-          <img src="assets/logo.jpg" alt="小菜鸟" class="banner-logo" />
-          <h2>🎮 欢迎来到小菜鸟！</h2>
-          <p>和小伙伴一起玩最有趣的游戏吧</p>
+          <div class="banner-badge">✨ AI 游戏创作</div>
+          <h2>开始制作你的游戏！</h2>
+          <p>用语音告诉 AI 你的想法，几秒钟就能做出一个游戏 🎮</p>
+          <a href="editor.html" class="banner-btn">🚀 马上试试</a>
+        </div>
+        <div class="banner-deco">
+          <div class="deco-circle c1"></div>
+          <div class="deco-circle c2"></div>
+          <div class="deco-circle c3"></div>
+          <div class="deco-emoji e1">🎮</div>
+          <div class="deco-emoji e2">⭐</div>
+          <div class="deco-emoji e3">🎯</div>
         </div>
       </div>
-      <div class="banner-slide">
+
+      <!-- Banner 2: 玩游戏 -->
+      <div class="banner-slide" style="background: linear-gradient(135deg, #4a90e2 0%, #4ecdc4 60%, #52c41a 100%);">
         <div class="banner-content">
-          <h2>🌟 本周新游戏上线</h2>
-          <p>快来看看有什么好玩的新游戏</p>
+          <div class="banner-badge">🔥 本周热门</div>
+          <h2>和小伙伴一起玩！</h2>
+          <p>小朋友们自己做的游戏，好玩又有趣，快来发现新宝藏 🌟</p>
+          <a href="#gamesGrid" class="banner-btn banner-btn-blue">🎲 去玩游戏</a>
+        </div>
+        <div class="banner-deco">
+          <div class="deco-circle c1"></div>
+          <div class="deco-circle c2"></div>
+          <div class="deco-circle c3"></div>
+          <div class="deco-emoji e1">🏆</div>
+          <div class="deco-emoji e2">🌈</div>
+          <div class="deco-emoji e3">🎪</div>
         </div>
       </div>
-      <div class="banner-slide">
-        <div class="banner-content">
-          <h2>🏆 创作你自己的游戏</h2>
-          <p>用AI帮你实现天马行空的想法</p>
-        </div>
-      </div>
+
+      <!-- 轮播圆点 -->
       <div class="banner-dots">
         <span class="dot active" data-index="0"></span>
         <span class="dot" data-index="1"></span>
-        <span class="dot" data-index="2"></span>
       </div>
     </div>
   </section>
@@ -67,7 +85,6 @@
 
   <!-- 游戏卡片列表 -->
   <section class="games-grid" id="gamesGrid">
-    <!-- 示例游戏卡片 -->
     <a href="game.html?id=1" class="game-card">
       <div class="card-cover cover-1">🚀</div>
       <div class="card-info">
@@ -153,14 +170,11 @@
   <!-- Footer -->
   <footer class="footer">
     <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
-    <div class="footer-links">
-      <a href="index.html">首页</a>
-      <a href="login.html">登录</a>
-      <a href="#">关于我们</a>
-      <a href="#">联系我们</a>
-    </div>
   </footer>
 
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
   <script src="auth.js"></script>
   <script src="index.js"></script>
 </body>
