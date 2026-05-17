@@ -1,125 +1,166 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>小菜鸟 - 登录</title>
+  <title>登录 / 我的 - 小菜鸟</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="login.css">
 </head>
 <body>
-  <!-- 导航栏 -->
-  <nav class="navbar" id="navbar">
-    <a href="index.html" class="logo">
-      <span class="logo-icon">🐣</span>
-      <span>小菜鸟</span>
-    </a>
-    <div class="nav-links" id="navLinks"></div>
+  <nav id="mainNav">
+    <a class="logo" href="index.html">🐥 小菜鸟</a>
+    <div class="nav-links" id="navLinks">
+      <a href="login.html" id="navLogin">登录</a>
+      <a href="login.html" id="navProfile" style="display:none">我的</a>
+      <a href="admin.html" id="navAdmin" style="display:none">管理后台</a>
+    </div>
   </nav>
 
-  <!-- 登录表单（未登录时显示） -->
-  <div class="auth-container" id="loginSection">
-    <div class="auth-card">
-      <h2>🔑 登录</h2>
-      <p class="subtitle">欢迎回来，小菜鸟！</p>
-      <div class="error-msg" id="loginError"></div>
-      <form id="loginForm">
-        <div class="form-group">
-          <label for="loginUsername">账号</label>
-          <input type="text" id="loginUsername" placeholder="输入你的账号" required>
-        </div>
-        <div class="form-group">
-          <label for="loginPassword">密码</label>
-          <input type="password" id="loginPassword" placeholder="输入你的密码" required>
-        </div>
-        <button type="submit" class="form-submit">登录</button>
-      </form>
-      <div class="switch-link">
-        还没有账号？<a id="showRegister">立即注册</a>
+  <!-- 登录界面 -->
+  <div id="loginSection">
+    <div class="auth-box">
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="showTab('login')">登录</button>
+        <button class="auth-tab" onclick="showTab('register')">注册</button>
       </div>
-    </div>
-  </div>
 
-  <!-- 注册表单（点击注册时显示） -->
-  <div class="auth-container" id="registerSection" style="display:none;">
-    <div class="auth-card">
-      <h2>🎉 注册</h2>
-      <p class="subtitle">加入小菜鸟，开始你的游戏之旅！</p>
-      <div class="error-msg" id="registerError"></div>
-      <form id="registerForm">
-        <div class="form-group">
-          <label for="regUsername">账号</label>
-          <input type="text" id="regUsername" placeholder="给自己取个酷名字" required minlength="2" maxlength="20">
-        </div>
-        <div class="form-group">
-          <label for="regPassword">密码</label>
-          <input type="password" id="regPassword" placeholder="设置密码（至少4位）" required minlength="4">
-        </div>
-        <div class="form-group">
-          <label for="regPasswordConfirm">确认密码</label>
-          <input type="password" id="regPasswordConfirm" placeholder="再输入一次密码" required>
-        </div>
-        <button type="submit" class="form-submit">注册</button>
-      </form>
-      <div class="switch-link">
-        已有账号？<a id="showLogin">去登录</a>
+      <!-- 登录表单 -->
+      <div id="loginForm">
+        <h2>👋 欢迎回来！</h2>
+        <p class="subtitle">登录小菜鸟，开始你的游戏之旅</p>
+        <input type="text" id="loginUsername" placeholder="用户名" class="input-field">
+        <input type="password" id="loginPassword" placeholder="密码" class="input-field">
+        <div id="loginError" class="error-msg"></div>
+        <button class="btn-primary" onclick="doLogin()">登录 🚀</button>
+      </div>
+
+      <!-- 注册表单 -->
+      <div id="registerForm" style="display:none">
+        <h2>🐥 加入小菜鸟！</h2>
+        <p class="subtitle">只需用户名和密码，马上开始！</p>
+        <input type="text" id="regUsername" placeholder="用户名（只能用字母数字）" class="input-field">
+        <input type="password" id="regPassword" placeholder="密码（至少6位）" class="input-field">
+        <input type="password" id="regPassword2" placeholder="再输一次密码" class="input-field">
+        <div id="registerError" class="error-msg"></div>
+        <button class="btn-primary" onclick="doRegister()">注册 🎉</button>
       </div>
     </div>
   </div>
 
   <!-- 个人中心（登录后显示） -->
-  <div class="profile-container" id="profileSection" style="display:none;">
-    <div class="profile-header">
-      <div class="avatar" id="profileAvatar">🐣</div>
-      <div class="username" id="profileUsername">用户名</div>
-      <div class="coins">🪙 <span id="profileCoins">0</span> 金币</div>
-      <div class="profile-actions">
-        <a href="editor.html" class="btn btn-primary">🎮 做游戏</a>
-        <button class="logout-btn" id="logoutBtn">退出登录</button>
+  <div id="profileSection" style="display:none">
+    <div class="container">
+      <div class="profile-header">
+        <div class="avatar">🐥</div>
+        <div class="profile-info">
+          <h1 id="profileUsername">用户名</h1>
+          <div class="coin-badge">🪙 金币：<span id="profileCoins">0</span></div>
+          <div class="profile-actions">
+            <a href="editor.html" class="btn-primary">🎮 做游戏</a>
+            <button class="btn-secondary" onclick="doLogout()">退出登录</button>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div class="profile-tabs">
-      <div class="tab-nav">
-        <button class="active" data-tab="published">我发布的</button>
-        <button data-tab="played">我玩过的</button>
-        <button data-tab="coins">金币记录</button>
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this, 'myGames')">我发布的游戏</button>
+        <button class="tab" onclick="switchTab(this, 'playedGames')">我玩过的游戏</button>
+        <button class="tab" onclick="switchTab(this, 'coinHistory')">金币记录</button>
       </div>
-      <div class="tab-content">
-        <div class="tab-panel active" id="tab-published">
-          <div class="empty-state">
-            <div class="empty-icon">🎮</div>
-            <p>还没有发布过游戏哦，去做一个吧！</p>
-          </div>
-        </div>
-        <div class="tab-panel" id="tab-played">
-          <div class="empty-state">
-            <div class="empty-icon">🕹️</div>
-            <p>还没有玩过游戏，去首页看看吧！</p>
-          </div>
-        </div>
-        <div class="tab-panel" id="tab-coins">
-          <div class="empty-state">
-            <div class="empty-icon">🪙</div>
-            <p>暂无金币记录</p>
-          </div>
-        </div>
+
+      <div id="myGames" class="tab-content">
+        <div class="empty-tip">还没有发布游戏，<a href="editor.html">去做一个吧！</a></div>
+      </div>
+      <div id="playedGames" class="tab-content" style="display:none">
+        <div class="empty-tip">还没有玩过游戏，<a href="index.html">去看看吧！</a></div>
+      </div>
+      <div id="coinHistory" class="tab-content" style="display:none">
+        <div class="empty-tip">暂无金币记录</div>
       </div>
     </div>
   </div>
 
-  <!-- Footer -->
-  <footer class="footer">
-    <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
-    <div class="footer-links">
-      <a href="index.html">首页</a>
-      <a href="login.html">登录</a>
-      <a href="#">关于我们</a>
-      <a href="#">联系我们</a>
-    </div>
-  </footer>
+  <footer>© 2026 小菜鸟 · 小朋友的游戏乐园</footer>
 
-  <script src="auth.js"></script>
-  <script src="login.js"></script>
+  <script type="module">
+    import { signIn, signUp, signOut, getProfile, onAuthChange } from './auth.js'
+
+    // 检查登录状态
+    onAuthChange(async (event, session) => {
+      if (session) {
+        const profile = await getProfile()
+        if (profile) showProfile(profile)
+      } else {
+        showLogin()
+      }
+    })
+
+    function showProfile(profile) {
+      document.getElementById('loginSection').style.display = 'none'
+      document.getElementById('profileSection').style.display = 'block'
+      document.getElementById('profileUsername').textContent = profile.username
+      document.getElementById('profileCoins').textContent = profile.coins
+      // 导航栏
+      document.getElementById('navLogin').style.display = 'none'
+      document.getElementById('navProfile').style.display = 'inline'
+      if (profile.is_admin) document.getElementById('navAdmin').style.display = 'inline'
+    }
+
+    function showLogin() {
+      document.getElementById('loginSection').style.display = 'block'
+      document.getElementById('profileSection').style.display = 'none'
+      document.getElementById('navLogin').style.display = 'inline'
+      document.getElementById('navProfile').style.display = 'none'
+      document.getElementById('navAdmin').style.display = 'none'
+    }
+
+    window.showTab = (tab) => {
+      document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none'
+      document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none'
+      document.querySelectorAll('.auth-tab').forEach((t, i) => {
+        t.classList.toggle('active', (i === 0) === (tab === 'login'))
+      })
+    }
+
+    window.doLogin = async () => {
+      const username = document.getElementById('loginUsername').value.trim()
+      const password = document.getElementById('loginPassword').value
+      const errEl = document.getElementById('loginError')
+      if (!username || !password) { errEl.textContent = '请填写用户名和密码'; return }
+      errEl.textContent = '登录中...'
+      const { error } = await signIn(username, password)
+      if (error) { errEl.textContent = error; return }
+      errEl.textContent = ''
+    }
+
+    window.doRegister = async () => {
+      const username = document.getElementById('regUsername').value.trim()
+      const password = document.getElementById('regPassword').value
+      const password2 = document.getElementById('regPassword2').value
+      const errEl = document.getElementById('registerError')
+      if (!username || !password) { errEl.textContent = '请填写用户名和密码'; return }
+      if (password.length < 6) { errEl.textContent = '密码至少6位'; return }
+      if (password !== password2) { errEl.textContent = '两次密码不一致'; return }
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) { errEl.textContent = '用户名只能用字母、数字和下划线'; return }
+      errEl.textContent = '注册中...'
+      const { error } = await signUp(username, password)
+      if (error) { errEl.textContent = error; return }
+      errEl.textContent = '注册成功！'
+    }
+
+    window.doLogout = async () => {
+      await signOut()
+      showLogin()
+    }
+
+    window.switchTab = (btn, tabId) => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+      document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none')
+      btn.classList.add('active')
+      document.getElementById(tabId).style.display = 'block'
+    }
+  </script>
 </body>
 </html>
+
