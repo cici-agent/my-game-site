@@ -250,10 +250,34 @@ canvas {
         <div>⑤ 不让敌人到达终点，守住基地！</div>
       </div>
       <div style="margin-top:16px;font-size:13px;color:#f39c12;">💰 初始金币 200，击杀敌人获得更多</div>
-      <button onclick="document.getElementById('tutorial-screen').style.display='none'" 
+      <button onclick="document.getElementById('tutorial-screen').style.display='none';document.getElementById('difficulty-screen').style.display='flex';" 
         style="margin-top:20px;background:#ff6b35;color:#fff;border:none;border-radius:30px;padding:12px 40px;font-size:16px;font-weight:bold;cursor:pointer;">
-        我知道了，开始！
+        我知道了，选难度！
       </button>
+    </div>
+  </div>
+  <div id="difficulty-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);z-index:1000;display:flex;align-items:center;justify-content:center;">
+    <div style="text-align:center;font-family:sans-serif;color:#fff;padding:20px;">
+      <div style="font-size:48px;margin-bottom:8px;">🏰</div>
+      <div style="font-size:28px;font-weight:900;margin-bottom:6px;color:#ffd700;">小鸟塔防</div>
+      <div style="font-size:14px;color:#aaa;margin-bottom:32px;">选择难度，开始挑战！</div>
+      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
+        <div onclick="chooseDifficulty('easy')" style="cursor:pointer;background:linear-gradient(135deg,#27ae60,#2ecc71);border-radius:16px;padding:20px 28px;width:140px;transition:transform 0.2s;box-shadow:0 4px 20px rgba(46,204,113,0.4);" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+          <div style="font-size:32px;margin-bottom:8px;">🌿</div>
+          <div style="font-size:18px;font-weight:800;margin-bottom:6px;">简单</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.85);line-height:1.6;">20波 · 初始❤️20<br>初始💰150 · 怪物较强</div>
+        </div>
+        <div onclick="chooseDifficulty('normal')" style="cursor:pointer;background:linear-gradient(135deg,#e67e22,#f39c12);border-radius:16px;padding:20px 28px;width:140px;transition:transform 0.2s;box-shadow:0 4px 20px rgba(243,156,18,0.4);" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+          <div style="font-size:32px;margin-bottom:8px;">⚔️</div>
+          <div style="font-size:18px;font-weight:800;margin-bottom:6px;">中等</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.85);line-height:1.6;">25波 · 初始❤️15<br>初始💰120 · 怪物凶猛</div>
+        </div>
+        <div onclick="chooseDifficulty('hard')" style="cursor:pointer;background:linear-gradient(135deg,#c0392b,#e74c3c);border-radius:16px;padding:20px 28px;width:140px;transition:transform 0.2s;box-shadow:0 4px 20px rgba(231,76,60,0.4);" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+          <div style="font-size:32px;margin-bottom:8px;">💀</div>
+          <div style="font-size:18px;font-weight:800;margin-bottom:6px;">高难度</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.85);line-height:1.6;">30波 · 初始❤️10<br>初始💰100 · BOSS来袭</div>
+        </div>
+      </div>
     </div>
   </div>
   <div id="game-over-screen">
@@ -272,7 +296,13 @@ canvas {
 // ============ GAME CONFIG ============
 const COLS = 15, ROWS = 9;
 let CELL = 50;
-const TOTAL_WAVES = 15;
+let TOTAL_WAVES = 15;
+let DIFFICULTY = 'easy'; // easy / normal / hard
+const DIFFICULTY_CONFIG = {
+  easy:   { waves: 20, lives: 20, gold: 150, hpMult: 1.2, speedMult: 1.1 },
+  normal: { waves: 25, lives: 15, gold: 120, hpMult: 1.8, speedMult: 1.3 },
+  hard:   { waves: 30, lives: 10, gold: 100, hpMult: 2.5, speedMult: 1.6 }
+};
 
 const TOWER_DATA = {
   archer: { name: '弓箭塔', emoji: '🏹', cost: 50, damage: 15, range: 120, fireRate: 800, color: '#27ae60', projColor: '#8B4513', projSpeed: 8 },
@@ -290,7 +320,7 @@ const PATH_POINTS = [
 
 // ============ GAME STATE ============
 let canvas, ctx;
-let gold = 200, lives = 20, score = 0;
+let gold = 150, lives = 20, score = 0;
 let currentWave = 0, gameStarted = false, gameOver = false, gameWon = false;
 let selectedTowerType = null;
 let towers = [], enemies = [], projectiles = [], particles = [];
@@ -366,39 +396,48 @@ function computePathPixels() {
 // ============ WAVES ============
 function getWaveEnemies(wave) {
   const enemies = [];
-  const baseHP = 30 + wave * 20;
-  const count = 5 + wave * 2;
+  const cfg = DIFFICULTY_CONFIG[DIFFICULTY];
+  const baseHP = (30 + wave * 20) * cfg.hpMult;
+  const baseSpeed = cfg.speedMult;
+  const count = 6 + wave * 2;
   
   for (let i = 0; i < count; i++) {
     let type = 'normal';
     let hp = baseHP;
-    let speed = 1.2;
+    let speed = 1.2 * baseSpeed;
     let reward = 5 + wave;
     let size = 0.6;
-    let emoji = '🐛';
     
-    if (wave >= 3 && Math.random() < 0.3) {
-      type = 'fast'; hp = baseHP * 0.6; speed = 2.2; reward += 3;
-      emoji = '🦗'; size = 0.5;
+    const r = Math.random();
+    const waveRatio = wave / TOTAL_WAVES;
+    
+    if (wave >= 2 && r < 0.25) {
+      // 快速刺客：血少速快
+      type = 'fast'; hp = baseHP * 0.55; speed = 2.4 * baseSpeed; reward += 4; size = 0.48;
+    } else if (wave >= 4 && r < 0.45) {
+      // 重甲骑士：血厚速慢
+      type = 'tank'; hp = baseHP * 2.8; speed = 0.65 * baseSpeed; reward += 10; size = 0.82;
+    } else if (wave >= 6 && r < 0.6) {
+      // 飞行蜜蜂：免疫地面减速
+      type = 'flying'; hp = baseHP * 0.75; speed = 1.9 * baseSpeed; reward += 6; size = 0.52;
+    } else if (wave >= 9 && r < 0.72) {
+      // 治愈法师：给周围怪回血
+      type = 'healer'; hp = baseHP * 1.2; speed = 0.9 * baseSpeed; reward += 12; size = 0.65;
+    } else if (wave >= 12 && r < 0.82) {
+      // 隐身刺客：半透明，塔攻击概率降低
+      type = 'stealth'; hp = baseHP * 0.9; speed = 1.6 * baseSpeed; reward += 15; size = 0.55;
     }
-    if (wave >= 5 && Math.random() < 0.2) {
-      type = 'tank'; hp = baseHP * 2.5; speed = 0.7; reward += 8;
-      emoji = '🐢'; size = 0.8;
+    
+    // BOSS波
+    if (wave % 5 === 0 && i === 0) {
+      type = 'boss'; hp = baseHP * 5; speed = 0.55 * baseSpeed; reward += 30; size = 1.0;
     }
-    if (wave >= 8 && Math.random() < 0.15) {
-      type = 'flying'; hp = baseHP * 0.8; speed = 1.8; reward += 5;
-      emoji = '🦅'; size = 0.55;
-    }
-    if (wave >= 10 && Math.random() < 0.1) {
-      type = 'boss'; hp = baseHP * 5; speed = 0.5; reward += 20;
-      emoji = '🐉'; size = 1.0;
-    }
+    // 最终BOSS
     if (wave === TOTAL_WAVES && i === count - 1) {
-      type = 'boss'; hp = baseHP * 8; speed = 0.4; reward += 50;
-      emoji = '👾'; size = 1.2;
+      type = 'finalboss'; hp = baseHP * 10; speed = 0.45 * baseSpeed; reward += 80; size = 1.3;
     }
     
-    enemies.push({ type, hp, maxHp: hp, speed, reward, size, emoji, delay: i * 800 });
+    enemies.push({ type, hp, maxHp: hp, speed, reward, size, delay: i * 700, healTimer: 0 });
   }
   return enemies;
 }
@@ -892,43 +931,238 @@ function render() {
   
   // Draw enemies
   for (const e of enemies) {
+    const r = CELL * e.size * 0.38;
+    const x = e.x, y = e.y;
+    const t = Date.now() / 300;
+    
+    // 隐身怪半透明
+    ctx.globalAlpha = (e.type === 'stealth') ? 0.45 : 1.0;
+    
     // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath();
-    ctx.ellipse(e.x, e.y + CELL * e.size * 0.3, CELL * e.size * 0.3, CELL * e.size * 0.15, 0, 0, Math.PI*2);
+    ctx.ellipse(x, y + r * 0.8, r * 0.7, r * 0.2, 0, 0, Math.PI*2);
     ctx.fill();
     
-    // Emoji
-    const fontSize = CELL * e.size * 0.8;
-    ctx.font = `${fontSize}px serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(e.emoji, e.x, e.y);
+    if (e.type === 'normal') {
+      // 普通小兵：绿色圆形身体+眼睛+触角
+      ctx.fillStyle = '#5cb85c';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3d8b3d';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI); ctx.fill();
+      // 眼睛
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(x-r*0.3, y-r*0.15, r*0.22, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.3, y-r*0.15, r*0.22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#222';
+      ctx.beginPath(); ctx.arc(x-r*0.28, y-r*0.12, r*0.1, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.28, y-r*0.12, r*0.1, 0, Math.PI*2); ctx.fill();
+      // 触角
+      ctx.strokeStyle = '#3d8b3d'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x-r*0.2, y-r*0.85); ctx.lineTo(x-r*0.35, y-r*1.2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+r*0.2, y-r*0.85); ctx.lineTo(x+r*0.35, y-r*1.2); ctx.stroke();
+      
+    } else if (e.type === 'fast') {
+      // 快速刺客：紫色菱形身体+尖刺
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI/4);
+      ctx.fillStyle = '#9b59b6';
+      ctx.fillRect(-r*0.7, -r*0.7, r*1.4, r*1.4);
+      ctx.restore();
+      // 尖刺
+      ctx.fillStyle = '#6c3483';
+      [[0,-1],[0,1],[-1,0],[1,0]].forEach(([dx,dy]) => {
+        ctx.beginPath();
+        ctx.moveTo(x+dx*r*0.7, y+dy*r*0.7);
+        ctx.lineTo(x+dx*r*1.15+dy*r*0.15, y+dy*r*1.15+dx*r*0.15);
+        ctx.lineTo(x+dx*r*0.7+dy*r*0.2, y+dy*r*0.7+dx*r*0.2);
+        ctx.fill();
+      });
+      // 眼睛（红色）
+      ctx.fillStyle = '#ff0'; 
+      ctx.beginPath(); ctx.arc(x-r*0.22, y-r*0.1, r*0.14, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.22, y-r*0.1, r*0.14, 0, Math.PI*2); ctx.fill();
+      
+    } else if (e.type === 'tank') {
+      // 重甲骑士：深灰六边形+盔甲纹路
+      ctx.fillStyle = '#7f8c8d';
+      ctx.beginPath();
+      for (let i=0; i<6; i++) {
+        const a = i*Math.PI/3 - Math.PI/6;
+        i===0 ? ctx.moveTo(x+r*Math.cos(a), y+r*Math.sin(a)) : ctx.lineTo(x+r*Math.cos(a), y+r*Math.sin(a));
+      }
+      ctx.closePath(); ctx.fill();
+      // 盔甲高光
+      ctx.fillStyle = '#95a5a6';
+      ctx.beginPath();
+      for (let i=0; i<6; i++) {
+        const a = i*Math.PI/3 - Math.PI/6;
+        i===0 ? ctx.moveTo(x+r*0.6*Math.cos(a), y+r*0.6*Math.sin(a)) : ctx.lineTo(x+r*0.6*Math.cos(a), y+r*0.6*Math.sin(a));
+      }
+      ctx.closePath(); ctx.fill();
+      // 眼缝
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(x-r*0.35, y-r*0.08, r*0.25, r*0.12);
+      ctx.fillRect(x+r*0.1, y-r*0.08, r*0.25, r*0.12);
+      
+    } else if (e.type === 'flying') {
+      // 飞行蜜蜂：黄黑条纹+翅膀
+      // 翅膀（半透明）
+      ctx.fillStyle = 'rgba(173,216,230,0.7)';
+      ctx.beginPath(); ctx.ellipse(x-r*0.8, y-r*0.3, r*0.6, r*0.35, -0.4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x+r*0.8, y-r*0.3, r*0.6, r*0.35, 0.4, 0, Math.PI*2); ctx.fill();
+      // 身体
+      ctx.fillStyle = '#f1c40f';
+      ctx.beginPath(); ctx.ellipse(x, y, r*0.5, r*0.75, 0, 0, Math.PI*2); ctx.fill();
+      // 条纹
+      ctx.fillStyle = '#2c3e50';
+      [-0.3, 0, 0.3].forEach(dy => {
+        ctx.fillRect(x-r*0.5, y+dy*r*0.6, r*1.0, r*0.18);
+      });
+      // 眼睛
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(x-r*0.2, y-r*0.4, r*0.18, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.2, y-r*0.4, r*0.18, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(x-r*0.18, y-r*0.38, r*0.08, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.18, y-r*0.38, r*0.08, 0, Math.PI*2); ctx.fill();
+      
+    } else if (e.type === 'healer') {
+      // 治愈法师：粉色五角星形+光环
+      ctx.strokeStyle = 'rgba(255,100,200,0.4)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, r*1.4 + Math.sin(t)*3, 0, Math.PI*2); ctx.stroke();
+      // 五角星身体
+      ctx.fillStyle = '#e91e8c';
+      ctx.beginPath();
+      for (let i=0; i<5; i++) {
+        const a = i*Math.PI*2/5 - Math.PI/2;
+        const b = a + Math.PI/5;
+        i===0 ? ctx.moveTo(x+r*Math.cos(a), y+r*Math.sin(a)) : ctx.lineTo(x+r*Math.cos(a), y+r*Math.sin(a));
+        ctx.lineTo(x+r*0.45*Math.cos(b), y+r*0.45*Math.sin(b));
+      }
+      ctx.closePath(); ctx.fill();
+      // 十字符号
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x-r*0.08, y-r*0.35, r*0.16, r*0.7);
+      ctx.fillRect(x-r*0.35, y-r*0.08, r*0.7, r*0.16);
+      
+    } else if (e.type === 'stealth') {
+      // 隐身刺客：深蓝色+问号
+      ctx.fillStyle = '#1a237e';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(100,149,237,0.8)';
+      ctx.beginPath(); ctx.arc(x, y, r*0.7, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${r*1.1}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('?', x, y+r*0.05);
+      
+    } else if (e.type === 'boss') {
+      // BOSS：红色大龙头
+      // 光环
+      ctx.strokeStyle = 'rgba(231,76,60,0.5)';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(x, y, r*1.3 + Math.sin(t*1.5)*4, 0, Math.PI*2); ctx.stroke();
+      // 身体
+      const grad = ctx.createRadialGradient(x-r*0.2, y-r*0.2, r*0.1, x, y, r);
+      grad.addColorStop(0, '#ff6b6b'); grad.addColorStop(1, '#c0392b');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+      // 角
+      ctx.fillStyle = '#f39c12';
+      ctx.beginPath(); ctx.moveTo(x-r*0.3, y-r*0.8); ctx.lineTo(x-r*0.55, y-r*1.4); ctx.lineTo(x-r*0.05, y-r*0.85); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x+r*0.3, y-r*0.8); ctx.lineTo(x+r*0.55, y-r*1.4); ctx.lineTo(x+r*0.05, y-r*0.85); ctx.fill();
+      // 眼睛
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(x-r*0.3, y-r*0.15, r*0.25, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.3, y-r*0.15, r*0.25, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#f1c40f';
+      ctx.beginPath(); ctx.arc(x-r*0.28, y-r*0.12, r*0.13, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.28, y-r*0.12, r*0.13, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(x-r*0.26, y-r*0.1, r*0.06, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.26, y-r*0.1, r*0.06, 0, Math.PI*2); ctx.fill();
+      // 嘴
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y+r*0.2, r*0.35, 0.2, Math.PI-0.2); ctx.stroke();
+      
+    } else if (e.type === 'finalboss') {
+      // 最终BOSS：金色巨龙
+      ctx.strokeStyle = 'rgba(255,215,0,0.6)';
+      ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.arc(x, y, r*1.5 + Math.sin(t*2)*5, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,100,0,0.4)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, r*1.8 + Math.sin(t*1.3+1)*4, 0, Math.PI*2); ctx.stroke();
+      // 身体
+      const grd = ctx.createRadialGradient(x-r*0.3, y-r*0.3, r*0.1, x, y, r);
+      grd.addColorStop(0, '#ffd700'); grd.addColorStop(0.6, '#ff8c00'); grd.addColorStop(1, '#8b0000');
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+      // 三个角
+      ctx.fillStyle = '#fff';
+      [[-0.4,-1.3],[0,-1.5],[0.4,-1.3]].forEach(([dx,dy]) => {
+        ctx.beginPath();
+        ctx.moveTo(x+dx*r, y+dy*r*0.6);
+        ctx.lineTo(x+(dx-0.15)*r, y-r*0.7);
+        ctx.lineTo(x+(dx+0.15)*r, y-r*0.7);
+        ctx.fill();
+      });
+      // 眼睛（发光）
+      ctx.fillStyle = '#ff0000';
+      ctx.beginPath(); ctx.arc(x-r*0.32, y-r*0.1, r*0.28, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.32, y-r*0.1, r*0.28, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ff6600';
+      ctx.beginPath(); ctx.arc(x-r*0.3, y-r*0.08, r*0.16, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.3, y-r*0.08, r*0.16, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(x-r*0.28, y-r*0.06, r*0.07, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+r*0.28, y-r*0.06, r*0.07, 0, Math.PI*2); ctx.fill();
+      // BOSS标签
+      ctx.fillStyle = '#ffd700';
+      ctx.font = `bold ${r*0.4}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('BOSS', x, y+r*0.55);
+    }
+    
+    ctx.globalAlpha = 1.0;
     
     // HP bar
-    const barW = CELL * e.size * 0.8;
-    const barH = 4;
-    const barX = e.x - barW/2;
-    const barY = e.y - CELL * e.size * 0.5;
+    const barW = CELL * e.size * 0.9;
+    const barH = 5;
+    const barX = x - barW/2;
+    const barY = y - r - 10;
     ctx.fillStyle = '#333';
-    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillRect(barX-1, barY-1, barW+2, barH+2);
     const hpRatio = Math.max(0, e.hp / e.maxHp);
     ctx.fillStyle = hpRatio > 0.5 ? '#2ecc71' : hpRatio > 0.25 ? '#f39c12' : '#e74c3c';
     ctx.fillRect(barX, barY, barW * hpRatio, barH);
     
+    // 治愈法师：给周围怪回血
+    if (e.type === 'healer') {
+      e.healTimer = (e.healTimer || 0) + 16;
+      if (e.healTimer > 2000) {
+        e.healTimer = 0;
+        for (const other of enemies) {
+          if (other !== e) {
+            const dx = other.x - e.x, dy = other.y - e.y;
+            if (Math.sqrt(dx*dx+dy*dy) < CELL * 2.5) {
+              other.hp = Math.min(other.maxHp, other.hp + other.maxHp * 0.08);
+            }
+          }
+        }
+      }
+    }
+    
     // Slow indicator
     if (e.slowTimer > 0) {
-      ctx.fillStyle = 'rgba(52,152,219,0.5)';
-      ctx.beginPath();
-      ctx.arc(e.x, e.y, CELL * e.size * 0.4, 0, Math.PI*2);
-      ctx.fill();
+      ctx.fillStyle = 'rgba(52,152,219,0.4)';
+      ctx.beginPath(); ctx.arc(x, y, r*0.45, 0, Math.PI*2); ctx.fill();
     }
     // DOT indicator
     if (e.dotTimer > 0) {
-      ctx.fillStyle = 'rgba(255,69,0,0.4)';
-      ctx.beginPath();
-      ctx.arc(e.x, e.y, CELL * e.size * 0.35, 0, Math.PI*2);
-      ctx.fill();
+      ctx.fillStyle = 'rgba(255,69,0,0.35)';
+      ctx.beginPath(); ctx.arc(x, y, r*0.4, 0, Math.PI*2); ctx.fill();
     }
   }
   
@@ -1006,6 +1240,18 @@ function toggleSpeed() {
 }
 
 // ============ GAME CONTROL ============
+function chooseDifficulty(diff) {
+  DIFFICULTY = diff;
+  const cfg = DIFFICULTY_CONFIG[diff];
+  TOTAL_WAVES = cfg.waves;
+  lives = cfg.lives;
+  gold = cfg.gold;
+  document.getElementById('difficulty-screen').style.display = 'none';
+  document.getElementById('gold-info').textContent = '💰 ' + gold;
+  document.getElementById('lives-info').textContent = '❤️ ' + lives;
+  document.getElementById('wave-info').textContent = '🌊 波次: 0/' + TOTAL_WAVES;
+}
+
 function startGame() {
   document.getElementById('start-btn').style.display = 'none';
   gameStarted = true;
