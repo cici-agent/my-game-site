@@ -1,8 +1,13 @@
 // ===== 认证模块 - 注册/登录/登出/状态管理 =====
 // 使用普通 script 标签加载，所有函数挂载到全局
 
-// 注册
+// 注册（基础版，不含头像）
 async function signUp(username, password) {
+  return signUpWithAvatar(username, password, '');
+}
+
+// 注册（含头像）
+async function signUpWithAvatar(username, password, avatarUrl) {
   var sb = getSupabase();
   if (!sb) return { error: 'Supabase 未初始化，请刷新页面重试' };
 
@@ -14,12 +19,16 @@ async function signUp(username, password) {
   var userId = result.data.user ? result.data.user.id : null;
   if (userId) {
     var isAdmin = (username === 'admin');
-    await sb.from('profiles').insert({
+    var profileData = {
       id: userId,
       username: username,
       role: isAdmin ? 'admin' : 'user',
       coins: 100
-    });
+    };
+    if (avatarUrl) {
+      profileData.avatar_url = avatarUrl;
+    }
+    await sb.from('profiles').insert(profileData);
   }
   return { data: result.data };
 }
@@ -58,7 +67,7 @@ async function getSession() {
   return (result.data && result.data.session) ? result.data.session : null;
 }
 
-// 获取用户资料（含 username、role、coins）
+// 获取用户资料（含 username、role、coins、avatar_url）
 async function getUserProfile(userId) {
   var sb = getSupabase();
   if (!sb) return null;
