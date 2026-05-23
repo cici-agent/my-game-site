@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>打地鼠 - 小菜鸟</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+body {
+  font-family: 'Arial Rounded MT Bold', 'Nunito', sans-serif;
+  background: linear-gradient(180deg, #87CEEB 0%, #98FB98 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+
+.game-header {
+  text-align: center;
+  padding: 15px 10px 10px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.game-title {
+  font-size: 2.2em;
+  color: #FF6B35;
+  text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff;
+  margin-bottom: 8px;
+}
+
+.game-title span {
+  display: inline-block;
+  animation: bounce 0.6s ease infinite alternate;
+}
+
+.game-title span:nth-child(2) { animation-delay: 0.1s; }
+.game-title span:nth-child(3) { animation-delay: 0.2s; }
+
+@keyframes bounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(-5px); }
+}
+
+.stats-bar {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: rgba(255,255,255,0.85);
+  border-radius: 20px;
+  padding: 8px 15px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+  margin-bottom: 10px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 1.1em;
+  font-weight: bold;
+}
+
+.stat-item .icon {
+  font-size: 1.3em;
+}
+
+.stat-value {
+  color: #333;
+  min-width: 30px;
+}
+
+#score-value { color: #FF6B35; }
+#time-value { color: #4CAF50; }
+#best-value { color: #9C27B0; }
+
+.game-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  padding: 20px;
+  max-width: 420px;
+  width: 90%;
+  margin: 0 auto;
+}
+
+.hole {
+  position: relative;
+  width: 100%;
+  padding-bottom: 85%;
+  cursor: pointer;
+}
+
+.hole-ground {
+  position: absolute;
+  bottom: 0;
+  left: 5%;
+  width: 90%;
+  height: 35%;
+  background: radial-gradient(ellipse at center, #5D4037 0%, #3E2723 100%);
+  border-radius: 50%;
+  z-index: 2;
+  box-shadow: inset 0 -5px 10px rgba(0,0,0,0.3);
+}
+
+.hole-front {
+  position: absolute;
+  bottom: 0;
+  left: 5%;
+  width: 90%;
+  height: 20%;
+  background: #6D4C41;
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  z-index: 3;
+}
+
+.mole {
+  position: absolute;
+  bottom: 15%;
+  left: 50%;
+  transform: translateX(-50%) translateY(100%);
+  width: 70%;
+  height: 70%;
+  z-index: 1;
+  transition: transform 0.2s ease-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mole.show {
+  transform: translateX(-50%) translateY(10%);
+}
+
+.mole.hit {
+  transform: translateX(-50%) translateY(10%) scale(0.8);
+}
+
+.mole-body {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Cute mole SVG styling */
+.mole-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.hit-effect {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.5em;
+  font-weight: bold;
+  color: #FF6B35;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hit-effect.show {
+  animation: hitPop 0.6s ease-out forwards;
+}
+
+@keyframes hitPop {
+  0% { opacity: 1; transform: translateX(-50%) translateY(0) scale(0.5); }
+  50% { opacity: 1; transform: translateX(-50%) translateY(-20px) scale(1.2); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-40px) scale(0.8); }
+}
+
+/* Start screen */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(3px);
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.modal {
+  background: white;
+  border-radius: 25px;
+  padding: 30px 40px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  max-width: 350px;
+  width: 85%;
+  animation: modalIn 0.3s ease-out;
+}
+
+@keyframes modalIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal h2 {
+  font-size: 1.8em;
+  color: #FF6B35;
+  margin-bottom: 10px;
+}
+
+.modal p {
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 1.1em;
+  line-height: 1.5;
+}
+
+.modal .final-score {
+  font-size: 3em;
+  color: #FF6B35;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.modal .new-record {
+  color: #9C27B0;
+  font-size: 1.2em;
+  font-weight: bold;
+  animation: pulse 0.5s ease infinite alternate;
+}
+
+@keyframes pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.1); }
+}
+
+.btn {
+  display: inline-block;
+  padding: 12px 35px;
+  font-size: 1.3em;
+  font-weight: bold;
+  color: white;
+  background: linear-gradient(135deg, #FF6B35, #FF8F65);
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(255,107,53,0.4);
+  transition: transform 0.1s, box-shadow 0.1s;
+  margin-top: 10px;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255,107,53,0.5);
+}
+
+.btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 10px rgba(255,107,53,0.3);
+}
+
+/* Clouds decoration */
+.cloud {
+  position: fixed;
+  background: white;
+  border-radius: 50px;
+  opacity: 0.7;
+  z-index: -1;
+}
+
+.cloud::before, .cloud::after {
+  content: '';
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+}
+
+.cloud-1 {
+  width: 100px;
+  height: 40px;
+  top: 8%;
+  left: -10%;
+  animation: drift 20s linear infinite;
+}
+
+.cloud-2 {
+  width: 80px;
+  height: 30px;
+  top: 15%;
+  left: -10%;
+  animation: drift 25s linear infinite;
+  animation-delay: -5s;
+}
+
+.cloud-3 {
+  width: 120px;
+  height: 45px;
+  top: 5%;
+  left: -10%;
+  animation: drift 30s linear infinite;
+  animation-delay: -10s;
+}
+
+@keyframes drift {
+  from { transform: translateX(-100px); }
+  to { transform: translateX(calc(100vw + 200px)); }
+}
+
+/* Difficulty indicator */
+.difficulty-bar {
+  width: 90%;
+  max-width: 420px;
+  height: 6px;
+  background: rgba(255,255,255,0.5);
+  border-radius: 3px;
+  margin-bottom: 5px;
+  overflow: hidden;
+}
+
+.difficulty-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #FFC107, #F44336);
+  border-radius: 3px;
+  transition: width 0.5s;
+  width: 10%;
+}
+
+/* Combo display */
+.combo-display {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 3em;
+  font-weight: bold;
+  color: #FF6B35;
+  text-shadow: 2px 2px 0 #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.combo-display.show {
+  animation: comboShow 0.8s ease-out forwards;
+}
+
+@keyframes comboShow {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+  30% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1) translateY(-30px); }
+}
+
+/* Responsive */
+@media (max-width: 400px) {
+  .game-title { font-size: 1.8em; }
+  .game-board { gap: 10px; padding: 15px; }
+  .stats-bar { padding: 6px 10px; }
+  .stat-item { font-size: 0.95em; }
+}
+
+@media (min-height: 800px) {
+  .game-board { gap: 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Clouds -->
+<div class="cloud cloud-1"></div>
+<div class="cloud cloud-2"></div>
+<div class="cloud cloud-3"></div>
+
+<!-- Header -->
+<div class="game-header">
+  <h1 class="game-title">
+    <span>🔨</span>
+    <span>打</span>
+    <span>地</span>
+    <span>鼠</span>
+  </h1>
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span class="icon">⭐</span>
+      <span class="stat-value" id="score-value">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="icon">⏱️</span>
+      <span class="stat-value" id="time-value">30</span>
+    </div>
+    <div class="stat-item">
+      <span class="icon">🏆</span>
+      <span class="stat-value" id="best-value">0</span>
+    </div>
+  </div>
+  <div class="difficulty-bar">
+    <div class="difficulty-fill" id="difficulty-fill"></div>
+  </div>
+</div>
+
+<!-- Game Board -->
+<div class="game-board" id="game-board"></div>
+
+<!-- Combo Display -->
+<div class="combo-display" id="combo-display"></div>
+
+<!-- Start Overlay -->
+<div class="overlay" id="start-overlay">
+  <div class="modal">
+    <h2>🐹 打地鼠</h2>
+    <p>小地鼠从洞里探出头来啦！<br>快点击它们得分吧！<br>⏱️ 30秒倒计时<br>🔥 速度会越来越快哦！</p>
+    <button class="btn" id="start-btn">开始游戏</button>
+  </div>
+</div>
+
+<!-- End Overlay -->
+<div class="overlay hidden" id="end-overlay">
+  <div class="modal">
+    <h2>⏰ 时间到！</h2>
+    <div class="final-score" id="final-score">0</div>
+    <p id="end-message">做得不错！</p>
+    <p class="new-record hidden" id="new-record">🎉 新纪录！</p>
+    <button class="btn" id="restart-btn">再来一次</button>
+  </div>
+</div>
+
+<script>
+// Game state
+const GAME_DURATION = 30;
+const HOLES_COUNT = 9;
+
+let score = 0;
+let timeLeft = GAME_DURATION;
+let bestScore = parseInt(localStorage.getItem('whackMoleBest')) || 0;
+let gameTimer = null;
+let moleTimers = [];
+let isPlaying = false;
+let combo = 0;
+let maxCombo = 0;
+let difficulty = 1;
+
+// DOM elements
+const gameBoard = document.getElementById('game-board');
+const scoreValue = document.getElementById('score-value');
+const timeValue = document.getElementById('time-value');
+const bestValue = document.getElementById('best-value');
+const startOverlay = document.getElementById('start-overlay');
+const endOverlay = document.getElementById('end-overlay');
+const startBtn = document.getElementById('start-btn');
+const restartBtn = document.getElementById('restart-btn');
+const finalScore = document.getElementById('final-score');
+const endMessage = document.getElementById('end-message');
+const newRecord = document.getElementById('new-record');
+const difficultyFill = document.getElementById('difficulty-fill');
+const comboDisplay = document.getElementById('combo-display');
+
+// Mole SVG templates (cute animals)
+const moleSVGs = [
+  // Brown mole
+  `<svg viewBox="0 0 100 100" class="mole-svg">
+    <ellipse cx="50" cy="65" rx="35" ry="30" fill="#8B6914"/>
+    <ellipse cx="50" cy="60" rx="30" ry="28" fill="#D4A030"/>
+    <circle cx="38" cy="52" r="6" fill="white"/>
+    <circle cx="62" cy="52" r="6" fill="white"/>
+    <circle cx="39" cy="53" r="3.5" fill="#333"/>
+    <circle cx="63" cy="53" r="3.5" fill="#333"/>
+    <circle cx="40" cy="51" r="1.5" fill="white"/>
+    <circle cx="64" cy="51" r="1.5" fill="white"/>
+    <ellipse cx="50" cy="62" rx="8" ry="5" fill="#FF9999"/>
+    <ellipse cx="50" cy="64" rx="3" ry="2" fill="#CC6666"/>
+    <ellipse cx="30" cy="58" rx="6" ry="4" fill="rgba(255,150,150,0.4)"/>
+    <ellipse cx="70" cy="58" rx="6" ry="4" fill="rgba(255,150,150,0.4)"/>
+    <rect x="45" y="70" width="3" height="6" rx="1" fill="white"/>
+    <rect x="52" y="70" width="3" height="6" rx="1" fill="white"/>
+    <ellipse cx="35" cy="38" rx="8" ry="12" fill="#D4A030"/>
+    <ellipse cx="65" cy="38" rx="8" ry="12" fill="#D4A030"/>
+    <ellipse cx="35" cy="38" rx="5" ry="8" fill="#FFD700"/>
+  </svg>`,
+  // Gray mole
+  `<svg viewBox="0 0 100 100" class="mole-svg">
+    <ellipse cx="50" cy="65" rx="35" ry="30" fill="#555"/>
+    <ellipse cx="50" cy="60" rx="30" ry="28" fill="#888"/>
+    <circle cx="38" cy="52" r="6" fill="white"/>
+    <circle cx="62" cy="52" r="6" fill="white"/>
+    <circle cx="39" cy="53" r="3.5" fill="#333"/>
+    <circle cx="63" cy="53" r="3.5" fill="#333"/>
+    <circle cx="40" cy="51" r="1.5" fill="white"/>
+    <circle cx="64" cy="51" r="1.5" fill="white"/>
+    <ellipse cx="50" cy="62" rx="8" ry="5" fill="#FFB6C1"/>
+    <ellipse cx="50" cy="64" rx="3" ry="2" fill="#FF6B8A"/>
+    <ellipse cx="30" cy="58" rx="6" ry="4" fill="rgba(255,150,150,0.3)"/>
+    <ellipse cx="70" cy="58" rx="6" ry="4" fill="rgba(255,150,150,0.3)"/>
+    <rect x="45" y="70" width="3" height="6" rx="1" fill="white"/>
+    <rect x="52" y="70" width="3" height="6" rx="1" fill="white"/>
+    <ellipse cx="35" cy="38" rx="8" ry="12" fill="#888"/>
+    <ellipse cx="65" cy="38" rx="8" ry="12" fill="#888"/>
+    <ellipse cx="35" cy="38" rx="5" ry="8" fill="#AAA"/>
+  </svg>`,
+  // Pink mole (special - worth more points)
+  `<svg viewBox="0 0 100 100" class="mole-svg">
+    <ellipse cx="50" cy="65" rx="35" ry="30" fill="#C2185B"/>
+    <ellipse cx="50" cy="60" rx="30" ry="28" fill="#FF69B4"/>
+    <circle cx="38" cy="52" r="6" fill="white"/>
+    <circle cx="62" cy="52" r="6" fill="white"/>
+    <circle cx="39" cy="53" r="3.5" fill="#333"/>
+    <circle cx="63" cy="53" r="3.5" fill="#333"/>
+    <circle cx="40" cy="51" r="1.5" fill="white"/>
+    <circle cx="64" cy="51" r="1.5" fill="white"/>
+    <ellipse cx="50" cy="62" rx="8" ry="5" fill="#FFEB3B"/>
+    <ellipse cx="50" cy="64" rx="3" ry="2" fill="#FFC107"/>
+    <text x="50" y="45" text-anchor="middle" font-size="12" fill="#FFD700">👑</text>
+    <rect x="45" y="70" width="3" height="6" rx="1" fill="white"/>
+    <rect x="52" y="70" width="3" height="6" rx="1" fill="white"/>
+    <ellipse cx="35" cy="38" rx="8" ry="12" fill="#FF69B4"/>
+    <ellipse cx="65" cy="38" rx="8" ry="12" fill="#FF69B4"/>
+    <ellipse cx="35" cy="38" rx="5" ry="8" fill="#FF99CC"/>
+  </svg>`
+];
+
+// Initialize
+bestValue.textContent = bestScore;
+
+// Create game board
+function createBoard() {
+  gameBoard.innerHTML = '';
+  for (let i = 0; i < HOLES_COUNT; i++) {
+    const hole = document.createElement('div');
+    hole.className = 'hole';
+    hole.dataset.index = i;
+    hole.innerHTML = `
+      <div class="mole" id="mole-${i}">
+        <div class="mole-body">${moleSVGs[0]}</div>
+      </div>
+      <div class="hole-ground"></div>
+      <div class="hole-front"></div>
+      <div class="hit-effect" id="hit-${i}">+1</div>
+    `;
+    hole.addEventListener('pointerdown', (e) => whackMole(i, e));
+    gameBoard.appendChild(hole);
+  }
+}
+
+// Start game
+function startGame() {
+  score = 0;
+  timeLeft = GAME_DURATION;
+  combo = 0;
+  maxCombo = 0;
+  difficulty = 1;
+  isPlaying = true;
+
+  scoreValue.textContent = '0';
+  timeValue.textContent = GAME_DURATION;
+  difficultyFill.style.width = '10%';
+
+  startOverlay.classList.add('hidden');
+  endOverlay.classList.add('hidden');
+
+  // Clear all moles
+  for (let i = 0; i < HOLES_COUNT; i++) {
+    const mole = document.getElementById(`mole-${i}`);
+    mole.classList.remove('show', 'hit');
+    mole.dataset.active = 'false';
+  }
+
+  // Start timer
+  gameTimer = setInterval(() => {
+    timeLeft--;
+    timeValue.textContent = timeLeft;
+
+    // Increase difficulty over time
+    const elapsed = GAME_DURATION - timeLeft;
+    difficulty = 1 + (elapsed / GAME_DURATION) * 3;
+    const diffPercent = Math.min(100, (difficulty / 4) * 100);
+    difficultyFill.style.width = diffPercent + '%';
+
+    if (timeLeft <= 0) {
+      endGame();
+    }
+  }, 1000);
+
+  // Start spawning moles
+  spawnMole();
+}
+
+// Spawn mole
+function spawnMole() {
+  if (!isPlaying) return;
+
+  // Pick a random hole that doesn't have an active mole
+  const availableHoles = [];
+  for (let i = 0; i < HOLES_COUNT; i++) {
+    const mole = document.getElementById(`mole-${i}`);
+    if (mole.dataset.active !== 'true') {
+      availableHoles.push(i);
+    }
+  }
+
+  if (availableHoles.length > 0) {
+    const holeIndex = availableHoles[Math.floor(Math.random() * availableHoles.length)];
+    showMole(holeIndex);
+  }
+
+  // Schedule next mole spawn - gets faster with difficulty
+  const baseDelay = 1200;
+  const minDelay = 400;
+  const delay = Math.max(minDelay, baseDelay - (difficulty * 200)) + Math.random() * 300;
+
+  const timer = setTimeout(spawnMole, delay);
+  moleTimers.push(timer);
+}
+
+// Show mole in a hole
+function showMole(index) {
+  const mole = document.getElementById(`mole-${index}`);
+  
+  // Randomly pick mole type (10% chance for golden mole)
+  const isGolden = Math.random() < 0.1;
+  const moleType = isGolden ? 2 : (Math.random() < 0.5 ? 0 : 1);
+  mole.querySelector('.mole-body').innerHTML = moleSVGs[moleType];
+  mole.dataset.type = moleType;
+  mole.dataset.active = 'true';
+  mole.classList.remove('hit');
+  mole.classList.add('show');
+
+  // Auto hide after a duration that decreases with difficulty
+  const showDuration = Math.max(600, 1500 - (difficulty * 200)) + Math.random() * 400;
+  
+  const hideTimer = setTimeout(() => {
+    if (mole.dataset.active === 'true') {
+      hideMole(index);
+      // Reset combo if mole escapes
+      if (combo > 0) {
+        combo = 0;
+      }
+    }
+  }, showDuration);
+
+  moleTimers.push(hideTimer);
+}
+
+// Hide mole
+function hideMole(index) {
+  const mole = document.getElementById(`mole-${index}`);
+  mole.classList.remove('show');
+  mole.dataset.active = 'false';
+}
+
+// Whack mole
+function whackMole(index, event) {
+  if (!isPlaying) return;
+  
+  const mole = document.getElementById(`mole-${index}`);
+  if (mole.dataset.active !== 'true') return;
+
+  event.preventDefault();
+
+  // Calculate points
+  const moleType = parseInt(mole.dataset.type);
+  let points = moleType === 2 ? 3 : 1; // Golden mole = 3 points
+
+  // Combo bonus
+  combo++;
+  if (combo >= 3) {
+    points += Math.floor(combo / 3);
+  }
+  if (combo > maxCombo) maxCombo = combo;
+
+  // Show combo
+  if (combo >= 3 && combo % 3 === 0) {
+    showCombo(combo);
+  }
+
+  score += points;
+  scoreValue.textContent = score;
+
+  // Hit effect
+  const hitEffect = document.getElementById(`hit-${index}`);
+  hitEffect.textContent = points > 1 ? `+${points}` : '+1';
+  hitEffect.classList.remove('show');
+  void hitEffect.offsetWidth; // Force reflow
+  hitEffect.classList.add('show');
+
+  // Mole hit animation
+  mole.classList.add('hit');
+  mole.dataset.active = 'false';
+
+  setTimeout(() => {
+    mole.classList.remove('show', 'hit');
+  }, 200);
+}
+
+// Show combo text
+function showCombo(comboCount) {
+  comboDisplay.textContent = `🔥 ${comboCount} 连击！`;
+  comboDisplay.classList.remove('show');
+  void comboDisplay.offsetWidth;
+  comboDisplay.classList.add('show');
+}
+
+// End game
+function endGame() {
+  isPlaying = false;
+  clearInterval(gameTimer);
+  moleTimers.forEach(t => clearTimeout(t));
+  moleTimers = [];
+
+  // Hide all moles
+  for (let i = 0; i < HOLES_COUNT; i++) {
+    const mole = document.getElementById(`mole-${i}`);
+    mole.classList.remove('show', 'hit');
+    mole.dataset.active = 'false';
+  }
+
+  // Check best score
+  const isNewRecord = score > bestScore;
+  if (isNewRecord) {
+    bestScore = score;
+    localStorage.setItem('whackMoleBest', bestScore);
+    bestValue.textContent = bestScore;
+  }
+
+  // Show end screen
+  finalScore.textContent = score;
+  
+  if (score === 0) {
+    endMessage.textContent = '加油，下次一定能打到！💪';
+  } else if (score < 10) {
+    endMessage.textContent = '不错的开始！继续练习吧 😊';
+  } else if (score < 20) {
+    endMessage.textContent = '做得很好！你的反应很快！⚡';
+  } else if (score < 35) {
+    endMessage.textContent = '太厉害了！你是打地鼠高手！🌟';
+  } else {
+    endMessage.textContent = '无敌了！地鼠们都怕你了！👑';
+  }
+
+  if (maxCombo >= 3) {
+    endMessage.textContent += `\n最高连击：${maxCombo}`;
+  }
+
+  if (isNewRecord) {
+    newRecord.classList.remove('hidden');
+  } else {
+    newRecord.classList.add('hidden');
+  }
+
+  endOverlay.classList.remove('hidden');
+}
+
+// Event listeners
+startBtn.addEventListener('click', startGame);
+restartBtn.addEventListener('click', startGame);
+
+// Prevent context menu on long press (mobile)
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Initialize board
+createBoard();
+</script>
+</body>
+</html>
