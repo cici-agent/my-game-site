@@ -124,28 +124,57 @@
     var COIN_INTERVAL = 5 * 60 * 1000; // 5分钟
     var COIN_COST = 1;
 
+    // 显示悬浮提示
+    function showToast(msg, duration) {
+      var existing = document.getElementById('coinToast');
+      if (existing) existing.remove();
+      var toast = document.createElement('div');
+      toast.id = 'coinToast';
+      toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999;pointer-events:none;transition:opacity 0.3s;';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, duration || 3000);
+    }
+
     function startCoinTimer(userId) {
       if (coinTimer) clearInterval(coinTimer);
+      var elapsed = 0;
       coinTimer = setInterval(async function() {
+        elapsed += 30000;
         var sb = getSupabase();
         var profileResult = await sb.from('profiles').select('coins').eq('id', userId).single();
         var currentCoins = (profileResult.data && profileResult.data.coins) || 0;
-        if (currentCoins < COIN_COST) {
-          // 金币不足，暂停游戏
-          clearInterval(coinTimer);
-          coinTimer = null;
-          var frame = document.getElementById('gameFrame');
-          frame.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;">' +
-            '<div style="font-size:48px;">🪙</div>' +
-            '<div style="font-size:18px;font-weight:700;color:#333;">金币不足，游戏已暂停</div>' +
-            '<div style="font-size:14px;color:#888;">请充值金币后继续游玩</div>' +
-            '<a href="profile.html" style="background:#ff6b35;color:#fff;padding:10px 24px;border-radius:20px;text-decoration:none;font-weight:700;">去充值</a>' +
-            '</div>';
-          return;
+
+        if (elapsed % COIN_INTERVAL === 0) {
+          // 到了扣费时间
+          if (currentCoins < COIN_COST) {
+            // 金币不足，暂停游戏
+            clearInterval(coinTimer);
+            coinTimer = null;
+            var frame = document.getElementById('gameFrame');
+            frame.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;">' +
+              '<div style="font-size:48px;">🪙</div>' +
+              '<div style="font-size:18px;font-weight:700;color:#333;">金币不足，游戏已暂停</div>' +
+              '<div style="font-size:14px;color:#888;">请充值金币后继续游玩</div>' +
+              '<a href="profile.html" style="background:#ff6b35;color:#fff;padding:10px 24px;border-radius:20px;text-decoration:none;font-weight:700;">去充值</a>' +
+              '</div>';
+            return;
+          }
+          // 扣除金币
+          await sb.from('profiles').update({ coins: currentCoins - COIN_COST }).eq('id', userId);
+          var remaining = currentCoins - COIN_COST;
+          if (remaining <= 2) {
+            showToast('⚠️ 已扣除 1 金币，剩余 ' + remaining + ' 枚，即将不足！', 4000);
+          } else {
+            showToast('🪙 已扣除 1 金币，剩余 ' + remaining + ' 枚', 3000);
+          }
+        } else if (elapsed % COIN_INTERVAL === COIN_INTERVAL - 30000) {
+          // 距离下次扣费还有30秒，提前提醒
+          if (currentCoins <= COIN_COST) {
+            showToast('⚠️ 30秒后将扣除 1 金币，当前仅剩 ' + currentCoins + ' 枚！', 4000);
+          }
         }
-        // 扣除金币
-        await sb.from('profiles').update({ coins: currentCoins - COIN_COST }).eq('id', userId);
-      }, COIN_INTERVAL);
+      }, 30000); // 每30秒检查一次
     }
 
     // 开始游戏
