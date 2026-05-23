@@ -53,6 +53,16 @@
       <div class="comments-section">
         <h3>💬 玩家点评</h3>
         <div class="comment-form">
+          <!-- 星级选择 -->
+          <div class="star-rating" id="starRating">
+            <span class="star-label">给个评分：</span>
+            <span class="star" data-val="1" onclick="selectStar(1)">★</span>
+            <span class="star" data-val="2" onclick="selectStar(2)">★</span>
+            <span class="star" data-val="3" onclick="selectStar(3)">★</span>
+            <span class="star" data-val="4" onclick="selectStar(4)">★</span>
+            <span class="star" data-val="5" onclick="selectStar(5)">★</span>
+            <span class="star-hint" id="starHint">点击打分</span>
+          </div>
           <input type="text" id="commentInput" placeholder="说说你的游戏体验...">
           <button id="commentBtn" onclick="submitComment()">发表</button>
         </div>
@@ -250,15 +260,44 @@
         // 获取评论者用户名
         var profileResult = await sb.from('profiles').select('username').eq('id', review.user_id).single();
         var reviewerName = profileResult.data ? profileResult.data.username : '匿名';
+        var stars = '';
+        for (var s = 1; s <= 5; s++) { stars += s <= review.rating ? '★' : '☆'; }
         html += '<li class="comment-item">' +
           '<div class="comment-avatar">🐣</div>' +
           '<div class="comment-body">' +
-            '<div class="comment-name">' + reviewerName + '</div>' +
+            '<div class="comment-name">' + reviewerName + ' <span style="color:#f59e0b;font-size:13px;">' + stars + '</span></div>' +
             '<div class="comment-text">' + review.content + '</div>' +
           '</div>' +
         '</li>';
       }
       list.innerHTML = html;
+    }
+
+    // 星级选择
+    var selectedRating = 0;
+    var starLabels = ['', '很差', '一般', '还行', '好玩', '超棒！'];
+
+    function selectStar(val) {
+      selectedRating = val;
+      var stars = document.querySelectorAll('.star');
+      stars.forEach(function(s, i) {
+        s.classList.toggle('active', i < val);
+      });
+      document.getElementById('starHint').textContent = starLabels[val];
+    }
+
+    function hoverStar(val) {
+      var stars = document.querySelectorAll('.star');
+      stars.forEach(function(s, i) {
+        s.style.color = i < val ? '#f59e0b' : '#ddd';
+      });
+    }
+
+    function unhoverStar() {
+      var stars = document.querySelectorAll('.star');
+      stars.forEach(function(s, i) {
+        s.style.color = i < selectedRating ? '#f59e0b' : '#ddd';
+      });
     }
 
     // 发表评论
@@ -270,22 +309,39 @@
       }
       var input = document.getElementById('commentInput');
       var text = input.value.trim();
-      if (!text) return;
+      if (!text) { alert('请写点评价内容哦！'); return; }
+      if (selectedRating === 0) { alert('请先给游戏打个分！'); return; }
 
       var sb = getSupabase();
-      var result = await sb.from('reviews').insert({
-        game_id: gameId,
-        user_id: user.id,
-        content: text,
-        rating: 5
-      });
 
-      if (result.error) {
-        alert('评论失败：' + result.error.message);
-        return;
+      // 检查是否已经评价过
+      var existing = await sb.from('reviews').select('id').eq('game_id', gameId).eq('user_id', user.id).single();
+      if (existing.data) {
+        // 已有评价，更新
+        var result = await sb.from('reviews').update({ content: text, rating: selectedRating }).eq('game_id', gameId).eq('user_id', user.id);
+        if (result.error) { alert('更新失败：' + result.error.message); return; }
+      } else {
+        // 新增评价
+        var result = await sb.from('reviews').insert({ game_id: gameId, user_id: user.id, content: text, rating: selectedRating });
+        if (result.error) { alert('评价失败：' + result.error.message); return; }
       }
 
       input.value = '';
+      selectedRating = 0;
+      document.querySelectorAll('.star').forEach(function(s) { s.classList.remove('active'); });
+      document.getElementById('starHint').textContent = '点击打分';
+
+      // 重新计算平均分并更新games表
+      var allReviews = await sb.from('reviews').select('rating').eq('game_id', gameId);
+      if (allReviews.data && allReviews.data.length > 0) {
+        var avg = allReviews.data.reduce(function(sum, r) { return sum + r.rating; }, 0) / allReviews.data.length;
+        avg = Math.round(avg * 10) / 10;
+        await sb.from('games').update({ rating: avg }).eq('id', gameId);
+        // 更新页面显示的评分
+        var ratingEl = document.querySelector('.game-meta span:last-child');
+        if (ratingEl) ratingEl.textContent = '⭐ ' + avg + ' 分';
+      }
+
       loadComments();
     }
   </script>
