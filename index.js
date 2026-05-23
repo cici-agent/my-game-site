@@ -87,8 +87,8 @@ document.addEventListener('DOMContentLoaded', function() {
       'linear-gradient(135deg, #ff6b9d, #a855f7)'
     ];
     var categoryEmojis = {
-      shooter: '💥', tower: '🏰', learn: '📚', runner: '🏃',
-      casual: '🎪', nurture: '🌱', rpg: '⚔️', other: '🎮'
+      '动作': '💥', '射击': '🔫', '塔防': '🏰', '益智': '🧩',
+      '跑酷': '🏃', '学习': '📚', '休闲': '🎪', '养成': '🌱', '其他': '🎮'
     };
 
     games.forEach(function(game, i) {
