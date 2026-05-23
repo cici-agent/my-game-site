@@ -74,9 +74,6 @@ async function getMyProfile() {
 }
 
 // ===== 登录拦截工具函数 =====
-// 检查是否已登录，未登录则跳转到登录页并携带 redirect 参数
-// redirectUrl: 登录后要跳回的页面（默认为当前页面）
-// 返回 true 表示已登录，返回 false 表示未登录（已跳转）
 async function requireLogin(redirectUrl) {
   var user = await getCurrentUser();
   if (!user) {
@@ -88,6 +85,7 @@ async function requireLogin(redirectUrl) {
 }
 
 // 更新导航栏（根据登录状态）- 所有页面通用
+// 修复：admin 登录后在导航栏显示管理后台入口
 async function updateNavbar() {
   var navLinks = document.getElementById('navLinks');
   if (!navLinks) return;
@@ -100,7 +98,8 @@ async function updateNavbar() {
     var username = (profile && profile.username) ? profile.username : '我的';
     navLinks.innerHTML =
       '<a href="index.html">首页</a>' +
-      '<a href="profile.html">👤 ' + username + '</a>';
+      '<a href="profile.html">👤 ' + username + '</a>' +
+      (isAdmin ? '<a href="admin.html" style="color:#7c3aed;font-weight:700;">⚙️ 管理后台</a>' : '');
   } else {
     navLinks.innerHTML =
       '<a href="index.html">首页</a>' +
@@ -114,4 +113,3 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.style.opacity = '1';
   });
 });
-
