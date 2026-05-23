@@ -18,7 +18,7 @@ async function signUp(username, password) {
       id: userId,
       username: username,
       role: isAdmin ? 'admin' : 'user',
-      coins: 0
+      coins: 100
     });
   }
   return { data: result.data };
