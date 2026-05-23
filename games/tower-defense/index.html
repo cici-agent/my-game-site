@@ -199,6 +199,7 @@ canvas {
     </div>
     <button id="speed-btn" onclick="toggleSpeed()">1x</button>
   </div>
+  <button id="fullscreenBtn" onclick="toggleFullscreen()" style="position:fixed;top:12px;right:12px;z-index:999;background:rgba(0,0,0,0.5);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">⛶ 全屏</button>
   <div id="canvas-wrapper">
     <canvas id="gameCanvas"></canvas>
     <button id="start-btn" onclick="startGame()">🎮 开始游戏</button>
@@ -319,8 +320,14 @@ function resizeCanvas() {
   const maxW = wrapper.clientWidth - 16;
   const maxH = wrapper.clientHeight - 16;
   CELL = Math.min(Math.floor(maxW / COLS), Math.floor(maxH / ROWS), 60);
-  canvas.width = COLS * CELL;
-  canvas.height = ROWS * CELL;
+  const dpr = window.devicePixelRatio || 1;
+  const logicW = COLS * CELL;
+  const logicH = ROWS * CELL;
+  canvas.width = logicW * dpr;
+  canvas.height = logicH * dpr;
+  canvas.style.width = logicW + 'px';
+  canvas.style.height = logicH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   computePathPixels();
 }
 
@@ -1021,6 +1028,23 @@ function winGame() {
 
 // Start
 window.onload = init;
+
+function toggleFullscreen() {
+  const el = document.documentElement;
+  if (!document.fullscreenElement) {
+    el.requestFullscreen && el.requestFullscreen();
+    document.getElementById('fullscreenBtn').textContent = '✕ 退出全屏';
+  } else {
+    document.exitFullscreen && document.exitFullscreen();
+    document.getElementById('fullscreenBtn').textContent = '⛶ 全屏';
+  }
+}
+document.addEventListener('fullscreenchange', function() {
+  if (!document.fullscreenElement) {
+    document.getElementById('fullscreenBtn').textContent = '⛶ 全屏';
+  }
+  setTimeout(resizeCanvas, 100);
+});
 </script>
 </body>
 </html>
