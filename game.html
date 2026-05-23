@@ -119,7 +119,36 @@
         '<span>🎮 ' + (gameData.play_count || 0) + ' 人玩过</span>';
     }
 
-    // 开始游戏 - 从 Supabase Storage 加载
+    // 每5分钟扣1金币的计时器
+    var coinTimer = null;
+    var COIN_INTERVAL = 5 * 60 * 1000; // 5分钟
+    var COIN_COST = 1;
+
+    function startCoinTimer(userId) {
+      if (coinTimer) clearInterval(coinTimer);
+      coinTimer = setInterval(async function() {
+        var sb = getSupabase();
+        var profileResult = await sb.from('profiles').select('coins').eq('id', userId).single();
+        var currentCoins = (profileResult.data && profileResult.data.coins) || 0;
+        if (currentCoins < COIN_COST) {
+          // 金币不足，暂停游戏
+          clearInterval(coinTimer);
+          coinTimer = null;
+          var frame = document.getElementById('gameFrame');
+          frame.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;">' +
+            '<div style="font-size:48px;">🪙</div>' +
+            '<div style="font-size:18px;font-weight:700;color:#333;">金币不足，游戏已暂停</div>' +
+            '<div style="font-size:14px;color:#888;">请充值金币后继续游玩</div>' +
+            '<a href="profile.html" style="background:#ff6b35;color:#fff;padding:10px 24px;border-radius:20px;text-decoration:none;font-weight:700;">去充值</a>' +
+            '</div>';
+          return;
+        }
+        // 扣除金币
+        await sb.from('profiles').update({ coins: currentCoins - COIN_COST }).eq('id', userId);
+      }, COIN_INTERVAL);
+    }
+
+    // 开始游戏
     document.getElementById('startGameBtn').addEventListener('click', async function() {
       var user = await getCurrentUser();
       if (!user) {
@@ -131,22 +160,46 @@
         return;
       }
 
-      // 获取游戏文件的 URL（优先 file_url，否则从 Storage 加载）
+      var sb = getSupabase();
+
+      // 检查金币是否足够（至少1枚才能开始）
+      var profileResult = await sb.from('profiles').select('coins,role').eq('id', user.id).single();
+      var profile = profileResult.data;
+      var currentCoins = (profile && profile.coins) || 0;
+      var isAdmin = profile && profile.role === 'admin';
+
+      if (!isAdmin && currentCoins < COIN_COST) {
+        var frame = document.getElementById('gameFrame');
+        frame.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;">' +
+          '<div style="font-size:48px;">🪙</div>' +
+          '<div style="font-size:18px;font-weight:700;color:#333;">金币不足</div>' +
+          '<div style="font-size:14px;color:#888;">需要至少 1 枚金币才能开始游戏</div>' +
+          '<div style="font-size:14px;color:#888;">当前金币：' + currentCoins + ' 🪙</div>' +
+          '<a href="profile.html" style="background:#ff6b35;color:#fff;padding:10px 24px;border-radius:20px;text-decoration:none;font-weight:700;">去充值</a>' +
+          '</div>';
+        return;
+      }
+
+      // 获取游戏文件 URL
       var gameUrl;
       if (gameData.file_url) {
         gameUrl = gameData.file_url;
       } else {
-        var sb = getSupabase();
         var urlResult = sb.storage.from('games').getPublicUrl(gameData.file_path + '/index.html');
         gameUrl = urlResult.data.publicUrl;
       }
 
-      // 用 iframe 加载游戏
+      // 加载游戏
       var frame = document.getElementById('gameFrame');
       frame.innerHTML = '<iframe src="' + gameUrl + '" style="width:100%;height:100%;border:none;border-radius:var(--radius-lg);"></iframe>';
 
       // 增加游玩次数
       sb.from('games').update({ play_count: (gameData.play_count || 0) + 1 }).eq('id', gameId);
+
+      // 启动金币计时器（admin免费）
+      if (!isAdmin) {
+        startCoinTimer(user.id);
+      }
     });
 
     // 加载评论
