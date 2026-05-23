@@ -122,11 +122,15 @@
         if (profileResult.data) authorName = profileResult.data.username;
       }
 
+      // 查真实玩过人数
+      var playsResult = await sb.from('game_plays').select('id', { count: 'exact', head: true }).eq('game_id', gameId);
+      var realPlayCount = playsResult.count || 0;
+
       document.getElementById('gameMeta').innerHTML =
         '<span>🏷️ ' + (gameData.category || '其他') + '</span>' +
         '<span>👤 ' + authorName + '</span>' +
         '<span>⭐ ' + (gameData.rating || '0') + ' 分</span>' +
-        '<span>🎮 ' + (gameData.play_count || 0) + ' 人玩过</span>';
+        '<span>🎮 ' + realPlayCount + ' 人玩过</span>';
     }
 
     // 每5分钟扣1金币的计时器
@@ -232,8 +236,18 @@
       var frame = document.getElementById('gameFrame');
       frame.innerHTML = '<iframe src="' + gameUrl + '" style="width:100%;height:100%;border:none;border-radius:var(--radius-lg);"></iframe>';
 
-      // 增加游玩次数
-      sb.from('games').update({ play_count: (gameData.play_count || 0) + 1 }).eq('id', gameId);
+      // 记录玩过（每人每游戏只记一条，去重统计真实人数）
+      if (user) {
+        await sb.from('game_plays').upsert(
+          { user_id: user.id, game_id: gameId },
+          { onConflict: 'user_id,game_id' }
+        );
+        // 同步更新 games 表的 play_count（去重人数）
+        var countResult = await sb.from('game_plays').select('id', { count: 'exact', head: true }).eq('game_id', gameId);
+        if (countResult.count !== null) {
+          sb.from('games').update({ play_count: countResult.count }).eq('id', gameId);
+        }
+      }
 
       // 启动金币计时器（admin免费）
       if (!isAdmin) {
