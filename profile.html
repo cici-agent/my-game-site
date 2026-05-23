@@ -161,7 +161,7 @@
       <button class="tab" onclick="switchTab(this, 'playedGames')">我玩过的游戏</button>
     </div>
     <div id="myGames" class="tab-content">
-      <div class="empty-tip" id="myGamesContent">加载中...</div>
+      <div id="myGamesContent" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;padding:8px 0;">加载中...</div>
     </div>
     <div id="playedGames" class="tab-content" style="display:none">
       <div class="empty-tip">还没有玩过游戏，<a href="index.html">去看看吧！</a></div>
@@ -261,7 +261,18 @@
         return;
       }
       container.innerHTML = result.data.map(function(g) {
-        return '<div class="game-card"><h3>' + (g.name || g.title || '未命名游戏') + '</h3><p>' + (g.description || '') + '</p></div>';
+        var title = g.title || g.name || '未命名游戏';
+        var desc = g.description || '';
+        var category = g.category || '';
+        var status = g.status === 'online' ? '<span style="color:#22c55e;font-size:12px;">● 已上线</span>' : '<span style="color:#f59e0b;font-size:12px;">● 待审核</span>';
+        var coverStyle = 'background:linear-gradient(135deg,#ff6b35,#f7931e);';
+        return '<div class="game-card" onclick="location.href='game.html?id=' + g.id + ''" style="cursor:pointer;">' +
+          '<div class="game-cover" style="' + coverStyle + 'border-radius:12px;height:120px;display:flex;align-items:center;justify-content:center;font-size:40px;margin-bottom:10px;">🎮</div>' +
+          '<div style="font-weight:700;font-size:15px;margin-bottom:4px;">' + title + '</div>' +
+          '<div style="font-size:12px;color:#888;margin-bottom:6px;">' + category + '</div>' +
+          '<div style="font-size:12px;color:#666;margin-bottom:6px;">' + desc.slice(0,40) + (desc.length>40?'...':'') + '</div>' +
+          status +
+          '</div>';
       }).join('');
     }
 
