@@ -96,14 +96,14 @@ document.addEventListener('DOMContentLoaded', function() {
       var emoji = categoryEmojis[game.category] || '🎮';
       var coverHtml = '';
       if (game.cover_url) {
-        coverHtml = '<div class="card-cover" style="background:' + bg + '"><img src="' + game.cover_url + '" alt="' + game.name + '" style="width:100%;height:100%;object-fit:cover;"></div>';
+        coverHtml = '<div class="card-cover" style="background:' + bg + '"><img src="' + game.cover_url + '" alt="' + (game.title || game.name) + '" style="width:100%;height:100%;object-fit:cover;"></div>';
       } else {
         coverHtml = '<div class="card-cover" style="background:' + bg + '">' + emoji + '</div>';
       }
       html += '<a href="game.html?id=' + game.id + '" class="game-card" onclick="return goToGame(event, \'' + game.id + '\')">' +
         coverHtml +
         '<div class="card-info">' +
-          '<h3>' + game.name + '</h3>' +
+          '<h3>' + (game.title || game.name) + '</h3>' +
           '<div class="card-meta">' +
             '<span>' + (game.category || '其他') + '</span>' +
             '<span class="rating">⭐ ' + (game.rating || '0') + '</span>' +
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
       html += '<a href="game.html" class="game-card" onclick="return goToGame(event, null)">' +
         '<div class="card-cover ' + g.color + '">' + g.emoji + '</div>' +
         '<div class="card-info">' +
-          '<h3>' + g.name + '</h3>' +
+          '<h3>' + (g.title || g.name) + '</h3>' +
           '<div class="card-meta">' +
             '<span>' + g.cat + '</span>' +
             '<span class="rating">⭐ ' + g.rating + '</span>' +
