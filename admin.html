@@ -26,25 +26,29 @@
 
     <!-- 数据统计 -->
     <div class="stats-grid">
-      <div class="stat-card">
+      <div class="stat-card stat-card-clickable" onclick="statCardClick('users')" title="点击查看用户管理">
         <div class="stat-icon">👥</div>
         <div class="stat-value" id="statUsers">0</div>
         <div class="stat-label">注册用户</div>
+        <div class="stat-hint">点击查看 →</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card-clickable" onclick="statCardClick('games')" title="点击查看所有游戏">
         <div class="stat-icon">🎮</div>
         <div class="stat-value" id="statGames">0</div>
         <div class="stat-label">游戏总数</div>
+        <div class="stat-hint">点击查看 →</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card-clickable" onclick="statCardClick('pending')" title="点击查看待审核游戏">
         <div class="stat-icon">⏳</div>
         <div class="stat-value" id="statPending">0</div>
         <div class="stat-label">待审核</div>
+        <div class="stat-hint">点击筛选 →</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card-clickable" onclick="statCardClick('online')" title="点击查看已上线游戏">
         <div class="stat-icon">✅</div>
         <div class="stat-value" id="statOnline">0</div>
         <div class="stat-label">已上线</div>
+        <div class="stat-hint">点击筛选 →</div>
       </div>
     </div>
 
@@ -214,9 +218,11 @@
     }
 
     // ===== 游戏管理 =====
-    async function loadGames() {
+    async function loadGames(filterStatus) {
       var sb = getSupabase();
-      var result = await sb.from('games').select('*').order('created_at', { ascending: false });
+      var query = sb.from('games').select('*').order('created_at', { ascending: false });
+      if (filterStatus) query = query.eq('status', filterStatus);
+      var result = await query;
       var tbody = document.getElementById('gameTableBody');
 
       if (!result.data || result.data.length === 0) {
@@ -449,6 +455,39 @@
       document.getElementById(panelId).style.display = 'block';
     }
 
+    // 统计卡片点击跳转
+    async function statCardClick(type) {
+      var tabs = document.querySelectorAll('.admin-tab');
+      var panels = document.querySelectorAll('.admin-panel');
+
+      function showPanel(panelId) {
+        tabs.forEach(function(t) { t.classList.remove('active'); });
+        panels.forEach(function(p) { p.style.display = 'none'; });
+        document.getElementById(panelId).style.display = 'block';
+        // 激活对应tab按钮
+        tabs.forEach(function(t) {
+          if (t.getAttribute('onclick') && t.getAttribute('onclick').indexOf(panelId) !== -1) {
+            t.classList.add('active');
+          }
+        });
+        // 滚动到面板
+        document.getElementById(panelId).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      if (type === 'users') {
+        showPanel('usersPanel');
+      } else if (type === 'games') {
+        showPanel('gamesPanel');
+        await loadGames(null); // 显示全部游戏
+      } else if (type === 'pending') {
+        showPanel('gamesPanel');
+        await loadGames('pending'); // 只显示待审核
+      } else if (type === 'online') {
+        showPanel('gamesPanel');
+        await loadGames('online'); // 只显示已上线
+      }
+    }
+
     // ===== 工具函数 =====
     function escapeHtml(str) {
       if (!str) return '';
@@ -457,3 +496,4 @@
   </script>
 </body>
 </html>
+
