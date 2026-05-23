@@ -242,7 +242,7 @@
         var statusText = game.status === 'online' ? '已上线' : (game.status === 'pending' ? '待审核' : '已下线');
 
         html += '<tr>' +
-          '<td>' + game.name + '</td>' +
+          '<td>' + (game.title || game.name) + '</td>' +
           '<td>' + authorName + '</td>' +
           '<td>' + (game.category || '--') + '</td>' +
           '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>' +
@@ -250,12 +250,12 @@
           '<td><div class="action-btns">';
 
         if (game.status !== 'online') {
-          html += '<button class="btn-online" onclick="setGameStatus(\'' + game.id + '\', \'online\', \'' + escapeHtml(game.name) + '\')">上线</button>';
+          html += '<button class="btn-online" onclick="setGameStatus(\'' + game.id + '\', \'online\', \'' + escapeHtml((game.title || game.name)) + '\')">上线</button>';
         }
         if (game.status !== 'offline') {
-          html += '<button class="btn-offline" onclick="setGameStatus(\'' + game.id + '\', \'offline\', \'' + escapeHtml(game.name) + '\')">下线</button>';
+          html += '<button class="btn-offline" onclick="setGameStatus(\'' + game.id + '\', \'offline\', \'' + escapeHtml((game.title || game.name)) + '\')">下线</button>';
         }
-        html += '<button class="btn-delete" onclick="deleteGame(\'' + game.id + '\', \'' + escapeHtml(game.name) + '\')">删除</button>';
+        html += '<button class="btn-delete" onclick="deleteGame(\'' + game.id + '\', \'' + escapeHtml((game.title || game.name)) + '\')">删除</button>';
         html += '</div></td></tr>';
       }
       tbody.innerHTML = html;
