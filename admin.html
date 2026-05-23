@@ -52,6 +52,7 @@
     <div class="admin-tabs">
       <button class="admin-tab active" onclick="switchAdminTab(this, 'gamesPanel')">🎮 游戏管理</button>
       <button class="admin-tab" onclick="switchAdminTab(this, 'usersPanel')">👥 用户管理</button>
+      <button class="admin-tab" onclick="switchAdminTab(this, 'logPanel')">📋 操作日志</button>
     </div>
 
     <!-- 游戏管理 -->
@@ -96,6 +97,28 @@
         </table>
       </div>
     </div>
+
+    <!-- 操作日志 -->
+    <div class="admin-panel" id="logPanel" style="display:none">
+      <div class="panel-header">📋 操作日志</div>
+      <div class="panel-body">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+          <button class="btn-clear-log" onclick="clearLogs()">🗑️ 清空日志</button>
+        </div>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>操作类型</th>
+              <th>详情</th>
+            </tr>
+          </thead>
+          <tbody id="logTableBody">
+            <tr><td colspan="3" style="text-align:center;padding:30px;color:#aaa;">暂无日志</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <!-- 无权限提示 -->
@@ -104,6 +127,44 @@
       <h2>🔒 无权访问</h2>
       <p class="subtitle">只有管理员才能访问后台哦！</p>
       <a href="index.html" class="btn btn-primary" style="margin-top:20px;">回到首页</a>
+    </div>
+  </div>
+
+  <!-- 弹窗：重置密码 -->
+  <div class="modal-overlay" id="resetPwdModal" style="display:none">
+    <div class="modal-box">
+      <div class="modal-header">🔑 重置密码</div>
+      <div class="modal-body">
+        <p class="modal-label">用户：<strong id="resetPwdUser"></strong></p>
+        <label class="modal-label">输入新密码：</label>
+        <input type="text" id="resetPwdInput" class="modal-input" placeholder="请输入新密码" />
+        <div id="resetPwdSQL" style="display:none">
+          <label class="modal-label" style="margin-top:16px;">请复制以下 SQL 到 Supabase SQL Editor 执行：</label>
+          <textarea class="modal-textarea" id="resetPwdSQLText" readonly></textarea>
+          <button class="btn-copy" onclick="copySQL()">📋 复制 SQL</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-modal-cancel" onclick="closeResetPwdModal()">关闭</button>
+        <button class="btn-modal-confirm" id="resetPwdGenBtn" onclick="generateResetSQL()">生成 SQL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗：修改金币 -->
+  <div class="modal-overlay" id="coinsModal" style="display:none">
+    <div class="modal-box">
+      <div class="modal-header">🪙 修改金币</div>
+      <div class="modal-body">
+        <p class="modal-label">用户：<strong id="coinsUser"></strong></p>
+        <p class="modal-label">当前金币：<span id="coinsCurrent"></span></p>
+        <label class="modal-label">新金币数量：</label>
+        <input type="number" id="coinsInput" class="modal-input" placeholder="请输入新金币数" min="0" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn-modal-cancel" onclick="closeCoinsModal()">取消</button>
+        <button class="btn-modal-confirm" onclick="saveCoins()">确认修改</button>
+      </div>
     </div>
   </div>
 
@@ -135,9 +196,10 @@
       loadStats();
       loadGames();
       loadUsers();
+      loadLogs();
     });
 
-    // 加载统计
+    // ===== 统计 =====
     async function loadStats() {
       var sb = getSupabase();
       var usersResult = await sb.from('profiles').select('id', { count: 'exact' });
@@ -151,7 +213,7 @@
       document.getElementById('statOnline').textContent = onlineResult.count || 0;
     }
 
-    // 加载游戏列表
+    // ===== 游戏管理 =====
     async function loadGames() {
       var sb = getSupabase();
       var result = await sb.from('games').select('*').order('created_at', { ascending: false });
@@ -165,7 +227,6 @@
       var html = '';
       for (var i = 0; i < result.data.length; i++) {
         var game = result.data[i];
-        // 获取作者名
         var authorName = '未知';
         if (game.author_id) {
           var profileResult = await sb.from('profiles').select('username').eq('id', game.author_id).single();
@@ -183,18 +244,38 @@
           '<td><div class="action-btns">';
 
         if (game.status !== 'online') {
-          html += '<button class="btn-online" onclick="setGameStatus(\'' + game.id + '\', \'online\')">上线</button>';
+          html += '<button class="btn-online" onclick="setGameStatus(\'' + game.id + '\', \'online\', \'' + escapeHtml(game.name) + '\')">上线</button>';
         }
         if (game.status !== 'offline') {
-          html += '<button class="btn-offline" onclick="setGameStatus(\'' + game.id + '\', \'offline\')">下线</button>';
+          html += '<button class="btn-offline" onclick="setGameStatus(\'' + game.id + '\', \'offline\', \'' + escapeHtml(game.name) + '\')">下线</button>';
         }
-        html += '<button class="btn-delete" onclick="deleteGame(\'' + game.id + '\')">删除</button>';
+        html += '<button class="btn-delete" onclick="deleteGame(\'' + game.id + '\', \'' + escapeHtml(game.name) + '\')">删除</button>';
         html += '</div></td></tr>';
       }
       tbody.innerHTML = html;
     }
 
-    // 加载用户列表
+    // 设置游戏状态（带日志）
+    async function setGameStatus(gameId, status, gameName) {
+      var sb = getSupabase();
+      await sb.from('games').update({ status: status }).eq('id', gameId);
+      var actionText = status === 'online' ? '上线' : '下线';
+      addLog('游戏' + actionText, '将游戏「' + gameName + '」设为' + actionText);
+      loadGames();
+      loadStats();
+    }
+
+    // 删除游戏（带日志）
+    async function deleteGame(gameId, gameName) {
+      if (!confirm('确定要删除游戏「' + gameName + '」吗？')) return;
+      var sb = getSupabase();
+      await sb.from('games').delete().eq('id', gameId);
+      addLog('删除游戏', '删除了游戏「' + gameName + '」');
+      loadGames();
+      loadStats();
+    }
+
+    // ===== 用户管理 =====
     async function loadUsers() {
       var sb = getSupabase();
       var result = await sb.from('profiles').select('*').order('created_at', { ascending: false });
@@ -210,54 +291,168 @@
         var roleText = user.role === 'admin' ? '管理员' : '普通用户';
         var createdAt = user.created_at ? new Date(user.created_at).toLocaleDateString('zh-CN') : '--';
         html += '<tr>' +
-          '<td>' + user.username + '</td>' +
+          '<td>' + escapeHtml(user.username) + '</td>' +
           '<td>' + roleText + '</td>' +
           '<td>🪙 ' + (user.coins || 0) + '</td>' +
           '<td>' + createdAt + '</td>' +
-          '<td><div class="action-btns">';
+          '<td><div class="action-btns">' +
+          '<button class="btn-reset" onclick="openResetPwdModal(\'' + escapeHtml(user.username) + '\')">重置密码</button>' +
+          '<button class="btn-coins" onclick="openCoinsModal(\'' + user.id + '\', \'' + escapeHtml(user.username) + '\', ' + (user.coins || 0) + ')">修改金币</button>';
         if (user.role !== 'admin') {
-          html += '<button class="btn-delete" onclick="deleteUser(\'' + user.id + '\', \'' + user.username + '\')">删除</button>';
+          html += '<button class="btn-delete" onclick="deleteUser(\'' + user.id + '\', \'' + escapeHtml(user.username) + '\')">删除</button>';
         }
         html += '</div></td></tr>';
       });
       tbody.innerHTML = html;
     }
 
-    // 设置游戏状态
-    async function setGameStatus(gameId, status) {
-      var sb = getSupabase();
-      await sb.from('games').update({ status: status }).eq('id', gameId);
-      loadGames();
-      loadStats();
-    }
-
-    // 删除游戏
-    async function deleteGame(gameId) {
-      if (!confirm('确定要删除这个游戏吗？')) return;
-      var sb = getSupabase();
-      await sb.from('games').delete().eq('id', gameId);
-      loadGames();
-      loadStats();
-    }
-
     // 删除用户
     async function deleteUser(userId, username) {
-      if (!confirm('确定要删除用户 "' + username + '" 吗？')) return;
+      if (!confirm('确定要删除用户「' + username + '」吗？')) return;
       var sb = getSupabase();
-      // 删除用户的游戏
       await sb.from('games').delete().eq('author_id', userId);
-      // 删除用户资料
       await sb.from('profiles').delete().eq('id', userId);
+      addLog('删除用户', '删除了用户「' + username + '」');
       loadUsers();
       loadStats();
     }
 
-    // Tab 切换
+    // ===== 重置密码弹窗 =====
+    var currentResetUser = '';
+
+    function openResetPwdModal(username) {
+      currentResetUser = username;
+      document.getElementById('resetPwdUser').textContent = username;
+      document.getElementById('resetPwdInput').value = '';
+      document.getElementById('resetPwdSQL').style.display = 'none';
+      document.getElementById('resetPwdGenBtn').style.display = '';
+      document.getElementById('resetPwdModal').style.display = 'flex';
+    }
+
+    function closeResetPwdModal() {
+      document.getElementById('resetPwdModal').style.display = 'none';
+    }
+
+    function generateResetSQL() {
+      var newPwd = document.getElementById('resetPwdInput').value.trim();
+      if (!newPwd) {
+        alert('请输入新密码！');
+        return;
+      }
+      if (newPwd.length < 6) {
+        alert('密码至少 6 位哦！');
+        return;
+      }
+      var email = currentResetUser + '@xiaocainiao.app';
+      var sql = "UPDATE auth.users SET encrypted_password = crypt('" + newPwd + "', gen_salt('bf')) WHERE email = '" + email + "';";
+      document.getElementById('resetPwdSQLText').value = sql;
+      document.getElementById('resetPwdSQL').style.display = 'block';
+      document.getElementById('resetPwdGenBtn').style.display = 'none';
+      addLog('重置密码', '为用户「' + currentResetUser + '」生成了重置密码 SQL');
+    }
+
+    function copySQL() {
+      var textarea = document.getElementById('resetPwdSQLText');
+      textarea.select();
+      document.execCommand('copy');
+      alert('✅ SQL 已复制到剪贴板！请去 Supabase SQL Editor 粘贴执行。');
+    }
+
+    // ===== 修改金币弹窗 =====
+    var currentCoinsUserId = '';
+    var currentCoinsUsername = '';
+
+    function openCoinsModal(userId, username, currentCoins) {
+      currentCoinsUserId = userId;
+      currentCoinsUsername = username;
+      document.getElementById('coinsUser').textContent = username;
+      document.getElementById('coinsCurrent').textContent = currentCoins;
+      document.getElementById('coinsInput').value = currentCoins;
+      document.getElementById('coinsModal').style.display = 'flex';
+    }
+
+    function closeCoinsModal() {
+      document.getElementById('coinsModal').style.display = 'none';
+    }
+
+    async function saveCoins() {
+      var newCoins = parseInt(document.getElementById('coinsInput').value);
+      if (isNaN(newCoins) || newCoins < 0) {
+        alert('请输入有效的金币数量（≥0）！');
+        return;
+      }
+      var sb = getSupabase();
+      var result = await sb.from('profiles').update({ coins: newCoins }).eq('id', currentCoinsUserId);
+      if (result.error) {
+        alert('❌ 修改失败：' + result.error.message);
+        return;
+      }
+      alert('✅ 金币已修改为 ' + newCoins);
+      addLog('修改金币', '将用户「' + currentCoinsUsername + '」的金币修改为 ' + newCoins);
+      closeCoinsModal();
+      loadUsers();
+    }
+
+    // ===== 操作日志 =====
+    var LOG_KEY = 'xiaocainiao_admin_logs';
+
+    function getLogs() {
+      try {
+        return JSON.parse(localStorage.getItem(LOG_KEY)) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function addLog(action, detail) {
+      var logs = getLogs();
+      logs.unshift({
+        time: new Date().toLocaleString('zh-CN'),
+        action: action,
+        detail: detail
+      });
+      // 最多保留 200 条
+      if (logs.length > 200) logs = logs.slice(0, 200);
+      localStorage.setItem(LOG_KEY, JSON.stringify(logs));
+      loadLogs();
+    }
+
+    function loadLogs() {
+      var logs = getLogs();
+      var tbody = document.getElementById('logTableBody');
+      if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px;color:#aaa;">暂无日志</td></tr>';
+        return;
+      }
+      var html = '';
+      logs.forEach(function(log) {
+        html += '<tr>' +
+          '<td style="white-space:nowrap;">' + log.time + '</td>' +
+          '<td><span class="log-badge">' + escapeHtml(log.action) + '</span></td>' +
+          '<td>' + escapeHtml(log.detail) + '</td>' +
+          '</tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    function clearLogs() {
+      if (!confirm('确定要清空所有操作日志吗？')) return;
+      localStorage.removeItem(LOG_KEY);
+      loadLogs();
+    }
+
+    // ===== Tab 切换 =====
     function switchAdminTab(btn, panelId) {
       document.querySelectorAll('.admin-tab').forEach(function(t) { t.classList.remove('active'); });
       document.querySelectorAll('.admin-panel').forEach(function(p) { p.style.display = 'none'; });
       btn.classList.add('active');
       document.getElementById(panelId).style.display = 'block';
+    }
+
+    // ===== 工具函数 =====
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
   </script>
 </body>
