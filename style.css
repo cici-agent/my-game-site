@@ -372,3 +372,36 @@ button {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
 }
+
+/* 星级评分 */
+.star-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.star-label {
+  font-size: 13px;
+  color: #666;
+  margin-right: 4px;
+}
+.star {
+  font-size: 26px;
+  color: #ddd;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.1s;
+  line-height: 1;
+}
+.star:hover, .star.active {
+  color: #f59e0b;
+  transform: scale(1.15);
+}
+.star-hint {
+  font-size: 12px;
+  color: #f59e0b;
+  font-weight: 600;
+  margin-left: 6px;
+}
+.comment-item .comment-name span {
+  font-size: 13px;
+}
