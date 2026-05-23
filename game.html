@@ -102,7 +102,7 @@
 
       gameData = result.data;
       document.title = (gameData.title || gameData.name) + ' - 小菜鸟';
-      document.getElementById('gameName').textContent = (gameData.title || gameData.name);
+      document.getElementById('gameName').textContent = gameData.title || gameData.name;
       document.getElementById('gameDesc').textContent = gameData.description || '暂无描述';
 
       // 获取作者名
@@ -119,27 +119,22 @@
         '<span>🎮 ' + (gameData.play_count || 0) + ' 人玩过</span>';
     }
 
-    // 开始游戏 - 支持直接URL和Storage加载
+    // 开始游戏 - 从 Supabase Storage 加载
     document.getElementById('startGameBtn').addEventListener('click', async function() {
       var user = await getCurrentUser();
       if (!user) {
         requireLogin('game.html' + (gameId ? '?id=' + gameId : ''));
         return;
       }
-      if (!gameData || (!gameData.file_path && !gameData.file_url)) {
+      if (!gameData || !gameData.file_path) {
         alert('游戏文件不存在');
         return;
       }
 
-      // 优先使用 file_url（相对路径），否则从 Storage 加载
+      // 获取游戏文件的公开 URL
       var sb = getSupabase();
-      var gameUrl;
-      if (gameData.file_url) {
-        gameUrl = gameData.file_url;
-      } else {
-        var urlResult = sb.storage.from('games').getPublicUrl(gameData.file_path + '/index.html');
-        gameUrl = urlResult.data.publicUrl;
-      }
+      var urlResult = sb.storage.from('games').getPublicUrl(gameData.file_path + '/index.html');
+      var gameUrl = urlResult.data.publicUrl;
 
       // 用 iframe 加载游戏
       var frame = document.getElementById('gameFrame');
