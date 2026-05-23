@@ -131,10 +131,17 @@
         return;
       }
 
-      // 获取游戏文件的公开 URL
-      var sb = getSupabase();
-      var urlResult = sb.storage.from('games').getPublicUrl(gameData.file_path + '/index.html');
-      var gameUrl = urlResult.data.publicUrl;
+      // 获取游戏文件的 URL（支持本地路径和 Storage 路径）
+      var gameUrl;
+      if (gameData.file_path.startsWith('/')) {
+        // 本地路径，直接使用（如 /games/runner/index.html）
+        gameUrl = gameData.file_path + '/index.html';
+      } else {
+        // Supabase Storage 路径
+        var sb = getSupabase();
+        var urlResult = sb.storage.from('games').getPublicUrl(gameData.file_path + '/index.html');
+        gameUrl = urlResult.data.publicUrl;
+      }
 
       // 用 iframe 加载游戏
       var frame = document.getElementById('gameFrame');
