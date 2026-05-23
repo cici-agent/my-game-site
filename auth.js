@@ -38,9 +38,18 @@ async function signIn(username, password) {
   var sb = getSupabase();
   if (!sb) return { error: 'Supabase 未初始化，请刷新页面重试' };
 
+  // 先查用户名是否存在
+  var profileCheck = await sb.from('profiles').select('id').eq('username', username).maybeSingle();
+  if (!profileCheck.data) {
+    return { error: '用户名不存在，请检查拼写或先注册' };
+  }
+
   var email = username + '@xiaocainiao.app';
   var result = await sb.auth.signInWithPassword({ email: email, password: password });
-  if (result.error) return { error: result.error.message };
+  if (result.error) {
+    // 用户名存在但密码错 → 明确提示密码错误
+    return { error: '密码错误，请重新输入' };
+  }
   return { data: result.data };
 }
 
