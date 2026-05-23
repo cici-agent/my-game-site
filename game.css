@@ -176,6 +176,7 @@
   gap: 4px;
   white-space: nowrap;
   flex-shrink: 0;
+  min-width: max-content;
 }
 
 .star-label {
@@ -183,7 +184,10 @@
   font-weight: 600;
   color: var(--text-dark);
   white-space: nowrap;
+  flex-shrink: 0;
 }
+
+
 
 .star {
   font-size: 22px;
