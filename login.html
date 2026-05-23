@@ -6,6 +6,49 @@
   <title>登录 / 我的 - 小菜鸟</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="login.css">
+  <style>
+    /* 注册页头像选择 */
+    .avatar-picker-label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #555;
+      margin-bottom: 10px;
+      text-align: left;
+      display: block;
+    }
+    .avatar-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .avatar-pick-item {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      border: 3px solid #eee;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      overflow: hidden;
+      object-fit: cover;
+    }
+    .avatar-pick-item:hover {
+      transform: scale(1.12);
+      border-color: #ffa726;
+      box-shadow: 0 3px 10px rgba(255,107,53,0.25);
+    }
+    .avatar-pick-item.selected {
+      border-color: #ff6b35;
+      box-shadow: 0 0 0 3px rgba(255,107,53,0.2), 0 3px 10px rgba(255,107,53,0.35);
+      transform: scale(1.08);
+    }
+    @media (max-width: 480px) {
+      .avatar-picker-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+      }
+    }
+  </style>
 </head>
 <body style="opacity:0;transition:opacity 0.15s">
   <!-- 导航栏 - 登录页只显示首页链接 -->
@@ -45,7 +88,12 @@
       <!-- 注册表单 -->
       <div id="registerForm" style="display:none">
         <h2>🐥 加入小菜鸟！</h2>
-        <p class="subtitle">只需用户名和密码，马上开始！</p>
+        <p class="subtitle">选一个头像，取个名字，马上开始！</p>
+        
+        <!-- 头像选择 -->
+        <label class="avatar-picker-label">🎨 选一个你喜欢的头像：</label>
+        <div class="avatar-picker-grid" id="regAvatarGrid"></div>
+
         <input type="text" id="regUsername" placeholder="用户名（只能用字母数字下划线）" class="input-field">
         <input type="password" id="regPassword" placeholder="密码（至少6位）" class="input-field">
         <input type="password" id="regPassword2" placeholder="再输一次密码" class="input-field">
@@ -95,6 +143,36 @@
   <script src="supabase.js"></script>
   <script src="auth.js"></script>
   <script>
+    // ===== 头像列表 =====
+    var AVATAR_LIST = [];
+    for (var i = 1; i <= 12; i++) {
+      AVATAR_LIST.push('assets/avatars/avatar_' + (i < 10 ? '0' + i : i) + '.png');
+    }
+    var _regSelectedAvatar = '';
+
+    // 初始化注册页头像选择网格
+    function initRegAvatarPicker() {
+      var grid = document.getElementById('regAvatarGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      AVATAR_LIST.forEach(function(src) {
+        var img = document.createElement('img');
+        img.src = src;
+        img.className = 'avatar-pick-item';
+        img.onclick = function() {
+          grid.querySelectorAll('.avatar-pick-item').forEach(function(el) { el.classList.remove('selected'); });
+          img.classList.add('selected');
+          _regSelectedAvatar = src;
+        };
+        grid.appendChild(img);
+      });
+      // 默认随机选一个
+      var randomIdx = Math.floor(Math.random() * 12);
+      var items = grid.querySelectorAll('.avatar-pick-item');
+      items[randomIdx].classList.add('selected');
+      _regSelectedAvatar = AVATAR_LIST[randomIdx];
+    }
+
     // ===== 登录页专属逻辑 =====
 
     // 读取 redirect 参数
@@ -132,6 +210,7 @@
       if (_redirectUrl) {
         document.getElementById('redirectHint').style.display = 'block';
       }
+      initRegAvatarPicker();
       updateNavbar();
       checkLoginState().then(function() {
         document.body.style.opacity = '1';
@@ -224,7 +303,7 @@
       doRedirectAfterLogin();
     }
 
-    // 注册
+    // 注册（含头像）
     async function doRegister() {
       var username = document.getElementById('regUsername').value.trim();
       var password = document.getElementById('regPassword').value;
@@ -236,7 +315,7 @@
       if (password.length < 6) { errEl.textContent = '密码至少6位'; return; }
       if (password !== password2) { errEl.textContent = '两次密码不一致'; return; }
       errEl.textContent = '注册中...';
-      var result = await signUp(username, password);
+      var result = await signUpWithAvatar(username, password, _regSelectedAvatar);
       if (result.error) { errEl.textContent = '注册失败：' + result.error; return; }
       errEl.textContent = '';
       // 注册成功后自动登录
@@ -278,4 +357,3 @@
   </script>
 </body>
 </html>
-
