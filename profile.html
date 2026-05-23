@@ -266,7 +266,7 @@
         var category = g.category || '';
         var status = g.status === 'online' ? '<span style="color:#22c55e;font-size:12px;">● 已上线</span>' : '<span style="color:#f59e0b;font-size:12px;">● 待审核</span>';
         var coverStyle = 'background:linear-gradient(135deg,#ff6b35,#f7931e);';
-        return '<div class="game-card" onclick="location.href='game.html?id=' + g.id + ''" style="cursor:pointer;">' +
+        return '<div class="game-card" onclick="location.href=\'game.html?id=' + g.id + '\'" style="cursor:pointer;">' +
           '<div class="game-cover" style="' + coverStyle + 'border-radius:12px;height:120px;display:flex;align-items:center;justify-content:center;font-size:40px;margin-bottom:10px;">🎮</div>' +
           '<div style="font-weight:700;font-size:15px;margin-bottom:4px;">' + title + '</div>' +
           '<div style="font-size:12px;color:#888;margin-bottom:6px;">' + category + '</div>' +
