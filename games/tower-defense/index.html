@@ -237,6 +237,24 @@ canvas {
     <button id="sell-btn" onclick="sellTower()">💰 卖出</button>
     <button id="close-panel-btn" onclick="closePanel()">✖️ 关闭</button>
   </div>
+  <div id="tutorial-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:999;display:flex;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:20px;padding:30px;max-width:360px;width:90%;text-align:center;font-family:sans-serif;">
+      <div style="font-size:36px;margin-bottom:8px;">🏰 小鸟塔防</div>
+      <div style="font-size:15px;color:#555;margin-bottom:20px;">操作说明</div>
+      <div style="text-align:left;font-size:14px;line-height:2;color:#333;">
+        <div>① 点右侧<b>选择一种塔</b>（弓箭/炮弹/冰冻等）</div>
+        <div>② 点地图上的<b>空白草地</b>放置防御塔</div>
+        <div>③ 点<b>🎮 开始游戏</b>按钮，敌人开始进攻</div>
+        <div>④ 点已放置的塔可以<b>升级或卖出</b></div>
+        <div>⑤ 不让敌人到达终点，守住基地！</div>
+      </div>
+      <div style="margin-top:16px;font-size:13px;color:#f39c12;">💰 初始金币 200，击杀敌人获得更多</div>
+      <button onclick="document.getElementById('tutorial-screen').style.display='none'" 
+        style="margin-top:20px;background:#ff6b35;color:#fff;border:none;border-radius:30px;padding:12px 40px;font-size:16px;font-weight:bold;cursor:pointer;">
+        我知道了，开始！
+      </button>
+    </div>
+  </div>
   <div id="game-over-screen">
     <h1>💀 游戏结束</h1>
     <p id="go-score">得分: 0</p>
