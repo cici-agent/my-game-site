@@ -327,3 +327,110 @@
     font-size: 40px;
   }
 }
+
+/* ===== 打字赚金币 Banner ===== */
+.typing-promo-banner {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+  padding: 0 24px;
+}
+
+.typing-promo-link {
+  display: block;
+  text-decoration: none;
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #FF6B35, #ffd166, #4ECDC4);
+  background-size: 200% 200%;
+  animation: typing-banner-gradient 4s ease infinite;
+  box-shadow: 0 4px 16px rgba(255, 107, 53, 0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.typing-promo-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(255, 107, 53, 0.4);
+}
+
+@keyframes typing-banner-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.typing-promo-inner {
+  display: flex;
+  align-items: center;
+  padding: 16px 24px;
+  gap: 16px;
+}
+
+.typing-promo-icon {
+  font-size: 36px;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.3);
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.typing-promo-text {
+  flex: 1;
+}
+
+.typing-promo-text h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+.typing-promo-text p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255,255,255,0.92);
+  line-height: 1.4;
+}
+
+.typing-promo-text strong {
+  color: #fff;
+  font-weight: 800;
+}
+
+.typing-promo-arrow {
+  font-size: 24px;
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .typing-promo-banner {
+    padding: 0 16px;
+    margin-bottom: 16px;
+  }
+  .typing-promo-inner {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  .typing-promo-icon {
+    font-size: 28px;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+  .typing-promo-text h3 {
+    font-size: 15px;
+  }
+  .typing-promo-text p {
+    font-size: 12px;
+  }
+  .typing-promo-arrow {
+    font-size: 20px;
+  }
+}
