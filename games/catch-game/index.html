@@ -68,227 +68,189 @@ body {
 .result-msg { font-size:1.1em; color:#666; margin-bottom:18px; }
 #spectator-banner { display:none; position:fixed; bottom:70px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); color:#fff; padding:8px 22px; border-radius:18px; font-size:1em; z-index:150; }
 .empty-msg { text-align:center; color:#999; padding:25px; font-size:0.95em; }
-/* Vote modal */
 .modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.5); z-index:500; align-items:center; justify-content:center; }
 .modal-overlay.active { display:flex; }
 .modal-box { background:#fff; border-radius:18px; padding:25px; text-align:center; max-width:300px; box-shadow:0 10px 30px rgba(0,0,0,0.3); }
 .modal-box p { margin-bottom:15px; font-size:1.1em; color:#333; }
 .kick-btn { background:none; border:none; cursor:pointer; font-size:0.8em; color:#e74c3c; margin-left:auto; padding:2px 8px; border-radius:8px; }
 .kick-btn:hover { background:#fdd; }
-
-/* 结算弹窗动画 */
-#result-overlay .modal-box {
-  animation: resultPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-@keyframes resultPop {
-  from { transform: scale(0.5); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
+#result-overlay .modal-box { animation: resultPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes resultPop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .result-stat-row { display:flex; justify-content:space-between; align-items:center; padding:2px 0; border-bottom:1px solid #eee; }
 .result-stat-row:last-child { border-bottom:none; }
 .result-stat-label { color:#888; }
 .result-stat-value { font-weight:bold; color:#333; }
 
+/* ===== 物品栏 UI ===== */
+#item-bar {
+  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+  display: none; gap: 8px; z-index: 200; pointer-events: auto;
+}
+#item-bar.active { display: flex; }
+.item-slot {
+  width: 52px; height: 52px; border-radius: 12px;
+  background: rgba(255,255,255,0.92); border: 3px solid rgba(0,0,0,0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6em; position: relative; cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.15); transition: transform 0.15s;
+}
+.item-slot:active { transform: scale(0.9); }
+.item-slot .slot-key {
+  position: absolute; top: 2px; left: 5px; font-size: 0.45em;
+  color: #999; font-weight: bold;
+}
+.item-slot.empty { opacity: 0.5; }
+
+/* ===== 暗道提示 ===== */
+#tunnel-msg {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: rgba(0,0,0,0.8); color: #fff; padding: 10px 22px;
+  border-radius: 14px; font-size: 1em; z-index: 160;
+  display: none; pointer-events: none;
+}
+#tunnel-msg.active { display: block; }
+
 /* ===== 语音聊天 UI ===== */
 #voice-panel {
-  position: fixed;
-  bottom: 12px;
-  right: 12px;
-  z-index: 300;
-  display: none;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  position: fixed; bottom: 12px; right: 12px; z-index: 300;
+  display: none; flex-direction: column; align-items: flex-end; gap: 6px;
 }
 #voice-panel.active { display: flex; }
 #mic-btn {
-  width: 52px; height: 52px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255,255,255,0.92);
-  box-shadow: 0 3px 12px rgba(0,0,0,0.2);
-  font-size: 1.6em;
-  cursor: pointer;
-  transition: transform 0.2s, background 0.2s;
-  display: flex; align-items: center; justify-content: center;
-  pointer-events: auto;
+  width: 52px; height: 52px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,0.92); box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+  font-size: 1.6em; cursor: pointer; transition: transform 0.2s, background 0.2s;
+  display: flex; align-items: center; justify-content: center; pointer-events: auto;
 }
 #mic-btn:hover { transform: scale(1.1); }
 #mic-btn.muted { background: rgba(255,80,80,0.9); }
 #mic-btn.muted::after { content: ''; position: absolute; width: 3px; height: 28px; background: #fff; border-radius: 2px; transform: rotate(45deg); }
-#voice-speakers {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-.voice-speaker {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(255,255,255,0.9);
-  padding: 4px 10px;
-  border-radius: 14px;
-  font-size: 0.8em;
-  font-weight: bold;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  transition: all 0.3s;
-}
-.voice-speaker.speaking {
-  background: rgba(76, 175, 80, 0.9);
-  color: #fff;
-  box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
-}
-.voice-speaker .speaker-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: #ccc;
-}
-.voice-speaker.speaking .speaker-dot {
-  background: #fff;
-  animation: pulse-dot 0.6s ease infinite alternate;
-}
+#voice-speakers { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-height: 200px; overflow-y: auto; }
+.voice-speaker { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.9); padding: 4px 10px; border-radius: 14px; font-size: 0.8em; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.1); transition: all 0.3s; }
+.voice-speaker.speaking { background: rgba(76, 175, 80, 0.9); color: #fff; box-shadow: 0 0 12px rgba(76, 175, 80, 0.5); }
+.voice-speaker .speaker-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+.voice-speaker.speaking .speaker-dot { background: #fff; animation: pulse-dot 0.6s ease infinite alternate; }
 @keyframes pulse-dot { from { transform: scale(1); } to { transform: scale(1.4); } }
-#voice-status {
-  font-size: 0.72em;
-  color: rgba(255,255,255,0.8);
-  background: rgba(0,0,0,0.4);
-  padding: 3px 8px;
-  border-radius: 8px;
-  display: none;
-}
+#voice-status { font-size: 0.72em; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.4); padding: 3px 8px; border-radius: 8px; display: none; }
 #voice-status.active { display: block; }
-/* 游戏中玩家头像说话高亮 - 通过 canvas 绘制 */
 </style>
 </head>
 <body>
-
-<!-- Menu -->
-<div id="menu-screen" class="screen active">
+<!-- 主菜单 -->
+<div class="screen active" id="menu-screen">
   <div class="title">🏃 抓人大作战</div>
-  <div class="subtitle">和朋友一起玩抓人游戏！</div>
-  <input id="nickname-input" class="input-field" placeholder="输入昵称" maxlength="8">
-  <button class="btn btn-primary" onclick="showCreateRoom()">🏠 创建房间</button>
-  <button class="btn btn-secondary" onclick="showHall()">🌐 公开大厅</button>
-  <button class="btn btn-secondary" onclick="showJoinByCode()">🔑 输入房间号</button>
+  <div class="subtitle">和朋友一起玩！</div>
+  <button class="btn btn-primary" onclick="showScreen('create-screen')">🏠 创建房间</button>
+  <button class="btn btn-secondary" onclick="showScreen('join-screen')">🚪 加入房间</button>
+  <button class="btn btn-start" onclick="showScreen('browse-screen')">🔍 浏览房间</button>
 </div>
 
-<!-- Create Room -->
-<div id="create-screen" class="screen">
+<!-- 创建房间 -->
+<div class="screen" id="create-screen">
   <div class="panel">
     <div class="panel-title">🏠 创建房间</div>
-    <div class="form-row">
-      <span class="form-label">房间名：</span>
-      <input id="room-name-input" class="input-field" placeholder="给房间起个名" maxlength="12" style="width:170px;">
-    </div>
-    <div class="form-row">
-      <span class="form-label">类型：</span>
-      <div class="toggle-group">
-        <div class="toggle-btn active" id="toggle-public" onclick="setRoomType('public')">🌐 公开</div>
-        <div class="toggle-btn" id="toggle-private" onclick="setRoomType('private')">🔒 私密</div>
-      </div>
-    </div>
-    <div style="text-align:center;margin-top:12px;">
-      <button class="btn btn-primary" onclick="doCreateRoom()">✅ 创建</button>
-      <button class="btn btn-small btn-gray" onclick="showScreen('menu-screen')">返回</button>
+    <input class="input-field" id="create-name" placeholder="房间名称" maxlength="12">
+    <div class="form-row"><span class="form-label">类型</span><div class="toggle-group"><span class="toggle-btn active" data-val="public" onclick="toggleRoomType(this)">公开</span><span class="toggle-btn" data-val="private" onclick="toggleRoomType(this)">私密</span></div></div>
+    <div class="form-row"><span class="form-label">地图</span><div class="toggle-group" id="map-toggle"></div></div>
+    <div class="panel-title" style="font-size:1em;margin-top:10px;">选择角色</div>
+    <div class="char-grid" id="create-chars"></div>
+    <input class="input-field" id="create-nick" placeholder="你的昵称" maxlength="8">
+    <div style="text-align:center;margin-top:10px;">
+      <button class="btn btn-primary" onclick="createRoom()">创建</button>
+      <button class="btn btn-gray btn-small" onclick="showScreen('menu-screen')">返回</button>
     </div>
   </div>
 </div>
 
-<!-- Hall -->
-<div id="hall-screen" class="screen">
-  <div class="panel" style="min-width:340px;">
-    <div class="panel-title">🌐 公开大厅</div>
-    <div style="text-align:center;margin-bottom:10px;">
-      <button class="btn btn-small btn-primary" onclick="randomJoin()">🎲 随机加入</button>
-      <button class="btn btn-small btn-secondary" onclick="refreshHall()">🔄 刷新</button>
-      <button class="btn btn-small btn-gray" onclick="showScreen('menu-screen')">返回</button>
-    </div>
-    <ul class="room-list" id="hall-room-list">
-      <div class="empty-msg">正在加载...</div>
-    </ul>
-  </div>
-</div>
-
-<!-- Join by Code -->
-<div id="join-screen" class="screen">
-  <div class="panel" style="text-align:center;">
-    <div class="panel-title">🔑 输入房间号</div>
-    <input id="room-code-input" class="input-field" placeholder="4位房间号" maxlength="4" style="width:150px;">
-    <div style="margin-top:12px;">
-      <button class="btn btn-primary" onclick="joinByCode()">加入</button>
-      <button class="btn btn-small btn-gray" onclick="showScreen('menu-screen')">返回</button>
-    </div>
-  </div>
-</div>
-
-<!-- Lobby -->
-<div id="lobby-screen" class="screen">
+<!-- 加入房间 -->
+<div class="screen" id="join-screen">
   <div class="panel">
-    <div class="panel-title" id="lobby-room-name">🎮 游戏房间</div>
-    <div class="room-code-display" id="lobby-room-code">----</div>
-    <div class="player-count" id="lobby-player-count">等待玩家加入...</div>
-    <div style="font-size:0.82em;color:#999;text-align:center;margin-bottom:6px;">选择角色：</div>
-    <div class="char-grid" id="char-grid"></div>
-    <ul class="player-list" id="player-list"></ul>
+    <div class="panel-title">🚪 加入房间</div>
+    <input class="input-field" id="join-code" placeholder="房间号" maxlength="4">
+    <div class="panel-title" style="font-size:1em;margin-top:10px;">选择角色</div>
+    <div class="char-grid" id="join-chars"></div>
+    <input class="input-field" id="join-nick" placeholder="你的昵称" maxlength="8">
+    <div style="text-align:center;margin-top:10px;">
+      <button class="btn btn-secondary" onclick="joinRoom()">加入</button>
+      <button class="btn btn-start btn-small" onclick="randomJoin()">🎲 随机加入</button>
+      <button class="btn btn-gray btn-small" onclick="showScreen('menu-screen')">返回</button>
+    </div>
+  </div>
+</div>
+
+<!-- 浏览房间 -->
+<div class="screen" id="browse-screen">
+  <div class="panel">
+    <div class="panel-title">🔍 公开房间</div>
+    <ul class="room-list" id="room-list"><li class="empty-msg">加载中...</li></ul>
+    <div style="text-align:center;margin-top:10px;">
+      <button class="btn btn-secondary btn-small" onclick="loadRooms()">🔄 刷新</button>
+      <button class="btn btn-gray btn-small" onclick="showScreen('menu-screen')">返回</button>
+    </div>
+  </div>
+</div>
+
+<!-- 大厅 -->
+<div class="screen" id="lobby-screen">
+  <div class="panel">
+    <div id="lobby-room-name" class="panel-title">🎮 房间</div>
+    <div class="room-code-display" id="lobby-room-code"></div>
+    <div class="player-count" id="lobby-count"></div>
+    <ul class="player-list" id="lobby-players"></ul>
     <div id="lobby-host-controls" style="display:none;text-align:center;margin-top:8px;">
-      <div style="margin-bottom:5px;font-size:0.82em;color:#666;">队长选择地图：</div>
-      <select id="map-select" style="padding:7px 14px;border-radius:10px;border:2px solid #ddd;font-size:1em;margin-bottom:8px;">
-        <option value="0">🌿 草地</option>
-        <option value="1">🏘️ 城镇</option>
-        <option value="2">🧱 迷宫</option>
-      </select>
-      <br>
-      <button class="btn btn-start" onclick="forceStart()">🚀 强制开始</button>
-      <div style="font-size:0.72em;color:#999;margin-top:3px;">队长可强制开始（需2-10人）</div>
+      <button class="btn btn-primary btn-small" onclick="forceStart()">🚀 强制开始</button>
     </div>
     <div style="text-align:center;margin-top:8px;">
-      <button class="btn btn-small btn-primary" onclick="proposeStart()">✋ 提议开始</button>
-      <button class="btn btn-small btn-gray" onclick="leaveRoom()">退出房间</button>
+      <button class="btn btn-start btn-small" onclick="proposeStart()">✋ 提议开始</button>
+      <button class="btn btn-danger btn-small" onclick="leaveRoom()">退出</button>
     </div>
-    <div id="lobby-wait-msg" style="text-align:center;margin-top:6px;color:#666;font-size:0.85em;"></div>
+    <div id="lobby-wait-msg" style="text-align:center;color:#888;font-size:0.85em;margin-top:5px;"></div>
   </div>
 </div>
 
-<!-- Vote Modal -->
-<div class="modal-overlay" id="vote-modal">
-  <div class="modal-box">
-    <p id="vote-msg">XXX 提议开始游戏</p>
-    <button class="btn btn-small btn-primary" onclick="voteAgree()">✅ 同意</button>
-    <button class="btn btn-small btn-gray" onclick="voteWait()">⏳ 继续等待</button>
-  </div>
-</div>
-
-<!-- Game -->
-<div id="game-screen" class="screen">
+<!-- 游戏画面 -->
+<div class="screen" id="game-screen">
   <div id="game-hud">
-    <div class="hud-item hud-role" id="hud-role">逃跑者</div>
-    <div class="hud-item hud-timer" id="hud-timer">3:00</div>
-    <div class="hud-item hud-stamina" id="hud-stamina">⚡ 100</div>
+    <span class="hud-item hud-role" id="hud-role"></span>
+    <span class="hud-item hud-timer" id="hud-timer">3:00</span>
+    <span class="hud-item hud-stamina" id="hud-stamina">⚡100</span>
   </div>
   <canvas id="game-canvas"></canvas>
   <div id="joystick-area"><div id="joystick-base"><div id="joystick-knob"></div></div></div>
   <div id="spectator-banner">👻 你已被抓！观战中...</div>
 </div>
 
-<!-- Result Overlay (游戏结束弹窗，不切换screen) -->
-<div class="modal-overlay" id="result-overlay">
-  <div class="modal-box" style="max-width:360px;padding:30px 28px;">
-    <div id="result-title" style="font-size:2em;margin-bottom:6px;">🎉</div>
-    <div id="result-msg" style="font-size:1.05em;color:#555;margin-bottom:14px;"></div>
-    <!-- 结算详情 -->
-    <div id="result-details" style="background:#f8f8f8;border-radius:12px;padding:12px 14px;margin-bottom:16px;text-align:left;font-size:0.9em;line-height:1.8;"></div>
-    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-      <button class="btn btn-secondary btn-small" onclick="returnToLobby()">🏠 回到房间</button>
-      <button class="btn btn-danger btn-small" onclick="leaveRoomFromResult()">🚪 退出房间</button>
-    </div>
-    <div style="font-size:0.75em;color:#aaa;margin-top:10px;">语音频道保持连接中 🎙️</div>
+<!-- 物品栏 (游戏中显示) -->
+<div id="item-bar">
+  <div class="item-slot empty" id="slot-0" onclick="useItem(0)"><span class="slot-key">1</span></div>
+  <div class="item-slot empty" id="slot-1" onclick="useItem(1)"><span class="slot-key">2</span></div>
+  <div class="item-slot empty" id="slot-2" onclick="useItem(2)"><span class="slot-key">3</span></div>
+</div>
+
+<!-- 暗道提示 -->
+<div id="tunnel-msg"></div>
+
+<!-- 投票弹窗 -->
+<div class="modal-overlay" id="vote-modal">
+  <div class="modal-box">
+    <p id="vote-msg">有人提议开始游戏</p>
+    <button class="btn btn-primary btn-small" onclick="voteAgree()">👍 同意</button>
+    <button class="btn btn-gray btn-small" onclick="voteWait()">⏳ 继续等待</button>
   </div>
 </div>
 
-<!-- 语音聊天面板 (在大厅和游戏中显示) -->
+<!-- 结算弹窗 -->
+<div class="modal-overlay" id="result-overlay">
+  <div class="modal-box result-box">
+    <div class="result-title" id="result-title">🎉</div>
+    <div class="result-msg" id="result-msg"></div>
+    <div id="result-details" style="text-align:left;font-size:0.88em;margin:10px 0;"></div>
+    <button class="btn btn-primary btn-small" onclick="returnToLobby()">🔄 再来一局</button>
+    <button class="btn btn-gray btn-small" onclick="backToMenu()">🏠 返回主页</button>
+  </div>
+</div>
+
+<!-- 语音聊天面板 -->
 <div id="voice-panel">
   <div id="voice-speakers"></div>
   <button id="mic-btn" onclick="toggleMic()" title="点击切换麦克风">🎤</button>
@@ -307,6 +269,27 @@ const SPEED_NORMAL=3, SPEED_CATCHER=3;
 const STAMINA_MAX=100, STAMINA_MOVE_COST=0.15, STAMINA_REGEN=0.3, FOOD_STAMINA=30;
 const CATCH_DIST=36, BROADCAST_MS=50;
 
+// ===== TERRAIN TYPES =====
+const TERRAIN = {
+  NORMAL:   {id:0, name:'普通',   color:null, spdMul:1, staminaCost:0},
+  SWAMP:    {id:1, name:'沼泽',   color:'rgba(80,120,50,0.6)', spdMul:0.5, staminaCost:0.3},
+  ICE:      {id:2, name:'冰面',   color:'rgba(180,230,255,0.7)', spdMul:1.2, staminaCost:0, friction:0.92},
+  BOOST:    {id:3, name:'加速带', color:'rgba(255,200,0,0.6)', spdMul:2.0, staminaCost:0},
+  SLOPE_UP: {id:4, name:'上坡',   color:'rgba(160,120,80,0.5)', spdMul:0.6, staminaCost:0.2},
+  SLOPE_DN: {id:5, name:'下坡',   color:'rgba(200,180,140,0.5)', spdMul:1.5, staminaCost:0},
+  THORNS:   {id:6, name:'荆棘',   color:'rgba(100,60,30,0.5)', spdMul:0.7, staminaCost:0.4},
+  TELEPORT: {id:7, name:'传送点', color:'rgba(180,0,255,0.4)', spdMul:1, staminaCost:0},
+  SPRING:   {id:8, name:'弹簧',   color:'rgba(255,100,150,0.5)', spdMul:1, staminaCost:0}
+};
+
+// ===== ITEM TYPES =====
+const ITEM_TYPES = {
+  POTION_HP:   {id:'hp',    name:'体力药水', emoji:'💊', desc:'恢复50体力'},
+  POTION_SPD:  {id:'spd',   name:'速度药水', emoji:'⚡', desc:'速度x1.8持续5秒'},
+  OBSTACLE:    {id:'block', name:'障碍物',   emoji:'🪨', desc:'放在身后阻挡15秒'},
+  KEY:         {id:'key',   name:'钥匙',     emoji:'🔑', desc:'开启暗道锁门'}
+};
+
 // ===== CHARACTERS =====
 const CHARS=[
   {name:'小猫',color:'#FF6B6B',emoji:'🐱'},{name:'小狗',color:'#4ECDC4',emoji:'🐶'},
@@ -316,303 +299,283 @@ const CHARS=[
   {name:'小企鹅',color:'#5B7FFF',emoji:'🐧'},{name:'小青蛙',color:'#77DD77',emoji:'🐸'}
 ];
 
-// ===== MAPS =====
+// ===== MAPS WITH TERRAIN, TUNNELS =====
 const MAPS=[
   {name:'草地',bg:'#8BC34A',wallColor:'#5D8A3C',walls:[
     {x:200,y:200,w:80,h:80},{x:500,y:150,w:60,h:120},{x:900,y:200,w:100,h:60},
     {x:150,y:500,w:60,h:150},{x:400,y:400,w:100,h:80},{x:700,y:350,w:80,h:100},
     {x:1000,y:500,w:80,h:80},{x:300,y:700,w:120,h:60},{x:600,y:650,w:80,h:100},
     {x:900,y:700,w:60,h:120}
+  ],terrains:[
+    {type:'SWAMP',x:100,y:350,w:120,h:100},
+    {type:'SWAMP',x:750,y:600,w:100,h:120},
+    {type:'THORNS',x:450,y:250,w:80,h:60},
+    {type:'THORNS',x:850,y:450,w:70,h:80},
+    {type:'BOOST',x:300,y:500,w:150,h:40,dir:'right'},
+    {type:'BOOST',x:600,y:200,w:40,h:150,dir:'down'},
+    {type:'SPRING',x:1050,y:300,w:60,h:60}
+  ],tunnels:[
+    {id:'t1',entry:{x:80,y:80,w:50,h:50},exit:{x:1100,y:800,w:50,h:50},locked:true,keySpawn:{x:600,y:450}},
+    {id:'t2',entry:{x:1050,y:100,w:50,h:50},exit:{x:150,y:750,w:50,h:50},locked:true,keySpawn:{x:400,y:600}}
   ]},
   {name:'城镇',bg:'#D4C5A9',wallColor:'#8B7355',walls:[
-    {x:100,y:100,w:150,h:120},{x:400,y:80,w:120,h:150},{x:700,y:100,w:180,h:100},
-    {x:1000,y:80,w:120,h:130},{x:100,y:400,w:120,h:180},{x:350,y:380,w:160,h:120},
-    {x:650,y:400,w:120,h:160},{x:900,y:380,w:180,h:120},{x:150,y:700,w:140,h:100},
-    {x:450,y:680,w:100,h:140},{x:750,y:700,w:160,h:100},{x:1000,y:650,w:120,h:150}
+    {x:100,y:100,w:200,h:20},{x:100,y:100,w:20,h:200},{x:400,y:80,w:20,h:180},
+    {x:600,y:100,w:200,h:20},{x:800,y:100,w:20,h:150},{x:950,y:200,w:150,h:20},
+    {x:100,y:400,w:150,h:20},{x:350,y:350,w:20,h:150},{x:500,y:400,w:200,h:20},
+    {x:700,y:350,w:20,h:200},{x:850,y:450,w:150,h:20},{x:1000,y:400,w:20,h:150},
+    {x:150,y:600,w:20,h:200},{x:300,y:700,w:200,h:20},{x:550,y:650,w:20,h:150},
+    {x:700,y:700,w:150,h:20},{x:900,y:650,w:20,h:150},{x:950,y:750,w:150,h:20}
+  ],terrains:[
+    {type:'ICE',x:200,y:130,w:180,h:120},
+    {type:'ICE',x:850,y:550,w:130,h:100},
+    {type:'SLOPE_UP',x:400,y:280,w:80,h:60},
+    {type:'SLOPE_DN',x:600,y:500,w:80,h:60},
+    {type:'SPRING',x:500,y:150,w:60,h:60},
+    {type:'SPRING',x:250,y:600,w:60,h:60},
+    {type:'BOOST',x:100,y:310,w:250,h:35,dir:'right'},
+    {type:'BOOST',x:750,y:250,w:35,h:180,dir:'down'}
+  ],tunnels:[
+    {id:'t1',entry:{x:50,y:800,w:50,h:50},exit:{x:1100,y:100,w:50,h:50},locked:true,keySpawn:{x:500,y:500}},
+    {id:'t2',entry:{x:450,y:50,w:50,h:50},exit:{x:750,y:820,w:50,h:50},locked:true,keySpawn:{x:900,y:350}},
+    {id:'t3',entry:{x:1100,y:450,w:50,h:50},exit:{x:100,y:500,w:50,h:50},locked:false,keySpawn:null}
   ]},
-  {name:'迷宫',bg:'#E8E8E8',wallColor:'#555555',walls:[
-    {x:0,y:150,w:400,h:30},{x:200,y:300,w:30,h:300},{x:350,y:250,w:300,h:30},
-    {x:500,y:150,w:30,h:200},{x:650,y:0,w:30,h:250},{x:500,y:400,w:400,h:30},
-    {x:800,y:150,w:30,h:280},{x:900,y:500,w:30,h:250},{x:0,y:550,w:250,h:30},
-    {x:350,y:550,w:30,h:250},{x:500,y:600,w:250,h:30},{x:650,y:700,w:30,h:200},
-    {x:800,y:700,w:300,h:30},{x:100,y:750,w:200,h:30},{x:1050,y:400,w:150,h:30}
+  {name:'迷宫',bg:'#E8D5B7',wallColor:'#6B4E3D',walls:[
+    {x:0,y:150,w:300,h:18},{x:200,y:0,w:18,h:150},{x:400,y:100,w:18,h:250},
+    {x:200,y:300,w:220,h:18},{x:0,y:450,w:200,h:18},{x:300,y:450,w:18,h:200},
+    {x:500,y:350,w:200,h:18},{x:700,y:150,w:18,h:220},{x:800,y:0,w:18,h:150},
+    {x:900,y:200,w:18,h:250},{x:700,y:450,w:300,h:18},{x:500,y:550,w:18,h:200},
+    {x:100,y:650,w:200,h:18},{x:400,y:700,w:18,h:200},{x:600,y:650,w:200,h:18},
+    {x:800,y:600,w:18,h:200},{x:900,y:700,w:200,h:18},{x:1050,y:500,w:18,h:200}
+  ],terrains:[
+    {type:'BOOST',x:50,y:200,w:140,h:35,dir:'right'},
+    {type:'BOOST',x:750,y:500,w:35,h:130,dir:'down'},
+    {type:'TELEPORT',x:100,y:500,w:50,h:50,pairId:'tp1'},
+    {type:'TELEPORT',x:1050,y:100,w:50,h:50,pairId:'tp1'},
+    {type:'TELEPORT',x:600,y:100,w:50,h:50,pairId:'tp2'},
+    {type:'TELEPORT',x:400,y:800,w:50,h:50,pairId:'tp2'},
+    {type:'THORNS',x:220,y:350,w:80,h:80},
+    {type:'SWAMP',x:550,y:400,w:120,h:100},
+    {type:'SWAMP',x:900,y:750,w:100,h:80}
+  ],tunnels:[
+    {id:'t1',entry:{x:50,y:50,w:50,h:50},exit:{x:1100,y:820,w:50,h:50},locked:true,keySpawn:{x:700,y:400}},
+    {id:'t2',entry:{x:650,y:750,w:50,h:50},exit:{x:250,y:150,w:50,h:50},locked:true,keySpawn:{x:950,y:600}},
+    {id:'t3',entry:{x:1100,y:300,w:50,h:50},exit:{x:50,y:850,w:50,h:50},locked:true,keySpawn:{x:350,y:550}}
   ]}
 ];
 
 // ===== STATE =====
-let myId=Math.random().toString(36).substr(2,9);
-let myNick='',myCharIdx=0;
-let roomCode='',roomName='',roomType='public';
-let isHost=false;
-let channel=null,hallChannel=null;
-let gameState='menu',selectedMap=0;
+let myId='',myNick='',myCharIdx=0,roomCode='',roomName='',roomType='public',selectedMap=0;
+let isHost=false,channel=null,gameState='menu';
+let lobbyPlayers={},lobbyTs={},players={},foods=[],isCaught=false;
+let gameInterval=null,timerInterval=null,presenceInterval=null,timeLeft=GAME_DURATION;
+let currentVote=null;
+let keys={},isMobile=false,joystickActive=false,joystickDX=0,joystickDY=0;
 
-// Game
-let players={},foods=[];
-let timeLeft=GAME_DURATION;
-let gameInterval=null,timerInterval=null;
-let lastBroadcast=0;
-let myRole='runner',isCaught=false;
-let canvas,ctx,cameraX=0,cameraY=0;
+// ===== TERRAIN/ITEM/TUNNEL STATE =====
+let myItems=[null,null,null]; // 3 slots
+let mySpeedBuff=0; // remaining frames of speed buff
+let mySpeedMul=1;
+let obstacles=[]; // placed obstacles [{x,y,id,expireFrame}]
+let frameCount=0;
+let tunnelStates={}; // {tunnelId: {unlocked:bool}}
+let tunnelKeys=[]; // spawned keys on map [{id,x,y,active,tunnelId}]
+let itemPickups=[]; // spawned items on map [{id,x,y,active,type}]
+let inTunnel=false, tunnelEnteredFrame=0, currentTunnelId=null;
+let teleportCooldown=0;
+let iceVX=0, iceVY=0; // ice sliding velocity
+let springLaunch=0, springDX=0, springDY=0; // spring launch state
 
-// Input
-let keys={},joystickActive=false,joystickDX=0,joystickDY=0;
-let isMobile=/Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
+// Item spawn timer
+let itemSpawnTimer=0;
+const ITEM_SPAWN_INTERVAL=300; // ~5 seconds at 60fps
+// ===== UTILS =====
+function escH(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function genId(){return Math.random().toString(36).substr(2,9);}
+function genRoomCode(){return String(Math.floor(1000+Math.random()*9000));}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
 
-// Lobby
-let lobbyPlayers={};
-let lobbyTs={};
-let presenceInterval=null;
-
-// Hall
-let hallRooms={};
-
-// Vote
-let currentVote=null; // {proposer, proposerName, votes:{id:'agree'|'wait'}, needed}
-let voteTimeout=null;
-
-// ===== INIT =====
-window.onload=()=>{
-  canvas=document.getElementById('game-canvas');
-  ctx=canvas.getContext('2d');
-  const ns=['小勇士','小英雄','小冒险家','小探险家','小玩家'];
-  document.getElementById('nickname-input').value=ns[Math.floor(Math.random()*ns.length)];
-  myCharIdx=Math.floor(Math.random()*CHARS.length);
-  buildCharGrid();
-  if(isMobile){document.getElementById('joystick-area').style.display='block';setupJoystick();}
-  window.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;});
-  window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
-  resizeCanvas();
-  window.addEventListener('resize',resizeCanvas);
-  subscribeHall();
-};
-
-function resizeCanvas(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
-
-function buildCharGrid(){
-  const g=document.getElementById('char-grid'); g.innerHTML='';
-  CHARS.forEach((c,i)=>{
-    const d=document.createElement('div');
-    d.className='char-option'+(i===myCharIdx?' selected':'');
-    d.style.background=c.color;
-    d.innerHTML=`<span style="font-size:1.3em">${c.emoji}</span>`;
-    d.onclick=()=>{
-      // 检查是否有其他玩家已选了这个头像
-      const taken=Object.values(lobbyPlayers).some(p=>p.id!==myId&&p.charIdx===i);
-      if(taken){alert('这个角色已被其他玩家选择，请换一个！');return;}
-      myCharIdx=i;
-      document.querySelectorAll('.char-option').forEach(el=>el.classList.remove('selected'));
-      d.classList.add('selected');
-      if(channel)broadcastPresence();
-    };
-    g.appendChild(d);
+// ===== INIT UI =====
+function initUI(){
+  isMobile=/Mobi|Android|iPad|iPhone/i.test(navigator.userAgent);
+  // Map toggle
+  const mt=document.getElementById('map-toggle');
+  MAPS.forEach((m,i)=>{mt.innerHTML+=`<span class="toggle-btn${i===0?' active':''}" data-val="${i}" onclick="selectMap(this)">${m.name}</span>`;});
+  // Char grids
+  ['create-chars','join-chars'].forEach(gid=>{
+    const g=document.getElementById(gid);
+    CHARS.forEach((c,i)=>{g.innerHTML+=`<div class="char-option" style="background:${c.color}" data-idx="${i}" onclick="selectChar(this,${i})">${c.emoji}</div>`;});
+    g.children[0].classList.add('selected');
   });
 }
+function selectMap(el){el.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');selectedMap=+el.dataset.val;}
+function selectChar(el,idx){el.parentElement.querySelectorAll('.char-option').forEach(c=>c.classList.remove('selected'));el.classList.add('selected');myCharIdx=idx;}
+function toggleRoomType(el){el.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');roomType=el.dataset.val;}
 
-function pickUniqueChar(){
-  const usedIdx=Object.values(lobbyPlayers).filter(p=>p.id!==myId).map(p=>p.charIdx);
-  for(let i=0;i<CHARS.length;i++){
-    if(!usedIdx.includes(i)){myCharIdx=i;return;}
-  }
+// ===== ROOM MANAGEMENT =====
+function createRoom(){
+  roomName=document.getElementById('create-name').value.trim()||'快乐房间';
+  myNick=document.getElementById('create-nick').value.trim()||CHARS[myCharIdx].name;
+  roomCode=genRoomCode();myId=genId();isHost=true;
+  joinChannel();
 }
-
-// ===== SCREENS =====
-function showScreen(id){document.querySelectorAll('.screen').forEach(el=>el.classList.remove('active'));document.getElementById(id).classList.add('active');}
-function escH(s){return String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
-
-// ===== HALL =====
-function subscribeHall(){
-  hallChannel=sb.channel('catch-hall-v2',{config:{broadcast:{self:true}}});
-  hallChannel.on('broadcast',{event:'room-info'},({payload})=>{if(payload&&payload.code)hallRooms[payload.code]=payload;});
-  hallChannel.on('broadcast',{event:'room-gone'},({payload})=>{if(payload&&payload.code)delete hallRooms[payload.code];});
-  hallChannel.subscribe();
+function joinRoom(){
+  roomCode=document.getElementById('join-code').value.trim();
+  if(!roomCode||roomCode.length!==4){alert('请输入4位房间号');return;}
+  myNick=document.getElementById('join-nick').value.trim()||CHARS[myCharIdx].name;
+  myId=genId();isHost=false;
+  joinChannel();
 }
-
-function announceRoom(){
-  if(roomType!=='public')return;
-  hallChannel.send({type:'broadcast',event:'room-info',payload:{
-    code:roomCode,name:roomName,host:myNick,playerCount:Object.keys(lobbyPlayers).length,mapIdx:selectedMap
-  }});
-}
-
-function removeAnnounce(){hallChannel.send({type:'broadcast',event:'room-gone',payload:{code:roomCode}});}
-
-function showHall(){
-  myNick=document.getElementById('nickname-input').value.trim()||'玩家';
-  showScreen('hall-screen');
-  refreshHall();
-}
-
-function refreshHall(){
-  const list=document.getElementById('hall-room-list');
-  const rooms=Object.values(hallRooms).filter(r=>r.playerCount<10);
-  if(!rooms.length){list.innerHTML='<div class="empty-msg">暂无公开房间，去创建一个吧！</div>';return;}
-  list.innerHTML=rooms.map(r=>`
-    <div class="room-card">
-      <div class="room-info">
-        <span class="room-name-text">${escH(r.name)}</span>
-        <span class="room-meta">🏠 ${escH(r.host)} · 房间号 ${r.code} · ${r.playerCount}/10人 · ${MAPS[r.mapIdx||0].name}</span>
-      </div>
-      <button class="btn btn-small btn-secondary" onclick="joinRoomByCode('${r.code}')">加入</button>
-    </div>
-  `).join('');
-}
-
 function randomJoin(){
-  const rooms=Object.values(hallRooms).filter(r=>r.playerCount<10);
-  if(!rooms.length){alert('暂无可加入的房间，试试创建一个吧！');return;}
-  const r=rooms[Math.floor(Math.random()*rooms.length)];
-  joinRoomByCode(r.code);
+  myNick=document.getElementById('join-nick').value.trim()||CHARS[myCharIdx].name;
+  myId=genId();isHost=false;
+  // Try to find a public room
+  const ch=sb.channel('room-list');
+  ch.subscribe(async(status)=>{
+    if(status==='SUBSCRIBED'){
+      ch.send({type:'broadcast',event:'list-request',payload:{from:myId}});
+      setTimeout(()=>{ch.unsubscribe();if(!roomCode){alert('没有找到可加入的房间，试试创建一个吧！');}},3000);
+    }
+  });
+  ch.on('broadcast',{event:'list-response'},({payload})=>{
+    if(roomCode)return;
+    if(payload.type==='public'&&payload.count<10){
+      roomCode=payload.code;roomName=payload.name;selectedMap=payload.map||0;
+      ch.unsubscribe();joinChannel();
+    }
+  });
 }
-
-// ===== CREATE ROOM =====
-function showCreateRoom(){
-  myNick=document.getElementById('nickname-input').value.trim()||'玩家';
-  showScreen('create-screen');
-  document.getElementById('room-name-input').value=myNick+'的房间';
+function loadRooms(){
+  const list=document.getElementById('room-list');
+  list.innerHTML='<li class="empty-msg">搜索中...</li>';
+  const ch=sb.channel('room-list');
+  const rooms=[];
+  ch.subscribe(async(status)=>{
+    if(status==='SUBSCRIBED'){
+      ch.send({type:'broadcast',event:'list-request',payload:{from:'browser'}});
+      setTimeout(()=>{
+        ch.unsubscribe();
+        if(rooms.length===0){list.innerHTML='<li class="empty-msg">暂无公开房间</li>';return;}
+        list.innerHTML='';
+        rooms.forEach(r=>{
+          list.innerHTML+=`<li class="room-card"><div class="room-info"><span class="room-name-text">${escH(r.name)}</span><span class="room-meta">队长:${escH(r.host)} | ${r.count}/10人 | ${MAPS[r.map||0].name}</span></div><button class="btn btn-secondary btn-small" onclick="joinFromBrowse('${r.code}',${r.map||0})">加入</button></li>`;
+        });
+      },2500);
+    }
+  });
+  ch.on('broadcast',{event:'list-response'},({payload})=>{
+    if(payload.type==='public')rooms.push(payload);
+  });
 }
-
-function setRoomType(t){
-  roomType=t;
-  document.getElementById('toggle-public').classList.toggle('active',t==='public');
-  document.getElementById('toggle-private').classList.toggle('active',t==='private');
-}
-
-function doCreateRoom(){
-  roomName=document.getElementById('room-name-input').value.trim()||'游戏房间';
-  roomCode=String(Math.floor(1000+Math.random()*9000));
-  isHost=true;
+function joinFromBrowse(code,map){
+  roomCode=code;selectedMap=map;
+  myNick=prompt('输入你的昵称:',CHARS[myCharIdx].name)||CHARS[myCharIdx].name;
+  myId=genId();isHost=false;
   joinChannel();
 }
-
-// ===== JOIN =====
-function showJoinByCode(){
-  myNick=document.getElementById('nickname-input').value.trim()||'玩家';
-  showScreen('join-screen');
-  document.getElementById('room-code-input').value='';
+function leaveRoom(){
+  if(channel){channel.unsubscribe();channel=null;}
+  lobbyPlayers={};gameState='menu';
+  showScreen('menu-screen');
+  leaveVoiceChannel();
 }
 
-function joinByCode(){
-  const c=document.getElementById('room-code-input').value.trim();
-  if(c.length!==4){alert('请输入4位房间号');return;}
-  joinRoomByCode(c);
-}
-
-function joinRoomByCode(code){
-  myNick=document.getElementById('nickname-input').value.trim()||'玩家';
-  roomCode=code;
-  isHost=false;
-  joinChannel();
-}
-
-// ===== LOBBY =====
+// ===== CHANNEL =====
 function joinChannel(){
   gameState='lobby';
-  lobbyPlayers={};lobbyTs={};currentVote=null;
-  showScreen('lobby-screen');
-  document.getElementById('lobby-room-code').textContent=roomCode;
-  document.getElementById('lobby-room-name').textContent='🎮 '+(roomName||'游戏房间');
-  document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
-  document.getElementById('lobby-wait-msg').textContent='';
-  document.getElementById('vote-modal').classList.remove('active');
-
-  channel=sb.channel(`catch-room-${roomCode}`,{config:{broadcast:{self:true}}});
+  channel=sb.channel('catch-room-'+roomCode,{config:{broadcast:{self:false}}});
   channel.on('broadcast',{event:'presence'},({payload})=>onPresence(payload));
-  channel.on('broadcast',{event:'game-start'},({payload})=>onGameStart(payload));
-  channel.on('broadcast',{event:'game-state'},({payload})=>onGameState(payload));
-  channel.on('broadcast',{event:'player-caught'},({payload})=>onPlayerCaught(payload));
-  channel.on('broadcast',{event:'food-eaten'},({payload})=>onFoodEaten(payload));
-  channel.on('broadcast',{event:'game-end'},({payload})=>onGameEnd(payload));
+  channel.on('broadcast',{event:'kick'},({payload})=>onKick(payload));
   channel.on('broadcast',{event:'vote-propose'},({payload})=>onVotePropose(payload));
   channel.on('broadcast',{event:'vote-response'},({payload})=>onVoteResponse(payload));
-  channel.on('broadcast',{event:'vote-result'},({payload})=>onVoteResult(payload));
+  channel.on('broadcast',{event:'game-start'},({payload})=>onGameStart(payload));
+  channel.on('broadcast',{event:'player-move'},({payload})=>onPlayerMove(payload));
+  channel.on('broadcast',{event:'player-caught'},({payload})=>onPlayerCaught(payload));
+  channel.on('broadcast',{event:'food-eaten'},({payload})=>onFoodEaten(payload));
   channel.on('broadcast',{event:'coin-spawn'},({payload})=>onCoinSpawn(payload));
-  channel.on('broadcast',{event:'kick'},({payload})=>onKick(payload));
+  channel.on('broadcast',{event:'list-request'},()=>{
+    if(isHost&&gameState==='lobby'){
+      channel.send({type:'broadcast',event:'list-response',payload:{code:roomCode,name:roomName,host:myNick,count:Object.keys(lobbyPlayers).length,type:roomType,map:selectedMap}});
+    }
+  });
+  // New events for items/tunnels
+  channel.on('broadcast',{event:'item-pickup'},({payload})=>onItemPickup(payload));
+  channel.on('broadcast',{event:'item-use'},({payload})=>onItemUse(payload));
+  channel.on('broadcast',{event:'obstacle-place'},({payload})=>onObstaclePlace(payload));
+  channel.on('broadcast',{event:'tunnel-unlock'},({payload})=>onTunnelUnlock(payload));
+  channel.on('broadcast',{event:'key-pickup'},({payload})=>onKeyPickup(payload));
+  channel.on('broadcast',{event:'item-spawn'},({payload})=>onItemSpawn(payload));
+  // Voice UID mapping
   channel.on('broadcast',{event:'voice-uid'},({payload})=>onVoiceUid(payload));
-  channel.on('broadcast',{event:'back-to-lobby'},({payload})=>onBackToLobby(payload));
 
-  channel.subscribe(s=>{
-    if(s==='SUBSCRIBED'){
+  channel.subscribe(async(status)=>{
+    if(status==='SUBSCRIBED'){
       broadcastPresence();
-      if(presenceInterval)clearInterval(presenceInterval);
-      presenceInterval=setInterval(()=>{if(gameState==='lobby'){broadcastPresence();if(isHost)announceRoom();}},2000);
-      // 加入语音频道（频道名 = catch-voice-房间号）
-      joinVoiceChannel('catch-voice-' + roomCode);
+      presenceInterval=setInterval(broadcastPresence,2000);
+      showScreen('lobby-screen');
+      document.getElementById('lobby-room-code').textContent=roomCode;
+      document.getElementById('lobby-room-name').textContent='🎮 '+(roomName||'游戏房间');
+      document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
+      // Also respond to room list requests on the global channel
+      const listCh=sb.channel('room-list');
+      listCh.subscribe(s=>{
+        if(s==='SUBSCRIBED'){
+          listCh.on('broadcast',{event:'list-request'},()=>{
+            if(isHost&&gameState==='lobby'){
+              listCh.send({type:'broadcast',event:'list-response',payload:{code:roomCode,name:roomName,host:myNick,count:Object.keys(lobbyPlayers).length,type:roomType,map:selectedMap}});
+            }
+          });
+        }
+      });
+      // Join voice channel
+      joinVoiceChannel('catch-voice-'+roomCode);
     }
   });
 }
 
-function leaveRoom(){
-  if(channel){channel.unsubscribe();channel=null;}
-  if(presenceInterval){clearInterval(presenceInterval);presenceInterval=null;}
-  if(isHost)removeAnnounce();
-  lobbyPlayers={};gameState='menu';
-  document.getElementById('vote-modal').classList.remove('active');
-  document.getElementById('result-overlay').classList.remove('active');
-  showScreen('menu-screen');
-  // 离开语音频道
-  leaveVoiceChannel();
-}
-
 function broadcastPresence(){
   if(!channel)return;
-  channel.send({type:'broadcast',event:'presence',payload:{id:myId,nickname:myNick,charIdx:myCharIdx,isHost}});
-  // 同时广播语音 uid 映射
-  if(voiceJoined){
-    channel.send({type:'broadcast',event:'voice-uid',payload:{id:myId,voiceUid:voiceUid,nickname:myNick,charIdx:myCharIdx}});
-  }
-}
-
-function onPresence(p){
-  if(gameState!=='lobby')return;
-  lobbyPlayers[p.id]=p;
-  lobbyTs[p.id]=Date.now();
-  // 如果新玩家和自己头像冲突，自动换一个
-  if(p.id!==myId&&p.charIdx===myCharIdx){
-    pickUniqueChar();
-    buildCharGrid();
-    if(channel)broadcastPresence();
-  }
-  // Stale cleanup
-  Object.keys(lobbyPlayers).forEach(k=>{if(lobbyTs[k]&&Date.now()-lobbyTs[k]>7000)delete lobbyPlayers[k];});
+  channel.send({type:'broadcast',event:'presence',payload:{id:myId,nick:myNick,charIdx:myCharIdx,isHost,ts:Date.now()}});
+  // Self
+  lobbyPlayers[myId]={nick:myNick,charIdx:myCharIdx,isHost};
+  lobbyTs[myId]=Date.now();
   updateLobbyUI();
 }
 
-function updateLobbyUI(){
-  const list=document.getElementById('player-list');
-  const entries=Object.entries(lobbyPlayers);
-  list.innerHTML=entries.map(([id,p])=>{
-    const c=CHARS[p.charIdx]||CHARS[0];
-    const kickHtml=(isHost&&id!==myId)?`<button class="kick-btn" onclick="kickPlayer('${id}')">踢出</button>`:'';
-    const voiceIcon=isPlayerInVoice(id)?'🎤':'';
-    return `<li><span class="dot" style="background:${c.color}"></span>${c.emoji} ${escH(p.nickname)}${p.isHost?' 👑':''}${voiceIcon?` <span style="font-size:0.8em">${voiceIcon}</span>`:''}${kickHtml}</li>`;
-  }).join('');
-  document.getElementById('lobby-player-count').textContent=`${entries.length} / 10 玩家`;
-}
-
-// 检查玩家是否在语音中
-function isPlayerInVoice(playerId){
-  for(const[vUid,pId]of Object.entries(voiceUidToPlayerId)){
-    if(pId===playerId)return true;
+function onPresence(p){
+  lobbyPlayers[p.id]={nick:p.nick,charIdx:p.charIdx,isHost:p.isHost};
+  lobbyTs[p.id]=Date.now();
+  // Check for character conflict
+  if(p.id!==myId&&p.charIdx===myCharIdx){
+    // Auto-switch to next available
+    const used=new Set(Object.entries(lobbyPlayers).filter(([id])=>id!==myId).map(([,v])=>v.charIdx));
+    for(let i=0;i<CHARS.length;i++){if(!used.has(i)){myCharIdx=i;broadcastPresence();break;}}
   }
-  if(playerId===myId&&voiceJoined)return true;
-  return false;
+  updateLobbyUI();
+  // Clean stale
+  const now=Date.now();
+  Object.keys(lobbyTs).forEach(id=>{if(now-lobbyTs[id]>6000){delete lobbyPlayers[id];delete lobbyTs[id];}});
 }
 
+function updateLobbyUI(){
+  const list=document.getElementById('lobby-players');
+  const count=Object.keys(lobbyPlayers).length;
+  document.getElementById('lobby-count').textContent=`${count}/10 玩家`;
+  list.innerHTML='';
+  Object.entries(lobbyPlayers).forEach(([id,p])=>{
+    const hostBadge=p.isHost?'👑':'';
+    const kickBtn=(isHost&&id!==myId)?`<span class="kick-btn" onclick="kickPlayer('${id}')">踢出</span>`:'';
+    const voiceIcon=isPlayerInVoice(id)?'🎤':'';
+    list.innerHTML+=`<li><span class="dot" style="background:${CHARS[p.charIdx].color}"></span>${CHARS[p.charIdx].emoji} ${escH(p.nick)} ${hostBadge} ${voiceIcon}${kickBtn}</li>`;
+  });
+}
 // ===== KICK =====
 function kickPlayer(targetId){
   if(!isHost)return;
   channel.send({type:'broadcast',event:'kick',payload:{targetId}});
 }
-
 function onKick({targetId}){
-  if(targetId===myId){
-    alert('你被队长踢出了房间！');
-    leaveRoom();
-  } else {
-    delete lobbyPlayers[targetId];
-    updateLobbyUI();
-  }
+  if(targetId===myId){alert('你被队长踢出了房间！');leaveRoom();}
+  else{delete lobbyPlayers[targetId];updateLobbyUI();}
 }
 
 // ===== VOTE SYSTEM =====
@@ -620,158 +583,307 @@ function proposeStart(){
   const count=Object.keys(lobbyPlayers).length;
   if(count<2){alert('至少需要2个玩家！');return;}
   channel.send({type:'broadcast',event:'vote-propose',payload:{proposer:myId,proposerName:myNick}});
+  // Count self vote
+  onVotePropose({proposer:myId,proposerName:myNick});
 }
-
 function onVotePropose({proposer,proposerName}){
   if(gameState!=='lobby')return;
   const ids=Object.keys(lobbyPlayers);
   currentVote={proposer,proposerName,votes:{},needed:ids.length};
-  // Proposer auto-agrees
   currentVote.votes[proposer]='agree';
-  
   if(proposer===myId){
     document.getElementById('lobby-wait-msg').textContent='等待其他玩家投票...';
   } else {
     document.getElementById('vote-msg').textContent=`${escH(proposerName)} 提议开始游戏，是否同意？`;
     document.getElementById('vote-modal').classList.add('active');
   }
+  checkVoteResult();
 }
-
 function voteAgree(){
   document.getElementById('vote-modal').classList.remove('active');
-  // 先把自己的票记上（broadcast不会回传给自己）
-  if(currentVote) onVoteResponse({id:myId, vote:'agree'});
+  if(currentVote)onVoteResponse({id:myId,vote:'agree'});
   channel.send({type:'broadcast',event:'vote-response',payload:{id:myId,vote:'agree'}});
 }
-
 function voteWait(){
   document.getElementById('vote-modal').classList.remove('active');
-  if(currentVote) onVoteResponse({id:myId, vote:'wait'});
+  if(currentVote)onVoteResponse({id:myId,vote:'wait'});
   channel.send({type:'broadcast',event:'vote-response',payload:{id:myId,vote:'wait'}});
 }
-
 function onVoteResponse({id,vote}){
   if(!currentVote)return;
   currentVote.votes[id]=vote;
-  
-  // Check result
-  const total=Object.keys(lobbyPlayers).length;
-  const agrees=Object.values(currentVote.votes).filter(v=>v==='agree').length;
-  const waits=Object.values(currentVote.votes).filter(v=>v==='wait').length;
-  
-  if(waits>0){
-    // Someone declined
+  checkVoteResult();
+}
+function checkVoteResult(){
+  if(!currentVote)return;
+  const votes=Object.values(currentVote.votes);
+  if(votes.includes('wait')){
     document.getElementById('lobby-wait-msg').textContent='有人选择继续等待，游戏暂不开始';
-    currentVote=null;
-    setTimeout(()=>{if(gameState==='lobby')document.getElementById('lobby-wait-msg').textContent='';},3000);
-  } else if(agrees>=total){
-    // All agreed - host starts
+    currentVote=null;return;
+  }
+  if(votes.filter(v=>v==='agree').length>=currentVote.needed){
     document.getElementById('lobby-wait-msg').textContent='全员同意！即将开始...';
+    if(isHost)setTimeout(()=>startGame(),1000);
     currentVote=null;
-    if(isHost){
-      setTimeout(()=>doStartGame(),500);
-    } else {
-      // 非host：等待host广播game-start，已在监听中
-    }
-  } else {
-    document.getElementById('lobby-wait-msg').textContent=`投票中... ${agrees}/${total} 同意`;
   }
 }
-
 function forceStart(){
+  if(!isHost)return;
   const count=Object.keys(lobbyPlayers).length;
   if(count<2){alert('至少需要2个玩家！');return;}
-  doStartGame();
+  startGame();
 }
 
-// ===== GAME START =====
-function doStartGame(){
-  if(!isHost)return;
+// ===== START GAME =====
+function startGame(){
   const ids=Object.keys(lobbyPlayers);
-  if(ids.length<2)return;
-  
-  selectedMap=parseInt(document.getElementById('map-select').value);
   const catcherIdx=Math.floor(Math.random()*ids.length);
-  const catcherId=ids[catcherIdx];
-  
-  const foodList=[];
-  for(let i=0;i<15;i++){
-    let fx,fy,ok;
-    do{fx=50+Math.random()*(MAP_W-100);fy=50+Math.random()*(MAP_H-100);ok=true;
-      for(const w of MAPS[selectedMap].walls){if(fx>w.x-12&&fx<w.x+w.w+12&&fy>w.y-12&&fy<w.y+w.h+12){ok=false;break;}}
-    }while(!ok);
-    foodList.push({id:i,x:fx,y:fy,active:true});
+  const startPositions=ids.map((_,i)=>({
+    x:100+Math.random()*(MAP_W-200),
+    y:100+Math.random()*(MAP_H-200)
+  }));
+  // Init foods
+  const initFoods=[];
+  for(let i=0;i<8;i++){
+    initFoods.push({id:i,x:50+Math.random()*(MAP_W-100),y:50+Math.random()*(MAP_H-100),active:true});
   }
-  
-  const spawns={};
-  ids.forEach((id,idx)=>{
-    const a=(idx/ids.length)*Math.PI*2;
-    spawns[id]={x:MAP_W/2+Math.cos(a)*280,y:MAP_H/2+Math.sin(a)*280};
+  // Init item pickups
+  const initItems=[];
+  const itemTypes=['hp','spd','block'];
+  for(let i=0;i<5;i++){
+    initItems.push({id:'item_'+i,x:80+Math.random()*(MAP_W-160),y:80+Math.random()*(MAP_H-160),active:true,type:itemTypes[Math.floor(Math.random()*3)]});
+  }
+  // Init tunnel keys
+  const map=MAPS[selectedMap];
+  const initKeys=[];
+  map.tunnels.forEach(t=>{
+    if(t.locked&&t.keySpawn){
+      initKeys.push({id:'key_'+t.id,x:t.keySpawn.x,y:t.keySpawn.y,active:true,tunnelId:t.id});
+    }
   });
-  
-  removeAnnounce();
-  channel.send({type:'broadcast',event:'game-start',payload:{
-    catcherId,mapIdx:selectedMap,foods:foodList,spawns,players:{...lobbyPlayers}
-  }});
+  // Init tunnel states (all locked ones start locked)
+  const initTunnelStates={};
+  map.tunnels.forEach(t=>{initTunnelStates[t.id]=!t.locked;});
+
+  const payload={
+    catcherId:ids[catcherIdx],
+    players:ids.map((id,i)=>({id,nick:lobbyPlayers[id].nick,charIdx:lobbyPlayers[id].charIdx,x:startPositions[i].x,y:startPositions[i].y})),
+    foods:initFoods,
+    items:initItems,
+    keys:initKeys,
+    tunnelStates:initTunnelStates,
+    map:selectedMap
+  };
+  channel.send({type:'broadcast',event:'game-start',payload});
+  onGameStart(payload);
 }
 
-function onGameStart(payload){
-  const{catcherId,mapIdx,foods:fl,spawns,players:ld}=payload;
-  selectedMap=mapIdx; foods=fl; gameState='playing'; timeLeft=GAME_DURATION; isCaught=false;
-  document.getElementById('vote-modal').classList.remove('active');
-  
-  players={};
-  Object.entries(ld).forEach(([id,d])=>{
-    players[id]={x:spawns[id]?spawns[id].x:MAP_W/2,y:spawns[id]?spawns[id].y:MAP_H/2,
-      charIdx:d.charIdx,nickname:d.nickname,role:id===catcherId?'catcher':'runner',
-      stamina:STAMINA_MAX,caught:false,dx:0,dy:0};
+function onGameStart(data){
+  gameState='playing';
+  selectedMap=data.map;
+  timeLeft=GAME_DURATION;
+  isCaught=false;
+  players={};foods=data.foods||[];
+  itemPickups=data.items||[];
+  tunnelKeys=data.keys||[];
+  tunnelStates=data.tunnelStates||{};
+  obstacles=[];
+  myItems=[null,null,null];
+  mySpeedBuff=0;mySpeedMul=1;
+  frameCount=0;itemSpawnTimer=0;
+  inTunnel=false;currentTunnelId=null;
+  teleportCooldown=0;
+  iceVX=0;iceVY=0;
+  springLaunch=0;
+
+  data.players.forEach(p=>{
+    players[p.id]={x:p.x,y:p.y,nick:p.nick,charIdx:p.charIdx,role:p.id===data.catcherId?'catcher':'runner',caught:false,dx:0,dy:0,stamina:STAMINA_MAX};
   });
-  
-  myRole=myId===catcherId?'catcher':'runner';
+
   showScreen('game-screen');
-  document.getElementById('hud-role').textContent=myRole==='catcher'?'👹 抓人者':'🐾 逃跑者';
-  document.getElementById('hud-role').style.color=myRole==='catcher'?'#FF6B6B':'#4ECDC4';
-  document.getElementById('hud-timer').textContent=formatTime(timeLeft);
-  document.getElementById('hud-stamina').textContent='⚡ 100';
-  document.getElementById('spectator-banner').style.display='none';
-  if(isMobile)document.getElementById('joystick-area').style.display='block';
-  resizeCanvas();
-  
+  document.getElementById('vote-modal').classList.remove('active');
+  document.getElementById('result-overlay').classList.remove('active');
+  const me=players[myId];
+  document.getElementById('hud-role').textContent=me.role==='catcher'?'🏃 抓人者':'🐇 逃跑者';
+
+  // Show item bar
+  document.getElementById('item-bar').classList.add('active');
+  updateItemBarUI();
+
+  setupCanvas();
+  if(isMobile)setupJoystick();
+  setupKeys();
+
   if(gameInterval)clearInterval(gameInterval);
   gameInterval=setInterval(gameLoop,1000/60);
   if(timerInterval)clearInterval(timerInterval);
   timerInterval=setInterval(()=>{
-    if(gameState!=='playing'){clearInterval(timerInterval);return;}
     timeLeft--;
-    document.getElementById('hud-timer').textContent=formatTime(timeLeft);
-    if(timeLeft<=0){if(isHost){channel.send({type:'broadcast',event:'game-end',payload:{winner:'runners'}});onGameEnd({winner:'runners'});}clearInterval(timerInterval);}
+    document.getElementById('hud-timer').textContent=`${Math.floor(timeLeft/60)}:${String(timeLeft%60).padStart(2,'0')}`;
+    if(timeLeft<=0)endGame('time');
   },1000);
 }
 
-function formatTime(s){return`${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;}
+// ===== CANVAS =====
+function setupCanvas(){
+  window.addEventListener("resize",setupCanvas);
+  const canvas=document.getElementById('game-canvas');
+  const ratio=Math.min(window.innerWidth/MAP_W,window.innerHeight/MAP_H);
+  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+  
+}
 
+// ===== INPUT =====
+function setupKeys(){
+  if(keys._bound)return;keys._bound=true;
+  window.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
+    // Item hotkeys 1,2,3
+    if(e.key==='1')useItem(0);
+    if(e.key==='2')useItem(1);
+    if(e.key==='3')useItem(2);
+  });
+  window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+}
+function setupJoystick(){
+  const area=document.getElementById('joystick-area');
+  const knob=document.getElementById('joystick-knob');
+  area.style.display='block';
+  const base=document.getElementById('joystick-base');
+  const bw=125,r=bw/2;
+  function handleTouch(e){
+    e.preventDefault();
+    const t=e.touches[0],rect=base.getBoundingClientRect();
+    let dx=t.clientX-rect.left-r,dy=t.clientY-rect.top-r;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist>r){dx=dx/dist*r;dy=dy/dist*r;}
+    knob.style.left=(r+dx-26)+'px';knob.style.top=(r+dy-26)+'px';
+    joystickDX=dx/r;joystickDY=dy/r;joystickActive=true;
+  }
+  area.addEventListener('touchstart',handleTouch,{passive:false});
+  area.addEventListener('touchmove',handleTouch,{passive:false});
+  area.addEventListener('touchend',()=>{knob.style.left='36px';knob.style.top='36px';joystickDX=0;joystickDY=0;joystickActive=false;});
+}
 // ===== GAME LOOP =====
 function gameLoop(){
   if(gameState!=='playing')return;
+  frameCount++;
   const me=players[myId];
   if(!me||me.caught){render();return;}
-  
+
+  // If in tunnel, handle auto-eject
+  if(inTunnel){
+    const framesIn=frameCount-tunnelEnteredFrame;
+    const secIn=framesIn/60;
+    showTunnelMsg(`暗道中... ${Math.max(0,(3-secIn)).toFixed(1)}秒后弹出`);
+    if(secIn>=3){
+      // Eject to exit
+      const map=MAPS[selectedMap];
+      const isRev=currentTunnelId.endsWith("_rev");
+      const tunnelId=isRev?currentTunnelId.replace("_rev",""):currentTunnelId;
+      const tunnel=map.tunnels.find(t=>t.id===tunnelId);
+      if(tunnel){
+        const exitPt=isRev?tunnel.entry:tunnel.exit;
+        me.x=exitPt.x+exitPt.w/2;
+        me.y=exitPt.y+exitPt.h/2;
+      }
+      inTunnel=false;currentTunnelId=null;
+      hideTunnelMsg();
+    }
+    broadcastMove(me);
+    render();
+    return;
+  }
+
   let dx=0,dy=0;
   if(isMobile&&joystickActive){dx=joystickDX;dy=joystickDY;}
   else{if(keys['w']||keys['arrowup'])dy=-1;if(keys['s']||keys['arrowdown'])dy=1;if(keys['a']||keys['arrowleft'])dx=-1;if(keys['d']||keys['arrowright'])dx=1;}
   const len=Math.sqrt(dx*dx+dy*dy);
   if(len>0){dx/=len;dy/=len;}
-  
-  if(len>0){me.stamina-=STAMINA_MOVE_COST;if(me.stamina<=0){me.stamina=0;dx=0;dy=0;}}
-  else{me.stamina=Math.min(STAMINA_MAX,me.stamina+STAMINA_REGEN);}
-  
-  const spd=me.role==='catcher'?SPEED_CATCHER:SPEED_NORMAL;
-  let nx=me.x+dx*spd,ny=me.y+dy*spd;
-  const r=resolveCol(me.x,me.y,nx,ny,PLAYER_R,MAPS[selectedMap].walls);
-  me.x=Math.max(PLAYER_R,Math.min(MAP_W-PLAYER_R,r.x));
-  me.y=Math.max(PLAYER_R,Math.min(MAP_H-PLAYER_R,r.y));
+
+  // Get terrain at player position
+  const terrain=getTerrainAt(me.x,me.y);
+
+  // Stamina cost (movement + terrain)
+  if(len>0){
+    const stCost=STAMINA_MOVE_COST+terrain.staminaCost;
+    me.stamina-=stCost;
+    if(me.stamina<=0){me.stamina=0;dx=0;dy=0;}
+  } else {
+    me.stamina=Math.min(STAMINA_MAX,me.stamina+STAMINA_REGEN);
+  }
+
+  // Speed calculation
+  let spd=me.role==='catcher'?SPEED_CATCHER:SPEED_NORMAL;
+  spd*=terrain.spdMul;
+  // Speed buff from potion
+  if(mySpeedBuff>0){spd*=1.8;mySpeedBuff--;}
+
+  // Spring launch (overrides normal movement)
+  if(springLaunch>0){
+    dx=springDX;dy=springDY;spd=6;
+    springLaunch--;
+  }
+
+  // Ice physics
+  if(terrain.friction){
+    iceVX=iceVX*terrain.friction+dx*spd*0.1;
+    iceVY=iceVY*terrain.friction+dy*spd*0.1;
+    // Cap ice speed
+    const iceSpd=Math.sqrt(iceVX*iceVX+iceVY*iceVY);
+    if(iceSpd>spd*1.5){iceVX=iceVX/iceSpd*spd*1.5;iceVY=iceVY/iceSpd*spd*1.5;}
+    var nx=me.x+iceVX, ny=me.y+iceVY;
+  } else {
+    iceVX=0;iceVY=0;
+    // Boost direction override
+    if(terrain.dir&&len===0&&terrain.spdMul>1.5){
+      // Standing on boost pad applies force
+      const bDir={right:{x:1,y:0},left:{x:-1,y:0},down:{x:0,y:1},up:{x:0,y:-1}}[terrain.dir]||{x:0,y:0};
+      dx=bDir.x;dy=bDir.y;
+    } else if(terrain.dir&&terrain.spdMul>1.5){
+      // Moving on boost: add boost direction
+      const bDir={right:{x:1,y:0},left:{x:-1,y:0},down:{x:0,y:1},up:{x:0,y:-1}}[terrain.dir]||{x:0,y:0};
+      dx=dx*0.5+bDir.x*0.5;dy=dy*0.5+bDir.y*0.5;
+    }
+    var nx=me.x+dx*spd, ny=me.y+dy*spd;
+  }
+
+  // Collision with walls
+  const map=MAPS[selectedMap];
+  const r=resolveCol(me.x,me.y,nx,ny,PLAYER_R,map.walls);
+  // Also check obstacles
+  const allWalls=[...map.walls,...obstacles.map(o=>({x:o.x-15,y:o.y-15,w:30,h:30}))];
+  const r2=resolveCol(me.x,me.y,r.x,r.y,PLAYER_R,allWalls);
+  me.x=Math.max(PLAYER_R,Math.min(MAP_W-PLAYER_R,r2.x));
+  me.y=Math.max(PLAYER_R,Math.min(MAP_H-PLAYER_R,r2.y));
   me.dx=dx;me.dy=dy;
-  
+
+  // Teleport check
+  if(teleportCooldown>0)teleportCooldown--;
+  if(terrain.type==='TELEPORT'&&teleportCooldown<=0){
+    const tData=getTerrainDataAt(me.x,me.y);
+    if(tData&&tData.pairId){
+      const mapTerrains=map.terrains;
+      const pair=mapTerrains.find(t=>t.type==='TELEPORT'&&t.pairId===tData.pairId&&(t.x!==tData.x||t.y!==tData.y));
+      if(pair){
+        me.x=pair.x+pair.w/2;me.y=pair.y+pair.h/2;
+        teleportCooldown=120; // 2 seconds cooldown
+        showTunnelMsg('⚡ 传送！');setTimeout(hideTunnelMsg,800);
+      }
+    }
+  }
+
+  // Spring check
+  if(terrain.type==='SPRING'&&springLaunch<=0){
+    // Launch in movement direction or random
+    springDX=dx||((Math.random()-0.5)*2);
+    springDY=dy||((Math.random()-0.5)*2);
+    const sLen=Math.sqrt(springDX*springDX+springDY*springDY);
+    if(sLen>0){springDX/=sLen;springDY/=sLen;}
+    springLaunch=20; // ~0.33 seconds
+    showTunnelMsg('🦘 弹飞！');setTimeout(hideTunnelMsg,600);
+  }
+
+  // Food/stamina pickup
   foods.forEach(f=>{
     if(!f.active)return;
     if(Math.hypot(me.x-f.x,me.y-f.y)<PLAYER_R+FOOD_R){
@@ -779,8 +891,82 @@ function gameLoop(){
       channel.send({type:'broadcast',event:'food-eaten',payload:{foodId:f.id}});
     }
   });
-  
+
+  // Item pickup
+  itemPickups.forEach(item=>{
+    if(!item.active)return;
+    if(Math.hypot(me.x-item.x,me.y-item.y)<PLAYER_R+12){
+      // Try to add to inventory
+      const slot=myItems.indexOf(null);
+      if(slot!==-1){
+        myItems[slot]=item.type;
+        item.active=false;
+        updateItemBarUI();
+        channel.send({type:'broadcast',event:'item-pickup',payload:{itemId:item.id}});
+      }
+    }
+  });
+
+  // Key pickup
+  tunnelKeys.forEach(k=>{
+    if(!k.active)return;
+    if(Math.hypot(me.x-k.x,me.y-k.y)<PLAYER_R+12){
+      // Key goes to inventory as 'key' type
+      const slot=myItems.indexOf(null);
+      if(slot!==-1){
+        myItems[slot]='key';
+        k.active=false;
+        updateItemBarUI();
+        channel.send({type:'broadcast',event:'key-pickup',payload:{keyId:k.id}});
+        showTunnelMsg('🔑 获得钥匙！');setTimeout(hideTunnelMsg,1000);
+      }
+    }
+  });
+
+  // Tunnel entry check
+  map.tunnels.forEach(t=>{
+    const entry=t.entry;
+    if(me.x>entry.x&&me.x<entry.x+entry.w&&me.y>entry.y&&me.y<entry.y+entry.h){
+      const unlocked=tunnelStates[t.id];
+      if(unlocked){
+        // Enter tunnel
+        inTunnel=true;tunnelEnteredFrame=frameCount;currentTunnelId=t.id;
+        showTunnelMsg('🚪 进入暗道...');
+      } else {
+        // Need key
+        const keySlot=myItems.indexOf('key');
+        if(keySlot!==-1){
+          // Use key to unlock
+          myItems[keySlot]=null;
+          tunnelStates[t.id]=true;
+          updateItemBarUI();
+          channel.send({type:'broadcast',event:'tunnel-unlock',payload:{tunnelId:t.id}});
+          showTunnelMsg('🔓 暗道已开启！所有人都能进了');setTimeout(hideTunnelMsg,1500);
+        } else {
+          showTunnelMsg('🔒 需要钥匙才能进入');setTimeout(hideTunnelMsg,1000);
+        }
+      }
+    }
+    // Also check exit as entry (bidirectional)
+    const exit=t.exit;
+    if(me.x>exit.x&&me.x<exit.x+exit.w&&me.y>exit.y&&me.y<exit.y+exit.h){
+      const unlocked=tunnelStates[t.id];
+      if(unlocked){
+        inTunnel=true;tunnelEnteredFrame=frameCount;currentTunnelId=t.id+'_rev';
+        showTunnelMsg('🚪 进入暗道...');
+      }
+    }
+  });
+
+  // Coin spawn (host only)
   tickCoinSpawn();
+  // Item spawn (host only)
+  tickItemSpawn();
+
+  // Expire obstacles
+  obstacles=obstacles.filter(o=>frameCount<o.expireFrame);
+
+  // Catch detection
   if(me.role==='catcher'){
     Object.entries(players).forEach(([id,p])=>{
       if(id===myId||p.caught||p.role==='catcher')return;
@@ -788,16 +974,151 @@ function gameLoop(){
         channel.send({type:'broadcast',event:'player-caught',payload:{caughtId:id}});
     });
   }
-  
-  document.getElementById('hud-stamina').textContent=`⚡ ${Math.round(me.stamina)}`;
-  const now=Date.now();
-  if(now-lastBroadcast>BROADCAST_MS){
-    lastBroadcast=now;
-    channel.send({type:'broadcast',event:'game-state',payload:{id:myId,x:me.x,y:me.y,dx:me.dx,dy:me.dy,stamina:me.stamina}});
-  }
+
+  // HUD
+  document.getElementById('hud-stamina').textContent='⚡'+Math.round(me.stamina);
+
+  broadcastMove(me);
   render();
 }
 
+function broadcastMove(me){
+  if(frameCount%3===0&&channel){
+    channel.send({type:'broadcast',event:'player-move',payload:{id:myId,x:me.x,y:me.y,dx:me.dx,dy:me.dy,stamina:me.stamina,caught:me.caught}});
+  }
+}
+
+function onPlayerMove(p){
+  if(players[p.id]){Object.assign(players[p.id],{x:p.x,y:p.y,dx:p.dx,dy:p.dy,stamina:p.stamina,caught:p.caught});}
+}
+function onPlayerCaught({caughtId}){
+  if(players[caughtId])players[caughtId].caught=true;
+  if(caughtId===myId){isCaught=true;document.getElementById('spectator-banner').style.display='block';}
+  // Check if all runners caught
+  const runners=Object.values(players).filter(p=>p.role==='runner');
+  if(runners.every(p=>p.caught))endGame('allcaught');
+}
+function onFoodEaten({foodId}){const f=foods.find(x=>x.id===foodId);if(f)f.active=false;}
+function onCoinSpawn(coin){if(!foods.find(f=>f.id===coin.id))foods.push(coin);}
+function onItemPickup({itemId}){const it=itemPickups.find(x=>x.id===itemId);if(it)it.active=false;}
+function onItemUse(data){/* visual effects handled locally */}
+function onObstaclePlace({x,y,id,expireFrame}){obstacles.push({x,y,id,expireFrame});}
+function onTunnelUnlock({tunnelId}){tunnelStates[tunnelId]=true;}
+function onKeyPickup({keyId}){const k=tunnelKeys.find(x=>x.id===keyId);if(k)k.active=false;}
+function onItemSpawn(item){if(!itemPickups.find(x=>x.id===item.id))itemPickups.push(item);}
+
+// ===== TERRAIN HELPERS =====
+function getTerrainAt(px,py){
+  const map=MAPS[selectedMap];
+  if(!map.terrains)return TERRAIN.NORMAL;
+  for(const t of map.terrains){
+    if(px>=t.x&&px<=t.x+t.w&&py>=t.y&&py<=t.y+t.h){
+      const tt=TERRAIN[t.type];
+      return {...tt, type:t.type, dir:t.dir};
+    }
+  }
+  return TERRAIN.NORMAL;
+}
+function getTerrainDataAt(px,py){
+  const map=MAPS[selectedMap];
+  if(!map.terrains)return null;
+  for(const t of map.terrains){
+    if(px>=t.x&&px<=t.x+t.w&&py>=t.y&&py<=t.y+t.h) return t;
+  }
+  return null;
+}
+
+// ===== ITEM SYSTEM =====
+function useItem(slot){
+  if(gameState!=='playing')return;
+  const item=myItems[slot];
+  if(!item)return;
+  const me=players[myId];
+  if(!me||me.caught)return;
+
+  if(item==='hp'){
+    me.stamina=Math.min(STAMINA_MAX,me.stamina+50);
+    showTunnelMsg('💊 体力+50！');setTimeout(hideTunnelMsg,800);
+  } else if(item==='spd'){
+    mySpeedBuff=300; // 5 seconds at 60fps
+    showTunnelMsg('⚡ 加速5秒！');setTimeout(hideTunnelMsg,800);
+  } else if(item==='block'){
+    // Place obstacle behind player
+    const ox=me.x-(me.dx||0)*40;
+    const oy=me.y-(me.dy||0)*40;
+    const obs={x:ox,y:oy,id:'obs_'+frameCount,expireFrame:frameCount+900}; // 15 seconds
+    obstacles.push(obs);
+    channel.send({type:'broadcast',event:'obstacle-place',payload:obs});
+    showTunnelMsg('🪨 放置障碍物！');setTimeout(hideTunnelMsg,800);
+  } else if(item==='key'){
+    // Key is used automatically at tunnel doors, not manually
+    showTunnelMsg('🔑 走到暗道门口自动使用');setTimeout(hideTunnelMsg,1000);
+    return; // Don't consume
+  }
+
+  myItems[slot]=null;
+  updateItemBarUI();
+  channel.send({type:'broadcast',event:'item-use',payload:{id:myId,item,slot}});
+}
+
+function updateItemBarUI(){
+  for(let i=0;i<3;i++){
+    const el=document.getElementById('slot-'+i);
+    const item=myItems[i];
+    if(item){
+      el.classList.remove('empty');
+      const info=Object.values(ITEM_TYPES).find(t=>t.id===item);
+      el.innerHTML=`<span class="slot-key">${i+1}</span>${info?info.emoji:'?'}`;
+      el.title=info?info.desc:'';
+    } else {
+      el.classList.add('empty');
+      el.innerHTML=`<span class="slot-key">${i+1}</span>`;
+      el.title='空';
+    }
+  }
+}
+
+// ===== SPAWN TIMERS =====
+let coinSpawnTimer=0,nextCoinId=100;
+function tickCoinSpawn(){
+  if(!isHost)return;
+  coinSpawnTimer++;
+  if(coinSpawnTimer<420)return;
+  coinSpawnTimer=0;
+  const map=MAPS[selectedMap];
+  let fx,fy,ok,tries=0;
+  do{fx=50+Math.random()*(MAP_W-100);fy=50+Math.random()*(MAP_H-100);ok=true;
+    for(const w of map.walls){if(fx>w.x-15&&fx<w.x+w.w+15&&fy>w.y-15&&fy<w.y+w.h+15){ok=false;break;}}
+    tries++;
+  }while(!ok&&tries<30);
+  if(ok){const c={id:nextCoinId++,x:fx,y:fy,active:true};foods.push(c);channel.send({type:'broadcast',event:'coin-spawn',payload:c});}
+}
+
+function tickItemSpawn(){
+  if(!isHost)return;
+  itemSpawnTimer++;
+  if(itemSpawnTimer<ITEM_SPAWN_INTERVAL)return;
+  itemSpawnTimer=0;
+  // Max 8 items on map
+  if(itemPickups.filter(i=>i.active).length>=8)return;
+  const map=MAPS[selectedMap];
+  const types=['hp','spd','block'];
+  let fx,fy,ok,tries=0;
+  do{fx=50+Math.random()*(MAP_W-100);fy=50+Math.random()*(MAP_H-100);ok=true;
+    for(const w of map.walls){if(fx>w.x-15&&fx<w.x+w.w+15&&fy>w.y-15&&fy<w.y+w.h+15){ok=false;break;}}
+    tries++;
+  }while(!ok&&tries<30);
+  if(ok){
+    const item={id:'item_'+Date.now()+'_'+Math.random().toString(36).substr(2,4),x:fx,y:fy,active:true,type:types[Math.floor(Math.random()*3)]};
+    itemPickups.push(item);
+    channel.send({type:'broadcast',event:'item-spawn',payload:item});
+  }
+}
+
+// ===== TUNNEL MSG =====
+function showTunnelMsg(msg){const el=document.getElementById('tunnel-msg');el.textContent=msg;el.classList.add('active');}
+function hideTunnelMsg(){document.getElementById('tunnel-msg').classList.remove('active');}
+// ===== COLLISION =====
 function resolveCol(ox,oy,nx,ny,r,walls){
   let x=nx,y=ny;
   for(let iter=0;iter<4;iter++){
@@ -805,485 +1126,334 @@ function resolveCol(ox,oy,nx,ny,r,walls){
     for(const w of walls){
       const cx=Math.max(w.x,Math.min(x,w.x+w.w)),cy=Math.max(w.y,Math.min(y,w.y+w.h));
       const ddx=x-cx,ddy=y-cy,d=Math.sqrt(ddx*ddx+ddy*ddy);
-      if(d<r){
-        moved=true;
-        if(d<0.001){x=ox;y=oy;}
-        else{const ov=(r-d)+0.5;x+=ddx/d*ov;y+=ddy/d*ov;}
-      }
+      if(d<r){moved=true;if(d<0.001){x=ox;y=oy;}else{const ov=(r-d)+0.5;x+=ddx/d*ov;y+=ddy/d*ov;}}
     }
     if(!moved)break;
   }
-  x=Math.max(r,Math.min(MAP_W-r,x));
-  y=Math.max(r,Math.min(MAP_H-r,y));
-  return{x,y};
-}
-
-// ===== NETWORK =====
-function onGameState(p){if(p.id===myId)return;if(players[p.id]){players[p.id].x=p.x;players[p.id].y=p.y;players[p.id].dx=p.dx;players[p.id].dy=p.dy;players[p.id].stamina=p.stamina;}}
-
-function onPlayerCaught({caughtId}){
-  if(players[caughtId])players[caughtId].caught=true;
-  if(caughtId===myId){isCaught=true;document.getElementById('spectator-banner').style.display='block';}
-  const runners=Object.values(players).filter(p=>p.role==='runner');
-  if(runners.every(p=>p.caught)&&isHost){channel.send({type:'broadcast',event:'game-end',payload:{winner:'catcher'}});onGameEnd({winner:'catcher'});}
-}
-
-function onFoodEaten({foodId}){const f=foods.find(x=>x.id===foodId);if(f)f.active=false;}
-function onCoinSpawn(coin){if(!foods.find(f=>f.id===coin.id))foods.push(coin);}
-
-let coinSpawnTimer=0,nextCoinId=100;
-function tickCoinSpawn(){
-  if(!isHost||gameState!=='playing')return;
-  coinSpawnTimer++;
-  if(coinSpawnTimer<420)return; // 约7秒(60fps)
-  coinSpawnTimer=0;
-  const map=MAPS[selectedMap];
-  let fx,fy,ok,tries=0;
-  do{fx=60+Math.random()*(MAP_W-120);fy=60+Math.random()*(MAP_H-120);ok=true;
-    for(const w of map.walls){if(fx>w.x-15&&fx<w.x+w.w+15&&fy>w.y-15&&fy<w.y+w.h+15){ok=false;break;}}
-    tries++;
-  }while(!ok&&tries<30);
-  if(ok){
-    const c={id:nextCoinId++,x:fx,y:fy,active:true};
-    foods.push(c);
-    channel.send({type:'broadcast',event:'coin-spawn',payload:c});
-  }
-}
-
-function onGameEnd({winner}){
-  gameState='result';
-  if(gameInterval){clearInterval(gameInterval);gameInterval=null;}
-  if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
-  document.getElementById('spectator-banner').style.display='none';
-  if(isMobile)document.getElementById('joystick-area').style.display='none';
-  
-  // 计算游戏时长
-  const elapsed = GAME_DURATION - timeLeft;
-  const elapsedStr = `${Math.floor(elapsed/60)}分${elapsed%60}秒`;
-  
-  // 统计结果
-  const allPlayers = Object.values(players);
-  const catcher = allPlayers.find(p=>p.role==='catcher');
-  const runners = allPlayers.filter(p=>p.role==='runner');
-  const caughtCount = runners.filter(p=>p.caught).length;
-  const survivedCount = runners.length - caughtCount;
-  
-  let titleText, msgText, titleEmoji;
-  if(winner==='catcher'){
-    if(myRole==='catcher'){titleEmoji='🎉';titleText='你赢了！';}
-    else{titleEmoji='😅';titleText='被抓住了！';}
-    msgText='抓人者抓住了所有逃跑者！';
-  }else{
-    if(myRole==='runner'&&!isCaught){titleEmoji='🎉';titleText='你赢了！';}
-    else{titleEmoji='⏰';titleText='时间到！';}
-    msgText='逃跑者成功存活到最后！';
-  }
-  
-  document.getElementById('result-title').textContent=titleEmoji+' '+titleText;
-  document.getElementById('result-msg').textContent=msgText;
-  
-  // 结算详情
-  let detailsHtml=`
-    <div class="result-stat-row"><span class="result-stat-label">⏱️ 游戏时长</span><span class="result-stat-value">${elapsedStr}</span></div>
-    <div class="result-stat-row"><span class="result-stat-label">👹 抓人者</span><span class="result-stat-value">${catcher?escH(catcher.nickname):'?'}</span></div>
-    <div class="result-stat-row"><span class="result-stat-label">🐾 逃跑者</span><span class="result-stat-value">${runners.length}人</span></div>
-    <div class="result-stat-row"><span class="result-stat-label">✅ 成功逃脱</span><span class="result-stat-value" style="color:#4ECDC4">${survivedCount}人</span></div>
-    <div class="result-stat-row"><span class="result-stat-label">❌ 被抓</span><span class="result-stat-value" style="color:#FF6B6B">${caughtCount}人</span></div>
-    <div class="result-stat-row"><span class="result-stat-label">🗺️ 地图</span><span class="result-stat-value">${MAPS[selectedMap].name}</span></div>
-  `;
-  document.getElementById('result-details').innerHTML=detailsHtml;
-  
-  // 显示结算弹窗（不切换screen，语音保持连接）
-  document.getElementById('result-overlay').classList.add('active');
-  // 语音面板保持显示
-}
-
-function backToMenu(){
-  if(channel){channel.unsubscribe();channel=null;}
-  if(gameInterval){clearInterval(gameInterval);gameInterval=null;}
-  if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
-  if(presenceInterval){clearInterval(presenceInterval);presenceInterval=null;}
-  players={};lobbyPlayers={};gameState='menu';
-  document.getElementById('vote-modal').classList.remove('active');
-  document.getElementById('result-overlay').classList.remove('active');
-  showScreen('menu-screen');
-  // 离开语音频道
-  leaveVoiceChannel();
-}
-
-// 游戏结束后回到房间（语音保持连接）
-function returnToLobby(){
-  document.getElementById('result-overlay').classList.remove('active');
-  if(gameInterval){clearInterval(gameInterval);gameInterval=null;}
-  if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
-  players={};foods=[];isCaught=false;
-  gameState='lobby';
-  currentVote=null;
-  
-  // 重新订阅频道事件（channel 仍然存在）
-  // 重置大厅 UI
-  document.getElementById('lobby-room-code').textContent=roomCode;
-  document.getElementById('lobby-room-name').textContent='🎮 '+(roomName||'游戏房间');
-  document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
-  document.getElementById('lobby-wait-msg').textContent='';
-  document.getElementById('vote-modal').classList.remove('active');
-  lobbyPlayers={};lobbyTs={};
-  
-  showScreen('lobby-screen');
-  
-  // 重新广播 presence，让其他玩家知道自己回来了
-  if(channel){
-    broadcastPresence();
-    if(presenceInterval)clearInterval(presenceInterval);
-    presenceInterval=setInterval(()=>{if(gameState==='lobby'){broadcastPresence();if(isHost)announceRoom();}},2000);
-  }
-  
-  // 语音面板保持显示
-  if(voiceJoined){
-    document.getElementById('voice-panel').classList.add('active');
-  }
-}
-
-// 收到 back-to-lobby 广播（队长发起再来一局时通知所有人）
-function onBackToLobby({initiator}){
-  if(gameState==='result'){
-    returnToLobby();
-  }
-}
-
-// 从结算弹窗退出房间
-function leaveRoomFromResult(){
-  document.getElementById('result-overlay').classList.remove('active');
-  leaveRoom();
+  return{x:Math.max(r,Math.min(MAP_W-r,x)),y:Math.max(r,Math.min(MAP_H-r,y))};
 }
 
 // ===== RENDER =====
 function render(){
-  const me=players[myId]; if(!me)return;
-  cameraX=me.x-canvas.width/2;cameraY=me.y-canvas.height/2;
-  cameraX=Math.max(0,Math.min(MAP_W-canvas.width,cameraX));
-  cameraY=Math.max(0,Math.min(MAP_H-canvas.height,cameraY));
+  const canvas=document.getElementById('game-canvas');
+  const ctx=canvas.getContext('2d');
+  const me=players[myId];if(!me)return;
+
+  // Camera follows player
+  const camX=Math.max(0,Math.min(MAP_W-canvas.width,me.x-canvas.width/2));
+  const camY=Math.max(0,Math.min(MAP_H-canvas.height,me.y-canvas.height/2));
+
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.save();ctx.translate(-cameraX,-cameraY);
+  ctx.save();
+  ctx.translate(-camX,-camY);
+
   const map=MAPS[selectedMap];
-  
+
+  // Background
   ctx.fillStyle=map.bg;ctx.fillRect(0,0,MAP_W,MAP_H);
-  ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;
+
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
   for(let x=0;x<=MAP_W;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,MAP_H);ctx.stroke();}
   for(let y=0;y<=MAP_H;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(MAP_W,y);ctx.stroke();}
-  
-  ctx.fillStyle=map.wallColor;ctx.shadowColor='rgba(0,0,0,0.25)';ctx.shadowBlur=4;ctx.shadowOffsetY=2;
+
+  // Terrains
+  if(map.terrains){
+    map.terrains.forEach(t=>{
+      const tt=TERRAIN[t.type];
+      if(!tt||!tt.color)return;
+      ctx.fillStyle=tt.color;
+      ctx.fillRect(t.x,t.y,t.w,t.h);
+      // Labels/icons
+      ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='rgba(0,0,0,0.5)';
+      const cx=t.x+t.w/2,cy=t.y+t.h/2;
+      if(t.type==='SWAMP')ctx.fillText('🌿',cx,cy);
+      else if(t.type==='ICE')ctx.fillText('❄️',cx,cy);
+      else if(t.type==='BOOST'){
+        ctx.fillText('⏩',cx,cy);
+        // Arrow direction
+        ctx.strokeStyle='rgba(255,200,0,0.8)';ctx.lineWidth=2;
+        const dirs={right:[1,0],left:[-1,0],down:[0,1],up:[0,-1]};
+        const d=dirs[t.dir]||[1,0];
+        ctx.beginPath();ctx.moveTo(cx-d[0]*15,cy-d[1]*15);ctx.lineTo(cx+d[0]*15,cy+d[1]*15);ctx.stroke();
+      }
+      else if(t.type==='SLOPE_UP')ctx.fillText('⛰️',cx,cy);
+      else if(t.type==='SLOPE_DN')ctx.fillText('⬇️',cx,cy);
+      else if(t.type==='THORNS')ctx.fillText('🌵',cx,cy);
+      else if(t.type==='TELEPORT'){ctx.fillText('🌀',cx,cy);}
+      else if(t.type==='SPRING')ctx.fillText('🦘',cx,cy);
+    });
+  }
+
+  // Tunnel entries/exits
+  map.tunnels.forEach(t=>{
+    const unlocked=tunnelStates[t.id];
+    // Entry
+    ctx.fillStyle=unlocked?'rgba(0,200,100,0.5)':'rgba(200,0,0,0.4)';
+    ctx.fillRect(t.entry.x,t.entry.y,t.entry.w,t.entry.h);
+    ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(unlocked?'🚪':'🔒',t.entry.x+t.entry.w/2,t.entry.y+t.entry.h/2);
+    // Exit
+    ctx.fillStyle='rgba(0,200,100,0.4)';
+    ctx.fillRect(t.exit.x,t.exit.y,t.exit.w,t.exit.h);
+    ctx.fillText('🚪',t.exit.x+t.exit.w/2,t.exit.y+t.exit.h/2);
+  });
+
+  // Walls
+  ctx.fillStyle=map.wallColor;ctx.shadowColor='rgba(0,0,0,0.2)';ctx.shadowBlur=3;
   map.walls.forEach(w=>ctx.fillRect(w.x,w.y,w.w,w.h));
-  ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
-  
-  foods.forEach(f=>{if(!f.active)return;ctx.fillStyle='#FFD700';ctx.beginPath();ctx.arc(f.x,f.y,FOOD_R,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font=`${FOOD_R}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⭐',f.x,f.y);});
-  
+  ctx.shadowColor='transparent';ctx.shadowBlur=0;
+
+  // Obstacles (player-placed)
+  obstacles.forEach(o=>{
+    ctx.fillStyle='#8B4513';
+    ctx.beginPath();ctx.arc(o.x,o.y,15,0,Math.PI*2);ctx.fill();
+    ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🪨',o.x,o.y);
+  });
+
+  // Foods (stamina stars)
+  foods.forEach(f=>{
+    if(!f.active)return;
+    ctx.fillStyle='#FFD700';ctx.beginPath();ctx.arc(f.x,f.y,FOOD_R,0,Math.PI*2);ctx.fill();
+    ctx.font=`${FOOD_R}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⭐',f.x,f.y);
+  });
+
+  // Item pickups
+  itemPickups.forEach(item=>{
+    if(!item.active)return;
+    const info=Object.values(ITEM_TYPES).find(t=>t.id===item.type);
+    ctx.fillStyle='rgba(255,255,255,0.8)';ctx.beginPath();ctx.arc(item.x,item.y,12,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#FFD700';ctx.lineWidth=2;ctx.stroke();
+    ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(info?info.emoji:'?',item.x,item.y);
+  });
+
+  // Tunnel keys
+  tunnelKeys.forEach(k=>{
+    if(!k.active)return;
+    ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🔑',k.x,k.y);
+    // Glow
+    ctx.strokeStyle='rgba(255,215,0,0.6)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(k.x,k.y,14,0,Math.PI*2);ctx.stroke();
+  });
+
+  // Players
   Object.entries(players).forEach(([id,p])=>{
     if(p.caught&&id!==myId)ctx.globalAlpha=0.3;
     const ch=CHARS[p.charIdx]||CHARS[0];
     const isSpeaking=getPlayerSpeaking(id);
-    // 说话时绿色光环
-    if(isSpeaking){ctx.shadowColor='#4CAF50';ctx.shadowBlur=15;ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+5,0,Math.PI*2);ctx.fillStyle='rgba(76,175,80,0.25)';ctx.fill();ctx.shadowColor='transparent';ctx.shadowBlur=0;}
-    ctx.fillStyle='rgba(0,0,0,0.12)';ctx.beginPath();ctx.ellipse(p.x,p.y+PLAYER_R+3,PLAYER_R*0.7,4,0,0,Math.PI*2);ctx.fill();
+    // Speaking glow
+    if(isSpeaking){ctx.fillStyle='rgba(76,175,80,0.25)';ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+5,0,Math.PI*2);ctx.fill();}
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.1)';ctx.beginPath();ctx.ellipse(p.x,p.y+PLAYER_R+3,PLAYER_R*0.7,4,0,0,Math.PI*2);ctx.fill();
+    // Body
     ctx.fillStyle=ch.color;ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R,0,Math.PI*2);ctx.fill();
-    if(p.role==='catcher'){ctx.strokeStyle='#FF0000';ctx.lineWidth=3;ctx.shadowColor='#FF0000';ctx.shadowBlur=8;ctx.stroke();ctx.shadowColor='transparent';ctx.shadowBlur=0;}
-    else if(isSpeaking){ctx.strokeStyle='#4CAF50';ctx.lineWidth=3;ctx.shadowColor='#4CAF50';ctx.shadowBlur=10;ctx.stroke();ctx.shadowColor='transparent';ctx.shadowBlur=0;}
+    // Role border
+    if(p.role==='catcher'){ctx.strokeStyle='#FF0000';ctx.lineWidth=3;ctx.stroke();}
     else{ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=2;ctx.stroke();}
-    ctx.font=`${PLAYER_R*1.2}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ch.emoji,p.x,p.y);
-    ctx.font='bold 11px sans-serif';ctx.fillStyle='#333';ctx.textBaseline='bottom';ctx.fillText(p.nickname,p.x,p.y-PLAYER_R-8);
-    if(isSpeaking){ctx.font='10px sans-serif';ctx.fillStyle='#4CAF50';ctx.fillText('🔊',p.x+PLAYER_R+2,p.y-PLAYER_R-6);}
-    if(p.role==='catcher'){ctx.font='13px sans-serif';ctx.fillText('👹',p.x,p.y-PLAYER_R-20);}
-    if(id===myId){const bw=36,bh=4;ctx.fillStyle='#333';ctx.fillRect(p.x-bw/2,p.y+PLAYER_R+8,bw,bh);ctx.fillStyle=p.stamina>30?'#4CAF50':'#FF5722';ctx.fillRect(p.x-bw/2,p.y+PLAYER_R+8,bw*(p.stamina/STAMINA_MAX),bh);}
+    // Emoji
+    ctx.font=`${PLAYER_R*1.1}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ch.emoji,p.x,p.y);
+    // Name
+    ctx.font='bold 10px sans-serif';ctx.fillStyle='#333';ctx.textBaseline='bottom';ctx.fillText(p.nick||'',p.x,p.y-PLAYER_R-5);
+    // Role icon
+    if(p.role==='catcher'){ctx.font='12px sans-serif';ctx.fillText('👹',p.x,p.y-PLAYER_R-16);}
+    // Stamina bar (self only)
+    if(id===myId){
+      const bw=32,bh=4;
+      ctx.fillStyle='#333';ctx.fillRect(p.x-bw/2,p.y+PLAYER_R+8,bw,bh);
+      ctx.fillStyle=p.stamina>30?'#4CAF50':'#FF5722';
+      ctx.fillRect(p.x-bw/2,p.y+PLAYER_R+8,bw*(p.stamina/STAMINA_MAX),bh);
+    }
+    // Speed buff indicator
+    if(id===myId&&mySpeedBuff>0){ctx.font='10px sans-serif';ctx.fillStyle='#FF8C00';ctx.textBaseline='top';ctx.fillText('⚡加速中',p.x,p.y+PLAYER_R+14);}
     ctx.globalAlpha=1;
   });
-  
+
+  // Border
   ctx.strokeStyle='#333';ctx.lineWidth=4;ctx.strokeRect(0,0,MAP_W,MAP_H);
+
   ctx.restore();
 }
 
-// ===== JOYSTICK =====
-function setupJoystick(){
-  const area=document.getElementById('joystick-area'),knob=document.getElementById('joystick-knob');
-  const baseR=62,maxD=32;
-  function hT(e){e.preventDefault();const t=e.touches[0],rect=area.getBoundingClientRect();const cx=rect.left+baseR,cy=rect.top+baseR;let dx=t.clientX-cx,dy=t.clientY-cy;const d=Math.sqrt(dx*dx+dy*dy);if(d>maxD){dx=dx/d*maxD;dy=dy/d*maxD;}knob.style.left=(baseR-26+dx)+'px';knob.style.top=(baseR-26+dy)+'px';joystickDX=dx/maxD;joystickDY=dy/maxD;joystickActive=true;}
-  function hE(){knob.style.left='36px';knob.style.top='36px';joystickDX=0;joystickDY=0;joystickActive=false;}
-  area.addEventListener('touchstart',e=>{joystickActive=true;hT(e);});
-  area.addEventListener('touchmove',hT);
-  area.addEventListener('touchend',hE);
-  area.addEventListener('touchcancel',hE);
+// ===== END GAME =====
+function endGame(reason){
+  if(gameState!=='playing')return;
+  gameState='result';
+  if(gameInterval){clearInterval(gameInterval);gameInterval=null;}
+  if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
+  document.getElementById('item-bar').classList.remove('active');
+
+  const elapsed=GAME_DURATION-timeLeft;
+  const me=players[myId];
+  let title='',msg='';
+  if(reason==='time'){
+    // Time up = runners win
+    title=me.role==='runner'&&!me.caught?'🎉 胜利！':'😈 时间到！';
+    msg=me.role==='runner'&&!me.caught?'你成功逃脱了！':'逃跑者们赢了！';
+  } else {
+    // All caught = catcher wins
+    title=me.role==='catcher'?'🎉 全部抓住！':'😢 被抓了...';
+    msg=me.role==='catcher'?'你抓住了所有人！':'抓人者获胜！';
+  }
+  document.getElementById('result-title').textContent=title;
+  document.getElementById('result-msg').textContent=msg;
+
+  const runners=Object.values(players).filter(p=>p.role==='runner');
+  const caught=runners.filter(p=>p.caught).length;
+  document.getElementById('result-details').innerHTML=`
+    <div class="result-stat-row"><span class="result-stat-label">⏱️ 时长</span><span class="result-stat-value">${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')}</span></div>
+    <div class="result-stat-row"><span class="result-stat-label">🐾 逃跑者</span><span class="result-stat-value">${runners.length}人</span></div>
+    <div class="result-stat-row"><span class="result-stat-label">❌ 被抓</span><span class="result-stat-value">${caught}人</span></div>
+    <div class="result-stat-row"><span class="result-stat-label">🗺️ 地图</span><span class="result-stat-value">${MAPS[selectedMap].name}</span></div>
+  `;
+  document.getElementById('result-overlay').classList.add('active');
 }
 
-// Vote result handler (unused but kept for extensibility)
-function onVoteResult(p){}
-
+function returnToLobby(){
+  document.getElementById('result-overlay').classList.remove('active');
+  gameState='lobby';players={};foods=[];obstacles=[];
+  showScreen('lobby-screen');
+  broadcastPresence();
+}
+function backToMenu(){
+  document.getElementById('result-overlay').classList.remove('active');
+  leaveRoom();
+}
 // ===== 声网语音聊天模块 =====
-// 使用声网 (Agora/Shengwang) Web SDK 实现同房间实时语音通话
-// Token 通过 Supabase Edge Function (agora-token) 生成，App Certificate 不暴露在前端
-
 const AGORA_TOKEN_URL = SUPABASE_URL + '/functions/v1/agora-token';
-
-// 语音状态
+let voiceEnabled = true;
 let agoraClient = null;
 let localAudioTrack = null;
 let voiceJoined = false;
 let voiceMuted = false;
-let voiceUid = 0; // 声网用的 uid（数字）
-let speakingUsers = {}; // uid -> {nickname, charIdx, speaking}
-let voiceUidToPlayerId = {}; // agora uid -> game myId mapping
-let voiceEnabled = true; // 是否启用语音
+let voiceUid = 0;
+let speakingUsers = {};
+let voiceUidToPlayerId = {};
 
-// 初始化声网客户端
 function initAgoraClient() {
-  if (!window.AgoraRTC) {
-    console.warn('声网 SDK 未加载，语音功能不可用');
-    voiceEnabled = false;
-    return;
-  }
-  
-  AgoraRTC.setLogLevel(3); // WARNING level，减少控制台输出
-  agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-  
-  // 监听远端用户发布音频
-  agoraClient.on('user-published', async (user, mediaType) => {
-    if (mediaType === 'audio') {
-      await agoraClient.subscribe(user, mediaType);
-      user.audioTrack.play();
-      updateSpeakerUI(user.uid, true);
-    }
-  });
-  
-  // 监听远端用户取消发布
-  agoraClient.on('user-unpublished', (user, mediaType) => {
-    if (mediaType === 'audio') {
-      updateSpeakerUI(user.uid, false);
-    }
-  });
-  
-  // 监听远端用户离开
-  agoraClient.on('user-left', (user) => {
-    delete speakingUsers[user.uid];
-    renderSpeakers();
-  });
-  
-  // 监听音量指示（检测谁在说话）
-  agoraClient.enableAudioVolumeIndicator();
-  agoraClient.on('volume-indicator', (volumes) => {
-    // 重置所有为不说话
-    Object.keys(speakingUsers).forEach(uid => {
-      speakingUsers[uid].speaking = false;
-    });
-    
-    volumes.forEach(({ uid, level }) => {
-      if (level > 5) { // 音量阈值
-        if (uid === 0) uid = voiceUid; // 本地用户 uid 为 0
-        if (speakingUsers[uid]) {
-          speakingUsers[uid].speaking = true;
-        }
+  if (typeof AgoraRTC === 'undefined') { voiceEnabled = false; return; }
+  try {
+    agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+    agoraClient.on('user-published', async (user, mediaType) => {
+      if (mediaType === 'audio') {
+        await agoraClient.subscribe(user, mediaType);
+        user.audioTrack.play();
+        updateSpeakerUI(user.uid, true);
       }
     });
-    renderSpeakers();
-  });
+    agoraClient.on('user-unpublished', (user, mediaType) => {
+      if (mediaType === 'audio') updateSpeakerUI(user.uid, false);
+    });
+    agoraClient.on('user-left', (user) => { delete speakingUsers[user.uid]; renderSpeakers(); });
+    agoraClient.enableAudioVolumeIndicator();
+    agoraClient.on('volume-indicator', (volumes) => {
+      Object.keys(speakingUsers).forEach(uid => { speakingUsers[uid].speaking = false; });
+      volumes.forEach(({ uid, level }) => {
+        if (level > 5) {
+          if (uid === 0) uid = voiceUid;
+          if (speakingUsers[uid]) speakingUsers[uid].speaking = true;
+        }
+      });
+      renderSpeakers();
+    });
+  } catch (e) { voiceEnabled = false; }
 }
 
-// 加入语音频道
 async function joinVoiceChannel(channelName) {
   if (!voiceEnabled || !agoraClient) return;
-  
   try {
-    // 生成一个数字 uid（用 myId 的 hash）
     voiceUid = hashStringToUid(myId);
-    
-    // 从 Supabase Edge Function 获取 Token
     const tokenResp = await fetch(AGORA_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channelName: channelName, uid: voiceUid })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channelName, uid: voiceUid })
     });
-    
-    if (!tokenResp.ok) {
-      const err = await tokenResp.json().catch(() => ({}));
-      console.error('获取语音 Token 失败:', err.error || tokenResp.status);
-      showVoiceStatus('语音连接失败');
-      return;
-    }
-    
+    if (!tokenResp.ok) { showVoiceStatus('语音连接失败'); return; }
     const { token, appId } = await tokenResp.json();
-    
-    // 加入频道
     await agoraClient.join(appId, channelName, token, voiceUid);
-    
-    // 创建本地音频轨道
-    localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-      encoderConfig: 'speech_low_quality' // 语音模式，低延迟
-    });
-    
-    // 发布音频
+    localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_low_quality' });
     await agoraClient.publish([localAudioTrack]);
-    
-    voiceJoined = true;
-    voiceMuted = false;
-    
-    // 注册自己到说话者列表
+    voiceJoined = true; voiceMuted = false;
     speakingUsers[voiceUid] = { nickname: myNick, charIdx: myCharIdx, speaking: false };
-    
-    // 广播自己的语音 uid 映射
-    if (channel) {
-      channel.send({ type: 'broadcast', event: 'voice-uid', payload: { id: myId, voiceUid: voiceUid, nickname: myNick, charIdx: myCharIdx } });
-    }
-    
-    // 显示语音面板
+    if (channel) channel.send({ type: 'broadcast', event: 'voice-uid', payload: { id: myId, voiceUid, nickname: myNick, charIdx: myCharIdx } });
     document.getElementById('voice-panel').classList.add('active');
     updateMicBtn();
-    showVoiceStatus('🎙️ 语音已连接');
-    setTimeout(() => hideVoiceStatus(), 2000);
-    
+    showVoiceStatus('🎙️ 语音已连接'); setTimeout(hideVoiceStatus, 2000);
     renderSpeakers();
-  } catch (err) {
-    console.error('加入语音频道失败:', err);
-    showVoiceStatus('语音连接失败: ' + (err.message || '未知错误'));
-  }
+  } catch (err) { showVoiceStatus('语音连接失败'); }
 }
 
-// 离开语音频道
 async function leaveVoiceChannel() {
   if (!voiceJoined) return;
-  
-  try {
-    if (localAudioTrack) {
-      localAudioTrack.close();
-      localAudioTrack = null;
-    }
-    await agoraClient.leave();
-  } catch (e) {
-    console.warn('离开语音频道异常:', e);
-  }
-  
-  voiceJoined = false;
-  voiceMuted = false;
-  speakingUsers = {};
-  voiceUidToPlayerId = {};
+  try { if (localAudioTrack) { localAudioTrack.close(); localAudioTrack = null; } await agoraClient.leave(); } catch (e) {}
+  voiceJoined = false; speakingUsers = {}; voiceUidToPlayerId = {};
   document.getElementById('voice-panel').classList.remove('active');
-  document.getElementById('voice-speakers').innerHTML = '';
 }
 
-// 切换麦克风静音
 function toggleMic() {
   if (!voiceJoined || !localAudioTrack) return;
-  
   voiceMuted = !voiceMuted;
   localAudioTrack.setEnabled(!voiceMuted);
   updateMicBtn();
-  
-  if (voiceMuted) {
-    showVoiceStatus('🔇 麦克风已关闭');
-  } else {
-    showVoiceStatus('🎤 麦克风已开启');
-  }
-  setTimeout(() => hideVoiceStatus(), 1500);
+  showVoiceStatus(voiceMuted ? '🔇 麦克风已关闭' : '🎤 麦克风已开启');
+  setTimeout(hideVoiceStatus, 1500);
 }
 
-// 更新麦克风按钮样式
 function updateMicBtn() {
   const btn = document.getElementById('mic-btn');
-  if (voiceMuted) {
-    btn.textContent = '🔇';
-    btn.classList.add('muted');
-    btn.title = '点击开启麦克风';
-  } else {
-    btn.textContent = '🎤';
-    btn.classList.remove('muted');
-    btn.title = '点击关闭麦克风';
-  }
+  btn.textContent = voiceMuted ? '🔇' : '🎤';
+  btn.classList.toggle('muted', voiceMuted);
 }
 
-// 更新说话者 UI
 function updateSpeakerUI(uid, isPublishing) {
-  if (isPublishing) {
-    if (!speakingUsers[uid]) {
-      // 尝试从映射找到昵称
-      const playerId = voiceUidToPlayerId[uid];
-      const playerData = playerId ? (lobbyPlayers[playerId] || players[playerId]) : null;
-      speakingUsers[uid] = {
-        nickname: playerData ? playerData.nickname : `玩家${uid % 1000}`,
-        charIdx: playerData ? playerData.charIdx : 0,
-        speaking: false
-      };
-    }
+  if (isPublishing && !speakingUsers[uid]) {
+    const playerId = voiceUidToPlayerId[uid];
+    const pd = playerId ? (lobbyPlayers[playerId] || players[playerId]) : null;
+    speakingUsers[uid] = { nickname: pd ? pd.nick || pd.nickname : '玩家', charIdx: pd ? pd.charIdx : 0, speaking: false };
   }
   renderSpeakers();
 }
 
-// 渲染说话者列表
 function renderSpeakers() {
   const container = document.getElementById('voice-speakers');
   const entries = Object.entries(speakingUsers);
-  if (entries.length === 0) {
-    container.innerHTML = '';
-    return;
-  }
-  
   container.innerHTML = entries.map(([uid, info]) => {
     const ch = CHARS[info.charIdx] || CHARS[0];
-    const speakingClass = info.speaking ? ' speaking' : '';
+    const cls = info.speaking ? ' speaking' : '';
     const isMe = Number(uid) === voiceUid;
-    return `<div class="voice-speaker${speakingClass}">
-      <span class="speaker-dot"></span>
-      <span>${ch.emoji} ${escH(info.nickname)}${isMe ? '(我)' : ''}</span>
-    </div>`;
+    return `<div class="voice-speaker${cls}"><span class="speaker-dot"></span>${ch.emoji} ${escH(info.nickname)}${isMe ? '(我)' : ''}</div>`;
   }).join('');
 }
 
-// 显示/隐藏语音状态
-function showVoiceStatus(msg) {
-  const el = document.getElementById('voice-status');
-  el.textContent = msg;
-  el.classList.add('active');
-}
-function hideVoiceStatus() {
-  document.getElementById('voice-status').classList.remove('active');
-}
-
-// 字符串 hash 转数字 uid（声网需要 uint32）
-function hashStringToUid(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return Math.abs(hash) % 100000000 + 1; // 1 ~ 100000000
-}
-
-// 处理其他玩家的语音 uid 广播
+function showVoiceStatus(msg) { const el = document.getElementById('voice-status'); el.textContent = msg; el.classList.add('active'); }
+function hideVoiceStatus() { document.getElementById('voice-status').classList.remove('active'); }
+function hashStringToUid(str) { let h = 0; for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; } return Math.abs(h) % 100000000 + 1; }
 function onVoiceUid(payload) {
   if (!payload || !payload.id || !payload.voiceUid) return;
   voiceUidToPlayerId[payload.voiceUid] = payload.id;
-  if (speakingUsers[payload.voiceUid]) {
-    speakingUsers[payload.voiceUid].nickname = payload.nickname;
-    speakingUsers[payload.voiceUid].charIdx = payload.charIdx;
-  } else {
-    speakingUsers[payload.voiceUid] = { nickname: payload.nickname, charIdx: payload.charIdx, speaking: false };
-  }
+  if (!speakingUsers[payload.voiceUid]) speakingUsers[payload.voiceUid] = { nickname: payload.nickname, charIdx: payload.charIdx, speaking: false };
+  else { speakingUsers[payload.voiceUid].nickname = payload.nickname; speakingUsers[payload.voiceUid].charIdx = payload.charIdx; }
   renderSpeakers();
 }
-
-// 在游戏渲染中为正在说话的玩家添加高亮
 function getPlayerSpeaking(playerId) {
-  // 找到该玩家对应的 voiceUid
   for (const [vUid, pId] of Object.entries(voiceUidToPlayerId)) {
-    if (pId === playerId && speakingUsers[vUid] && speakingUsers[vUid].speaking) {
-      return true;
-    }
+    if (pId === playerId && speakingUsers[vUid] && speakingUsers[vUid].speaking) return true;
   }
-  // 检查自己
-  if (playerId === myId && speakingUsers[voiceUid] && speakingUsers[voiceUid].speaking) {
-    return true;
-  }
+  if (playerId === myId && speakingUsers[voiceUid] && speakingUsers[voiceUid].speaking) return true;
+  return false;
+}
+function isPlayerInVoice(playerId) {
+  for (const [vUid, pId] of Object.entries(voiceUidToPlayerId)) { if (pId === playerId) return true; }
+  if (playerId === myId && voiceJoined) return true;
   return false;
 }
 
-// 初始化
+// ===== INIT =====
 window.addEventListener('load', () => {
+  myId = genId();
+  initUI();
   initAgoraClient();
 });
 </script>
