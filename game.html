@@ -439,11 +439,63 @@
       // 记录玩过
       recordPlay(user.id);
 
+      // 站内游戏：扣1金币后跳转，并用localStorage记录开始时间，回来时继续扣
+      var sb2 = getSupabase();
+      var deductResult = await sb2.from('profiles').update({ coins: coins - 1 }).eq('id', user.id);
+      if (deductResult.error) {
+        alert('扣费失败，请重试');
+        return;
+      }
+      // 记录游戏开始时间到localStorage，供返回后继续扣费
+      localStorage.setItem('activeGame', JSON.stringify({
+        gameId: gameId,
+        userId: user.id,
+        startTime: Date.now(),
+        lastDeduct: Date.now()
+      }));
+
       // 跳转到游戏
       if (gameData && gameData.file_url) {
         window.location.href = gameData.file_url;
       }
     }
+
+    // 页面加载时检查是否从站内游戏返回，继续扣费
+    (function checkReturnFromGame() {
+      var active = localStorage.getItem('activeGame');
+      if (!active) return;
+      try {
+        var info = JSON.parse(active);
+        // 如果回到的是同一个游戏页面，继续扣费
+        if (info.gameId === new URLSearchParams(window.location.search).get('id')) {
+          var elapsed = Math.floor((Date.now() - info.lastDeduct) / (60 * 1000));
+          if (elapsed >= 1) {
+            // 有欠费，页面加载后扣
+            document.addEventListener('DOMContentLoaded', async function() {
+              var user = await getCurrentUser();
+              if (!user || user.id !== info.userId) { localStorage.removeItem('activeGame'); return; }
+              var sb = getSupabase();
+              var pr = await sb.from('profiles').select('coins,role').eq('id', user.id).single();
+              var coins = (pr.data && pr.data.coins) || 0;
+              var isAdmin = pr.data && pr.data.role === 'admin';
+              if (!isAdmin) {
+                var cost = Math.min(elapsed, coins);
+                if (cost > 0) {
+                  await sb.from('profiles').update({ coins: coins - cost }).eq('id', user.id);
+                  showToast('🪙 扣除 ' + cost + ' 金币（游戏时长）');
+                }
+                if (coins - cost <= 0) {
+                  showToast('⚠️ 金币已耗尽！');
+                }
+              }
+              localStorage.removeItem('activeGame');
+            });
+          } else {
+            localStorage.removeItem('activeGame');
+          }
+        }
+      } catch(e) { localStorage.removeItem('activeGame'); }
+    })();
 
     // ===== 记录玩过（去重） =====
     async function recordPlay(userId) {
@@ -456,7 +508,7 @@
 
     // ===== 金币计时器 =====
     var coinTimer = null;
-    var COIN_INTERVAL = 5 * 60 * 1000; // 5分钟
+    var COIN_INTERVAL = 1 * 60 * 1000; // 1分钟
     var COIN_COST = 1;
     var warnedOnce = false;
 
