@@ -171,8 +171,14 @@ function createBird() {
 
 // ===== Terrain Management =====
 function getNextTerrain() {
-  const available = TERRAINS.filter(t => t !== currentTerrain);
-  return available[Math.floor(Math.random() * available.length)];
+  // tunnel appears less frequently (weight 1 vs 3 for others)
+  const pool = [];
+  TERRAINS.forEach(t => {
+    if (t === currentTerrain) return;
+    const w = t === 'tunnel' ? 1 : 3;
+    for (let i = 0; i < w; i++) pool.push(t);
+  });
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function startTerrainTransition() {
@@ -372,24 +378,24 @@ function drawTunnelDarkness() {
   // Dark overlay with light circle around bird
   const bx = bird.x + bird.width / 2;
   const by = bird.y + bird.height / 2;
-  const radius = bird.isInvincible ? 160 : 110;
+  const radius = bird.isInvincible ? 220 : 170;
   
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
-  // Create darkness
-  const darkGrad = ctx.createRadialGradient(bx, by, radius * 0.6, bx, by, radius);
+  // Soft darkness — can see surroundings, just dimmer at edges
+  const darkGrad = ctx.createRadialGradient(bx, by, radius * 0.5, bx, by, radius);
   darkGrad.addColorStop(0, 'rgba(0,0,0,0)');
-  darkGrad.addColorStop(1, 'rgba(0,0,0,0.85)');
+  darkGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
   
-  // Draw full dark overlay
-  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  // Draw soft dark overlay (not fully black)
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
-  // Cut out light circle
+  // Cut out light circle — larger and softer
   ctx.globalCompositeOperation = 'destination-out';
   const lightGrad = ctx.createRadialGradient(bx, by, 0, bx, by, radius);
   lightGrad.addColorStop(0, 'rgba(0,0,0,1)');
-  lightGrad.addColorStop(0.7, 'rgba(0,0,0,0.8)');
+  lightGrad.addColorStop(0.5, 'rgba(0,0,0,0.9)');
   lightGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = lightGrad;
   ctx.beginPath();
@@ -739,8 +745,8 @@ function spawnObstacle() {
   } else if (currentTerrain === 'ocean') {
     types = ['coral', 'coral', 'bird', 'bird'];
   } else if (currentTerrain === 'tunnel') {
-    // More dense in tunnel
-    types = ['cactus', 'tall', 'bird', 'high', 'cactus', 'tall'];
+    // Tunnel is a safe passage — no obstacles
+    return null;
   } else {
     types = ['cactus', 'cactus', 'tall', 'bird', 'low', 'high'];
   }
@@ -1006,7 +1012,8 @@ function update() {
   // Spawn obstacles
   const gap = CONFIG.obstacleMaxGap - (speed - CONFIG.baseSpeed) * 4;
   const actualGap = Math.max(CONFIG.obstacleMinGap, gap);
-  const spawnRate = currentTerrain === 'tunnel' ? Math.floor(actualGap / effectiveSpeed * 7) : Math.floor(actualGap / effectiveSpeed * 10);
+  if (currentTerrain === 'tunnel') return; // no obstacles in tunnel
+  const spawnRate = Math.floor(actualGap / effectiveSpeed * 10);
   
   if (frameCount % Math.max(10, spawnRate) === 0) {
     spawnObstacle();
