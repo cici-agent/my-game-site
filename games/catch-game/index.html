@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>抓人大作战 - 小菜鸟</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- 声网 Web SDK (国内 CDN) -->
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -73,6 +75,79 @@ body {
 .modal-box p { margin-bottom:15px; font-size:1.1em; color:#333; }
 .kick-btn { background:none; border:none; cursor:pointer; font-size:0.8em; color:#e74c3c; margin-left:auto; padding:2px 8px; border-radius:8px; }
 .kick-btn:hover { background:#fdd; }
+
+/* ===== 语音聊天 UI ===== */
+#voice-panel {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  z-index: 300;
+  display: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+#voice-panel.active { display: flex; }
+#mic-btn {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+  font-size: 1.6em;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: auto;
+}
+#mic-btn:hover { transform: scale(1.1); }
+#mic-btn.muted { background: rgba(255,80,80,0.9); }
+#mic-btn.muted::after { content: ''; position: absolute; width: 3px; height: 28px; background: #fff; border-radius: 2px; transform: rotate(45deg); }
+#voice-speakers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.voice-speaker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255,255,255,0.9);
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 0.8em;
+  font-weight: bold;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  transition: all 0.3s;
+}
+.voice-speaker.speaking {
+  background: rgba(76, 175, 80, 0.9);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.5);
+}
+.voice-speaker .speaker-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #ccc;
+}
+.voice-speaker.speaking .speaker-dot {
+  background: #fff;
+  animation: pulse-dot 0.6s ease infinite alternate;
+}
+@keyframes pulse-dot { from { transform: scale(1); } to { transform: scale(1.4); } }
+#voice-status {
+  font-size: 0.72em;
+  color: rgba(255,255,255,0.8);
+  background: rgba(0,0,0,0.4);
+  padding: 3px 8px;
+  border-radius: 8px;
+  display: none;
+}
+#voice-status.active { display: block; }
+/* 游戏中玩家头像说话高亮 - 通过 canvas 绘制 */
 </style>
 </head>
 <body>
@@ -192,6 +267,13 @@ body {
     <div class="result-msg" id="result-msg"></div>
     <button class="btn btn-primary" onclick="backToMenu()">🏠 返回主页</button>
   </div>
+</div>
+
+<!-- 语音聊天面板 (在大厅和游戏中显示) -->
+<div id="voice-panel">
+  <div id="voice-speakers"></div>
+  <button id="mic-btn" onclick="toggleMic()" title="点击切换麦克风">🎤</button>
+  <div id="voice-status"></div>
 </div>
 
 <script>
@@ -427,12 +509,15 @@ function joinChannel(){
   channel.on('broadcast',{event:'vote-result'},({payload})=>onVoteResult(payload));
   channel.on('broadcast',{event:'coin-spawn'},({payload})=>onCoinSpawn(payload));
   channel.on('broadcast',{event:'kick'},({payload})=>onKick(payload));
+  channel.on('broadcast',{event:'voice-uid'},({payload})=>onVoiceUid(payload));
 
   channel.subscribe(s=>{
     if(s==='SUBSCRIBED'){
       broadcastPresence();
       if(presenceInterval)clearInterval(presenceInterval);
       presenceInterval=setInterval(()=>{if(gameState==='lobby'){broadcastPresence();if(isHost)announceRoom();}},2000);
+      // 加入语音频道（频道名 = catch-voice-房间号）
+      joinVoiceChannel('catch-voice-' + roomCode);
     }
   });
 }
@@ -444,11 +529,17 @@ function leaveRoom(){
   lobbyPlayers={};gameState='menu';
   document.getElementById('vote-modal').classList.remove('active');
   showScreen('menu-screen');
+  // 离开语音频道
+  leaveVoiceChannel();
 }
 
 function broadcastPresence(){
   if(!channel)return;
   channel.send({type:'broadcast',event:'presence',payload:{id:myId,nickname:myNick,charIdx:myCharIdx,isHost}});
+  // 同时广播语音 uid 映射
+  if(voiceJoined){
+    channel.send({type:'broadcast',event:'voice-uid',payload:{id:myId,voiceUid:voiceUid,nickname:myNick,charIdx:myCharIdx}});
+  }
 }
 
 function onPresence(p){
@@ -472,9 +563,19 @@ function updateLobbyUI(){
   list.innerHTML=entries.map(([id,p])=>{
     const c=CHARS[p.charIdx]||CHARS[0];
     const kickHtml=(isHost&&id!==myId)?`<button class="kick-btn" onclick="kickPlayer('${id}')">踢出</button>`:'';
-    return `<li><span class="dot" style="background:${c.color}"></span>${c.emoji} ${escH(p.nickname)}${p.isHost?' 👑':''}${kickHtml}</li>`;
+    const voiceIcon=isPlayerInVoice(id)?'🎤':'';
+    return `<li><span class="dot" style="background:${c.color}"></span>${c.emoji} ${escH(p.nickname)}${p.isHost?' 👑':''}${voiceIcon?` <span style="font-size:0.8em">${voiceIcon}</span>`:''}${kickHtml}</li>`;
   }).join('');
   document.getElementById('lobby-player-count').textContent=`${entries.length} / 10 玩家`;
+}
+
+// 检查玩家是否在语音中
+function isPlayerInVoice(playerId){
+  for(const[vUid,pId]of Object.entries(voiceUidToPlayerId)){
+    if(pId===playerId)return true;
+  }
+  if(playerId===myId&&voiceJoined)return true;
+  return false;
 }
 
 // ===== KICK =====
@@ -752,6 +853,8 @@ function backToMenu(){
   players={};lobbyPlayers={};gameState='menu';
   document.getElementById('vote-modal').classList.remove('active');
   showScreen('menu-screen');
+  // 离开语音频道
+  leaveVoiceChannel();
 }
 
 // ===== RENDER =====
@@ -778,12 +881,17 @@ function render(){
   Object.entries(players).forEach(([id,p])=>{
     if(p.caught&&id!==myId)ctx.globalAlpha=0.3;
     const ch=CHARS[p.charIdx]||CHARS[0];
+    const isSpeaking=getPlayerSpeaking(id);
+    // 说话时绿色光环
+    if(isSpeaking){ctx.shadowColor='#4CAF50';ctx.shadowBlur=15;ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+5,0,Math.PI*2);ctx.fillStyle='rgba(76,175,80,0.25)';ctx.fill();ctx.shadowColor='transparent';ctx.shadowBlur=0;}
     ctx.fillStyle='rgba(0,0,0,0.12)';ctx.beginPath();ctx.ellipse(p.x,p.y+PLAYER_R+3,PLAYER_R*0.7,4,0,0,Math.PI*2);ctx.fill();
     ctx.fillStyle=ch.color;ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R,0,Math.PI*2);ctx.fill();
     if(p.role==='catcher'){ctx.strokeStyle='#FF0000';ctx.lineWidth=3;ctx.shadowColor='#FF0000';ctx.shadowBlur=8;ctx.stroke();ctx.shadowColor='transparent';ctx.shadowBlur=0;}
+    else if(isSpeaking){ctx.strokeStyle='#4CAF50';ctx.lineWidth=3;ctx.shadowColor='#4CAF50';ctx.shadowBlur=10;ctx.stroke();ctx.shadowColor='transparent';ctx.shadowBlur=0;}
     else{ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=2;ctx.stroke();}
     ctx.font=`${PLAYER_R*1.2}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ch.emoji,p.x,p.y);
     ctx.font='bold 11px sans-serif';ctx.fillStyle='#333';ctx.textBaseline='bottom';ctx.fillText(p.nickname,p.x,p.y-PLAYER_R-8);
+    if(isSpeaking){ctx.font='10px sans-serif';ctx.fillStyle='#4CAF50';ctx.fillText('🔊',p.x+PLAYER_R+2,p.y-PLAYER_R-6);}
     if(p.role==='catcher'){ctx.font='13px sans-serif';ctx.fillText('👹',p.x,p.y-PLAYER_R-20);}
     if(id===myId){const bw=36,bh=4;ctx.fillStyle='#333';ctx.fillRect(p.x-bw/2,p.y+PLAYER_R+8,bw,bh);ctx.fillStyle=p.stamina>30?'#4CAF50':'#FF5722';ctx.fillRect(p.x-bw/2,p.y+PLAYER_R+8,bw*(p.stamina/STAMINA_MAX),bh);}
     ctx.globalAlpha=1;
@@ -807,6 +915,277 @@ function setupJoystick(){
 
 // Vote result handler (unused but kept for extensibility)
 function onVoteResult(p){}
+
+// ===== 声网语音聊天模块 =====
+// 使用声网 (Agora/Shengwang) Web SDK 实现同房间实时语音通话
+// Token 通过 Supabase Edge Function (agora-token) 生成，App Certificate 不暴露在前端
+
+const AGORA_TOKEN_URL = SUPABASE_URL + '/functions/v1/agora-token';
+
+// 语音状态
+let agoraClient = null;
+let localAudioTrack = null;
+let voiceJoined = false;
+let voiceMuted = false;
+let voiceUid = 0; // 声网用的 uid（数字）
+let speakingUsers = {}; // uid -> {nickname, charIdx, speaking}
+let voiceUidToPlayerId = {}; // agora uid -> game myId mapping
+let voiceEnabled = true; // 是否启用语音
+
+// 初始化声网客户端
+function initAgoraClient() {
+  if (!window.AgoraRTC) {
+    console.warn('声网 SDK 未加载，语音功能不可用');
+    voiceEnabled = false;
+    return;
+  }
+  
+  AgoraRTC.setLogLevel(3); // WARNING level，减少控制台输出
+  agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+  
+  // 监听远端用户发布音频
+  agoraClient.on('user-published', async (user, mediaType) => {
+    if (mediaType === 'audio') {
+      await agoraClient.subscribe(user, mediaType);
+      user.audioTrack.play();
+      updateSpeakerUI(user.uid, true);
+    }
+  });
+  
+  // 监听远端用户取消发布
+  agoraClient.on('user-unpublished', (user, mediaType) => {
+    if (mediaType === 'audio') {
+      updateSpeakerUI(user.uid, false);
+    }
+  });
+  
+  // 监听远端用户离开
+  agoraClient.on('user-left', (user) => {
+    delete speakingUsers[user.uid];
+    renderSpeakers();
+  });
+  
+  // 监听音量指示（检测谁在说话）
+  agoraClient.enableAudioVolumeIndicator();
+  agoraClient.on('volume-indicator', (volumes) => {
+    // 重置所有为不说话
+    Object.keys(speakingUsers).forEach(uid => {
+      speakingUsers[uid].speaking = false;
+    });
+    
+    volumes.forEach(({ uid, level }) => {
+      if (level > 5) { // 音量阈值
+        if (uid === 0) uid = voiceUid; // 本地用户 uid 为 0
+        if (speakingUsers[uid]) {
+          speakingUsers[uid].speaking = true;
+        }
+      }
+    });
+    renderSpeakers();
+  });
+}
+
+// 加入语音频道
+async function joinVoiceChannel(channelName) {
+  if (!voiceEnabled || !agoraClient) return;
+  
+  try {
+    // 生成一个数字 uid（用 myId 的 hash）
+    voiceUid = hashStringToUid(myId);
+    
+    // 从 Supabase Edge Function 获取 Token
+    const tokenResp = await fetch(AGORA_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channelName: channelName, uid: voiceUid })
+    });
+    
+    if (!tokenResp.ok) {
+      const err = await tokenResp.json().catch(() => ({}));
+      console.error('获取语音 Token 失败:', err.error || tokenResp.status);
+      showVoiceStatus('语音连接失败');
+      return;
+    }
+    
+    const { token, appId } = await tokenResp.json();
+    
+    // 加入频道
+    await agoraClient.join(appId, channelName, token, voiceUid);
+    
+    // 创建本地音频轨道
+    localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+      encoderConfig: 'speech_low_quality' // 语音模式，低延迟
+    });
+    
+    // 发布音频
+    await agoraClient.publish([localAudioTrack]);
+    
+    voiceJoined = true;
+    voiceMuted = false;
+    
+    // 注册自己到说话者列表
+    speakingUsers[voiceUid] = { nickname: myNick, charIdx: myCharIdx, speaking: false };
+    
+    // 广播自己的语音 uid 映射
+    if (channel) {
+      channel.send({ type: 'broadcast', event: 'voice-uid', payload: { id: myId, voiceUid: voiceUid, nickname: myNick, charIdx: myCharIdx } });
+    }
+    
+    // 显示语音面板
+    document.getElementById('voice-panel').classList.add('active');
+    updateMicBtn();
+    showVoiceStatus('🎙️ 语音已连接');
+    setTimeout(() => hideVoiceStatus(), 2000);
+    
+    renderSpeakers();
+  } catch (err) {
+    console.error('加入语音频道失败:', err);
+    showVoiceStatus('语音连接失败: ' + (err.message || '未知错误'));
+  }
+}
+
+// 离开语音频道
+async function leaveVoiceChannel() {
+  if (!voiceJoined) return;
+  
+  try {
+    if (localAudioTrack) {
+      localAudioTrack.close();
+      localAudioTrack = null;
+    }
+    await agoraClient.leave();
+  } catch (e) {
+    console.warn('离开语音频道异常:', e);
+  }
+  
+  voiceJoined = false;
+  voiceMuted = false;
+  speakingUsers = {};
+  voiceUidToPlayerId = {};
+  document.getElementById('voice-panel').classList.remove('active');
+  document.getElementById('voice-speakers').innerHTML = '';
+}
+
+// 切换麦克风静音
+function toggleMic() {
+  if (!voiceJoined || !localAudioTrack) return;
+  
+  voiceMuted = !voiceMuted;
+  localAudioTrack.setEnabled(!voiceMuted);
+  updateMicBtn();
+  
+  if (voiceMuted) {
+    showVoiceStatus('🔇 麦克风已关闭');
+  } else {
+    showVoiceStatus('🎤 麦克风已开启');
+  }
+  setTimeout(() => hideVoiceStatus(), 1500);
+}
+
+// 更新麦克风按钮样式
+function updateMicBtn() {
+  const btn = document.getElementById('mic-btn');
+  if (voiceMuted) {
+    btn.textContent = '🔇';
+    btn.classList.add('muted');
+    btn.title = '点击开启麦克风';
+  } else {
+    btn.textContent = '🎤';
+    btn.classList.remove('muted');
+    btn.title = '点击关闭麦克风';
+  }
+}
+
+// 更新说话者 UI
+function updateSpeakerUI(uid, isPublishing) {
+  if (isPublishing) {
+    if (!speakingUsers[uid]) {
+      // 尝试从映射找到昵称
+      const playerId = voiceUidToPlayerId[uid];
+      const playerData = playerId ? (lobbyPlayers[playerId] || players[playerId]) : null;
+      speakingUsers[uid] = {
+        nickname: playerData ? playerData.nickname : `玩家${uid % 1000}`,
+        charIdx: playerData ? playerData.charIdx : 0,
+        speaking: false
+      };
+    }
+  }
+  renderSpeakers();
+}
+
+// 渲染说话者列表
+function renderSpeakers() {
+  const container = document.getElementById('voice-speakers');
+  const entries = Object.entries(speakingUsers);
+  if (entries.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  
+  container.innerHTML = entries.map(([uid, info]) => {
+    const ch = CHARS[info.charIdx] || CHARS[0];
+    const speakingClass = info.speaking ? ' speaking' : '';
+    const isMe = Number(uid) === voiceUid;
+    return `<div class="voice-speaker${speakingClass}">
+      <span class="speaker-dot"></span>
+      <span>${ch.emoji} ${escH(info.nickname)}${isMe ? '(我)' : ''}</span>
+    </div>`;
+  }).join('');
+}
+
+// 显示/隐藏语音状态
+function showVoiceStatus(msg) {
+  const el = document.getElementById('voice-status');
+  el.textContent = msg;
+  el.classList.add('active');
+}
+function hideVoiceStatus() {
+  document.getElementById('voice-status').classList.remove('active');
+}
+
+// 字符串 hash 转数字 uid（声网需要 uint32）
+function hashStringToUid(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash) % 100000000 + 1; // 1 ~ 100000000
+}
+
+// 处理其他玩家的语音 uid 广播
+function onVoiceUid(payload) {
+  if (!payload || !payload.id || !payload.voiceUid) return;
+  voiceUidToPlayerId[payload.voiceUid] = payload.id;
+  if (speakingUsers[payload.voiceUid]) {
+    speakingUsers[payload.voiceUid].nickname = payload.nickname;
+    speakingUsers[payload.voiceUid].charIdx = payload.charIdx;
+  } else {
+    speakingUsers[payload.voiceUid] = { nickname: payload.nickname, charIdx: payload.charIdx, speaking: false };
+  }
+  renderSpeakers();
+}
+
+// 在游戏渲染中为正在说话的玩家添加高亮
+function getPlayerSpeaking(playerId) {
+  // 找到该玩家对应的 voiceUid
+  for (const [vUid, pId] of Object.entries(voiceUidToPlayerId)) {
+    if (pId === playerId && speakingUsers[vUid] && speakingUsers[vUid].speaking) {
+      return true;
+    }
+  }
+  // 检查自己
+  if (playerId === myId && speakingUsers[voiceUid] && speakingUsers[voiceUid].speaking) {
+    return true;
+  }
+  return false;
+}
+
+// 初始化
+window.addEventListener('load', () => {
+  initAgoraClient();
+});
 </script>
 </body>
 </html>
