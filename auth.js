@@ -47,7 +47,6 @@ async function signIn(username, password) {
   var email = username + '@xiaocainiao.app';
   var result = await sb.auth.signInWithPassword({ email: email, password: password });
   if (result.error) {
-    // 用户名存在但密码错 → 明确提示密码错误
     return { error: '密码错误，请重新输入' };
   }
   return { data: result.data };
@@ -60,12 +59,16 @@ async function signOut() {
   await sb.auth.signOut();
 }
 
-// 获取当前登录用户（Supabase auth user）
+// 获取当前登录用户 — 优先读本地 session，避免每次发网络请求卡住页面
 async function getCurrentUser() {
   var sb = getSupabase();
   if (!sb) return null;
-  var result = await sb.auth.getUser();
-  return (result.data && result.data.user) ? result.data.user : null;
+  // 先读本地 session（同步，不发网络请求）
+  var sessionResult = await sb.auth.getSession();
+  if (sessionResult.data && sessionResult.data.session && sessionResult.data.session.user) {
+    return sessionResult.data.session.user;
+  }
+  return null;
 }
 
 // 获取当前 session
