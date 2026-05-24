@@ -154,7 +154,7 @@ body {
       </select>
       <br>
       <button class="btn btn-start" onclick="forceStart()">🚀 强制开始</button>
-      <div style="font-size:0.72em;color:#999;margin-top:3px;">队长可强制开始（需3-10人）</div>
+      <div style="font-size:0.72em;color:#999;margin-top:3px;">队长可强制开始（需2-10人）</div>
     </div>
     <div style="text-align:center;margin-top:8px;">
       <button class="btn btn-small btn-primary" onclick="proposeStart()">✋ 提议开始</button>
@@ -474,7 +474,7 @@ function onKick({targetId}){
 // ===== VOTE SYSTEM =====
 function proposeStart(){
   const count=Object.keys(lobbyPlayers).length;
-  if(count<3){alert('至少需要3个玩家！');return;}
+  if(count<2){alert('至少需要2个玩家！');return;}
   channel.send({type:'broadcast',event:'vote-propose',payload:{proposer:myId,proposerName:myNick}});
 }
 
@@ -529,7 +529,7 @@ function onVoteResponse({id,vote}){
 
 function forceStart(){
   const count=Object.keys(lobbyPlayers).length;
-  if(count<3){alert('至少需要3个玩家！');return;}
+  if(count<2){alert('至少需要2个玩家！');return;}
   doStartGame();
 }
 
