@@ -52,8 +52,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var query = sb.from('games').select('*, profiles(username)').eq('status', 'online');
 
+    // 中文分类 → 数据库可能存的英文值
+    var categoryReverseMap = {
+      '动作': 'action', '射击': 'shooting', '塔防': 'tower-defense',
+      '益智': 'puzzle', '跑酷': 'runner', '学习': 'learning',
+      '休闲': 'casual', '养成': 'raising', '其他': 'other'
+    };
     if (category && category !== 'all' && category !== 'new' && category !== 'hot') {
-      query = query.eq('category', category);
+      var dbCategory = categoryReverseMap[category] || category;
+      // 同时匹配中文和英文分类
+      query = query.or('category.eq.' + category + ',category.eq.' + dbCategory);
     }
     if (category === 'new') {
       query = query.order('created_at', { ascending: false }).limit(20);
@@ -93,8 +101,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 分类中英文映射
     var categoryMap = {
-      'casual': '休闲', 'action': '动作', 'shooter': '射击', 'tower-defense': '塔防',
-      'puzzle': '益智', 'runner': '跑酷', 'education': '学习', 'raising': '养成',
+      'casual': '休闲', 'action': '动作', 'shooter': '射击', 'shooting': '射击',
+      'tower-defense': '塔防', 'puzzle': '益智', 'runner': '跑酷',
+      'education': '学习', 'learning': '学习', 'raising': '养成',
       'other': '其他', 'racing': '竞速', 'sports': '运动'
     };
 
