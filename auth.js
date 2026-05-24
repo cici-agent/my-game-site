@@ -123,9 +123,9 @@ async function updateNavbar() {
   }
 }
 
-// 页面加载时更新导航栏，完成后显示 body（避免导航栏闪烁）
+// 页面加载时更新导航栏
+// body 立刻显示，不等网络，避免网络慢时页面一直白屏
 document.addEventListener('DOMContentLoaded', function() {
-  updateNavbar().then(function() {
-    document.body.style.opacity = '1';
-  });
+  document.body.style.opacity = '1';  // 立刻显示
+  updateNavbar();                      // 导航栏异步更新，不阻塞显示
 });
