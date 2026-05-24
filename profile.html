@@ -312,7 +312,14 @@
     async function initProfile() {
       var sb = getSupabase();
       if (!sb) { setTimeout(initProfile, 100); return; }
-      var user = await getCurrentUser();
+      // 先用本地 session 快速加载，不等网络
+      var sessionResult = await sb.auth.getSession();
+      var user = sessionResult.data && sessionResult.data.session && sessionResult.data.session.user;
+      if (!user) {
+        // session 没有再尝试 getUser
+        var userResult = await sb.auth.getUser();
+        user = userResult.data && userResult.data.user;
+      }
       if (!user) {
         window.location.href = 'login.html?redirect=profile.html';
         return;
