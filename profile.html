@@ -135,7 +135,7 @@
     }
   </style>
 </head>
-<body style="opacity:0;transition:opacity 0.15s">
+<body>
   <nav class="navbar" id="navbar">
     <a href="index.html" class="logo">
       <img src="assets/logo.jpg" alt="小菜鸟" />
@@ -319,10 +319,16 @@
     }
 
     async function initProfile() {
-      var sb = getSupabase();
+      // 等待 supabase 初始化，最多3秒
+      var sb = null;
+      for (var i = 0; i < 30; i++) {
+        sb = getSupabase();
+        if (sb) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
       if (!sb) {
-        // supabase 还没初始化，等一下再试
-        setTimeout(initProfile, 100);
+        // supabase 加载失败，直接跳登录
+        window.location.href = 'login.html';
         return;
       }
 
