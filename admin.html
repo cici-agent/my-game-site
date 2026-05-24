@@ -206,7 +206,8 @@
     // ===== 统计 =====
     async function loadStats() {
       var sb = getSupabase();
-      var usersResult = await sb.from('profiles').select('id', { count: 'exact' });
+      // 只统计未删除的用户
+      var usersResult = await sb.from('profiles').select('id', { count: 'exact' }).is('deleted_at', null);
       var gamesResult = await sb.from('games').select('id', { count: 'exact' });
       var pendingResult = await sb.from('games').select('id', { count: 'exact' }).eq('status', 'pending');
       var onlineResult = await sb.from('games').select('id', { count: 'exact' }).eq('status', 'online');
@@ -235,8 +236,10 @@
         var game = result.data[i];
         var authorName = '未知';
         if (game.author_id) {
-          var profileResult = await sb.from('profiles').select('username').eq('id', game.author_id).single();
-          if (profileResult.data) authorName = profileResult.data.username;
+          var profileResult = await sb.from('profiles').select('username, deleted_at').eq('id', game.author_id).single();
+          if (profileResult.data) {
+            authorName = profileResult.data.deleted_at ? '已注销' : profileResult.data.username;
+          }
         }
         var statusClass = game.status === 'online' ? 'online' : (game.status === 'pending' ? 'pending' : 'offline');
         var statusText = game.status === 'online' ? '已上线' : (game.status === 'pending' ? '待审核' : '已下线');
@@ -285,7 +288,8 @@
     // ===== 用户管理 =====
     async function loadUsers() {
       var sb = getSupabase();
-      var result = await sb.from('profiles').select('*').order('created_at', { ascending: false });
+      // 过滤已删除（软删除）的用户
+      var result = await sb.from('profiles').select('*').is('deleted_at', null).order('created_at', { ascending: false });
       var tbody = document.getElementById('userTableBody');
 
       if (!result.data || result.data.length === 0) {
@@ -306,16 +310,16 @@
           '<button class="btn-reset" onclick="openResetPwdModal(\'' + escapeHtml(user.username) + '\')">重置密码</button>' +
           '<button class="btn-coins" onclick="openCoinsModal(\'' + user.id + '\', \'' + escapeHtml(user.username) + '\', ' + (user.coins || 0) + ')">修改金币</button>';
         if (user.role !== 'admin') {
-          html += '<button class="btn-delete" onclick="deleteUser(\'' + user.id + '\', \'' + escapeHtml(user.username) + '\')">删除</button>';
+          html += '<button class="btn-delete" onclick="deleteUser(\'' + user.id + '\', \'' + escapeHtml(user.username) + '\')">注销</button>';
         }
         html += '</div></td></tr>';
       });
       tbody.innerHTML = html;
     }
 
-    // 删除用户（通过 Edge Function 彻底删除 auth + profiles + games）
+    // 注销用户（软删除：标记 deleted_at + 禁用 auth 账号，不删除任何数据）
     async function deleteUser(userId, username) {
-      if (!confirm('确定要删除用户「' + username + '」吗？此操作不可恢复！')) return;
+      if (!confirm('确定要注销用户「' + username + '」吗？\n\n该用户将无法登录，其游戏和评论的作者名将显示为「已注销」。')) return;
       var sb = getSupabase();
       var session = sb.auth.session ? sb.auth.session() : (await sb.auth.getSession()).data.session;
       var token = session && session.access_token;
@@ -330,12 +334,12 @@
           body: JSON.stringify({ userId: userId })
         });
         var result = await resp.json();
-        if (!resp.ok) throw new Error(result.error || '删除失败');
-        addLog('删除用户', '彻底删除了用户「' + username + '」');
+        if (!resp.ok) throw new Error(result.error || '注销失败');
+        addLog('注销用户', '已注销用户「' + username + '」（软删除，数据保留）');
         loadUsers();
         loadStats();
       } catch(e) {
-        alert('删除失败：' + e.message);
+        alert('注销失败：' + e.message);
       }
     }
 
