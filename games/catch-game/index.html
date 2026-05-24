@@ -495,11 +495,14 @@ function onVotePropose({proposer,proposerName}){
 
 function voteAgree(){
   document.getElementById('vote-modal').classList.remove('active');
+  // 先把自己的票记上（broadcast不会回传给自己）
+  if(currentVote) onVoteResponse({id:myId, vote:'agree'});
   channel.send({type:'broadcast',event:'vote-response',payload:{id:myId,vote:'agree'}});
 }
 
 function voteWait(){
   document.getElementById('vote-modal').classList.remove('active');
+  if(currentVote) onVoteResponse({id:myId, vote:'wait'});
   channel.send({type:'broadcast',event:'vote-response',payload:{id:myId,vote:'wait'}});
 }
 
@@ -521,7 +524,11 @@ function onVoteResponse({id,vote}){
     // All agreed - host starts
     document.getElementById('lobby-wait-msg').textContent='全员同意！即将开始...';
     currentVote=null;
-    if(isHost) setTimeout(()=>doStartGame(),500);
+    if(isHost){
+      setTimeout(()=>doStartGame(),500);
+    } else {
+      // 非host：等待host广播game-start，已在监听中
+    }
   } else {
     document.getElementById('lobby-wait-msg').textContent=`投票中... ${agrees}/${total} 同意`;
   }
@@ -537,7 +544,7 @@ function forceStart(){
 function doStartGame(){
   if(!isHost)return;
   const ids=Object.keys(lobbyPlayers);
-  if(ids.length<3)return;
+  if(ids.length<2)return;
   
   selectedMap=parseInt(document.getElementById('map-select').value);
   const catcherIdx=Math.floor(Math.random()*ids.length);
