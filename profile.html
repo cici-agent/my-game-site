@@ -311,11 +311,27 @@
 
     async function initProfile() {
       var sb = getSupabase();
-      if (!sb) { setTimeout(initProfile, 100); return; }
+      if (!sb) {
+        // supabase 还没初始化，等一下再试
+        setTimeout(initProfile, 100);
+        return;
+      }
 
-      // 先读本地 session（不发网络请求，瞬间完成）
-      var sessionResult = await sb.auth.getSession();
-      var user = sessionResult.data && sessionResult.data.session && sessionResult.data.session.user;
+      // 读本地 session
+      var user = null;
+      try {
+        var sessionResult = await sb.auth.getSession();
+        user = sessionResult.data && sessionResult.data.session && sessionResult.data.session.user;
+      } catch(e) {}
+
+      // session 没有，再试一次 getUser（走网络）
+      if (!user) {
+        try {
+          var userResult = await sb.auth.getUser();
+          user = userResult.data && userResult.data.user;
+        } catch(e) {}
+      }
+
       if (!user) {
         window.location.href = 'login.html?redirect=profile.html';
         return;
