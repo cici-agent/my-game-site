@@ -313,15 +313,30 @@
       tbody.innerHTML = html;
     }
 
-    // 删除用户
+    // 删除用户（通过 Edge Function 彻底删除 auth + profiles + games）
     async function deleteUser(userId, username) {
-      if (!confirm('确定要删除用户「' + username + '」吗？')) return;
+      if (!confirm('确定要删除用户「' + username + '」吗？此操作不可恢复！')) return;
       var sb = getSupabase();
-      await sb.from('games').delete().eq('author_id', userId);
-      await sb.from('profiles').delete().eq('id', userId);
-      addLog('删除用户', '删除了用户「' + username + '」');
-      loadUsers();
-      loadStats();
+      var session = sb.auth.session ? sb.auth.session() : (await sb.auth.getSession()).data.session;
+      var token = session && session.access_token;
+      if (!token) { alert('请先登录'); return; }
+      try {
+        var resp = await fetch('https://aqxbpuetdypcbmqdncpl.supabase.co/functions/v1/delete-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ userId: userId })
+        });
+        var result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || '删除失败');
+        addLog('删除用户', '彻底删除了用户「' + username + '」');
+        loadUsers();
+        loadStats();
+      } catch(e) {
+        alert('删除失败：' + e.message);
+      }
     }
 
     // ===== 重置密码弹窗 =====
