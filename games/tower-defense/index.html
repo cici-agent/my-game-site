@@ -265,17 +265,17 @@ canvas {
         <div onclick="chooseDifficulty('easy')" style="cursor:pointer;background:linear-gradient(135deg,#27ae60,#2ecc71);border-radius:16px;padding:20px 28px;width:140px;transition:transform 0.2s;box-shadow:0 4px 20px rgba(46,204,113,0.4);" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
           <div style="font-size:32px;margin-bottom:8px;">🌿</div>
           <div style="font-size:18px;font-weight:800;margin-bottom:6px;">简单</div>
-          <div style="font-size:11px;color:rgba(255,255,255,0.85);line-height:1.6;">20波 · 初始❤️20<br>初始💰150 · 怪物较强</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.85);line-height:1.6;">20波 · 初始❤️20<br>初始💰200 · 新手友好</div>
         </div>
         <div onclick="chooseDifficulty('normal')" style="cursor:pointer;background:linear-gradient(135deg,#e67e22,#f39c12);border-radius:16px;padding:20px 28px;width:140px;transition:transform 0.2s;box-shadow:0 4px 20px rgba(243,156,18,0.4);" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
           <div style="font-size:32px;margin-bottom:8px;">⚔️</div>
           <div style="font-size:18px;font-weight:800;margin-bottom:6px;">中等</div>
-          <div style="font-size:11px;color:rgba(255,255,255,0.85);line-height:1.6;">25波 · 初始❤️15<br>初始💰120 · 怪物凶猛</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.85);line-height:1.6;">25波 · 初始❤️15<br>初始💰180 · 前期缓冲</div>
         </div>
         <div onclick="chooseDifficulty('hard')" style="cursor:pointer;background:linear-gradient(135deg,#c0392b,#e74c3c);border-radius:16px;padding:20px 28px;width:140px;transition:transform 0.2s;box-shadow:0 4px 20px rgba(231,76,60,0.4);" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
           <div style="font-size:32px;margin-bottom:8px;">💀</div>
           <div style="font-size:18px;font-weight:800;margin-bottom:6px;">高难度</div>
-          <div style="font-size:11px;color:rgba(255,255,255,0.85);line-height:1.6;">30波 · 初始❤️10<br>初始💰100 · BOSS来袭</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.85);line-height:1.6;">30波 · 初始❤️10<br>初始💰150 · BOSS来袭</div>
         </div>
       </div>
     </div>
@@ -299,9 +299,9 @@ let CELL = 50;
 let TOTAL_WAVES = 15;
 let DIFFICULTY = 'easy'; // easy / normal / hard
 const DIFFICULTY_CONFIG = {
-  easy:   { waves: 20, lives: 20, gold: 150, hpMult: 1.2, speedMult: 1.1 },
-  normal: { waves: 25, lives: 15, gold: 120, hpMult: 1.8, speedMult: 1.3 },
-  hard:   { waves: 30, lives: 10, gold: 100, hpMult: 2.5, speedMult: 1.6 }
+  easy:   { waves: 20, lives: 20, gold: 200, hpMult: 1.0, speedMult: 1.0 },
+  normal: { waves: 25, lives: 15, gold: 180, hpMult: 1.4, speedMult: 1.15 },
+  hard:   { waves: 30, lives: 10, gold: 150, hpMult: 2.0, speedMult: 1.35 }
 };
 
 const TOWER_DATA = {
@@ -399,18 +399,27 @@ function getWaveEnemies(wave) {
   const cfg = DIFFICULTY_CONFIG[DIFFICULTY];
   const baseHP = (30 + wave * 20) * cfg.hpMult;
   const baseSpeed = cfg.speedMult;
-  const count = 6 + wave * 2;
+  // 前两波数量少，后面逐渐增多
+  const count = wave <= 2 ? (3 + wave) : (6 + wave * 2);
+  // 前两波速度更慢
+  const earlySlow = wave <= 2 ? 0.72 : 1.0;
   
   for (let i = 0; i < count; i++) {
     let type = 'normal';
     let hp = baseHP;
-    let speed = 1.2 * baseSpeed;
+    let speed = 1.2 * baseSpeed * earlySlow;
     let reward = 5 + wave;
     let size = 0.6;
     
     const r = Math.random();
     const waveRatio = wave / TOTAL_WAVES;
     
+    // 前两波只出普通小兵
+    if (wave <= 2) {
+      enemies.push({ type, hp, maxHp: hp, speed, reward, size, delay: i * 900, healTimer: 0 });
+      continue;
+    }
+
     if (wave >= 2 && r < 0.25) {
       // 快速刺客：血少速快
       type = 'fast'; hp = baseHP * 0.55; speed = 2.4 * baseSpeed; reward += 4; size = 0.48;
