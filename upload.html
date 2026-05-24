@@ -371,9 +371,14 @@
         });
         if (insertResult.error) throw new Error('保存游戏信息失败：' + insertResult.error.message);
 
+        // 发布游戏奖励 +5 金币
+        var profileRes = await sb.from('profiles').select('coins').eq('id', user.id).single();
+        var currentCoins = (profileRes.data && profileRes.data.coins) || 0;
+        await sb.from('profiles').update({ coins: currentCoins + 5 }).eq('id', user.id);
+
         updateProgress(100, '上传成功！🎉');
         setTimeout(function() {
-          alert('🎉 游戏上传成功！' + (isAdmin ? '已自动上线' : '等待管理员审核后上线'));
+          alert('🎉 游戏上传成功！获得 +5 金币奖励！' + (isAdmin ? '已自动上线' : '\n等待管理员审核后上线'));
           window.location.href = 'profile.html';
         }, 600);
 
