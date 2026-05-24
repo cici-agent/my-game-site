@@ -76,6 +76,19 @@ body {
 .kick-btn { background:none; border:none; cursor:pointer; font-size:0.8em; color:#e74c3c; margin-left:auto; padding:2px 8px; border-radius:8px; }
 .kick-btn:hover { background:#fdd; }
 
+/* 结算弹窗动画 */
+#result-overlay .modal-box {
+  animation: resultPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes resultPop {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.result-stat-row { display:flex; justify-content:space-between; align-items:center; padding:2px 0; border-bottom:1px solid #eee; }
+.result-stat-row:last-child { border-bottom:none; }
+.result-stat-label { color:#888; }
+.result-stat-value { font-weight:bold; color:#333; }
+
 /* ===== 语音聊天 UI ===== */
 #voice-panel {
   position: fixed;
@@ -260,12 +273,18 @@ body {
   <div id="spectator-banner">👻 你已被抓！观战中...</div>
 </div>
 
-<!-- Result -->
-<div id="result-screen" class="screen">
-  <div class="result-box">
-    <div class="result-title" id="result-title">🎉</div>
-    <div class="result-msg" id="result-msg"></div>
-    <button class="btn btn-primary" onclick="backToMenu()">🏠 返回主页</button>
+<!-- Result Overlay (游戏结束弹窗，不切换screen) -->
+<div class="modal-overlay" id="result-overlay">
+  <div class="modal-box" style="max-width:360px;padding:30px 28px;">
+    <div id="result-title" style="font-size:2em;margin-bottom:6px;">🎉</div>
+    <div id="result-msg" style="font-size:1.05em;color:#555;margin-bottom:14px;"></div>
+    <!-- 结算详情 -->
+    <div id="result-details" style="background:#f8f8f8;border-radius:12px;padding:12px 14px;margin-bottom:16px;text-align:left;font-size:0.9em;line-height:1.8;"></div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-small" onclick="returnToLobby()">🏠 回到房间</button>
+      <button class="btn btn-danger btn-small" onclick="leaveRoomFromResult()">🚪 退出房间</button>
+    </div>
+    <div style="font-size:0.75em;color:#aaa;margin-top:10px;">语音频道保持连接中 🎙️</div>
   </div>
 </div>
 
@@ -510,6 +529,7 @@ function joinChannel(){
   channel.on('broadcast',{event:'coin-spawn'},({payload})=>onCoinSpawn(payload));
   channel.on('broadcast',{event:'kick'},({payload})=>onKick(payload));
   channel.on('broadcast',{event:'voice-uid'},({payload})=>onVoiceUid(payload));
+  channel.on('broadcast',{event:'back-to-lobby'},({payload})=>onBackToLobby(payload));
 
   channel.subscribe(s=>{
     if(s==='SUBSCRIBED'){
@@ -528,6 +548,7 @@ function leaveRoom(){
   if(isHost)removeAnnounce();
   lobbyPlayers={};gameState='menu';
   document.getElementById('vote-modal').classList.remove('active');
+  document.getElementById('result-overlay').classList.remove('active');
   showScreen('menu-screen');
   // 离开语音频道
   leaveVoiceChannel();
@@ -833,16 +854,48 @@ function onGameEnd({winner}){
   gameState='result';
   if(gameInterval){clearInterval(gameInterval);gameInterval=null;}
   if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
-  showScreen('result-screen');
   document.getElementById('spectator-banner').style.display='none';
   if(isMobile)document.getElementById('joystick-area').style.display='none';
+  
+  // 计算游戏时长
+  const elapsed = GAME_DURATION - timeLeft;
+  const elapsedStr = `${Math.floor(elapsed/60)}分${elapsed%60}秒`;
+  
+  // 统计结果
+  const allPlayers = Object.values(players);
+  const catcher = allPlayers.find(p=>p.role==='catcher');
+  const runners = allPlayers.filter(p=>p.role==='runner');
+  const caughtCount = runners.filter(p=>p.caught).length;
+  const survivedCount = runners.length - caughtCount;
+  
+  let titleText, msgText, titleEmoji;
   if(winner==='catcher'){
-    document.getElementById('result-title').textContent=myRole==='catcher'?'🎉 你赢了！':'😅 被抓住了！';
-    document.getElementById('result-msg').textContent='抓人者抓住了所有逃跑者！';
+    if(myRole==='catcher'){titleEmoji='🎉';titleText='你赢了！';}
+    else{titleEmoji='😅';titleText='被抓住了！';}
+    msgText='抓人者抓住了所有逃跑者！';
   }else{
-    document.getElementById('result-title').textContent=(myRole==='runner'&&!isCaught)?'🎉 你赢了！':'⏰ 时间到！';
-    document.getElementById('result-msg').textContent='逃跑者成功存活到最后！';
+    if(myRole==='runner'&&!isCaught){titleEmoji='🎉';titleText='你赢了！';}
+    else{titleEmoji='⏰';titleText='时间到！';}
+    msgText='逃跑者成功存活到最后！';
   }
+  
+  document.getElementById('result-title').textContent=titleEmoji+' '+titleText;
+  document.getElementById('result-msg').textContent=msgText;
+  
+  // 结算详情
+  let detailsHtml=`
+    <div class="result-stat-row"><span class="result-stat-label">⏱️ 游戏时长</span><span class="result-stat-value">${elapsedStr}</span></div>
+    <div class="result-stat-row"><span class="result-stat-label">👹 抓人者</span><span class="result-stat-value">${catcher?escH(catcher.nickname):'?'}</span></div>
+    <div class="result-stat-row"><span class="result-stat-label">🐾 逃跑者</span><span class="result-stat-value">${runners.length}人</span></div>
+    <div class="result-stat-row"><span class="result-stat-label">✅ 成功逃脱</span><span class="result-stat-value" style="color:#4ECDC4">${survivedCount}人</span></div>
+    <div class="result-stat-row"><span class="result-stat-label">❌ 被抓</span><span class="result-stat-value" style="color:#FF6B6B">${caughtCount}人</span></div>
+    <div class="result-stat-row"><span class="result-stat-label">🗺️ 地图</span><span class="result-stat-value">${MAPS[selectedMap].name}</span></div>
+  `;
+  document.getElementById('result-details').innerHTML=detailsHtml;
+  
+  // 显示结算弹窗（不切换screen，语音保持连接）
+  document.getElementById('result-overlay').classList.add('active');
+  // 语音面板保持显示
 }
 
 function backToMenu(){
@@ -852,9 +905,56 @@ function backToMenu(){
   if(presenceInterval){clearInterval(presenceInterval);presenceInterval=null;}
   players={};lobbyPlayers={};gameState='menu';
   document.getElementById('vote-modal').classList.remove('active');
+  document.getElementById('result-overlay').classList.remove('active');
   showScreen('menu-screen');
   // 离开语音频道
   leaveVoiceChannel();
+}
+
+// 游戏结束后回到房间（语音保持连接）
+function returnToLobby(){
+  document.getElementById('result-overlay').classList.remove('active');
+  if(gameInterval){clearInterval(gameInterval);gameInterval=null;}
+  if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
+  players={};foods=[];isCaught=false;
+  gameState='lobby';
+  currentVote=null;
+  
+  // 重新订阅频道事件（channel 仍然存在）
+  // 重置大厅 UI
+  document.getElementById('lobby-room-code').textContent=roomCode;
+  document.getElementById('lobby-room-name').textContent='🎮 '+(roomName||'游戏房间');
+  document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
+  document.getElementById('lobby-wait-msg').textContent='';
+  document.getElementById('vote-modal').classList.remove('active');
+  lobbyPlayers={};lobbyTs={};
+  
+  showScreen('lobby-screen');
+  
+  // 重新广播 presence，让其他玩家知道自己回来了
+  if(channel){
+    broadcastPresence();
+    if(presenceInterval)clearInterval(presenceInterval);
+    presenceInterval=setInterval(()=>{if(gameState==='lobby'){broadcastPresence();if(isHost)announceRoom();}},2000);
+  }
+  
+  // 语音面板保持显示
+  if(voiceJoined){
+    document.getElementById('voice-panel').classList.add('active');
+  }
+}
+
+// 收到 back-to-lobby 广播（队长发起再来一局时通知所有人）
+function onBackToLobby({initiator}){
+  if(gameState==='result'){
+    returnToLobby();
+  }
+}
+
+// 从结算弹窗退出房间
+function leaveRoomFromResult(){
+  document.getElementById('result-overlay').classList.remove('active');
+  leaveRoom();
 }
 
 // ===== RENDER =====
