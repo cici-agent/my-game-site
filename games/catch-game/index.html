@@ -295,9 +295,24 @@ function buildCharGrid(){
     d.className='char-option'+(i===myCharIdx?' selected':'');
     d.style.background=c.color;
     d.innerHTML=`<span style="font-size:1.3em">${c.emoji}</span>`;
-    d.onclick=()=>{myCharIdx=i;document.querySelectorAll('.char-option').forEach(el=>el.classList.remove('selected'));d.classList.add('selected');if(channel)broadcastPresence();};
+    d.onclick=()=>{
+      // 检查是否有其他玩家已选了这个头像
+      const taken=Object.values(lobbyPlayers).some(p=>p.id!==myId&&p.charIdx===i);
+      if(taken){alert('这个角色已被其他玩家选择，请换一个！');return;}
+      myCharIdx=i;
+      document.querySelectorAll('.char-option').forEach(el=>el.classList.remove('selected'));
+      d.classList.add('selected');
+      if(channel)broadcastPresence();
+    };
     g.appendChild(d);
   });
+}
+
+function pickUniqueChar(){
+  const usedIdx=Object.values(lobbyPlayers).filter(p=>p.id!==myId).map(p=>p.charIdx);
+  for(let i=0;i<CHARS.length;i++){
+    if(!usedIdx.includes(i)){myCharIdx=i;return;}
+  }
 }
 
 // ===== SCREENS =====
@@ -410,6 +425,7 @@ function joinChannel(){
   channel.on('broadcast',{event:'vote-propose'},({payload})=>onVotePropose(payload));
   channel.on('broadcast',{event:'vote-response'},({payload})=>onVoteResponse(payload));
   channel.on('broadcast',{event:'vote-result'},({payload})=>onVoteResult(payload));
+  channel.on('broadcast',{event:'coin-spawn'},({payload})=>onCoinSpawn(payload));
   channel.on('broadcast',{event:'kick'},({payload})=>onKick(payload));
 
   channel.subscribe(s=>{
@@ -439,6 +455,12 @@ function onPresence(p){
   if(gameState!=='lobby')return;
   lobbyPlayers[p.id]=p;
   lobbyTs[p.id]=Date.now();
+  // 如果新玩家和自己头像冲突，自动换一个
+  if(p.id!==myId&&p.charIdx===myCharIdx){
+    pickUniqueChar();
+    buildCharGrid();
+    if(channel)broadcastPresence();
+  }
   // Stale cleanup
   Object.keys(lobbyPlayers).forEach(k=>{if(lobbyTs[k]&&Date.now()-lobbyTs[k]>7000)delete lobbyPlayers[k];});
   updateLobbyUI();
@@ -636,6 +658,7 @@ function gameLoop(){
     }
   });
   
+  tickCoinSpawn();
   if(me.role==='catcher'){
     Object.entries(players).forEach(([id,p])=>{
       if(id===myId||p.caught||p.role==='catcher')return;
@@ -655,11 +678,21 @@ function gameLoop(){
 
 function resolveCol(ox,oy,nx,ny,r,walls){
   let x=nx,y=ny;
-  for(const w of walls){
-    const cx=Math.max(w.x,Math.min(x,w.x+w.w)),cy=Math.max(w.y,Math.min(y,w.y+w.h));
-    const ddx=x-cx,ddy=y-cy,d=Math.sqrt(ddx*ddx+ddy*ddy);
-    if(d<r){if(d===0){x=ox;y=oy;}else{const ov=r-d;x+=ddx/d*ov;y+=ddy/d*ov;}}
+  for(let iter=0;iter<4;iter++){
+    let moved=false;
+    for(const w of walls){
+      const cx=Math.max(w.x,Math.min(x,w.x+w.w)),cy=Math.max(w.y,Math.min(y,w.y+w.h));
+      const ddx=x-cx,ddy=y-cy,d=Math.sqrt(ddx*ddx+ddy*ddy);
+      if(d<r){
+        moved=true;
+        if(d<0.001){x=ox;y=oy;}
+        else{const ov=(r-d)+0.5;x+=ddx/d*ov;y+=ddy/d*ov;}
+      }
+    }
+    if(!moved)break;
   }
+  x=Math.max(r,Math.min(MAP_W-r,x));
+  y=Math.max(r,Math.min(MAP_H-r,y));
   return{x,y};
 }
 
@@ -674,6 +707,26 @@ function onPlayerCaught({caughtId}){
 }
 
 function onFoodEaten({foodId}){const f=foods.find(x=>x.id===foodId);if(f)f.active=false;}
+function onCoinSpawn(coin){if(!foods.find(f=>f.id===coin.id))foods.push(coin);}
+
+let coinSpawnTimer=0,nextCoinId=100;
+function tickCoinSpawn(){
+  if(!isHost||gameState!=='playing')return;
+  coinSpawnTimer++;
+  if(coinSpawnTimer<420)return; // 约7秒(60fps)
+  coinSpawnTimer=0;
+  const map=MAPS[selectedMap];
+  let fx,fy,ok,tries=0;
+  do{fx=60+Math.random()*(MAP_W-120);fy=60+Math.random()*(MAP_H-120);ok=true;
+    for(const w of map.walls){if(fx>w.x-15&&fx<w.x+w.w+15&&fy>w.y-15&&fy<w.y+w.h+15){ok=false;break;}}
+    tries++;
+  }while(!ok&&tries<30);
+  if(ok){
+    const c={id:nextCoinId++,x:fx,y:fy,active:true};
+    foods.push(c);
+    channel.send({type:'broadcast',event:'coin-spawn',payload:c});
+  }
+}
 
 function onGameEnd({winner}){
   gameState='result';
