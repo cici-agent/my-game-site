@@ -15,7 +15,6 @@ async function signUpWithAvatar(username, password, avatarUrl) {
   var result = await sb.auth.signUp({ email: email, password: password });
   if (result.error) return { error: result.error.message };
 
-  // 创建用户资料
   var userId = result.data.user ? result.data.user.id : null;
   if (userId) {
     var isAdmin = (username === 'admin');
@@ -38,7 +37,6 @@ async function signIn(username, password) {
   var sb = getSupabase();
   if (!sb) return { error: 'Supabase 未初始化，请刷新页面重试' };
 
-  // 先查用户名是否存在
   var profileCheck = await sb.from('profiles').select('id').eq('username', username).maybeSingle();
   if (!profileCheck.data) {
     return { error: '用户名不存在，请检查拼写或先注册' };
@@ -59,16 +57,24 @@ async function signOut() {
   await sb.auth.signOut();
 }
 
-// 获取当前登录用户 — 优先读本地 session，避免每次发网络请求卡住页面
+// 获取当前登录用户 — 先读本地 session，再 fallback 到 getUser()
 async function getCurrentUser() {
   var sb = getSupabase();
   if (!sb) return null;
-  // 先读本地 session（同步，不发网络请求）
-  var sessionResult = await sb.auth.getSession();
-  if (sessionResult.data && sessionResult.data.session && sessionResult.data.session.user) {
-    return sessionResult.data.session.user;
+  // 优先读本地 session（快，不发网络请求）
+  try {
+    var sessionResult = await sb.auth.getSession();
+    if (sessionResult.data && sessionResult.data.session && sessionResult.data.session.user) {
+      return sessionResult.data.session.user;
+    }
+  } catch(e) {}
+  // fallback：发网络请求验证
+  try {
+    var result = await sb.auth.getUser();
+    return (result.data && result.data.user) ? result.data.user : null;
+  } catch(e) {
+    return null;
   }
-  return null;
 }
 
 // 获取当前 session
@@ -129,6 +135,6 @@ async function updateNavbar() {
 // 页面加载时更新导航栏
 // body 立刻显示，不等网络，避免网络慢时页面一直白屏
 document.addEventListener('DOMContentLoaded', function() {
-  document.body.style.opacity = '1';  // 立刻显示
-  updateNavbar();                      // 导航栏异步更新，不阻塞显示
+  document.body.style.opacity = '1';
+  updateNavbar();
 });
