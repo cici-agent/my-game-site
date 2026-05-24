@@ -5,9 +5,306 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>我的 - 小菜鸟</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="login.css">
   <style>
-    /* 头像选择弹窗 */
+    :root {
+      --orange: #ff6b35;
+      --orange-light: #ffa726;
+      --blue: #1e88e5;
+      --blue-light: #42a5f5;
+      --green: #43a047;
+      --bg: #f8f9fa;
+    }
+
+    /* ===== 导航栏 ===== */
+    .navbar {
+      background: linear-gradient(135deg, var(--orange), var(--orange-light));
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 12px rgba(255,107,53,0.3);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: white;
+      font-size: 1.4rem;
+      font-weight: 900;
+    }
+    .navbar .logo img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.6);
+    }
+    .nav-links {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .nav-links a {
+      color: white;
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    .nav-links a:hover {
+      background: rgba(255,255,255,0.25);
+    }
+    .nav-links a.active {
+      background: rgba(255,255,255,0.3);
+    }
+
+    /* ===== 主体 ===== */
+    body {
+      background: var(--bg);
+      min-height: 100vh;
+      font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      margin: 0;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 32px 16px 60px;
+    }
+
+    /* ===== 用户卡片 ===== */
+    .profile-header {
+      background: white;
+      border-radius: 24px;
+      padding: 32px;
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      margin-bottom: 28px;
+    }
+    .avatar-wrap {
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .avatar-wrap .avatar-img {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid var(--orange-light);
+      display: block;
+    }
+    .avatar-wrap .avatar-emoji {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ffe0b2, #ffcc80);
+      border: 4px solid var(--orange-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+    }
+    .avatar-wrap .edit-badge {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      background: white;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .profile-info {
+      flex: 1;
+    }
+    .profile-info h1 {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: #333;
+      margin: 0 0 8px;
+    }
+    .coin-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, #fff8e1, #fff3cd);
+      border: 2px solid #ffd54f;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #e65100;
+      margin-bottom: 16px;
+    }
+    .profile-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 50px;
+      background: linear-gradient(135deg, var(--orange), var(--orange-light));
+      color: white;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 12px rgba(255,107,53,0.3);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255,107,53,0.4);
+    }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 50px;
+      background: #f0f0f0;
+      color: #555;
+      font-weight: 700;
+      font-size: 0.95rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+
+    /* ===== Tab ===== */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 10px 24px;
+      border-radius: 50px;
+      border: 2px solid #e0e0e0;
+      background: white;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #888;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab.active {
+      background: linear-gradient(135deg, var(--orange), var(--orange-light));
+      color: white;
+      border-color: transparent;
+      box-shadow: 0 4px 12px rgba(255,107,53,0.3);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
+    /* ===== 游戏卡片 ===== */
+    .games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+      padding: 4px 0;
+    }
+    .game-card {
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      cursor: pointer;
+      transition: all 0.3s;
+      padding-bottom: 12px;
+    }
+    .game-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    .game-card .cover {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      display: block;
+    }
+    .game-card .cover-placeholder {
+      width: 100%;
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      background: linear-gradient(135deg, #ff6b35, #f7931e);
+    }
+    .game-card .card-body {
+      padding: 10px 12px 0;
+    }
+    .game-card .card-title {
+      font-weight: 700;
+      font-size: 15px;
+      color: #333;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .game-card .card-category {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .game-card .card-desc {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 6px;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .status-online {
+      color: #22c55e;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-pending {
+      color: #f59e0b;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .empty-tip {
+      text-align: center;
+      padding: 48px 16px;
+      color: #aaa;
+      font-size: 1rem;
+    }
+    .empty-tip a {
+      color: var(--orange);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    /* ===== 头像弹窗 ===== */
     .avatar-modal-overlay {
       display: none;
       position: fixed;
@@ -16,7 +313,6 @@
       z-index: 9999;
       align-items: center;
       justify-content: center;
-      animation: fadeIn 0.2s ease;
     }
     .avatar-modal-overlay.show {
       display: flex;
@@ -30,19 +326,18 @@
       max-height: 80vh;
       overflow-y: auto;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      animation: bounce-in 0.4s ease-out;
     }
     .avatar-modal h2 {
       text-align: center;
       font-size: 1.5rem;
-      margin-bottom: 8px;
+      margin: 0 0 8px;
       font-weight: 900;
       color: #333;
     }
     .avatar-modal p {
       text-align: center;
       color: #888;
-      margin-bottom: 20px;
+      margin: 0 0 20px;
       font-size: 0.95rem;
     }
     .avatar-grid {
@@ -57,18 +352,17 @@
       border-radius: 50%;
       border: 4px solid #eee;
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      transition: all 0.3s;
       overflow: hidden;
       object-fit: cover;
     }
     .avatar-option:hover {
       transform: scale(1.1);
-      border-color: #ffa726;
-      box-shadow: 0 4px 15px rgba(255,107,53,0.3);
+      border-color: var(--orange-light);
     }
     .avatar-option.selected {
-      border-color: #ff6b35;
-      box-shadow: 0 0 0 4px rgba(255,107,53,0.2), 0 4px 15px rgba(255,107,53,0.4);
+      border-color: var(--orange);
+      box-shadow: 0 0 0 4px rgba(255,107,53,0.2);
       transform: scale(1.08);
     }
     .avatar-modal-actions {
@@ -85,99 +379,113 @@
       cursor: pointer;
       transition: all 0.3s;
     }
-    .avatar-modal-actions .btn-save {
-      background: linear-gradient(135deg, #ff6b35, #ffa726);
+    .btn-modal-save {
+      background: linear-gradient(135deg, var(--orange), var(--orange-light));
       color: white;
       box-shadow: 0 4px 12px rgba(255,107,53,0.3);
     }
-    .avatar-modal-actions .btn-save:hover {
+    .btn-modal-save:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(255,107,53,0.4);
     }
-    .avatar-modal-actions .btn-cancel {
+    .btn-modal-cancel {
       background: #f0f0f0;
       color: #555;
     }
-    .avatar-modal-actions .btn-cancel:hover {
+    .btn-modal-cancel:hover {
       background: #e0e0e0;
     }
-    .avatar-clickable {
-      cursor: pointer;
-      position: relative;
+
+    /* ===== footer ===== */
+    .footer {
+      text-align: center;
+      padding: 24px;
+      color: #aaa;
+      font-size: 0.9rem;
     }
-    .avatar-clickable::after {
-      content: '✏️';
-      position: absolute;
-      bottom: 2px;
-      right: 2px;
-      font-size: 1.2rem;
-      background: white;
-      border-radius: 50%;
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @media (max-width: 480px) {
+
+    /* ===== 响应式 ===== */
+    @media (max-width: 600px) {
+      .profile-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 24px 16px;
+      }
+      .profile-actions {
+        justify-content: center;
+      }
       .avatar-grid {
         grid-template-columns: repeat(3, 1fr);
         gap: 12px;
       }
       .avatar-modal {
-        padding: 24px 20px;
+        padding: 24px 16px;
       }
     }
   </style>
 </head>
 <body>
-  <nav class="navbar" id="navbar">
+
+  <!-- 导航栏 -->
+  <nav class="navbar">
     <a href="index.html" class="logo">
-      <img src="assets/logo.jpg" alt="小菜鸟" />
+      <img src="assets/logo.jpg" alt="小菜鸟" onerror="this.style.display='none'">
       <span>小菜鸟</span>
     </a>
-    <div class="nav-links" id="navLinks"></div>
+    <div class="nav-links">
+      <a href="index.html">🏠 首页</a>
+      <a href="profile.html" class="active">👤 我的</a>
+    </div>
   </nav>
 
-  <div class="container" style="padding-top:32px">
+  <!-- 主体 -->
+  <div class="container">
+
+    <!-- 用户卡片 -->
     <div class="profile-header">
-      <div class="avatar avatar-clickable" id="profileAvatar" onclick="openAvatarModal()" title="点击更换头像">🐥</div>
+      <div class="avatar-wrap" id="avatarWrap" onclick="openAvatarModal()" title="点击更换头像">
+        <div class="avatar-emoji" id="avatarDisplay">🐥</div>
+        <div class="edit-badge">✏️</div>
+      </div>
       <div class="profile-info">
-        <h1 id="profileUsername">加载中...</h1>
-        <button onclick="emergencyLogout()" style="margin-top:8px;padding:4px 12px;font-size:12px;background:#eee;border:1px solid #ccc;border-radius:8px;cursor:pointer;color:#666">退出登录</button>
+        <h1 id="profileUsername">👋 你好</h1>
         <div class="coin-badge">🪙 金币：<span id="profileCoins">0</span></div>
         <div class="profile-actions" id="profileActions">
-          <!-- 动态渲染 -->
+          <a href="editor.html" class="btn-primary">🎮 做游戏</a>
+          <a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,#1e88e5,#42a5f5)">📤 上传游戏</a>
+          <button class="btn-secondary" onclick="doLogout()">🚪 退出登录</button>
         </div>
       </div>
     </div>
 
+    <!-- Tab -->
     <div class="tabs">
-      <button class="tab active" onclick="switchTab(this, 'myGames')">我发布的游戏</button>
-      <button class="tab" onclick="switchTab(this, 'playedGames')">我玩过的游戏</button>
+      <button class="tab active" onclick="switchTab(this,'myGames')">🎯 我发布的游戏</button>
+      <button class="tab" onclick="switchTab(this,'playedGames')">🕹️ 我玩过的游戏</button>
     </div>
-    <div id="myGames" class="tab-content">
-      <div id="myGamesContent" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;padding:8px 0;">加载中...</div>
+
+    <div id="myGames" class="tab-content active">
+      <div class="games-grid" id="myGamesContent">
+        <div class="empty-tip" style="grid-column:1/-1">正在加载...</div>
+      </div>
     </div>
-    <div id="playedGames" class="tab-content" style="display:none">
-      <div id="playedGamesContent"><div class="empty-tip">加载中...</div></div>
+    <div id="playedGames" class="tab-content">
+      <div class="games-grid" id="playedGamesContent">
+        <div class="empty-tip" style="grid-column:1/-1">正在加载...</div>
+      </div>
     </div>
+
   </div>
 
   <!-- 头像选择弹窗 -->
-  <div class="avatar-modal-overlay" id="avatarModal">
+  <div class="avatar-modal-overlay" id="avatarModal" onclick="handleModalClick(event)">
     <div class="avatar-modal">
       <h2>🎨 选择你的头像</h2>
       <p>点击选择一个你喜欢的头像吧！</p>
       <div class="avatar-grid" id="avatarGrid"></div>
       <div class="avatar-modal-actions">
-        <button class="btn-cancel" onclick="closeAvatarModal()">取消</button>
-        <button class="btn-save" onclick="saveAvatar()">确定 ✓</button>
+        <button class="btn-modal-cancel" onclick="closeAvatarModal()">取消</button>
+        <button class="btn-modal-save" onclick="saveAvatar()">确定 ✓</button>
       </div>
     </div>
   </div>
@@ -186,219 +494,275 @@
     <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
   </footer>
 
+  <!-- Supabase CDN（同步加载，加载完 window.supabase 即可用） -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="supabase.js"></script>
-  <script src="auth.js"></script>
+
   <script>
-    // 头像列表
-    var AVATAR_LIST = [];
-    for (var i = 1; i <= 12; i++) {
-      AVATAR_LIST.push('assets/avatars/avatar_' + (i < 10 ? '0' + i : i) + '.png');
-    }
+  // ============================================================
+  // 配置（完全内联，不依赖外部 supabase.js / auth.js）
+  // ============================================================
+  var SUPABASE_URL = 'https://aqxbpuetdypcbmqdncpl.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5ODg5MzksImV4cCI6MjA5NDU2NDkzOX0.YUwFQeJgbmhrtY32tGXbm9wz0jtou0Zxg1626EJl3r0';
+  var STORAGE_KEY = 'xiaocainiao_session';
 
-    var _selectedAvatar = '';
-    var _currentUserId = '';
+  // 头像列表
+  var AVATAR_LIST = [];
+  for (var _i = 1; _i <= 12; _i++) {
+    AVATAR_LIST.push('assets/avatars/avatar_' + (_i < 10 ? '0' + _i : '' + _i) + '.png');
+  }
 
-    function switchTab(btn, tabId) {
-      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
-      document.querySelectorAll('.tab-content').forEach(function(t) { t.style.display = 'none'; });
-      btn.classList.add('active');
-      document.getElementById(tabId).style.display = 'block';
-    }
+  var _sb = null;          // supabase client
+  var _userId = '';        // 当前用户 id
+  var _selectedAvatar = ''; // 弹窗中选中的头像
 
-    async function doLogout() {
-      await signOut();
-      window.location.href = 'index.html';
-    }
-
-    // 头像弹窗
-    function openAvatarModal() {
-      var grid = document.getElementById('avatarGrid');
-      grid.innerHTML = '';
-      AVATAR_LIST.forEach(function(src) {
-        var img = document.createElement('img');
-        img.src = src;
-        img.className = 'avatar-option' + (src === _selectedAvatar ? ' selected' : '');
-        img.onclick = function() {
-          grid.querySelectorAll('.avatar-option').forEach(function(el) { el.classList.remove('selected'); });
-          img.classList.add('selected');
-          _selectedAvatar = src;
-        };
-        grid.appendChild(img);
-      });
-      document.getElementById('avatarModal').classList.add('show');
-    }
-
-    function closeAvatarModal() {
-      document.getElementById('avatarModal').classList.remove('show');
-    }
-
-    async function saveAvatar() {
-      if (!_selectedAvatar || !_currentUserId) return;
-      var sb = getSupabase();
-      if (!sb) return;
-      var result = await sb.from('profiles').update({ avatar_url: _selectedAvatar }).eq('id', _currentUserId);
-      if (result.error) {
-        alert('保存失败：' + result.error.message);
-        return;
+  // ============================================================
+  // 初始化 Supabase client
+  // ============================================================
+  function initSB() {
+    if (_sb) return _sb;
+    if (typeof window.supabase === 'undefined' || !window.supabase.createClient) return null;
+    _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storageKey: STORAGE_KEY,
+        autoRefreshToken: true,
+        persistSession: true
       }
-      // 更新页面显示
-      document.getElementById('profileAvatar').innerHTML = '<img src="' + _selectedAvatar + '" alt="头像" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">';
-      closeAvatarModal();
-    }
-
-    // 关闭弹窗：点击遮罩层
-    document.getElementById('avatarModal').addEventListener('click', function(e) {
-      if (e.target === this) closeAvatarModal();
     });
+    return _sb;
+  }
 
-    async function loadMyGames(userId) {
-      var sb = getSupabase();
-      if (!sb) return;
-      var result = await sb.from('games').select('*').eq('author_id', userId).order('created_at', { ascending: false });
-      var container = document.getElementById('myGamesContent');
-      if (!result.data || result.data.length === 0) {
-        container.innerHTML = '还没有发布游戏，<a href="upload.html">去上传一个吧！</a>';
-        return;
-      }
-      container.innerHTML = result.data.map(function(g) {
-        var title = g.title || g.name || '未命名游戏';
-        var desc = g.description || '';
-        var category = g.category || '';
-        var status = g.status === 'online' ? '<span style="color:#22c55e;font-size:12px;">● 已上线</span>' : '<span style="color:#f59e0b;font-size:12px;">● 待审核</span>';
-        var coverStyle = g.cover_url ? '' : 'background:linear-gradient(135deg,#ff6b35,#f7931e);';
-        return '<div class="game-card" onclick="location.href=\'game.html?id=' + g.id + '\'" style="cursor:pointer;">' +
-          (g.cover_url
-            ? '<img src="' + g.cover_url + '" alt="封面" style="width:100%;height:120px;object-fit:cover;border-radius:12px;margin-bottom:10px;display:block;">'
-            : '<div style="' + coverStyle + 'border-radius:12px;height:120px;display:flex;align-items:center;justify-content:center;font-size:40px;margin-bottom:10px;">🎮</div>') +
-          '<div style="font-weight:700;font-size:15px;margin-bottom:4px;">' + title + '</div>' +
-          '<div style="font-size:12px;color:#888;margin-bottom:6px;">' + category + '</div>' +
-          '<div style="font-size:12px;color:#666;margin-bottom:6px;">' + desc.slice(0,40) + (desc.length>40?'...':'') + '</div>' +
-          status +
-          '</div>';
-      }).join('');
+  // ============================================================
+  // Tab 切换
+  // ============================================================
+  function switchTab(btn, tabId) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+  }
+
+  // ============================================================
+  // 退出登录
+  // ============================================================
+  async function doLogout() {
+    var sb = initSB();
+    if (sb) {
+      try { await sb.auth.signOut(); } catch(e) {}
+    }
+    // 清除本地 session
+    Object.keys(localStorage).forEach(function(k) {
+      if (k.includes('supabase') || k.includes('xiaocainiao')) localStorage.removeItem(k);
+    });
+    window.location.href = 'index.html';
+  }
+
+  // ============================================================
+  // 头像弹窗
+  // ============================================================
+  function openAvatarModal() {
+    var grid = document.getElementById('avatarGrid');
+    grid.innerHTML = '';
+    AVATAR_LIST.forEach(function(src) {
+      var img = document.createElement('img');
+      img.src = src;
+      img.className = 'avatar-option' + (src === _selectedAvatar ? ' selected' : '');
+      img.onclick = function() {
+        grid.querySelectorAll('.avatar-option').forEach(function(el) { el.classList.remove('selected'); });
+        img.classList.add('selected');
+        _selectedAvatar = src;
+      };
+      grid.appendChild(img);
+    });
+    document.getElementById('avatarModal').classList.add('show');
+  }
+
+  function closeAvatarModal() {
+    document.getElementById('avatarModal').classList.remove('show');
+  }
+
+  function handleModalClick(e) {
+    if (e.target === document.getElementById('avatarModal')) closeAvatarModal();
+  }
+
+  async function saveAvatar() {
+    if (!_selectedAvatar || !_userId) return;
+    var sb = initSB();
+    if (!sb) return;
+    var res = await sb.from('profiles').update({ avatar_url: _selectedAvatar }).eq('id', _userId);
+    if (res.error) {
+      alert('保存失败：' + res.error.message);
+      return;
+    }
+    renderAvatar(_selectedAvatar);
+    closeAvatarModal();
+  }
+
+  function renderAvatar(url) {
+    var wrap = document.getElementById('avatarWrap');
+    if (url) {
+      wrap.querySelector('#avatarDisplay').outerHTML =
+        '<img id="avatarDisplay" class="avatar-img" src="' + url + '" alt="头像" onerror="this.outerHTML=\'<div id=&quot;avatarDisplay&quot; class=&quot;avatar-emoji&quot;>🐥</div>\'">';
+    }
+  }
+
+  // ============================================================
+  // 加载我发布的游戏
+  // ============================================================
+  async function loadMyGames(userId) {
+    var sb = initSB();
+    var container = document.getElementById('myGamesContent');
+    if (!sb) {
+      container.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">加载失败，请刷新重试</div>';
+      return;
+    }
+    var res = await sb.from('games').select('*').eq('author_id', userId).order('created_at', { ascending: false });
+    if (!res.data || res.data.length === 0) {
+      container.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">还没有发布游戏，<a href="upload.html">去上传一个吧！</a></div>';
+      return;
+    }
+    container.innerHTML = res.data.map(function(g) {
+      var title = g.name || g.title || '未命名游戏';
+      var desc = g.description || '';
+      var category = g.category || '';
+      var statusHtml = g.status === 'online'
+        ? '<span class="status-online">● 已上线</span>'
+        : '<span class="status-pending">● 待审核</span>';
+      var coverHtml = g.cover_url
+        ? '<img class="cover" src="' + g.cover_url + '" alt="封面" onerror="this.outerHTML=\'<div class=&quot;cover-placeholder&quot;>🎮</div>\'">'
+        : '<div class="cover-placeholder">🎮</div>';
+      return '<div class="game-card" onclick="location.href=\'game.html?id=' + g.id + '\'">' +
+        coverHtml +
+        '<div class="card-body">' +
+          '<div class="card-title">' + escHtml(title) + '</div>' +
+          '<div class="card-category">' + escHtml(category) + '</div>' +
+          '<div class="card-desc">' + escHtml(desc.slice(0, 50)) + (desc.length > 50 ? '...' : '') + '</div>' +
+          statusHtml +
+        '</div></div>';
+    }).join('');
+  }
+
+  // ============================================================
+  // 加载我玩过的游戏
+  // ============================================================
+  async function loadPlayedGames(userId) {
+    var sb = initSB();
+    var container = document.getElementById('playedGamesContent');
+    if (!sb) {
+      container.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">加载失败，请刷新重试</div>';
+      return;
+    }
+    var res = await sb.from('game_plays')
+      .select('game_id, played_at, games(id, name, title, cover_url, category, description, status)')
+      .eq('user_id', userId)
+      .order('played_at', { ascending: false });
+    if (!res.data || res.data.length === 0) {
+      container.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">还没有玩过游戏，<a href="index.html">去看看吧！</a></div>';
+      return;
+    }
+    container.innerHTML = res.data.map(function(row) {
+      var g = row.games;
+      if (!g) return '';
+      var title = g.name || g.title || '未命名游戏';
+      var category = g.category || '';
+      var desc = g.description || '';
+      var coverHtml = g.cover_url
+        ? '<img class="cover" src="' + g.cover_url + '" alt="封面" onerror="this.outerHTML=\'<div class=&quot;cover-placeholder&quot;>🎮</div>\'">'
+        : '<div class="cover-placeholder">🎮</div>';
+      return '<div class="game-card" onclick="location.href=\'game.html?id=' + g.id + '\'">' +
+        coverHtml +
+        '<div class="card-body">' +
+          '<div class="card-title">' + escHtml(title) + '</div>' +
+          '<div class="card-category">' + escHtml(category) + '</div>' +
+          '<div class="card-desc">' + escHtml(desc.slice(0, 50)) + (desc.length > 50 ? '...' : '') + '</div>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  // ============================================================
+  // HTML 转义工具
+  // ============================================================
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ============================================================
+  // 主初始化：读 session → 渲染 → 查 profiles → 加载游戏列表
+  // ============================================================
+  async function initProfile() {
+    var sb = initSB();
+    if (!sb) {
+      // supabase CDN 还没加载完，稍等后重试
+      setTimeout(initProfile, 200);
+      return;
     }
 
-    async function loadPlayedGames(userId) {
-      var sb = getSupabase();
-      if (!sb) return;
-      var container = document.getElementById('playedGamesContent');
-      if (!container) return;
-      // 查 game_plays 表，关联 games 表
-      var result = await sb.from('game_plays')
-        .select('game_id, played_at, games(id, title, cover_url, category, description, status)')
-        .eq('user_id', userId)
-        .order('played_at', { ascending: false });
-      if (!result.data || result.data.length === 0) {
-        container.innerHTML = '<div class="empty-tip">还没有玩过游戏，<a href="index.html">去看看吧！</a></div>';
-        return;
-      }
-      container.innerHTML = '<div class="games-grid">' + result.data.map(function(row) {
-        var g = row.games;
-        if (!g) return '';
-        var title = g.title || g.name || '未命名游戏';
-        var category = g.category || '';
-        var desc = g.description || '';
-        return '<div class="game-card" onclick="location.href='game.html?id=' + g.id + ''" style="cursor:pointer;">' +
-          (g.cover_url
-            ? '<img src="' + g.cover_url + '" alt="封面" style="width:100%;height:120px;object-fit:cover;border-radius:12px;margin-bottom:10px;display:block;">'
-            : '<div style="background:linear-gradient(135deg,#ff6b35,#f7931e);border-radius:12px;height:120px;display:flex;align-items:center;justify-content:center;font-size:40px;margin-bottom:10px;">🎮</div>') +
-          '<div style="font-weight:700;font-size:15px;margin-bottom:4px;">' + title + '</div>' +
-          '<div style="font-size:12px;color:#888;margin-bottom:6px;">' + category + '</div>' +
-          '<div style="font-size:12px;color:#666;">' + desc.slice(0,40) + (desc.length>40?'...':'') + '</div>' +
-          '</div>';
-      }).join('') + '</div>';
-    }
+    // 1. 读本地 session（不走网络，几乎瞬时）
+    var user = null;
+    try {
+      var sessionRes = await sb.auth.getSession();
+      user = sessionRes.data && sessionRes.data.session && sessionRes.data.session.user;
+    } catch(e) {}
 
-    function emergencyLogout() {
-      // 清除所有 supabase session 相关的 localStorage
-      Object.keys(localStorage).forEach(function(k) {
-        if (k.includes('supabase') || k.includes('xiaocainiao')) localStorage.removeItem(k);
-      });
-      window.location.href = 'login.html';
-    }
-
-    async function initProfile() {
-      // 等待 supabase 初始化，最多3秒
-      var sb = null;
-      for (var i = 0; i < 30; i++) {
-        sb = getSupabase();
-        if (sb) break;
-        await new Promise(r => setTimeout(r, 100));
-      }
-      if (!sb) {
-        // supabase 加载失败，直接跳登录
-        window.location.href = 'login.html';
-        return;
-      }
-
-      // 读本地 session
-      var user = null;
+    // 2. 没有本地 session，再走网络 getUser
+    if (!user) {
       try {
-        var sessionResult = await sb.auth.getSession();
-        user = sessionResult.data && sessionResult.data.session && sessionResult.data.session.user;
+        var userRes = await sb.auth.getUser();
+        user = userRes.data && userRes.data.user;
       } catch(e) {}
+    }
 
-      // session 没有，再试一次 getUser（走网络）
-      if (!user) {
-        try {
-          var userResult = await sb.auth.getUser();
-          user = userResult.data && userResult.data.user;
-        } catch(e) {}
-      }
+    // 3. 未登录 → 跳转登录页
+    if (!user) {
+      window.location.href = 'login.html?redirect=profile.html';
+      return;
+    }
 
-      if (!user) {
-        window.location.href = 'login.html?redirect=profile.html';
-        return;
-      }
-      _currentUserId = user.id;
+    _userId = user.id;
 
-      // 立刻显示页面，用 email 作为临时用户名，不等数据库
-      var tempName = user.email ? user.email.replace('@xiaocainiao.app','') : '用户';
-      document.getElementById('profileUsername').textContent = tempName;
-      document.getElementById('profileCoins').textContent = '0';
-      document.getElementById('profileActions').innerHTML =
-        '<a href="editor.html" class="btn-primary">🎮 做游戏</a>' +
-        '<a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,var(--blue),var(--blue-light))">📤 上传游戏</a>' +
-        '<button class="btn-secondary" onclick="doLogout()">退出登录</button>';
-      document.body.style.opacity = '1';
+    // 4. 立刻用 email 前缀渲染用户名（不等数据库）
+    var tempName = (user.email || '').replace('@xiaocainiao.app', '') || '用户';
+    document.getElementById('profileUsername').textContent = tempName;
 
-      // 再异步查 profiles 表更新真实数据
-      try {
-        var result = await Promise.race([
-          sb.from('profiles').select('*').eq('id', user.id).single(),
-          new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 5000))
-        ]);
-        var profile = result.data;
-        if (profile) {
-          document.getElementById('profileUsername').textContent = profile.username || tempName;
-          document.getElementById('profileCoins').textContent = profile.coins || 0;
-          if (profile.avatar_url) {
-            _selectedAvatar = profile.avatar_url;
-            document.getElementById('profileAvatar').innerHTML = '<img src="' + profile.avatar_url + '" alt="头像" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">';
-          }
-          if (profile.role === 'admin') {
-            document.getElementById('profileActions').innerHTML =
-              '<a href="editor.html" class="btn-primary">🎮 做游戏</a>' +
-              '<a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,var(--blue),var(--blue-light))">📤 上传游戏</a>' +
-              '<a href="admin.html" class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#a78bfa)">⚙️ 管理后台</a>' +
-              '<button class="btn-secondary" onclick="doLogout()">退出登录</button>';
-          }
+    // 5. 异步查 profiles 表，拿到真实用户名/金币/头像/角色
+    try {
+      var profRes = await sb.from('profiles').select('*').eq('id', user.id).single();
+      var profile = profRes.data;
+      if (profile) {
+        document.getElementById('profileUsername').textContent = profile.username || tempName;
+        document.getElementById('profileCoins').textContent = profile.coins != null ? profile.coins : 0;
+
+        if (profile.avatar_url) {
+          _selectedAvatar = profile.avatar_url;
+          renderAvatar(profile.avatar_url);
         }
-      } catch(e) {
-        console.warn('profiles查询超时或失败，使用基础信息展示', e);
+
+        if (profile.role === 'admin') {
+          document.getElementById('profileActions').innerHTML =
+            '<a href="editor.html" class="btn-primary">🎮 做游戏</a>' +
+            '<a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,#1e88e5,#42a5f5)">📤 上传游戏</a>' +
+            '<a href="admin.html" class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#a78bfa)">⚙️ 管理后台</a>' +
+            '<button class="btn-secondary" onclick="doLogout()">🚪 退出登录</button>';
+        }
       }
-
-      loadMyGames(user.id);
-      loadPlayedGames(user.id);
+    } catch(e) {
+      console.warn('profiles 查询失败，使用基础信息', e);
     }
 
-    // supabase.min.js 是同步 script，加载完后 window.supabase 已就绪，直接初始化
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initProfile);
-    } else {
-      initProfile();
-    }
+    // 6. 加载游戏列表
+    loadMyGames(user.id);
+    loadPlayedGames(user.id);
+  }
+
+  // 页面加载后立刻执行
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initProfile);
+  } else {
+    initProfile();
+  }
   </script>
 </body>
 </html>
