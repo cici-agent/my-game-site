@@ -149,6 +149,7 @@
       <div class="avatar avatar-clickable" id="profileAvatar" onclick="openAvatarModal()" title="点击更换头像">🐥</div>
       <div class="profile-info">
         <h1 id="profileUsername">加载中...</h1>
+        <button onclick="emergencyLogout()" style="margin-top:8px;padding:4px 12px;font-size:12px;background:#eee;border:1px solid #ccc;border-radius:8px;cursor:pointer;color:#666">退出登录</button>
         <div class="coin-badge">🪙 金币：<span id="profileCoins">0</span></div>
         <div class="profile-actions" id="profileActions">
           <!-- 动态渲染 -->
@@ -307,6 +308,14 @@
           '<div style="font-size:12px;color:#666;">' + desc.slice(0,40) + (desc.length>40?'...':'') + '</div>' +
           '</div>';
       }).join('') + '</div>';
+    }
+
+    function emergencyLogout() {
+      // 清除所有 supabase session 相关的 localStorage
+      Object.keys(localStorage).forEach(function(k) {
+        if (k.includes('supabase') || k.includes('xiaocainiao')) localStorage.removeItem(k);
+      });
+      window.location.href = 'login.html';
     }
 
     async function initProfile() {
