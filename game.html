@@ -6,8 +6,180 @@
   <title>小菜鸟 - 游戏详情</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="game.css">
+  <style>
+    /* ===== iframe 全屏游戏区域 ===== */
+    .game-iframe-wrapper {
+      position: relative;
+      width: 100%;
+      background: #111;
+      border-radius: 16px;
+      overflow: hidden;
+      min-height: 480px;
+      display: flex;
+      flex-direction: column;
+    }
+    .game-iframe-topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: rgba(0,0,0,0.75);
+      z-index: 10;
+      flex-shrink: 0;
+    }
+    .game-iframe-topbar .back-btn {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .game-iframe-topbar .back-btn:hover {
+      background: rgba(255,255,255,0.28);
+    }
+    .game-iframe-topbar .game-title-bar {
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .game-iframe-topbar .fullscreen-btn {
+      background: rgba(255,140,0,0.7);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+    .game-iframe-topbar .fullscreen-btn:hover {
+      background: rgba(255,140,0,1);
+    }
+    #gameIframe {
+      width: 100%;
+      flex: 1;
+      border: none;
+      min-height: 460px;
+      background: #111;
+      display: block;
+    }
+    /* 金币悬浮提示 */
+    #coinToast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      z-index: 9999;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    /* 评论区横排 */
+    .comment-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .star-rating {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .star-label {
+      font-size: 0.9rem;
+      color: #666;
+      white-space: nowrap;
+    }
+    .star {
+      font-size: 1.5rem;
+      color: #ddd;
+      cursor: pointer;
+      transition: color 0.15s;
+      line-height: 1;
+    }
+    .star.active, .star:hover {
+      color: #ffc107;
+    }
+    .star-hint {
+      font-size: 0.8rem;
+      color: #aaa;
+      white-space: nowrap;
+    }
+    #commentInput {
+      flex: 1;
+      min-width: 120px;
+      padding: 8px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      outline: none;
+      font-family: inherit;
+    }
+    #commentInput:focus {
+      border-color: #ff8c00;
+    }
+    #commentBtn {
+      background: linear-gradient(135deg, #ff8c00, #ffc107);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 18px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: transform 0.15s;
+    }
+    #commentBtn:hover {
+      transform: translateY(-1px);
+    }
+    .comment-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .comment-list li {
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 0.93rem;
+      color: #444;
+    }
+    .comment-list li:last-child {
+      border-bottom: none;
+    }
+    .comment-stars {
+      color: #ffc107;
+      font-size: 0.9rem;
+      margin-right: 6px;
+    }
+    .comment-author {
+      font-weight: 700;
+      color: #ff8c00;
+      margin-right: 6px;
+    }
+    .loading-tip {
+      color: #aaa;
+      font-size: 0.9rem;
+    }
+  </style>
 </head>
-<body style="opacity:0;transition:opacity 0.15s">
+<body>
   <!-- 导航栏 -->
   <nav class="navbar" id="navbar">
     <a href="index.html" class="logo">
@@ -22,14 +194,36 @@
     <!-- 左侧：游戏区域 -->
     <div class="game-left">
       <div class="game-play-area">
-        <div class="play-frame" id="gameFrame">
+
+        <!-- iframe 模式（Supabase Storage 游戏） -->
+        <div class="game-iframe-wrapper" id="iframeWrapper" style="display:none">
+          <div class="game-iframe-topbar">
+            <a href="index.html" class="back-btn">← 返回</a>
+            <span class="game-title-bar" id="iframeGameTitle">游戏加载中...</span>
+            <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ 全屏</button>
+          </div>
+          <iframe id="gameIframe" sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups" allowfullscreen></iframe>
+        </div>
+
+        <!-- 传统模式（站内游戏，点击跳转） -->
+        <div class="play-frame" id="gameFrame" style="display:none">
           <div class="placeholder" id="gamePlaceholder">
             <div class="icon">🎮</div>
             <p>点击下方按钮开始游戏</p>
           </div>
         </div>
-        <div class="game-controls">
-          <button class="btn btn-primary play-btn" id="startGameBtn">▶️ 开始游戏</button>
+
+        <!-- 加载中占位 -->
+        <div class="play-frame" id="loadingFrame">
+          <div class="placeholder">
+            <div class="icon">⏳</div>
+            <p>游戏信息加载中...</p>
+          </div>
+        </div>
+
+        <!-- 传统模式开始按钮 -->
+        <div class="game-controls" id="gameControls" style="display:none">
+          <button class="btn btn-primary play-btn" id="startGameBtn" onclick="startGame()">▶️ 开始游戏</button>
         </div>
       </div>
     </div>
@@ -55,7 +249,7 @@
         <div class="comment-form">
           <!-- 星级选择 -->
           <div class="star-rating" id="starRating">
-            <span class="star-label">给个评分：</span>
+            <span class="star-label">评分：</span>
             <span class="star" data-val="1" onclick="selectStar(1)">★</span>
             <span class="star" data-val="2" onclick="selectStar(2)">★</span>
             <span class="star" data-val="3" onclick="selectStar(3)">★</span>
@@ -86,20 +280,27 @@
     // ===== 游戏详情页逻辑 =====
     var gameId = new URLSearchParams(window.location.search).get('id');
     var gameData = null;
+    var isIframeMode = false; // true = Supabase Storage 游戏，false = 站内跳转游戏
 
     document.addEventListener('DOMContentLoaded', async function() {
-      // 游戏详情页需要登录才能查看
       var loggedIn = await requireLogin('game.html' + (gameId ? '?id=' + gameId : ''));
       if (!loggedIn) return;
 
       if (gameId) {
-        loadGameDetail();
+        await loadGameDetail();
         loadComments();
       } else {
         document.getElementById('gameName').textContent = '游戏不存在';
+        document.getElementById('loadingFrame').style.display = 'none';
       }
     });
 
+    // ===== 判断是否是 Supabase Storage URL =====
+    function isStorageUrl(url) {
+      return url && url.indexOf('supabase.co/storage') !== -1;
+    }
+
+    // ===== 加载游戏详情 =====
     async function loadGameDetail() {
       var sb = getSupabase();
       if (!sb) return;
@@ -107,12 +308,14 @@
       var result = await sb.from('games').select('*').eq('id', gameId).single();
       if (!result.data) {
         document.getElementById('gameName').textContent = '游戏不存在';
+        document.getElementById('loadingFrame').style.display = 'none';
         return;
       }
 
       gameData = result.data;
-      document.title = (gameData.title || gameData.name) + ' - 小菜鸟';
-      document.getElementById('gameName').textContent = gameData.title || gameData.name;
+      var gameName = gameData.name || gameData.title || '未命名游戏';
+      document.title = gameName + ' - 小菜鸟';
+      document.getElementById('gameName').textContent = gameName;
       document.getElementById('gameDesc').textContent = gameData.description || '暂无描述';
 
       // 获取作者名
@@ -131,14 +334,154 @@
         '<span>👤 ' + authorName + '</span>' +
         '<span>⭐ ' + (gameData.rating || '0') + ' 分</span>' +
         '<span>🎮 ' + realPlayCount + ' 人玩过</span>';
+
+      // 隐藏加载占位
+      document.getElementById('loadingFrame').style.display = 'none';
+
+      // 判断游戏类型
+      var fileUrl = gameData.file_url || '';
+      if (isStorageUrl(fileUrl)) {
+        // === iframe 模式：Supabase Storage 游戏 ===
+        isIframeMode = true;
+        document.getElementById('iframeWrapper').style.display = 'flex';
+        document.getElementById('iframeGameTitle').textContent = gameName;
+        // 检查金币后加载 iframe
+        await checkAndStartIframe(fileUrl);
+      } else {
+        // === 传统模式：站内游戏，点击按钮跳转 ===
+        isIframeMode = false;
+        document.getElementById('gameFrame').style.display = 'block';
+        document.getElementById('gameControls').style.display = 'block';
+      }
     }
 
-    // 每5分钟扣1金币的计时器
+    // ===== iframe 模式：检查金币并加载 =====
+    async function checkAndStartIframe(fileUrl) {
+      var user = await getCurrentUser();
+      if (!user) return;
+
+      var sb = getSupabase();
+      var profileResult = await sb.from('profiles').select('coins, role').eq('id', user.id).single();
+      var coins = (profileResult.data && profileResult.data.coins) || 0;
+      var isAdmin = profileResult.data && profileResult.data.role === 'admin';
+
+      if (!isAdmin && coins < 1) {
+        // 金币不足，显示提示
+        document.getElementById('iframeWrapper').innerHTML =
+          '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:#fff;gap:16px;padding:30px;">' +
+          '<div style="font-size:3rem">🪙</div>' +
+          '<div style="font-size:1.2rem;font-weight:700;">金币不足，无法游玩</div>' +
+          '<div style="font-size:0.95rem;color:#ccc;">你的金币余额：' + coins + ' 枚</div>' +
+          '<div style="font-size:0.9rem;color:#aaa;">请联系管理员充值金币</div>' +
+          '<a href="index.html" style="background:#ff8c00;color:#fff;padding:10px 24px;border-radius:12px;text-decoration:none;font-weight:700;">返回首页</a>' +
+          '</div>';
+        return;
+      }
+
+      // 加载 iframe
+      document.getElementById('gameIframe').src = fileUrl;
+
+      // 记录玩过
+      recordPlay(user.id);
+
+      // 启动金币计时器（admin 免费）
+      if (!isAdmin) {
+        startCoinTimer(user.id);
+      }
+    }
+
+    // ===== 传统模式：点击开始游戏 =====
+    async function startGame() {
+      var user = await getCurrentUser();
+      if (!user) { requireLogin('game.html?id=' + gameId); return; }
+
+      var sb = getSupabase();
+      var profileResult = await sb.from('profiles').select('coins, role').eq('id', user.id).single();
+      var coins = (profileResult.data && profileResult.data.coins) || 0;
+      var isAdmin = profileResult.data && profileResult.data.role === 'admin';
+
+      if (!isAdmin && coins < 1) {
+        alert('🪙 金币不足！你的金币余额：' + coins + ' 枚，请联系管理员充值。');
+        return;
+      }
+
+      // 记录玩过
+      recordPlay(user.id);
+
+      // 跳转到游戏
+      if (gameData && gameData.file_url) {
+        window.location.href = gameData.file_url;
+      }
+    }
+
+    // ===== 记录玩过（去重） =====
+    async function recordPlay(userId) {
+      var sb = getSupabase();
+      var existing = await sb.from('game_plays').select('id').eq('game_id', gameId).eq('user_id', userId).maybeSingle();
+      if (!existing.data) {
+        await sb.from('game_plays').insert({ game_id: gameId, user_id: userId });
+      }
+    }
+
+    // ===== 金币计时器 =====
     var coinTimer = null;
     var COIN_INTERVAL = 5 * 60 * 1000; // 5分钟
     var COIN_COST = 1;
+    var warnedOnce = false;
 
-    // 显示悬浮提示
+    function startCoinTimer(userId) {
+      if (coinTimer) clearInterval(coinTimer);
+      warnedOnce = false;
+      var elapsed = 0;
+
+      coinTimer = setInterval(async function() {
+        elapsed += 30000;
+        var sb = getSupabase();
+        var profileResult = await sb.from('profiles').select('coins').eq('id', userId).single();
+        var currentCoins = (profileResult.data && profileResult.data.coins) || 0;
+
+        // 提前预警：距下次扣费30秒且只剩1枚
+        var timeToNext = COIN_INTERVAL - (elapsed % COIN_INTERVAL);
+        if (timeToNext <= 30000 && currentCoins <= 1 && !warnedOnce) {
+          warnedOnce = true;
+          showToast('⚠️ 金币即将耗尽！还剩 ' + currentCoins + ' 枚，30秒后将暂停游戏', 5000);
+        }
+
+        if (elapsed % COIN_INTERVAL === 0) {
+          warnedOnce = false;
+          if (currentCoins < COIN_COST) {
+            // 金币耗尽，暂停
+            clearInterval(coinTimer);
+            showToast('🪙 金币耗尽，游戏已暂停！请联系管理员充值', 8000);
+            if (isIframeMode) {
+              document.getElementById('gameIframe').src = 'about:blank';
+            }
+            return;
+          }
+          // 扣金币
+          var newCoins = currentCoins - COIN_COST;
+          await sb.from('profiles').update({ coins: newCoins }).eq('id', userId);
+
+          if (newCoins <= 2) {
+            showToast('🪙 金币余额不足！还剩 ' + newCoins + ' 枚，请注意', 4000);
+          } else {
+            showToast('🪙 扣除 1 金币，剩余 ' + newCoins + ' 枚', 3000);
+          }
+        }
+      }, 30000);
+    }
+
+    // ===== 全屏切换 =====
+    function toggleFullscreen() {
+      var iframe = document.getElementById('gameIframe');
+      if (!document.fullscreenElement) {
+        iframe.requestFullscreen && iframe.requestFullscreen();
+      } else {
+        document.exitFullscreen && document.exitFullscreen();
+      }
+    }
+
+    // ===== 悬浮提示 =====
     function showToast(msg, duration) {
       var existing = document.getElementById('coinToast');
       if (existing) existing.remove();
@@ -147,191 +490,65 @@
       toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999;pointer-events:none;transition:opacity 0.3s;';
       toast.textContent = msg;
       document.body.appendChild(toast);
-      setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, duration || 3000);
+      setTimeout(function() {
+        toast.style.opacity = '0';
+        setTimeout(function() { toast.remove(); }, 300);
+      }, duration || 3000);
     }
 
-    function startCoinTimer(userId) {
-      if (coinTimer) clearInterval(coinTimer);
-      var elapsed = 0;
-      coinTimer = setInterval(async function() {
-        elapsed += 30000;
-        var sb = getSupabase();
-        var profileResult = await sb.from('profiles').select('coins').eq('id', userId).single();
-        var currentCoins = (profileResult.data && profileResult.data.coins) || 0;
+    // ===== 评论系统 =====
+    var selectedRating = 0;
 
-        if (elapsed % COIN_INTERVAL === 0) {
-          // 到了扣费时间
-          if (currentCoins < COIN_COST) {
-            // 金币不足，暂停游戏
-            clearInterval(coinTimer);
-            coinTimer = null;
-            var frame = document.getElementById('gameFrame');
-            frame.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;">' +
-              '<div style="font-size:48px;">🪙</div>' +
-              '<div style="font-size:18px;font-weight:700;color:#333;">金币不足，游戏已暂停</div>' +
-              '<div style="font-size:14px;color:#888;">请充值金币后继续游玩</div>' +
-              '<a href="profile.html" style="background:#ff6b35;color:#fff;padding:10px 24px;border-radius:20px;text-decoration:none;font-weight:700;">去充值</a>' +
-              '</div>';
-            return;
-          }
-          // 扣除金币
-          await sb.from('profiles').update({ coins: currentCoins - COIN_COST }).eq('id', userId);
-          var remaining = currentCoins - COIN_COST;
-          if (remaining <= 2) {
-            showToast('⚠️ 已扣除 1 金币，剩余 ' + remaining + ' 枚，即将不足！', 4000);
-          } else {
-            showToast('🪙 已扣除 1 金币，剩余 ' + remaining + ' 枚', 3000);
-          }
-        } else if (elapsed % COIN_INTERVAL === COIN_INTERVAL - 30000) {
-          // 距离下次扣费还有30秒，提前提醒
-          if (currentCoins <= COIN_COST) {
-            showToast('⚠️ 30秒后将扣除 1 金币，当前仅剩 ' + currentCoins + ' 枚！', 4000);
-          }
-        }
-      }, 30000); // 每30秒检查一次
+    function selectStar(val) {
+      selectedRating = val;
+      var hints = ['', '很差', '一般', '还行', '好玩', '超棒！'];
+      document.getElementById('starHint').textContent = hints[val] || '';
+      document.querySelectorAll('.star').forEach(function(s) {
+        s.classList.toggle('active', parseInt(s.dataset.val) <= val);
+      });
     }
 
-    // 开始游戏
-    document.getElementById('startGameBtn').addEventListener('click', async function() {
-      var user = await getCurrentUser();
-      if (!user) {
-        requireLogin('game.html' + (gameId ? '?id=' + gameId : ''));
-        return;
-      }
-      if (!gameData || (!gameData.file_path && !gameData.file_url)) {
-        alert('游戏文件不存在');
-        return;
-      }
-
-      var sb = getSupabase();
-
-      // 检查金币是否足够（至少1枚才能开始）
-      var profileResult = await sb.from('profiles').select('coins,role').eq('id', user.id).single();
-      var profile = profileResult.data;
-      var currentCoins = (profile && profile.coins) || 0;
-      var isAdmin = profile && profile.role === 'admin';
-
-      if (!isAdmin && currentCoins < COIN_COST) {
-        var frame = document.getElementById('gameFrame');
-        frame.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;">' +
-          '<div style="font-size:48px;">🪙</div>' +
-          '<div style="font-size:18px;font-weight:700;color:#333;">金币不足</div>' +
-          '<div style="font-size:14px;color:#888;">需要至少 1 枚金币才能开始游戏</div>' +
-          '<div style="font-size:14px;color:#888;">当前金币：' + currentCoins + ' 🪙</div>' +
-          '<a href="profile.html" style="background:#ff6b35;color:#fff;padding:10px 24px;border-radius:20px;text-decoration:none;font-weight:700;">去充值</a>' +
-          '</div>';
-        return;
-      }
-
-      // 获取游戏文件 URL
-      var gameUrl;
-      if (gameData.file_url) {
-        gameUrl = gameData.file_url;
-      } else {
-        var urlResult = sb.storage.from('games').getPublicUrl(gameData.file_path + '/index.html');
-        gameUrl = urlResult.data.publicUrl;
-      }
-
-      // 加载游戏
-      var frame = document.getElementById('gameFrame');
-      frame.innerHTML = '<iframe src="' + gameUrl + '" style="width:100%;height:100%;border:none;border-radius:var(--radius-lg);"></iframe>';
-
-      // 记录玩过（每人每游戏只记一条，去重统计真实人数）
-      if (user) {
-        await sb.from('game_plays').upsert(
-          { user_id: user.id, game_id: gameId },
-          { onConflict: 'user_id,game_id' }
-        );
-        // 同步更新 games 表的 play_count（去重人数）
-        var countResult = await sb.from('game_plays').select('id', { count: 'exact', head: true }).eq('game_id', gameId);
-        if (countResult.count !== null) {
-          sb.from('games').update({ play_count: countResult.count }).eq('id', gameId);
-        }
-      }
-
-      // 启动金币计时器（admin免费）
-      if (!isAdmin) {
-        startCoinTimer(user.id);
-      }
-    });
-
-    // 加载评论
     async function loadComments() {
       var sb = getSupabase();
       if (!sb) return;
 
-      var result = await sb.from('reviews').select('*').eq('game_id', gameId).order('created_at', { ascending: false });
-      var list = document.getElementById('commentList');
+      var result = await sb.from('reviews')
+        .select('*, profiles(username)')
+        .eq('game_id', gameId)
+        .order('created_at', { ascending: false })
+        .limit(30);
 
+      var list = document.getElementById('commentList');
       if (!result.data || result.data.length === 0) {
-        list.innerHTML = '<li class="loading-tip">还没有评论，快来第一个点评吧！</li>';
+        list.innerHTML = '<li class="loading-tip">还没有评论，来第一个评价吧！</li>';
         return;
       }
 
-      var html = '';
-      for (var i = 0; i < result.data.length; i++) {
-        var review = result.data[i];
-        // 获取评论者用户名
-        var profileResult = await sb.from('profiles').select('username').eq('id', review.user_id).single();
-        var reviewerName = profileResult.data ? profileResult.data.username : '匿名';
+      list.innerHTML = result.data.map(function(r) {
         var stars = '';
-        for (var s = 1; s <= 5; s++) { stars += s <= review.rating ? '★' : '☆'; }
-        html += '<li class="comment-item">' +
-          '<div class="comment-avatar">🐣</div>' +
-          '<div class="comment-body">' +
-            '<div class="comment-name">' + reviewerName + ' <span style="color:#f59e0b;font-size:13px;">' + stars + '</span></div>' +
-            '<div class="comment-text">' + review.content + '</div>' +
-          '</div>' +
-        '</li>';
-      }
-      list.innerHTML = html;
+        for (var i = 1; i <= 5; i++) stars += (i <= r.rating ? '★' : '☆');
+        var username = (r.profiles && r.profiles.username) ? r.profiles.username : '匿名';
+        return '<li><span class="comment-author">' + username + '</span>' +
+               '<span class="comment-stars">' + stars + '</span>' +
+               '<span>' + (r.content || '') + '</span></li>';
+      }).join('');
     }
 
-    // 星级选择
-    var selectedRating = 0;
-    var starLabels = ['', '很差', '一般', '还行', '好玩', '超棒！'];
-
-    function selectStar(val) {
-      selectedRating = val;
-      var stars = document.querySelectorAll('.star');
-      stars.forEach(function(s, i) {
-        s.classList.toggle('active', i < val);
-      });
-      document.getElementById('starHint').textContent = starLabels[val];
-    }
-
-    function hoverStar(val) {
-      var stars = document.querySelectorAll('.star');
-      stars.forEach(function(s, i) {
-        s.style.color = i < val ? '#f59e0b' : '#ddd';
-      });
-    }
-
-    function unhoverStar() {
-      var stars = document.querySelectorAll('.star');
-      stars.forEach(function(s, i) {
-        s.style.color = i < selectedRating ? '#f59e0b' : '#ddd';
-      });
-    }
-
-    // 发表评论
     async function submitComment() {
       var user = await getCurrentUser();
-      if (!user) {
-        requireLogin('game.html' + (gameId ? '?id=' + gameId : ''));
-        return;
-      }
-      var input = document.getElementById('commentInput');
-      var text = input.value.trim();
-      if (!text) { alert('请写点评价内容哦！'); return; }
-      if (selectedRating === 0) { alert('请先给游戏打个分！'); return; }
+      if (!user) { alert('请先登录再评价'); return; }
+
+      var text = document.getElementById('commentInput').value.trim();
+      if (!selectedRating) { alert('请先选择星级评分'); return; }
+      if (!text) { alert('请填写评价内容'); return; }
 
       var sb = getSupabase();
 
-      // 检查是否已经评价过
-      var existing = await sb.from('reviews').select('id').eq('game_id', gameId).eq('user_id', user.id).single();
+      // 检查是否已评价过
+      var existing = await sb.from('reviews').select('id').eq('game_id', gameId).eq('user_id', user.id).maybeSingle();
+
       if (existing.data) {
-        // 已有评价，更新
+        // 更新评价
         var result = await sb.from('reviews').update({ content: text, rating: selectedRating }).eq('game_id', gameId).eq('user_id', user.id);
         if (result.error) { alert('更新失败：' + result.error.message); return; }
       } else {
@@ -340,20 +557,23 @@
         if (result.error) { alert('评价失败：' + result.error.message); return; }
       }
 
-      input.value = '';
+      document.getElementById('commentInput').value = '';
       selectedRating = 0;
       document.querySelectorAll('.star').forEach(function(s) { s.classList.remove('active'); });
       document.getElementById('starHint').textContent = '点击打分';
 
-      // 重新计算平均分并更新games表
+      // 重新计算平均分并更新 games 表
       var allReviews = await sb.from('reviews').select('rating').eq('game_id', gameId);
       if (allReviews.data && allReviews.data.length > 0) {
         var avg = allReviews.data.reduce(function(sum, r) { return sum + r.rating; }, 0) / allReviews.data.length;
         avg = Math.round(avg * 10) / 10;
         await sb.from('games').update({ rating: avg }).eq('id', gameId);
-        // 更新页面显示的评分
-        var ratingEl = document.querySelector('.game-meta span:last-child');
-        if (ratingEl) ratingEl.textContent = '⭐ ' + avg + ' 分';
+        // 更新页面显示
+        var metaEl = document.getElementById('gameMeta');
+        if (metaEl) {
+          var spans = metaEl.querySelectorAll('span');
+          if (spans[2]) spans[2].textContent = '⭐ ' + avg + ' 分';
+        }
       }
 
       loadComments();
@@ -361,6 +581,3 @@
   </script>
 </body>
 </html>
-
-
-
