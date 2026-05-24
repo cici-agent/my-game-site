@@ -91,9 +91,18 @@ document.addEventListener('DOMContentLoaded', function() {
       '跑酷': '🏃', '学习': '📚', '休闲': '🎪', '养成': '🌱', '其他': '🎮'
     };
 
+    // 分类中英文映射
+    var categoryMap = {
+      'casual': '休闲', 'action': '动作', 'shooter': '射击', 'tower-defense': '塔防',
+      'puzzle': '益智', 'runner': '跑酷', 'education': '学习', 'raising': '养成',
+      'other': '其他', 'racing': '竞速', 'sports': '运动'
+    };
+
     games.forEach(function(game, i) {
       var bg = coverColors[i % coverColors.length];
-      var emoji = categoryEmojis[game.category] || '🎮';
+      var rawCategory = game.category || '其他';
+      var displayCategory = categoryMap[rawCategory] || rawCategory;
+      var emoji = categoryEmojis[displayCategory] || categoryEmojis[rawCategory] || '🎮';
       var coverHtml = '';
       if (game.cover_url) {
         coverHtml = '<div class="card-cover" style="background:' + bg + '"><img src="' + game.cover_url + '" alt="' + (game.title||game.name) + '" style="width:100%;height:100%;object-fit:cover;"></div>';
@@ -105,7 +114,8 @@ document.addEventListener('DOMContentLoaded', function() {
         '<div class="card-info">' +
           '<h3>' + (game.title||game.name) + '</h3>' +
           '<div class="card-meta">' +
-            '<span>' + (game.category || '其他') + '</span>' +
+            '<span>' + displayCategory + '</span>' +
+            '<span class="card-author">👤 ' + (game.author_name || game.author || '') + '</span>' +
             '<span class="rating">⭐ ' + (game.rating || '0') + '</span>' +
           '</div>' +
         '</div>' +
