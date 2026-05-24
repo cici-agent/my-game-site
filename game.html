@@ -305,9 +305,32 @@
       var sb = getSupabase();
       if (!sb) return;
 
+      var isPreview = new URLSearchParams(window.location.search).get('preview') === '1';
+
       var result = await sb.from('games').select('*').eq('id', gameId).single();
       if (!result.data) {
         document.getElementById('gameName').textContent = '游戏不存在';
+        document.getElementById('loadingFrame').style.display = 'none';
+        return;
+      }
+
+      // 非上线游戏：只有 admin 预览模式可访问
+      if (result.data.status !== 'online' && isPreview) {
+        var user = await getCurrentUser();
+        var profileResult = user ? await sb.from('profiles').select('role').eq('id', user.id).single() : null;
+        var isAdmin = profileResult && profileResult.data && profileResult.data.role === 'admin';
+        if (!isAdmin) {
+          document.getElementById('gameName').textContent = '游戏审核中，暂不开放';
+          document.getElementById('loadingFrame').style.display = 'none';
+          return;
+        }
+        // admin 预览模式：顶部加提示条
+        var bar = document.createElement('div');
+        bar.style.cssText = 'background:#f59e0b;color:#fff;text-align:center;padding:8px;font-size:14px;font-weight:700;';
+        bar.textContent = '⚠️ 管理员预览模式 — 此游戏待审核，玩家不可见';
+        document.body.insertBefore(bar, document.body.firstChild);
+      } else if (result.data.status !== 'online' && !isPreview) {
+        document.getElementById('gameName').textContent = '游戏审核中，暂不开放';
         document.getElementById('loadingFrame').style.display = 'none';
         return;
       }
