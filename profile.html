@@ -312,44 +312,54 @@
     async function initProfile() {
       var sb = getSupabase();
       if (!sb) { setTimeout(initProfile, 100); return; }
-      // 先用本地 session 快速加载，不等网络
+
+      // 先读本地 session（不发网络请求，瞬间完成）
       var sessionResult = await sb.auth.getSession();
       var user = sessionResult.data && sessionResult.data.session && sessionResult.data.session.user;
-      if (!user) {
-        // session 没有再尝试 getUser
-        var userResult = await sb.auth.getUser();
-        user = userResult.data && userResult.data.user;
-      }
       if (!user) {
         window.location.href = 'login.html?redirect=profile.html';
         return;
       }
       _currentUserId = user.id;
 
-      // 查 profiles 表
-      var result = await sb.from('profiles').select('*').eq('id', user.id).single();
-      var profile = result.data;
-      var uname = profile ? profile.username : (user.email ? user.email.replace('@xiaocainiao.app', '') : '用户');
-      var isAdmin = profile && profile.role === 'admin';
-      document.getElementById('profileUsername').textContent = uname;
-      document.getElementById('profileCoins').textContent = profile ? (profile.coins || 0) : 0;
-
-      // 头像：优先用 profile.avatar_url，否则显示默认 emoji
-      if (profile && profile.avatar_url) {
-        _selectedAvatar = profile.avatar_url;
-        document.getElementById('profileAvatar').innerHTML = '<img src="' + profile.avatar_url + '" alt="头像" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">';
-      }
-
-      // 动态渲染按钮
+      // 立刻显示页面，用 email 作为临时用户名，不等数据库
+      var tempName = user.email ? user.email.replace('@xiaocainiao.app','') : '用户';
+      document.getElementById('profileUsername').textContent = tempName;
+      document.getElementById('profileCoins').textContent = '0';
       document.getElementById('profileActions').innerHTML =
         '<a href="editor.html" class="btn-primary">🎮 做游戏</a>' +
         '<a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,var(--blue),var(--blue-light))">📤 上传游戏</a>' +
-        (isAdmin ? '<a href="admin.html" class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#a78bfa)">⚙️ 管理后台</a>' : '') +
         '<button class="btn-secondary" onclick="doLogout()">退出登录</button>';
+      document.body.style.opacity = '1';
+
+      // 再异步查 profiles 表更新真实数据
+      try {
+        var result = await Promise.race([
+          sb.from('profiles').select('*').eq('id', user.id).single(),
+          new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 5000))
+        ]);
+        var profile = result.data;
+        if (profile) {
+          document.getElementById('profileUsername').textContent = profile.username || tempName;
+          document.getElementById('profileCoins').textContent = profile.coins || 0;
+          if (profile.avatar_url) {
+            _selectedAvatar = profile.avatar_url;
+            document.getElementById('profileAvatar').innerHTML = '<img src="' + profile.avatar_url + '" alt="头像" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">';
+          }
+          if (profile.role === 'admin') {
+            document.getElementById('profileActions').innerHTML =
+              '<a href="editor.html" class="btn-primary">🎮 做游戏</a>' +
+              '<a href="upload.html" class="btn-primary" style="background:linear-gradient(135deg,var(--blue),var(--blue-light))">📤 上传游戏</a>' +
+              '<a href="admin.html" class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#a78bfa)">⚙️ 管理后台</a>' +
+              '<button class="btn-secondary" onclick="doLogout()">退出登录</button>';
+          }
+        }
+      } catch(e) {
+        console.warn('profiles查询超时或失败，使用基础信息展示', e);
+      }
 
       loadMyGames(user.id);
       loadPlayedGames(user.id);
-      document.body.style.opacity = '1';
     }
 
     document.addEventListener('DOMContentLoaded', function() {
