@@ -23,7 +23,7 @@ async function signUpWithAvatar(username, password, avatarUrl) {
       id: userId,
       username: username,
       role: isAdmin ? 'admin' : 'user',
-      coins: 100
+      coins: 50
     };
     if (avatarUrl) {
       profileData.avatar_url = avatarUrl;
