@@ -380,7 +380,7 @@ let frameCount=0;
 let tunnelStates={}; // {tunnelId: {unlocked:bool}}
 let tunnelKeys=[]; // spawned keys on map [{id,x,y,active,tunnelId}]
 let itemPickups=[]; // spawned items on map [{id,x,y,active,type}]
-let inTunnel=false, tunnelEnteredFrame=0, currentTunnelId=null;
+let inTunnel=false, tunnelEnteredFrame=0, currentTunnelId=null, tunnelCooldown=0;
 let teleportCooldown=0;
 let iceVX=0, iceVY=0; // ice sliding velocity
 let springLaunch=0, springDX=0, springDY=0; // spring launch state
@@ -693,7 +693,7 @@ function onGameStart(data){
   mySpeedBuff=0;mySpeedMul=1;
   frameCount=0;itemSpawnTimer=0;
   inTunnel=false;currentTunnelId=null;
-  teleportCooldown=0;
+  teleportCooldown=0;tunnelCooldown=0;
   iceVX=0;iceVY=0;
   springLaunch=0;
 
@@ -788,6 +788,7 @@ function gameLoop(){
         me.y=exitPt.y+exitPt.h/2;
       }
       inTunnel=false;currentTunnelId=null;
+      tunnelCooldown=120; // 2秒冷却，防止弹出后立刻重新进入
       hideTunnelMsg();
     }
     broadcastMove(me);
@@ -925,9 +926,10 @@ function gameLoop(){
   });
 
   // Tunnel entry check
+  if(tunnelCooldown>0)tunnelCooldown--;
   map.tunnels.forEach(t=>{
     const entry=t.entry;
-    if(me.x>entry.x&&me.x<entry.x+entry.w&&me.y>entry.y&&me.y<entry.y+entry.h){
+    if(tunnelCooldown<=0&&me.x>entry.x&&me.x<entry.x+entry.w&&me.y>entry.y&&me.y<entry.y+entry.h){
       const unlocked=tunnelStates[t.id];
       if(unlocked){
         // Enter tunnel
@@ -950,7 +952,7 @@ function gameLoop(){
     }
     // Also check exit as entry (bidirectional)
     const exit=t.exit;
-    if(me.x>exit.x&&me.x<exit.x+exit.w&&me.y>exit.y&&me.y<exit.y+exit.h){
+    if(tunnelCooldown<=0&&me.x>exit.x&&me.x<exit.x+exit.w&&me.y>exit.y&&me.y<exit.y+exit.h){
       const unlocked=tunnelStates[t.id];
       if(unlocked){
         inTunnel=true;tunnelEnteredFrame=frameCount;currentTunnelId=t.id+'_rev';
@@ -1044,10 +1046,15 @@ function useItem(slot){
     mySpeedBuff=300; // 5 seconds at 60fps
     showTunnelMsg('⚡ 加速5秒！');setTimeout(hideTunnelMsg,800);
   } else if(item==='block'){
-    // Place obstacle behind player
-    const ox=me.x-(me.dx||0)*40;
-    const oy=me.y-(me.dy||0)*40;
-    const obs={x:ox,y:oy,id:'obs_'+frameCount,expireFrame:frameCount+900}; // 15 seconds
+    // Place obstacle behind player (or at fixed offset if not moving)
+    const ddx=me.dx||0, ddy=me.dy||0;
+    const len=Math.sqrt(ddx*ddx+ddy*ddy)||1;
+    const ox=me.x-(ddx/len)*50;
+    const oy=me.y-(ddy/len)*50;
+    // Clamp to map bounds
+    const clampedOx=Math.max(20,Math.min(MAP_W-20,ox));
+    const clampedOy=Math.max(20,Math.min(MAP_H-20,oy));
+    const obs={x:clampedOx,y:clampedOy,id:'obs_'+frameCount,expireFrame:frameCount+900}; // 15 seconds
     obstacles.push(obs);
     channel.send({type:'broadcast',event:'obstacle-place',payload:obs});
     showTunnelMsg('🪨 放置障碍物！');setTimeout(hideTunnelMsg,800);
