@@ -545,6 +545,15 @@
           var newCoins = currentCoins - COIN_COST;
           await sb.from('profiles').update({ coins: newCoins }).eq('id', userId);
 
+          // 给游戏作者 +0.5 金币（非自己玩自己的游戏）
+          if (gameData && gameData.author_id && gameData.author_id !== userId) {
+            var authorRes = await sb.from('profiles').select('coins').eq('id', gameData.author_id).single();
+            var authorCoins = (authorRes.data && authorRes.data.coins) || 0;
+            // 用整数存储，0.5金币累计，每2次+1（用小数×10存储避免浮点）
+            // 简化方案：直接存浮点，每次+0.5
+            await sb.from('profiles').update({ coins: authorCoins + 0.5 }).eq('id', gameData.author_id);
+          }
+
           if (newCoins <= 2) {
             showToast('🪙 金币余额不足！还剩 ' + newCoins + ' 枚，请注意', 4000);
           } else {
