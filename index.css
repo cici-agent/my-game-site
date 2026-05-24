@@ -42,6 +42,10 @@
 .banner-slide:nth-child(2) {
   background: linear-gradient(135deg, #4a90e2 0%, #4ecdc4 50%, #52c41a 100%) !important;
 }
+.banner-slide:nth-child(3) {
+  background: linear-gradient(135deg, #f7971e 0%, #ffd200 50%, #ff6b35 100%) !important;
+}
+
 
 .banner-content {
   text-align: center;
