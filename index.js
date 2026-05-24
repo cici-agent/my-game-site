@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    var query = sb.from('games').select('*, profiles(username)').eq('status', 'online');
+    var query = sb.from('games').select('*, profiles(username, deleted_at)').eq('status', 'online');
 
     // 中文分类 → 数据库可能存的英文值
     var categoryReverseMap = {
@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
           '<h3>' + (game.title||game.name) + '</h3>' +
           '<div class="card-meta">' +
             '<span>' + displayCategory + '</span>' +
-            '<span class="card-author">👤 ' + ((game.profiles && game.profiles.username) || game.author_name || '') + '</span>' +
+            '<span class="card-author">👤 ' + ((game.profiles && game.profiles.deleted_at) ? '已注销' : ((game.profiles && game.profiles.username) || game.author_name || '')) + '</span>' +
             '<span class="rating">⭐ ' + (game.rating || '0') + '</span>' +
           '</div>' +
         '</div>' +
