@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    var query = sb.from('games').select('*').eq('status', 'online');
+    var query = sb.from('games').select('*, profiles(username)').eq('status', 'online');
 
     if (category && category !== 'all' && category !== 'new' && category !== 'hot') {
       query = query.eq('category', category);
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
           '<h3>' + (game.title||game.name) + '</h3>' +
           '<div class="card-meta">' +
             '<span>' + displayCategory + '</span>' +
-            '<span class="card-author">👤 ' + (game.author_name || game.author || '') + '</span>' +
+            '<span class="card-author">👤 ' + ((game.profiles && game.profiles.username) || game.author_name || '') + '</span>' +
             '<span class="rating">⭐ ' + (game.rating || '0') + '</span>' +
           '</div>' +
         '</div>' +
