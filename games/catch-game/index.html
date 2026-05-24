@@ -771,30 +771,7 @@ function gameLoop(){
   const me=players[myId];
   if(!me||me.caught){render();return;}
 
-  // If in tunnel, handle auto-eject
-  if(inTunnel){
-    const framesIn=frameCount-tunnelEnteredFrame;
-    const secIn=framesIn/60;
-    showTunnelMsg(`暗道中... ${Math.max(0,(3-secIn)).toFixed(1)}秒后弹出`);
-    if(secIn>=3){
-      // Eject to exit
-      const map=MAPS[selectedMap];
-      const isRev=currentTunnelId.endsWith("_rev");
-      const tunnelId=isRev?currentTunnelId.replace("_rev",""):currentTunnelId;
-      const tunnel=map.tunnels.find(t=>t.id===tunnelId);
-      if(tunnel){
-        const exitPt=isRev?tunnel.entry:tunnel.exit;
-        me.x=exitPt.x+exitPt.w/2;
-        me.y=exitPt.y+exitPt.h/2;
-      }
-      inTunnel=false;currentTunnelId=null;
-      tunnelCooldown=120; // 2秒冷却，防止弹出后立刻重新进入
-      hideTunnelMsg();
-    }
-    broadcastMove(me);
-    render();
-    return;
-  }
+  // tunnel teleport is handled inline at entry point
 
   let dx=0,dy=0;
   if(isMobile&&joystickActive){dx=joystickDX;dy=joystickDY;}
@@ -859,16 +836,16 @@ function gameLoop(){
   me.y=Math.max(PLAYER_R,Math.min(MAP_H-PLAYER_R,r2.y));
   me.dx=dx;me.dy=dy;
 
-  // Teleport check
+  // Teleport terrain removed
   if(teleportCooldown>0)teleportCooldown--;
-  if(terrain.type==='TELEPORT'&&teleportCooldown<=0){
+  if(false&&terrain.type==='TELEPORT'&&teleportCooldown<=0){
     const tData=getTerrainDataAt(me.x,me.y);
     if(tData&&tData.pairId){
       const mapTerrains=map.terrains;
       const pair=mapTerrains.find(t=>t.type==='TELEPORT'&&t.pairId===tData.pairId&&(t.x!==tData.x||t.y!==tData.y));
       if(pair){
         me.x=pair.x+pair.w/2;me.y=pair.y+pair.h/2;
-        teleportCooldown=120; // 2 seconds cooldown
+        teleportCooldown=120;
         showTunnelMsg('⚡ 传送！');setTimeout(hideTunnelMsg,800);
       }
     }
@@ -925,39 +902,35 @@ function gameLoop(){
     }
   });
 
-  // Tunnel entry check
+  // Tunnel entry check — instant teleport, key consumed each time
   if(tunnelCooldown>0)tunnelCooldown--;
   map.tunnels.forEach(t=>{
-    const entry=t.entry;
-    if(tunnelCooldown<=0&&me.x>entry.x&&me.x<entry.x+entry.w&&me.y>entry.y&&me.y<entry.y+entry.h){
-      const unlocked=tunnelStates[t.id];
-      if(unlocked){
-        // Enter tunnel
-        inTunnel=true;tunnelEnteredFrame=frameCount;currentTunnelId=t.id;
-        showTunnelMsg('🚪 进入暗道...');
+    // Helper: try enter tunnel from a given side
+    function tryEnterTunnel(fromSide){
+      const keySlot=myItems.indexOf('key');
+      if(keySlot!==-1){
+        // Consume key and teleport instantly
+        myItems[keySlot]=null;
+        updateItemBarUI();
+        channel.send({type:'broadcast',event:'item-use',payload:{id:myId,item:'key',slot:keySlot}});
+        const isRev=(fromSide==='exit');
+        const dest=isRev?t.entry:t.exit;
+        me.x=dest.x+dest.w/2;
+        me.y=dest.y+dest.h/2;
+        tunnelCooldown=120; // 2秒冷却防止立刻再触发
+        showTunnelMsg('🔑 穿越暗道！');setTimeout(hideTunnelMsg,800);
+        broadcastMove(me);
       } else {
-        // Need key
-        const keySlot=myItems.indexOf('key');
-        if(keySlot!==-1){
-          // Use key to unlock
-          myItems[keySlot]=null;
-          tunnelStates[t.id]=true;
-          updateItemBarUI();
-          channel.send({type:'broadcast',event:'tunnel-unlock',payload:{tunnelId:t.id}});
-          showTunnelMsg('🔓 暗道已开启！所有人都能进了');setTimeout(hideTunnelMsg,1500);
-        } else {
-          showTunnelMsg('🔒 需要钥匙才能进入');setTimeout(hideTunnelMsg,1000);
-        }
+        showTunnelMsg('🔒 需要钥匙才能进入暗道');setTimeout(hideTunnelMsg,1000);
       }
     }
-    // Also check exit as entry (bidirectional)
+    const entry=t.entry;
+    if(tunnelCooldown<=0&&me.x>entry.x&&me.x<entry.x+entry.w&&me.y>entry.y&&me.y<entry.y+entry.h){
+      tryEnterTunnel('entry');
+    }
     const exit=t.exit;
     if(tunnelCooldown<=0&&me.x>exit.x&&me.x<exit.x+exit.w&&me.y>exit.y&&me.y<exit.y+exit.h){
-      const unlocked=tunnelStates[t.id];
-      if(unlocked){
-        inTunnel=true;tunnelEnteredFrame=frameCount;currentTunnelId=t.id+'_rev';
-        showTunnelMsg('🚪 进入暗道...');
-      }
+      tryEnterTunnel('exit');
     }
   });
 
@@ -1006,7 +979,7 @@ function onCoinSpawn(coin){if(!foods.find(f=>f.id===coin.id))foods.push(coin);}
 function onItemPickup({itemId}){const it=itemPickups.find(x=>x.id===itemId);if(it)it.active=false;}
 function onItemUse(data){/* visual effects handled locally */}
 function onObstaclePlace({x,y,id,expireFrame}){obstacles.push({x,y,id,expireFrame});}
-function onTunnelUnlock({tunnelId}){tunnelStates[tunnelId]=true;}
+function onTunnelUnlock({tunnelId}){} // no-op: tunnels now require key each time
 function onKeyPickup({keyId}){const k=tunnelKeys.find(x=>x.id===keyId);if(k)k.active=false;}
 function onItemSpawn(item){if(!itemPickups.find(x=>x.id===item.id))itemPickups.push(item);}
 
@@ -1194,18 +1167,15 @@ function render(){
     });
   }
 
-  // Tunnel entries/exits
+  // Tunnel entries/exits — both sides 🔒, key required each time
   map.tunnels.forEach(t=>{
-    const unlocked=tunnelStates[t.id];
-    // Entry
-    ctx.fillStyle=unlocked?'rgba(0,200,100,0.5)':'rgba(200,0,0,0.4)';
+    ctx.fillStyle='rgba(160,80,220,0.55)';
     ctx.fillRect(t.entry.x,t.entry.y,t.entry.w,t.entry.h);
     ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(unlocked?'🚪':'🔒',t.entry.x+t.entry.w/2,t.entry.y+t.entry.h/2);
-    // Exit
-    ctx.fillStyle='rgba(0,200,100,0.4)';
+    ctx.fillText('🔒',t.entry.x+t.entry.w/2,t.entry.y+t.entry.h/2);
+    ctx.fillStyle='rgba(160,80,220,0.55)';
     ctx.fillRect(t.exit.x,t.exit.y,t.exit.w,t.exit.h);
-    ctx.fillText('🚪',t.exit.x+t.exit.w/2,t.exit.y+t.exit.h/2);
+    ctx.fillText('🔒',t.exit.x+t.exit.w/2,t.exit.y+t.exit.h/2);
   });
 
   // Walls
