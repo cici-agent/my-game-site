@@ -252,6 +252,7 @@
         if (game.status !== 'online') {
           html += '<button class="btn-online" onclick="setGameStatus(\'' + game.id + '\', \'online\', \'' + escapeHtml((game.title || game.name)) + '\')">上线</button>';
         }
+        html += '<button class="btn-preview" onclick="window.open(\'game.html?id=' + game.id + '&preview=1\', \'_blank\')">试玩</button>';
         if (game.status !== 'offline') {
           html += '<button class="btn-offline" onclick="setGameStatus(\'' + game.id + '\', \'offline\', \'' + escapeHtml((game.title || game.name)) + '\')">下线</button>';
         }
