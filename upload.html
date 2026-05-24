@@ -359,10 +359,10 @@
 
         // 4. 写入 games 表
         var insertResult = await sb.from('games').insert({
-          name: name,
+          title: name,
           category: category,
           description: desc,
-          author_id: user.id,
+          user_id: user.id,
           file_url: fileUrl,
           cover_url: coverUrl,
           status: isAdmin ? 'online' : 'pending',
