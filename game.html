@@ -574,7 +574,7 @@
             var authorCoins = (authorRes.data && authorRes.data.coins) || 0;
             // 用整数存储，0.5金币累计，每2次+1（用小数×10存储避免浮点）
             // 简化方案：直接存浮点，每次+0.5
-            await sb.from('profiles').update({ coins: authorCoins + 0.5 }).eq('id', gameData.author_id);
+            await sb.from('profiles').update({ coins: authorCoins + 0.1 }).eq('id', gameData.author_id);
           }
 
           if (newCoins <= 2) {
