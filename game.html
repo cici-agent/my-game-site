@@ -379,7 +379,15 @@
       }
 
       // 加载 iframe
-      document.getElementById('gameIframe').src = fileUrl;
+      document.getElementById('gameIframe').src = '';
+      // 用fetch+srcdoc绕过Content-Type问题
+      try {
+        var resp = await fetch(fileUrl);
+        var html = await resp.text();
+        document.getElementById('gameIframe').srcdoc = html;
+      } catch(e) {
+        document.getElementById('gameIframe').src = fileUrl;
+      }
 
       // 记录玩过
       recordPlay(user.id);
