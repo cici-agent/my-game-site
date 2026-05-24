@@ -367,8 +367,10 @@
       // 获取作者名
       var authorName = '未知';
       if (gameData.author_id) {
-        var profileResult = await sb.from('profiles').select('username').eq('id', gameData.author_id).single();
-        if (profileResult.data) authorName = profileResult.data.username;
+        var profileResult = await sb.from('profiles').select('username, deleted_at').eq('id', gameData.author_id).single();
+        if (profileResult.data) {
+          authorName = profileResult.data.deleted_at ? '已注销' : profileResult.data.username;
+        }
       }
 
       // 查真实玩过人数
@@ -678,7 +680,7 @@
       if (!sb) return;
 
       var result = await sb.from('reviews')
-        .select('*, profiles(username)')
+        .select('*, profiles(username, deleted_at)')
         .eq('game_id', gameId)
         .order('created_at', { ascending: false })
         .limit(30);
@@ -692,7 +694,7 @@
       list.innerHTML = result.data.map(function(r) {
         var stars = '';
         for (var i = 1; i <= 5; i++) stars += (i <= r.rating ? '★' : '☆');
-        var username = (r.profiles && r.profiles.username) ? r.profiles.username : '匿名';
+        var username = (r.profiles && r.profiles.deleted_at) ? '已注销' : ((r.profiles && r.profiles.username) ? r.profiles.username : '匿名');
         return '<li><span class="comment-author">' + username + '</span>' +
                '<span class="comment-stars">' + stars + '</span>' +
                '<span>' + (r.content || '') + '</span></li>';
