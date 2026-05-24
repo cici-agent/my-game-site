@@ -262,7 +262,7 @@
     }
 
     // 设置游戏状态（带日志）
-    async async function setGameStatus(gameId, status, gameName) {
+    async function setGameStatus(gameId, status, gameName) {
       var sb = getSupabase();
       await sb.from('games').update({ status: status }).eq('id', gameId);
       var actionText = status === 'online' ? '上线' : '下线';
