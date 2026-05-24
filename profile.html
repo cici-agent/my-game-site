@@ -362,14 +362,12 @@
       loadPlayedGames(user.id);
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-      var check = setInterval(function() {
-        if (window.supabase && window.supabase.createClient) {
-          clearInterval(check);
-          initProfile();
-        }
-      }, 50);
-    });
+    // supabase.min.js 是同步 script，加载完后 window.supabase 已就绪，直接初始化
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initProfile);
+    } else {
+      initProfile();
+    }
   </script>
 </body>
 </html>
