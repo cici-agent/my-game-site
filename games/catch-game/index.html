@@ -744,7 +744,7 @@ function onGameStart(payload){
     if(gameState!=='playing'){clearInterval(timerInterval);return;}
     timeLeft--;
     document.getElementById('hud-timer').textContent=formatTime(timeLeft);
-    if(timeLeft<=0){if(isHost)channel.send({type:'broadcast',event:'game-end',payload:{winner:'runners'}});clearInterval(timerInterval);}
+    if(timeLeft<=0){if(isHost){channel.send({type:'broadcast',event:'game-end',payload:{winner:'runners'}});onGameEnd({winner:'runners'});}clearInterval(timerInterval);}
   },1000);
 }
 
@@ -825,7 +825,7 @@ function onPlayerCaught({caughtId}){
   if(players[caughtId])players[caughtId].caught=true;
   if(caughtId===myId){isCaught=true;document.getElementById('spectator-banner').style.display='block';}
   const runners=Object.values(players).filter(p=>p.role==='runner');
-  if(runners.every(p=>p.caught)&&isHost)channel.send({type:'broadcast',event:'game-end',payload:{winner:'catcher'}});
+  if(runners.every(p=>p.caught)&&isHost){channel.send({type:'broadcast',event:'game-end',payload:{winner:'catcher'}});onGameEnd({winner:'catcher'});}
 }
 
 function onFoodEaten({foodId}){const f=foods.find(x=>x.id===foodId);if(f)f.active=false;}
