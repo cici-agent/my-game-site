@@ -68,10 +68,33 @@
       width: 100%;
       flex: 1;
       border: none;
-      min-height: 460px;
+      min-height: calc(100vh - 112px);
       background: #111;
       display: block;
     }
+
+    /* iPad CSS 模拟全屏 */
+    .css-fullscreen {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 9999 !important;
+      background: #000 !important;
+    }
+    .css-fullscreen #gameIframe {
+      width: 100vw !important;
+      height: 100vh !important;
+      min-height: 100vh !important;
+    }
+    body.has-fullscreen .navbar,
+    body.has-fullscreen .game-info,
+    body.has-fullscreen .game-meta,
+    body.has-fullscreen footer {
+      display: none !important;
+    }
+
     /* 金币悬浮提示 */
     #coinToast {
       position: fixed;
@@ -565,7 +588,36 @@
 
     // ===== 全屏切换 =====
     function toggleFullscreen() {
+      var wrapper = document.getElementById('iframeWrapper') || document.getElementById('gameIframe').parentElement;
       var iframe = document.getElementById('gameIframe');
+      var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+      if (isSafari || isIOS) {
+        // Safari/iPad：CSS 模拟全屏
+        if (wrapper.classList.contains('css-fullscreen')) {
+          wrapper.classList.remove('css-fullscreen');
+          document.body.classList.remove('has-fullscreen');
+          var fab = document.getElementById('fullscreen-exit-fab');
+          if (fab) fab.style.display = 'none';
+        } else {
+          wrapper.classList.add('css-fullscreen');
+          document.body.classList.add('has-fullscreen');
+          var fab = document.getElementById('fullscreen-exit-fab');
+          if (!fab) {
+            fab = document.createElement('button');
+            fab.id = 'fullscreen-exit-fab';
+            fab.textContent = '✕ 退出全屏';
+            fab.style.cssText = 'position:fixed;top:12px;right:12px;z-index:99999;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:20px;padding:8px 16px;font-size:14px;cursor:pointer;';
+            fab.onclick = toggleFullscreen;
+            document.body.appendChild(fab);
+          }
+          fab.style.display = 'block';
+        }
+        return;
+      }
+
+      // 其他浏览器：原生全屏
       if (!document.fullscreenElement) {
         iframe.requestFullscreen && iframe.requestFullscreen();
       } else {
