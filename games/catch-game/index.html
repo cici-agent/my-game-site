@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>抓人大作战 - 小菜鸟</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<!-- 声网 Web SDK (国内 CDN) -->
 <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -24,73 +23,49 @@ body {
 .btn { padding:12px 32px; font-size:1.15em; border:none; border-radius:50px; cursor:pointer; margin:5px; font-weight:bold; transition:transform 0.2s,box-shadow 0.2s; box-shadow:0 4px 15px rgba(0,0,0,0.2); }
 .btn:hover { transform:scale(1.05); }
 .btn:active { transform:scale(0.95); }
-.btn-primary { background:#FF6B6B; color:#fff; }
-.btn-secondary { background:#4ECDC4; color:#fff; }
-.btn-start { background:#FFE066; color:#333; }
-.btn-small { padding:8px 18px; font-size:0.95em; }
-.btn-danger { background:#e74c3c; color:#fff; }
-.btn-gray { background:#bbb; color:#fff; }
-.input-field { padding:12px 18px; font-size:1.15em; border:3px solid #fff; border-radius:50px; background:rgba(255,255,255,0.9); text-align:center; width:200px; margin:8px; outline:none; }
-.input-field:focus { border-color:#FF6B6B; }
-.panel { background:rgba(255,255,255,0.97); border-radius:20px; padding:22px; min-width:320px; max-width:92vw; max-height:85vh; overflow-y:auto; box-shadow:0 10px 40px rgba(0,0,0,0.2); }
-.panel-title { font-size:1.5em; color:#333; margin-bottom:8px; text-align:center; }
-.room-code-display { font-size:2.2em; color:#FF6B6B; font-weight:bold; letter-spacing:6px; text-align:center; margin:6px 0; }
-.player-list { list-style:none; margin:8px 0; max-height:170px; overflow-y:auto; }
-.player-list li { padding:7px 12px; margin:3px 0; background:#f0f0f0; border-radius:10px; display:flex; align-items:center; gap:8px; font-size:0.95em; }
-.player-list li .dot { width:11px; height:11px; border-radius:50%; flex-shrink:0; }
-.player-count { color:#666; font-size:0.85em; margin-bottom:6px; text-align:center; }
-.char-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; margin:8px auto; max-width:280px; }
-.char-option { width:42px; height:42px; border-radius:50%; border:3px solid transparent; cursor:pointer; transition:transform 0.2s; display:flex; align-items:center; justify-content:center; }
-.char-option:hover { transform:scale(1.1); }
-.char-option.selected { border-color:#FF6B6B; transform:scale(1.15); }
-.room-list { list-style:none; margin:8px 0; max-height:240px; overflow-y:auto; }
-.room-card { padding:12px 14px; margin:6px 0; background:#f8f8f8; border-radius:12px; display:flex; align-items:center; justify-content:space-between; border:2px solid #eee; transition:border-color 0.2s; }
-.room-card:hover { border-color:#4ECDC4; }
-.room-info { display:flex; flex-direction:column; gap:2px; }
-.room-name-text { font-weight:bold; color:#333; font-size:1em; }
-.room-meta { font-size:0.78em; color:#888; }
-.form-row { display:flex; align-items:center; gap:10px; margin:8px 0; flex-wrap:wrap; justify-content:center; }
-.form-label { font-size:0.88em; color:#555; min-width:55px; }
-.toggle-group { display:flex; gap:5px; }
-.toggle-btn { padding:7px 14px; border-radius:18px; border:2px solid #ddd; background:#fff; cursor:pointer; font-size:0.88em; transition:all 0.2s; }
-.toggle-btn.active { background:#4ECDC4; color:#fff; border-color:#4ECDC4; }
-#game-hud { position:fixed; top:8px; left:8px; right:8px; display:flex; justify-content:space-between; align-items:center; z-index:100; pointer-events:none; }
-.hud-item { background:rgba(255,255,255,0.9); padding:5px 11px; border-radius:18px; font-size:0.9em; font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
-.hud-timer { color:#FF6B6B; font-size:1.15em; }
-.hud-role { color:#4ECDC4; }
-.hud-stamina { color:#FFB347; }
-#game-canvas { display:block; background:#8BC34A; touch-action:none; }
-#joystick-area { position:fixed; bottom:25px; left:25px; width:125px; height:125px; z-index:200; display:none; }
-#joystick-base { width:125px; height:125px; border-radius:50%; background:rgba(255,255,255,0.3); border:3px solid rgba(255,255,255,0.5); position:relative; }
-#joystick-knob { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,0.7); position:absolute; top:36px; left:36px; }
-.result-box { background:rgba(255,255,255,0.97); border-radius:20px; padding:30px; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,0.2); }
-.result-title { font-size:2em; margin-bottom:8px; }
-.result-msg { font-size:1.1em; color:#666; margin-bottom:18px; }
-#spectator-banner { display:none; position:fixed; bottom:70px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); color:#fff; padding:8px 22px; border-radius:18px; font-size:1em; z-index:150; }
-.empty-msg { text-align:center; color:#999; padding:25px; font-size:0.95em; }
-.modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.5); z-index:500; align-items:center; justify-content:center; }
-.modal-overlay.active { display:flex; }
-.modal-box { background:#fff; border-radius:18px; padding:25px; text-align:center; max-width:300px; box-shadow:0 10px 30px rgba(0,0,0,0.3); }
-.modal-box p { margin-bottom:15px; font-size:1.1em; color:#333; }
-.kick-btn { background:none; border:none; cursor:pointer; font-size:0.8em; color:#e74c3c; margin-left:auto; padding:2px 8px; border-radius:8px; }
-.kick-btn:hover { background:#fdd; }
-#result-overlay .modal-box { animation: resultPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-@keyframes resultPop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.result-stat-row { display:flex; justify-content:space-between; align-items:center; padding:2px 0; border-bottom:1px solid #eee; }
-.result-stat-row:last-child { border-bottom:none; }
-.result-stat-label { color:#888; }
-.result-stat-value { font-weight:bold; color:#333; }
-
-/* ===== 物品栏 UI ===== */
+.btn-orange { background:linear-gradient(135deg,#FF6B6B,#FF8E53); color:#fff; }
+.btn-green { background:linear-gradient(135deg,#4ECDC4,#44B09E); color:#fff; }
+.btn-blue { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; }
+.btn-gray { background:linear-gradient(135deg,#a8a8a8,#888); color:#fff; }
+.card { background:rgba(255,255,255,0.95); border-radius:20px; padding:24px; margin:10px; box-shadow:0 8px 32px rgba(0,0,0,0.1); max-width:400px; width:90%; }
+.card h3 { margin-bottom:12px; color:#333; }
+.input { width:100%; padding:10px 14px; border:2px solid #eee; border-radius:12px; font-size:1em; margin:6px 0; outline:none; transition:border 0.2s; }
+.input:focus { border-color:#4ECDC4; }
+.char-grid { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:10px 0; }
+.char-option { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.4em; cursor:pointer; border:3px solid transparent; transition:transform 0.2s,border 0.2s; }
+.char-option:hover { transform:scale(1.15); }
+.char-option.selected { border-color:#FF6B6B; transform:scale(1.2); }
+.toggle-group { display:flex; gap:6px; margin:8px 0; }
+.toggle-btn { padding:6px 14px; border-radius:16px; background:#eee; cursor:pointer; font-size:0.9em; transition:background 0.2s,color 0.2s; }
+.toggle-btn.active { background:#4ECDC4; color:#fff; }
+#game-screen { display:none; position:absolute; top:0; left:0; width:100%; height:100%; }
+#game-canvas { display:block; width:100%; height:100%; background:#333; }
+#hud { position:fixed; top:8px; left:8px; z-index:100; display:flex; gap:8px; align-items:center; }
+.hud-item { background:rgba(255,255,255,0.9); padding:4px 10px; border-radius:12px; font-size:0.8em; font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+#stamina-bar { width:100px; height:12px; background:#ddd; border-radius:6px; overflow:hidden; }
+#stamina-fill { height:100%; background:linear-gradient(90deg,#4ECDC4,#44B09E); transition:width 0.2s; border-radius:6px; }
+#lobby-screen .player-list { max-height:200px; overflow-y:auto; width:100%; }
+.player-tag { display:inline-flex; align-items:center; gap:4px; background:#f0f0f0; padding:4px 10px; border-radius:12px; margin:3px; font-size:0.85em; }
+.player-tag.host { background:#FFE066; }
+#room-list { max-height:300px; overflow-y:auto; width:100%; }
+.room-card { background:#fff; border-radius:14px; padding:12px; margin:8px 0; box-shadow:0 2px 10px rgba(0,0,0,0.08); display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:transform 0.2s; }
+.room-card:hover { transform:scale(1.02); }
+/* Vote modal */
+#vote-modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:500; display:none; align-items:center; justify-content:center; }
+#vote-modal.active { display:flex; }
+/* Result overlay */
+#result-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:600; display:none; align-items:center; justify-content:center; flex-direction:column; }
+#result-overlay.active { display:flex; }
+#result-overlay .result-card { background:#fff; border-radius:20px; padding:30px; text-align:center; max-width:360px; }
+/* Item bar */
 #item-bar {
   position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
-  display: none; gap: 8px; z-index: 200; pointer-events: auto;
+  display: none; gap: 8px; z-index: 150; align-items: center;
 }
 #item-bar.active { display: flex; }
 .item-slot {
-  width: 52px; height: 52px; border-radius: 12px;
-  background: rgba(255,255,255,0.92); border: 3px solid rgba(0,0,0,0.15);
-  display: flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; background: rgba(255,255,255,0.92);
+  border-radius: 12px; display: flex; align-items: center; justify-content: center;
   font-size: 1.6em; position: relative; cursor: pointer;
   box-shadow: 0 3px 10px rgba(0,0,0,0.15); transition: transform 0.15s;
 }
@@ -100,8 +75,7 @@ body {
   color: #999; font-weight: bold;
 }
 .item-slot.empty { opacity: 0.5; }
-
-/* ===== 暗道提示 ===== */
+/* Tunnel msg */
 #tunnel-msg {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
   background: rgba(0,0,0,0.8); color: #fff; padding: 10px 22px;
@@ -109,8 +83,27 @@ body {
   display: none; pointer-events: none;
 }
 #tunnel-msg.active { display: block; }
-
-/* ===== 语音聊天 UI ===== */
+/* Chest popup */
+#chest-popup {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: rgba(0,0,0,0.85); border-radius: 20px; padding: 24px;
+  z-index: 500; display: none; flex-direction: column; align-items: center;
+  color: #fff; min-width: 220px;
+}
+#chest-popup.active { display: flex; }
+#chest-popup .chest-title { font-size: 1.3em; margin-bottom: 12px; }
+#chest-popup .chest-item { font-size: 2.5em; margin: 10px 0; animation: chestBounce 0.5s ease; }
+@keyframes chestBounce { 0%{transform:scale(0)} 60%{transform:scale(1.3)} 100%{transform:scale(1)} }
+#chest-popup .chest-btn { margin-top: 12px; padding: 8px 24px; border-radius: 20px; border: none; background: #4ECDC4; color: #fff; font-size: 1em; font-weight: bold; cursor: pointer; }
+/* Interact hint */
+#interact-hint {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.75); color: #fff; padding: 8px 18px;
+  border-radius: 12px; font-size: 0.9em; z-index: 140;
+  display: none; pointer-events: none;
+}
+#interact-hint.active { display: block; }
+/* Voice panel */
 #voice-panel {
   position: fixed; bottom: 12px; right: 12px; z-index: 300;
   display: none; flex-direction: column; align-items: flex-end; gap: 6px;
@@ -124,283 +117,388 @@ body {
 }
 #mic-btn:hover { transform: scale(1.1); }
 #mic-btn.muted { background: rgba(255,80,80,0.9); }
-#mic-btn.muted::after { content: ''; position: absolute; width: 3px; height: 28px; background: #fff; border-radius: 2px; transform: rotate(45deg); }
 #voice-speakers { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-height: 200px; overflow-y: auto; }
-.voice-speaker { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.9); padding: 4px 10px; border-radius: 14px; font-size: 0.8em; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.1); transition: all 0.3s; }
-.voice-speaker.speaking { background: rgba(76, 175, 80, 0.9); color: #fff; box-shadow: 0 0 12px rgba(76, 175, 80, 0.5); }
-.voice-speaker .speaker-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
-.voice-speaker.speaking .speaker-dot { background: #fff; animation: pulse-dot 0.6s ease infinite alternate; }
-@keyframes pulse-dot { from { transform: scale(1); } to { transform: scale(1.4); } }
-#voice-status { font-size: 0.72em; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.4); padding: 3px 8px; border-radius: 8px; display: none; }
-#voice-status.active { display: block; }
+.voice-speaker { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.9); padding: 4px 10px; border-radius: 14px; font-size: 0.8em; font-weight: bold; }
+.voice-speaker.speaking { box-shadow: 0 0 8px #4ECDC4; }
+/* Joystick */
+#joystick-area { position:fixed; bottom:20px; left:20px; z-index:200; display:none; }
+#joystick-base { width:125px; height:125px; border-radius:50%; background:rgba(255,255,255,0.25); border:3px solid rgba(255,255,255,0.4); position:relative; }
+#joystick-knob { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,0.7); position:absolute; left:36px; top:36px; box-shadow:0 2px 8px rgba(0,0,0,0.2); }
 </style>
 </head>
 <body>
-<!-- 主菜单 -->
+<!-- ===== MENU SCREEN ===== -->
 <div class="screen active" id="menu-screen">
   <div class="title">🏃 抓人大作战</div>
   <div class="subtitle">和朋友一起玩！</div>
-  <button class="btn btn-primary" onclick="showScreen('create-screen')">🏠 创建房间</button>
-  <button class="btn btn-secondary" onclick="showScreen('join-screen')">🚪 加入房间</button>
-  <button class="btn btn-start" onclick="showScreen('browse-screen')">🔍 浏览房间</button>
+  <button class="btn btn-orange" onclick="showScreen('create-screen')">🎮 创建房间</button>
+  <button class="btn btn-green" onclick="showScreen('join-screen')">🚪 加入房间</button>
+  <button class="btn btn-blue" onclick="showScreen('browse-screen');loadRooms()">🔍 浏览房间</button>
 </div>
 
-<!-- 创建房间 -->
+<!-- ===== CREATE SCREEN ===== -->
 <div class="screen" id="create-screen">
-  <div class="panel">
-    <div class="panel-title">🏠 创建房间</div>
-    <input class="input-field" id="create-name" placeholder="房间名称" maxlength="12">
-    <div class="form-row"><span class="form-label">类型</span><div class="toggle-group"><span class="toggle-btn active" data-val="public" onclick="toggleRoomType(this)">公开</span><span class="toggle-btn" data-val="private" onclick="toggleRoomType(this)">私密</span></div></div>
-    <div class="form-row"><span class="form-label">地图</span><div class="toggle-group" id="map-toggle"></div></div>
-    <div class="panel-title" style="font-size:1em;margin-top:10px;">选择角色</div>
+  <div class="card">
+    <h3>🎮 创建房间</h3>
+    <input class="input" id="create-name" placeholder="房间名称" maxlength="12">
+    <input class="input" id="create-nick" placeholder="你的昵称" maxlength="8">
     <div class="char-grid" id="create-chars"></div>
-    <input class="input-field" id="create-nick" placeholder="你的昵称" maxlength="8">
-    <div style="text-align:center;margin-top:10px;">
-      <button class="btn btn-primary" onclick="createRoom()">创建</button>
-      <button class="btn btn-gray btn-small" onclick="showScreen('menu-screen')">返回</button>
-    </div>
+    <div><b>地图：</b><div class="toggle-group" id="map-toggle"></div></div>
+    <div><b>类型：</b><div class="toggle-group"><span class="toggle-btn active" data-val="public" onclick="toggleRoomType(this)">公开</span><span class="toggle-btn" data-val="private" onclick="toggleRoomType(this)">私密</span></div></div>
+    <button class="btn btn-orange" onclick="createRoom()">创建</button>
+    <button class="btn btn-gray" onclick="showScreen('menu-screen')">返回</button>
   </div>
 </div>
 
-<!-- 加入房间 -->
+<!-- ===== JOIN SCREEN ===== -->
 <div class="screen" id="join-screen">
-  <div class="panel">
-    <div class="panel-title">🚪 加入房间</div>
-    <input class="input-field" id="join-code" placeholder="房间号" maxlength="4">
-    <div class="panel-title" style="font-size:1em;margin-top:10px;">选择角色</div>
+  <div class="card">
+    <h3>🚪 加入房间</h3>
+    <input class="input" id="join-code" placeholder="输入房间号(4位)" maxlength="4">
+    <input class="input" id="join-nick" placeholder="你的昵称" maxlength="8">
     <div class="char-grid" id="join-chars"></div>
-    <input class="input-field" id="join-nick" placeholder="你的昵称" maxlength="8">
-    <div style="text-align:center;margin-top:10px;">
-      <button class="btn btn-secondary" onclick="joinRoom()">加入</button>
-      <button class="btn btn-start btn-small" onclick="randomJoin()">🎲 随机加入</button>
-      <button class="btn btn-gray btn-small" onclick="showScreen('menu-screen')">返回</button>
-    </div>
+    <button class="btn btn-green" onclick="joinRoom()">加入</button>
+    <button class="btn btn-blue" onclick="randomJoin()">🎲 随机加入</button>
+    <button class="btn btn-gray" onclick="showScreen('menu-screen')">返回</button>
   </div>
 </div>
 
-<!-- 浏览房间 -->
+<!-- ===== BROWSE SCREEN ===== -->
 <div class="screen" id="browse-screen">
-  <div class="panel">
-    <div class="panel-title">🔍 公开房间</div>
-    <ul class="room-list" id="room-list"><li class="empty-msg">加载中...</li></ul>
-    <div style="text-align:center;margin-top:10px;">
-      <button class="btn btn-secondary btn-small" onclick="loadRooms()">🔄 刷新</button>
-      <button class="btn btn-gray btn-small" onclick="showScreen('menu-screen')">返回</button>
-    </div>
+  <div class="card" style="max-width:500px">
+    <h3>🔍 公开房间</h3>
+    <div id="room-list"><p style="color:#999;text-align:center">加载中...</p></div>
+    <button class="btn btn-gray" onclick="showScreen('menu-screen')">返回</button>
   </div>
 </div>
 
-<!-- 大厅 -->
+<!-- ===== LOBBY SCREEN ===== -->
 <div class="screen" id="lobby-screen">
-  <div class="panel">
-    <div id="lobby-room-name" class="panel-title">🎮 房间</div>
-    <div class="room-code-display" id="lobby-room-code"></div>
-    <div class="player-count" id="lobby-count"></div>
-    <ul class="player-list" id="lobby-players"></ul>
-    <div id="lobby-host-controls" style="display:none;text-align:center;margin-top:8px;">
-      <button class="btn btn-primary btn-small" onclick="forceStart()">🚀 强制开始</button>
+  <div class="card" style="max-width:500px">
+    <h3>🏠 房间 <span id="lobby-room-name"></span> <small id="lobby-room-code"></small></h3>
+    <div class="player-list" id="lobby-players"></div>
+    <p id="lobby-wait-msg" style="color:#666;margin:8px 0;font-size:0.9em"></p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
+      <button class="btn btn-orange" onclick="proposeStart()">🚀 开始游戏</button>
+      <button class="btn btn-blue" id="force-start-btn" style="display:none" onclick="forceStart()">⚡ 强制开始</button>
+      <button class="btn btn-gray" onclick="leaveRoom()">退出房间</button>
     </div>
-    <div style="text-align:center;margin-top:8px;">
-      <button class="btn btn-start btn-small" onclick="proposeStart()">✋ 提议开始</button>
-      <button class="btn btn-danger btn-small" onclick="leaveRoom()">退出</button>
-    </div>
-    <div id="lobby-wait-msg" style="text-align:center;color:#888;font-size:0.85em;margin-top:5px;"></div>
   </div>
 </div>
 
-<!-- 游戏画面 -->
-<div class="screen" id="game-screen">
-  <div id="game-hud">
-    <span class="hud-item hud-role" id="hud-role"></span>
-    <span class="hud-item hud-timer" id="hud-timer">3:00</span>
-    <span class="hud-item hud-stamina" id="hud-stamina">⚡100</span>
-  </div>
+<!-- ===== GAME SCREEN ===== -->
+<div id="game-screen">
   <canvas id="game-canvas"></canvas>
+  <div id="hud">
+    <div class="hud-item" id="hud-role">逃跑者</div>
+    <div class="hud-item"><div id="stamina-bar"><div id="stamina-fill" style="width:100%"></div></div></div>
+    <div class="hud-item" id="hud-time">⏱ 0:00</div>
+    <div class="hud-item" id="hud-caught">🏃 0/0</div>
+  </div>
+  <div id="item-bar">
+    <div class="item-slot empty" onclick="useItem(0)"><span class="slot-key">1</span></div>
+    <div class="item-slot empty" onclick="useItem(1)"><span class="slot-key">2</span></div>
+    <div class="item-slot empty" onclick="useItem(2)"><span class="slot-key">3</span></div>
+  </div>
   <div id="joystick-area"><div id="joystick-base"><div id="joystick-knob"></div></div></div>
-  <div id="spectator-banner">👻 你已被抓！观战中...</div>
 </div>
 
-<!-- 物品栏 (游戏中显示) -->
-<div id="item-bar">
-  <div class="item-slot empty" id="slot-0" onclick="useItem(0)"><span class="slot-key">1</span></div>
-  <div class="item-slot empty" id="slot-1" onclick="useItem(1)"><span class="slot-key">2</span></div>
-  <div class="item-slot empty" id="slot-2" onclick="useItem(2)"><span class="slot-key">3</span></div>
-</div>
-
-<!-- 暗道提示 -->
+<!-- Tunnel msg -->
 <div id="tunnel-msg"></div>
-
-<!-- 投票弹窗 -->
-<div class="modal-overlay" id="vote-modal">
-  <div class="modal-box">
-    <p id="vote-msg">有人提议开始游戏</p>
-    <button class="btn btn-primary btn-small" onclick="voteAgree()">👍 同意</button>
-    <button class="btn btn-gray btn-small" onclick="voteWait()">⏳ 继续等待</button>
+<!-- Interact hint -->
+<div id="interact-hint"></div>
+<!-- Chest popup -->
+<div id="chest-popup">
+  <div class="chest-title">🎁 宝箱</div>
+  <div class="chest-item"></div>
+  <div class="chest-desc"></div>
+  <button class="chest-btn" onclick="takeChestItem()">拿取</button>
+</div>
+<!-- Vote modal -->
+<div id="vote-modal">
+  <div class="card" style="text-align:center">
+    <p id="vote-msg" style="margin-bottom:12px;font-size:1.1em"></p>
+    <button class="btn btn-green" onclick="voteAgree()">✅ 同意</button>
+    <button class="btn btn-gray" onclick="voteWait()">⏳ 继续等待</button>
   </div>
 </div>
-
-<!-- 结算弹窗 -->
-<div class="modal-overlay" id="result-overlay">
-  <div class="modal-box result-box">
-    <div class="result-title" id="result-title">🎉</div>
-    <div class="result-msg" id="result-msg"></div>
-    <div id="result-details" style="text-align:left;font-size:0.88em;margin:10px 0;"></div>
-    <button class="btn btn-primary btn-small" onclick="returnToLobby()">🔄 再来一局</button>
-    <button class="btn btn-gray btn-small" onclick="backToMenu()">🏠 返回主页</button>
-  </div>
+<!-- Result overlay -->
+<div id="result-overlay">
+  <div class="result-card" id="result-content"></div>
 </div>
-
-<!-- 语音聊天面板 -->
+<!-- Voice panel -->
 <div id="voice-panel">
   <div id="voice-speakers"></div>
-  <button id="mic-btn" onclick="toggleMic()" title="点击切换麦克风">🎤</button>
-  <div id="voice-status"></div>
+  <button id="mic-btn" onclick="toggleMic()">🎤</button>
 </div>
 
 <script>
 // ===== CONFIG =====
 const SUPABASE_URL='https://aqxbpuetdypcbmqdncpl.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5ODg5MzksImV4cCI6MjA5NDU2NDkzOX0.YUwFQeJgbmhrtY32tGXbm9wz0jtou0Zxg1626EJl3r0';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc0NzI2NTksImV4cCI6MjA2MzA0ODY1OX0.nDjGOY5PJEls3MROv-MbVHMGCfCExMcqfitUOBDGMwg';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-// ===== CONSTANTS =====
-const GAME_DURATION=180, MAP_W=1200, MAP_H=900, PLAYER_R=18, FOOD_R=10;
-const SPEED_NORMAL=3, SPEED_CATCHER=3;
-const STAMINA_MAX=100, STAMINA_MOVE_COST=0.15, STAMINA_REGEN=0.3, FOOD_STAMINA=30;
-const CATCH_DIST=36, BROADCAST_MS=50;
-
-// ===== TERRAIN TYPES =====
-const TERRAIN = {
-  NORMAL:   {id:0, name:'普通',   color:null, spdMul:1, staminaCost:0},
-  SWAMP:    {id:1, name:'沼泽',   color:'rgba(80,120,50,0.6)', spdMul:0.5, staminaCost:0.3},
-  ICE:      {id:2, name:'冰面',   color:'rgba(180,230,255,0.7)', spdMul:1.2, staminaCost:0, friction:0.92},
-  BOOST:    {id:3, name:'加速带', color:'rgba(255,200,0,0.6)', spdMul:2.0, staminaCost:0},
-  SLOPE_UP: {id:4, name:'上坡',   color:'rgba(160,120,80,0.5)', spdMul:0.6, staminaCost:0.2},
-  SLOPE_DN: {id:5, name:'下坡',   color:'rgba(200,180,140,0.5)', spdMul:1.5, staminaCost:0},
-  THORNS:   {id:6, name:'荆棘',   color:'rgba(100,60,30,0.5)', spdMul:0.7, staminaCost:0.4},
-  TELEPORT: {id:7, name:'传送点', color:'rgba(180,0,255,0.4)', spdMul:1, staminaCost:0},
-  SPRING:   {id:8, name:'弹簧',   color:'rgba(255,100,150,0.5)', spdMul:1, staminaCost:0}
-};
-
-// ===== ITEM TYPES =====
-const ITEM_TYPES = {
-  POTION_HP:   {id:'hp',    name:'体力药水', emoji:'💊', desc:'恢复50体力'},
-  POTION_SPD:  {id:'spd',   name:'速度药水', emoji:'⚡', desc:'速度x1.8持续5秒'},
-  OBSTACLE:    {id:'block', name:'障碍物',   emoji:'🪨', desc:'放在身后阻挡15秒'},
-  KEY:         {id:'key',   name:'钥匙',     emoji:'🔑', desc:'开启暗道锁门'}
-};
+const MAP_W=1200, MAP_H=900;
+const PLAYER_R=16, FOOD_R=8;
+const STAMINA_MAX=100, STAMINA_DRAIN=0.12, STAMINA_REGEN=0.25, FOOD_STAMINA=20;
+const BASE_SPEED=3, CATCHER_SPEED=3;
+const CATCH_DIST=28;
+const GAME_DURATION=180; // 3 minutes
+const ITEM_SPAWN_INTERVAL=480; // slower: every 8 seconds
+const MAX_ITEMS_ON_MAP=3; // reduced from 8
 
 // ===== CHARACTERS =====
 const CHARS=[
-  {name:'小猫',color:'#FF6B6B',emoji:'🐱'},{name:'小狗',color:'#4ECDC4',emoji:'🐶'},
+  {name:'小猫',color:'#FFB347',emoji:'🐱'},{name:'小狗',color:'#87CEEB',emoji:'🐶'},
   {name:'小兔',color:'#FFB6C1',emoji:'🐰'},{name:'小熊',color:'#DEB887',emoji:'🐻'},
-  {name:'小鸡',color:'#FFE066',emoji:'🐥'},{name:'小猪',color:'#FFB3BA',emoji:'🐷'},
+  {name:'小鸡',color:'#FFEB3B',emoji:'🐥'},{name:'小猪',color:'#F8BBD0',emoji:'🐷'},
   {name:'小鹿',color:'#C4A882',emoji:'🦌'},{name:'小狐',color:'#FF8C42',emoji:'🦊'},
   {name:'小企鹅',color:'#5B7FFF',emoji:'🐧'},{name:'小青蛙',color:'#77DD77',emoji:'🐸'}
 ];
 
-// ===== MAPS WITH TERRAIN, TUNNELS =====
+// ===== ITEM TYPES =====
+const ITEM_TYPES={
+  hp:{id:'hp',emoji:'💊',name:'体力药水',desc:'恢复50体力'},
+  spd:{id:'spd',emoji:'⚡',name:'速度药水',desc:'加速5秒'},
+  block:{id:'block',emoji:'🪨',name:'障碍物',desc:'放置路障'},
+  key:{id:'key',emoji:'🔑',name:'钥匙',desc:'进入暗道'}
+};
+
+// ===== TERRAIN TYPES (no TELEPORT) =====
+const TERRAIN={
+  SWAMP:{color:'rgba(80,60,30,0.45)',speedMul:0.5,staminaDrain:0.3},
+  ICE:{color:'rgba(180,220,255,0.5)',speedMul:1.2,friction:0.92},
+  BOOST:{color:'rgba(255,200,0,0.4)',speedMul:2.0},
+  SLOPE_UP:{color:'rgba(139,90,43,0.35)',speedMul:0.6,staminaDrain:0.2},
+  SLOPE_DN:{color:'rgba(100,180,100,0.35)',speedMul:1.5},
+  THORNS:{color:'rgba(200,50,50,0.3)',speedMul:0.7,staminaDrain:0.4},
+  SPRING:{color:'rgba(255,150,0,0.4)',speedMul:1.0}
+};
+
+
+// ===== MAPS - Redesigned with irregular shapes, rivers, bridges, chests, gates =====
 const MAPS=[
-  {name:'草地',bg:'#8BC34A',wallColor:'#5D8A3C',walls:[
-    {x:200,y:200,w:80,h:80},{x:500,y:150,w:60,h:120},{x:900,y:200,w:100,h:60},
-    {x:150,y:500,w:60,h:150},{x:400,y:400,w:100,h:80},{x:700,y:350,w:80,h:100},
-    {x:1000,y:500,w:80,h:80},{x:300,y:700,w:120,h:60},{x:600,y:650,w:80,h:100},
-    {x:900,y:700,w:60,h:120}
-  ],terrains:[
-    {type:'SWAMP',x:100,y:350,w:120,h:100},
-    {type:'SWAMP',x:750,y:600,w:100,h:120},
-    {type:'THORNS',x:450,y:250,w:80,h:60},
-    {type:'THORNS',x:850,y:450,w:70,h:80},
-    {type:'BOOST',x:300,y:500,w:150,h:40,dir:'right'},
-    {type:'BOOST',x:600,y:200,w:40,h:150,dir:'down'},
-    {type:'SPRING',x:1050,y:300,w:60,h:60}
-  ],tunnels:[
-    {id:'t1',entry:{x:80,y:80,w:50,h:50},exit:{x:1100,y:800,w:50,h:50},locked:true,keySpawn:{x:600,y:450}},
-    {id:'t2',entry:{x:1050,y:100,w:50,h:50},exit:{x:150,y:750,w:50,h:50},locked:true,keySpawn:{x:400,y:600}}
+  // === MAP 0: 草地 (Meadow) ===
+  {name:'草地',bg:'#7CB342',wallColor:'#4E7A27',
+  // Irregular polygon walls (stored as arrays of points for rendering, plus bounding rect for collision)
+  walls:[
+    // Large rock cluster top-left (irregular)
+    {x:140,y:130,w:90,h:70,shape:'poly',pts:[{x:140,y:170},{x:155,y:130},{x:210,y:135},{x:230,y:165},{x:220,y:200},{x:160,y:200}]},
+    // Tree cluster mid
+    {x:480,y:120,w:70,h:90,shape:'poly',pts:[{x:500,y:120},{x:550,y:140},{x:545,y:200},{x:490,y:210},{x:480,y:160}]},
+    // Big boulder right
+    {x:880,y:160,w:100,h:80,shape:'poly',pts:[{x:900,y:160},{x:970,y:175},{x:980,y:220},{x:940,y:240},{x:880,y:225},{x:875,y:185}]},
+    // Hedge bottom-left
+    {x:100,y:580,w:120,h:50,shape:'poly',pts:[{x:100,y:600},{x:130,y:580},{x:200,y:585},{x:220,y:610},{x:210,y:630},{x:110,y:625}]},
+    // Stone wall mid
+    {x:380,y:380,w:110,h:60,shape:'poly',pts:[{x:380,y:400},{x:400,y:380},{x:480,y:385},{x:490,y:420},{x:470,y:440},{x:390,y:435}]},
+    // Bush cluster right-mid
+    {x:750,y:400,w:80,h:90,shape:'poly',pts:[{x:770,y:400},{x:830,y:420},{x:825,y:480},{x:780,y:490},{x:750,y:460}]},
+    // Fallen tree bottom-right
+    {x:950,y:650,w:130,h:45,shape:'poly',pts:[{x:950,y:660},{x:980,y:650},{x:1080,y:660},{x:1075,y:695},{x:960,y:690}]},
+    // Rock bottom-mid
+    {x:550,y:700,w:80,h:70,shape:'poly',pts:[{x:570,y:700},{x:620,y:710},{x:630,y:760},{x:580,y:770},{x:550,y:740}]}
+  ],
+  // River: continuous path across map (array of segments)
+  river:{
+    color:'#2196F3',
+    width:50,
+    // River path points (will be drawn as continuous flowing water)
+    path:[{x:0,y:450},{x:150,y:430},{x:300,y:460},{x:450,y:440},{x:600,y:470},{x:750,y:450},{x:900,y:480},{x:1050,y:460},{x:1200,y:470}],
+    // Bridges where players can cross
+    bridges:[
+      {x:290,y:435,w:60,h:70,built:true}, // permanent bridge
+      {x:720,y:425,w:60,h:70,built:true}  // permanent bridge
+    ]
+  },
+  // Chests (2-3 per map)
+  chests:[
+    {id:'c1',x:250,y:280,items:['hp','spd','key']},
+    {id:'c2',x:850,y:600,items:['spd','block','hp']},
+    {id:'c3',x:600,y:150,items:['key','hp','block']}
+  ],
+  // Gates (mechanism doors)
+  gates:[
+    {id:'g1',x:650,y:350,w:15,h:80,open:false,switchPos:{x:350,y:300},color:'#8B0000'},
+    {id:'g2',x:1000,y:400,w:80,h:15,open:false,switchPos:{x:1050,y:550},color:'#00008B'}
+  ],
+  // Tunnels (each requires a key each time)
+  tunnels:[
+    {id:'t1',entry:{x:80,y:80,w:50,h:50},exit:{x:1100,y:800,w:50,h:50},keySpawn:{x:600,y:450}}
+  ],
+  // Terrains
+  terrains:[
+    {type:'SWAMP',x:100,y:320,w:130,h:90},
+    {type:'THORNS',x:820,y:280,w:80,h:70},
+    {type:'BOOST',x:400,y:550,w:160,h:35,dir:'right'},
+    {type:'ICE',x:650,y:600,w:100,h:100},
+    {type:'SPRING',x:1050,y:250,w:55,h:55}
+  ],
+  // Decorations (visual only, no collision)
+  decorations:[
+    {type:'tree',x:60,y:250},{type:'tree',x:320,y:100},{type:'tree',x:700,y:150},
+    {type:'tree',x:1100,y:300},{type:'tree',x:200,y:700},{type:'tree',x:900,y:800},
+    {type:'bush',x:400,y:200},{type:'bush',x:650,y:300},{type:'bush',x:850,y:750},
+    {type:'flower',x:150,y:450},{type:'flower',x:500,y:350},{type:'flower',x:750,y:700},
+    {type:'rock',x:1000,y:150},{type:'rock',x:300,y:600},{type:'rock',x:700,y:800}
   ]},
-  {name:'城镇',bg:'#D4C5A9',wallColor:'#8B7355',walls:[
-    {x:100,y:100,w:200,h:20},{x:100,y:100,w:20,h:200},{x:400,y:80,w:20,h:180},
-    {x:600,y:100,w:200,h:20},{x:800,y:100,w:20,h:150},{x:950,y:200,w:150,h:20},
-    {x:100,y:400,w:150,h:20},{x:350,y:350,w:20,h:150},{x:500,y:400,w:200,h:20},
-    {x:700,y:350,w:20,h:200},{x:850,y:450,w:150,h:20},{x:1000,y:400,w:20,h:150},
-    {x:150,y:600,w:20,h:200},{x:300,y:700,w:200,h:20},{x:550,y:650,w:20,h:150},
-    {x:700,y:700,w:150,h:20},{x:900,y:650,w:20,h:150},{x:950,y:750,w:150,h:20}
-  ],terrains:[
-    {type:'ICE',x:200,y:130,w:180,h:120},
-    {type:'ICE',x:850,y:550,w:130,h:100},
-    {type:'SLOPE_UP',x:400,y:280,w:80,h:60},
-    {type:'SLOPE_DN',x:600,y:500,w:80,h:60},
-    {type:'SPRING',x:500,y:150,w:60,h:60},
-    {type:'SPRING',x:250,y:600,w:60,h:60},
-    {type:'BOOST',x:100,y:310,w:250,h:35,dir:'right'},
-    {type:'BOOST',x:750,y:250,w:35,h:180,dir:'down'}
-  ],tunnels:[
-    {id:'t1',entry:{x:50,y:800,w:50,h:50},exit:{x:1100,y:100,w:50,h:50},locked:true,keySpawn:{x:500,y:500}},
-    {id:'t2',entry:{x:450,y:50,w:50,h:50},exit:{x:750,y:820,w:50,h:50},locked:true,keySpawn:{x:900,y:350}},
-    {id:'t3',entry:{x:1100,y:450,w:50,h:50},exit:{x:100,y:500,w:50,h:50},locked:false,keySpawn:null}
+
+  // === MAP 1: 城镇 (Town) ===
+  {name:'城镇',bg:'#D4C5A9',wallColor:'#6D4C41',
+  walls:[
+    // Building top-left
+    {x:60,y:60,w:160,h:120,shape:'poly',pts:[{x:60,y:80},{x:80,y:60},{x:200,y:60},{x:220,y:80},{x:220,y:180},{x:60,y:180}]},
+    // Building top-right
+    {x:800,y:50,w:180,h:130,shape:'poly',pts:[{x:800,y:70},{x:820,y:50},{x:960,y:50},{x:980,y:70},{x:980,y:180},{x:800,y:180}]},
+    // Market stalls mid
+    {x:350,y:200,w:100,h:60,shape:'poly',pts:[{x:350,y:220},{x:370,y:200},{x:440,y:205},{x:450,y:240},{x:440,y:260},{x:360,y:255}]},
+    // Fountain center (round-ish)
+    {x:540,y:380,w:100,h:100,shape:'poly',pts:[{x:570,y:380},{x:620,y:385},{x:640,y:410},{x:640,y:450},{x:620,y:475},{x:570,y:480},{x:545,y:455},{x:540,y:415},{x:545,y:390}]},
+    // House bottom-left
+    {x:80,y:600,w:150,h:120,shape:'poly',pts:[{x:80,y:620},{x:100,y:600},{x:210,y:600},{x:230,y:620},{x:230,y:720},{x:80,y:720}]},
+    // Wall segment mid-left
+    {x:250,y:420,w:120,h:25,shape:'poly',pts:[{x:250,y:425},{x:260,y:420},{x:360,y:420},{x:370,y:430},{x:370,y:445},{x:250,y:445}]},
+    // Tower right
+    {x:950,y:350,w:80,h:120,shape:'poly',pts:[{x:960,y:350},{x:1020,y:350},{x:1030,y:370},{x:1030,y:460},{x:960,y:470},{x:950,y:450},{x:950,y:370}]},
+    // Shed bottom-right
+    {x:900,y:700,w:130,h:90,shape:'poly',pts:[{x:900,y:720},{x:920,y:700},{x:1010,y:700},{x:1030,y:720},{x:1030,y:790},{x:900,y:790}]},
+    // Barrel cluster
+    {x:500,y:600,w:70,h:60,shape:'poly',pts:[{x:510,y:600},{x:560,y:605},{x:570,y:640},{x:555,y:660},{x:510,y:655},{x:500,y:630}]}
+  ],
+  river:{
+    color:'#1E88E5',
+    width:45,
+    path:[{x:600,y:0},{x:590,y:100},{x:610,y:200},{x:595,y:300},{x:580,y:400},{x:590,y:500},{x:600,y:600},{x:610,y:700},{x:605,y:800},{x:600,y:900}],
+    bridges:[
+      {x:570,y:250,w:70,h:55,built:true},
+      {x:565,y:550,w:70,h:55,built:true}
+    ]
+  },
+  chests:[
+    {id:'c1',x:150,y:350,items:['key','spd','hp']},
+    {id:'c2',x:750,y:250,items:['hp','block','spd']},
+    {id:'c3',x:450,y:750,items:['spd','key','block']}
+  ],
+  gates:[
+    {id:'g1',x:400,y:400,w:15,h:70,open:false,switchPos:{x:300,y:500},color:'#8B0000'},
+    {id:'g2',x:700,y:300,w:70,h:15,open:false,switchPos:{x:800,y:250},color:'#00008B'}
+  ],
+  tunnels:[
+    {id:'t1',entry:{x:180,y:480,w:50,h:50},exit:{x:900,y:550,w:50,h:50},keySpawn:{x:500,y:500}}
+  ],
+  terrains:[
+    {type:'ICE',x:700,y:400,w:110,h:90},
+    {type:'BOOST',x:300,y:650,w:40,h:140,dir:'up'},
+    {type:'SLOPE_UP',x:850,y:200,w:90,h:80},
+    {type:'SPRING',x:450,y:100,w:55,h:55},
+    {type:'SWAMP',x:100,y:450,w:100,h:80}
+  ],
+  decorations:[
+    {type:'tree',x:300,y:50},{type:'tree',x:700,y:50},{type:'tree',x:50,y:400},
+    {type:'tree',x:1100,y:200},{type:'tree',x:1100,y:600},{type:'tree',x:400,y:850},
+    {type:'lamp',x:250,y:300},{type:'lamp',x:650,y:200},{type:'lamp',x:750,y:600},
+    {type:'barrel',x:100,y:200},{type:'barrel',x:850,y:500},{type:'barrel',x:400,y:500}
   ]},
-  {name:'迷宫',bg:'#E8D5B7',wallColor:'#6B4E3D',walls:[
-    {x:0,y:150,w:300,h:18},{x:200,y:0,w:18,h:150},{x:400,y:100,w:18,h:250},
-    {x:200,y:300,w:220,h:18},{x:0,y:450,w:200,h:18},{x:300,y:450,w:18,h:200},
-    {x:500,y:350,w:200,h:18},{x:700,y:150,w:18,h:220},{x:800,y:0,w:18,h:150},
-    {x:900,y:200,w:18,h:250},{x:700,y:450,w:300,h:18},{x:500,y:550,w:18,h:200},
-    {x:100,y:650,w:200,h:18},{x:400,y:700,w:18,h:200},{x:600,y:650,w:200,h:18},
-    {x:800,y:600,w:18,h:200},{x:900,y:700,w:200,h:18},{x:1050,y:500,w:18,h:200}
-  ],terrains:[
-    {type:'BOOST',x:50,y:200,w:140,h:35,dir:'right'},
-    {type:'BOOST',x:750,y:500,w:35,h:130,dir:'down'},
-    {type:'TELEPORT',x:100,y:500,w:50,h:50,pairId:'tp1'},
-    {type:'TELEPORT',x:1050,y:100,w:50,h:50,pairId:'tp1'},
-    {type:'TELEPORT',x:600,y:100,w:50,h:50,pairId:'tp2'},
-    {type:'TELEPORT',x:400,y:800,w:50,h:50,pairId:'tp2'},
-    {type:'THORNS',x:220,y:350,w:80,h:80},
-    {type:'SWAMP',x:550,y:400,w:120,h:100},
-    {type:'SWAMP',x:900,y:750,w:100,h:80}
-  ],tunnels:[
-    {id:'t1',entry:{x:50,y:50,w:50,h:50},exit:{x:1100,y:820,w:50,h:50},locked:true,keySpawn:{x:700,y:400}},
-    {id:'t2',entry:{x:650,y:750,w:50,h:50},exit:{x:250,y:150,w:50,h:50},locked:true,keySpawn:{x:950,y:600}},
-    {id:'t3',entry:{x:1100,y:300,w:50,h:50},exit:{x:50,y:850,w:50,h:50},locked:true,keySpawn:{x:350,y:550}}
+
+  // === MAP 2: 迷宫 (Maze) ===
+  {name:'迷宫',bg:'#78909C',wallColor:'#37474F',
+  walls:[
+    // Maze walls - irregular shapes
+    {x:100,y:80,w:200,h:30,shape:'poly',pts:[{x:100,y:85},{x:110,y:80},{x:290,y:80},{x:300,y:90},{x:295,y:110},{x:105,y:108}]},
+    {x:100,y:80,w:30,h:250,shape:'poly',pts:[{x:100,y:85},{x:130,y:88},{x:128,y:320},{x:100,y:325}]},
+    {x:250,y:180,w:30,h:180,shape:'poly',pts:[{x:250,y:180},{x:280,y:183},{x:278,y:355},{x:252,y:360}]},
+    {x:350,y:80,w:30,h:150,shape:'poly',pts:[{x:350,y:80},{x:380,y:83},{x:378,y:225},{x:352,y:228}]},
+    {x:400,y:200,w:180,h:30,shape:'poly',pts:[{x:400,y:200},{x:575,y:203},{x:580,y:228},{x:402,y:230}]},
+    {x:550,y:80,w:30,h:150,shape:'poly',pts:[{x:550,y:80},{x:580,y:82},{x:578,y:225},{x:552,y:228}]},
+    {x:650,y:150,w:200,h:30,shape:'poly',pts:[{x:650,y:150},{x:845,y:153},{x:848,y:178},{x:652,y:180}]},
+    {x:700,y:250,w:30,h:200,shape:'poly',pts:[{x:700,y:250},{x:730,y:252},{x:728,y:445},{x:702,y:448}]},
+    {x:850,y:80,w:30,h:200,shape:'poly',pts:[{x:850,y:80},{x:880,y:82},{x:878,y:275},{x:852,y:278}]},
+    {x:950,y:200,w:30,h:250,shape:'poly',pts:[{x:950,y:200},{x:980,y:202},{x:978,y:445},{x:952,y:448}]},
+    // Bottom half
+    {x:100,y:450,w:200,h:30,shape:'poly',pts:[{x:100,y:450},{x:295,y:452},{x:298,y:478},{x:102,y:480}]},
+    {x:200,y:500,w:30,h:180,shape:'poly',pts:[{x:200,y:500},{x:230,y:502},{x:228,y:675},{x:202,y:678}]},
+    {x:350,y:400,w:30,h:200,shape:'poly',pts:[{x:350,y:400},{x:380,y:402},{x:378,y:595},{x:352,y:598}]},
+    {x:400,y:550,w:180,h:30,shape:'poly',pts:[{x:400,y:550},{x:575,y:552},{x:578,y:578},{x:402,y:580}]},
+    {x:500,y:400,w:150,h:30,shape:'poly',pts:[{x:500,y:400},{x:645,y:402},{x:648,y:428},{x:502,y:430}]},
+    {x:600,y:500,w:30,h:200,shape:'poly',pts:[{x:600,y:500},{x:630,y:502},{x:628,y:695},{x:602,y:698}]},
+    {x:700,y:550,w:200,h:30,shape:'poly',pts:[{x:700,y:550},{x:895,y:552},{x:898,y:578},{x:702,y:580}]},
+    {x:800,y:400,w:30,h:180,shape:'poly',pts:[{x:800,y:400},{x:830,y:402},{x:828,y:575},{x:802,y:578}]},
+    {x:950,y:500,w:30,h:200,shape:'poly',pts:[{x:950,y:500},{x:980,y:502},{x:978,y:695},{x:952,y:698}]},
+    {x:100,y:700,w:150,h:30,shape:'poly',pts:[{x:100,y:700},{x:245,y:702},{x:248,y:728},{x:102,y:730}]},
+    {x:350,y:700,w:200,h:30,shape:'poly',pts:[{x:350,y:700},{x:545,y:702},{x:548,y:728},{x:352,y:730}]},
+    {x:700,y:700,w:200,h:30,shape:'poly',pts:[{x:700,y:700},{x:895,y:702},{x:898,y:728},{x:702,y:730}]},
+    {x:1050,y:100,w:30,h:300,shape:'poly',pts:[{x:1050,y:100},{x:1080,y:102},{x:1078,y:395},{x:1052,y:398}]},
+    {x:1050,y:500,w:30,h:250,shape:'poly',pts:[{x:1050,y:500},{x:1080,y:502},{x:1078,y:745},{x:1052,y:748}]}
+  ],
+  river:{
+    color:'#0D47A1',
+    width:40,
+    path:[{x:450,y:0},{x:460,y:100},{x:440,y:200},{x:455,y:350},{x:450,y:450},{x:440,y:550},{x:455,y:700},{x:450,y:800},{x:445,y:900}],
+    bridges:[
+      {x:425,y:130,w:60,h:50,built:true},
+      {x:420,y:470,w:60,h:50,built:true},
+      {x:425,y:750,w:60,h:50,built:true}
+    ]
+  },
+  chests:[
+    {id:'c1',x:170,y:200,items:['key','hp','spd']},
+    {id:'c2',x:900,y:350,items:['spd','block','key']}
+  ],
+  gates:[
+    {id:'g1',x:250,y:350,w:15,h:60,open:false,switchPos:{x:180,y:600},color:'#8B0000'},
+    {id:'g2',x:700,y:445,w:60,h:15,open:false,switchPos:{x:650,y:650},color:'#00008B'},
+    {id:'g3',x:1050,y:395,w:30,h:60,open:false,switchPos:{x:1100,y:600},color:'#006400'}
+  ],
+  tunnels:[
+    {id:'t1',entry:{x:50,y:820,w:50,h:50},exit:{x:1100,y:50,w:50,h:50},keySpawn:{x:500,y:300}}
+  ],
+  terrains:[
+    {type:'ICE',x:400,y:300,w:80,h:80},
+    {type:'SWAMP',x:650,y:600,w:100,h:80},
+    {type:'BOOST',x:850,y:650,w:40,h:120,dir:'up'},
+    {type:'THORNS',x:150,y:380,w:70,h:60},
+    {type:'SPRING',x:1100,y:450,w:50,h:50}
+  ],
+  decorations:[
+    {type:'torch',x:100,y:150},{type:'torch',x:300,y:80},{type:'torch',x:550,y:150},
+    {type:'torch',x:850,y:80},{type:'torch',x:1050,y:200},{type:'torch',x:200,y:450},
+    {type:'skull',x:400,y:350},{type:'skull',x:750,y:500},{type:'skull',x:900,y:700},
+    {type:'moss',x:150,y:300},{type:'moss',x:600,y:400},{type:'moss',x:800,y:300}
   ]}
 ];
 
-// ===== STATE =====
+
+// ===== GAME STATE =====
 let myId='',myNick='',myCharIdx=0,roomCode='',roomName='',roomType='public',selectedMap=0;
 let isHost=false,channel=null,gameState='menu';
-let lobbyPlayers={},lobbyTs={},players={},foods=[],isCaught=false;
-let gameInterval=null,timerInterval=null,presenceInterval=null,timeLeft=GAME_DURATION;
+let players={},lobbyPlayers={};
+let foods=[],obstacles=[],itemPickups=[],tunnelKeys=[];
+let myItems=[null,null,null];
+let frameCount=0,gameStartTime=0;
+let coinSpawnTimer=0,itemSpawnTimer=0,nextCoinId=0;
+let joystickDX=0,joystickDY=0,joystickActive=false;
+let keys={};
+let inTunnel=false,tunnelCooldown=0;
 let currentVote=null;
-let keys={},isMobile=false,joystickActive=false,joystickDX=0,joystickDY=0;
+let springLaunch={active:false,dx:0,dy:0,frames:0};
+let iceVX=0,iceVY=0;
+// New systems
+let chestStates={}; // {chestId: true} = opened
+let gateStates={}; // {gateId: true} = open
+let currentChest=null; // chest being opened
+let riverAnimOffset=0; // for water animation
 
-// ===== TERRAIN/ITEM/TUNNEL STATE =====
-let myItems=[null,null,null]; // 3 slots
-let mySpeedBuff=0; // remaining frames of speed buff
-let mySpeedMul=1;
-let obstacles=[]; // placed obstacles [{x,y,id,expireFrame}]
-let frameCount=0;
-let tunnelStates={}; // {tunnelId: {unlocked:bool}}
-let tunnelKeys=[]; // spawned keys on map [{id,x,y,active,tunnelId}]
-let itemPickups=[]; // spawned items on map [{id,x,y,active,type}]
-let inTunnel=false, tunnelEnteredFrame=0, currentTunnelId=null, tunnelCooldown=0;
-let teleportCooldown=0;
-let iceVX=0, iceVY=0; // ice sliding velocity
-let springLaunch=0, springDX=0, springDY=0; // spring launch state
-
-// Item spawn timer
-let itemSpawnTimer=0;
-const ITEM_SPAWN_INTERVAL=300; // ~5 seconds at 60fps
-// ===== UTILS =====
-function escH(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function genId(){return Math.random().toString(36).substr(2,9);}
+// ===== UTILITY =====
+function genId(){return 'p_'+Math.random().toString(36).substr(2,8);}
 function genRoomCode(){return String(Math.floor(1000+Math.random()*9000));}
-function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+function escH(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));const el=document.getElementById(id);if(el)el.classList.add('active');if(id==='game-screen'){document.getElementById('game-screen').style.display='block';}else{document.getElementById('game-screen').style.display='none';}}
+function isMobile(){return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||('ontouchstart' in window);}
 
-// ===== INIT UI =====
+// ===== UI INIT =====
 function initUI(){
-  isMobile=/Mobi|Android|iPad|iPhone/i.test(navigator.userAgent);
-  // Map toggle
   const mt=document.getElementById('map-toggle');
   MAPS.forEach((m,i)=>{mt.innerHTML+=`<span class="toggle-btn${i===0?' active':''}" data-val="${i}" onclick="selectMap(this)">${m.name}</span>`;});
-  // Char grids
   ['create-chars','join-chars'].forEach(gid=>{
     const g=document.getElementById(gid);
     CHARS.forEach((c,i)=>{g.innerHTML+=`<div class="char-option" style="background:${c.color}" data-idx="${i}" onclick="selectChar(this,${i})">${c.emoji}</div>`;});
@@ -427,173 +525,81 @@ function joinRoom(){
 }
 function randomJoin(){
   myNick=document.getElementById('join-nick').value.trim()||CHARS[myCharIdx].name;
-  myId=genId();isHost=false;
-  // Try to find a public room
-  const ch=sb.channel('room-list');
-  ch.subscribe(async(status)=>{
-    if(status==='SUBSCRIBED'){
-      ch.send({type:'broadcast',event:'list-request',payload:{from:myId}});
-      setTimeout(()=>{ch.unsubscribe();if(!roomCode){alert('没有找到可加入的房间，试试创建一个吧！');}},3000);
-    }
-  });
-  ch.on('broadcast',{event:'list-response'},({payload})=>{
-    if(roomCode)return;
-    if(payload.type==='public'&&payload.count<10){
-      roomCode=payload.code;roomName=payload.name;selectedMap=payload.map||0;
-      ch.unsubscribe();joinChannel();
-    }
-  });
-}
-function loadRooms(){
-  const list=document.getElementById('room-list');
-  list.innerHTML='<li class="empty-msg">搜索中...</li>';
-  const ch=sb.channel('room-list');
-  const rooms=[];
-  ch.subscribe(async(status)=>{
-    if(status==='SUBSCRIBED'){
-      ch.send({type:'broadcast',event:'list-request',payload:{from:'browser'}});
-      setTimeout(()=>{
-        ch.unsubscribe();
-        if(rooms.length===0){list.innerHTML='<li class="empty-msg">暂无公开房间</li>';return;}
-        list.innerHTML='';
-        rooms.forEach(r=>{
-          list.innerHTML+=`<li class="room-card"><div class="room-info"><span class="room-name-text">${escH(r.name)}</span><span class="room-meta">队长:${escH(r.host)} | ${r.count}/10人 | ${MAPS[r.map||0].name}</span></div><button class="btn btn-secondary btn-small" onclick="joinFromBrowse('${r.code}',${r.map||0})">加入</button></li>`;
-        });
-      },2500);
-    }
-  });
-  ch.on('broadcast',{event:'list-response'},({payload})=>{
-    if(payload.type==='public')rooms.push(payload);
-  });
-}
-function joinFromBrowse(code,map){
-  roomCode=code;selectedMap=map;
-  myNick=prompt('输入你的昵称:',CHARS[myCharIdx].name)||CHARS[myCharIdx].name;
-  myId=genId();isHost=false;
-  joinChannel();
+  myId=genId();isHost=false;roomCode='random_'+Date.now();
+  // Will be handled by presence - find a room
+  alert('随机加入功能开发中，请输入房间号加入');
 }
 function leaveRoom(){
   if(channel){channel.unsubscribe();channel=null;}
-  lobbyPlayers={};gameState='menu';
+  leaveVoice();
+  gameState='menu';players={};lobbyPlayers={};
   showScreen('menu-screen');
-  leaveVoiceChannel();
 }
 
-// ===== CHANNEL =====
+// ===== CHANNEL (Supabase Realtime) =====
 function joinChannel(){
-  gameState='lobby';
-  channel=sb.channel('catch-room-'+roomCode,{config:{broadcast:{self:false}}});
+  channel=sb.channel('catch-room-'+roomCode,{config:{broadcast:{self:true}}});
   channel.on('broadcast',{event:'presence'},({payload})=>onPresence(payload));
-  channel.on('broadcast',{event:'kick'},({payload})=>onKick(payload));
+  channel.on('broadcast',{event:'game-start'},({payload})=>onGameStart(payload));
+  channel.on('broadcast',{event:'player-update'},({payload})=>onPlayerUpdate(payload));
+  channel.on('broadcast',{event:'food-eaten'},({payload})=>{const f=foods.find(x=>x.id===payload.foodId);if(f)f.active=false;});
+  channel.on('broadcast',{event:'coin-spawn'},({payload})=>{foods.push(payload);});
+  channel.on('broadcast',{event:'caught'},({payload})=>onCaught(payload));
+  channel.on('broadcast',{event:'game-end'},({payload})=>onGameEnd(payload));
   channel.on('broadcast',{event:'vote-propose'},({payload})=>onVotePropose(payload));
   channel.on('broadcast',{event:'vote-response'},({payload})=>onVoteResponse(payload));
-  channel.on('broadcast',{event:'game-start'},({payload})=>onGameStart(payload));
-  channel.on('broadcast',{event:'player-move'},({payload})=>onPlayerMove(payload));
-  channel.on('broadcast',{event:'player-caught'},({payload})=>onPlayerCaught(payload));
-  channel.on('broadcast',{event:'food-eaten'},({payload})=>onFoodEaten(payload));
-  channel.on('broadcast',{event:'coin-spawn'},({payload})=>onCoinSpawn(payload));
-  channel.on('broadcast',{event:'game-end'},({payload})=>onGameEnd(payload));
-  channel.on('broadcast',{event:'list-request'},()=>{
-    if(isHost&&gameState==='lobby'){
-      channel.send({type:'broadcast',event:'list-response',payload:{code:roomCode,name:roomName,host:myNick,count:Object.keys(lobbyPlayers).length,type:roomType,map:selectedMap}});
-    }
-  });
-  // New events for items/tunnels
-  channel.on('broadcast',{event:'item-pickup'},({payload})=>onItemPickup(payload));
+  channel.on('broadcast',{event:'item-spawn'},({payload})=>{itemPickups.push(payload);});
+  channel.on('broadcast',{event:'item-pickup'},({payload})=>{const it=itemPickups.find(i=>i.id===payload.itemId);if(it)it.active=false;});
   channel.on('broadcast',{event:'item-use'},({payload})=>onItemUse(payload));
-  channel.on('broadcast',{event:'obstacle-place'},({payload})=>onObstaclePlace(payload));
-  channel.on('broadcast',{event:'tunnel-unlock'},({payload})=>onTunnelUnlock(payload));
-  channel.on('broadcast',{event:'key-pickup'},({payload})=>onKeyPickup(payload));
-  channel.on('broadcast',{event:'item-spawn'},({payload})=>onItemSpawn(payload));
-  // Voice UID mapping
-  channel.on('broadcast',{event:'voice-uid'},({payload})=>onVoiceUid(payload));
+  channel.on('broadcast',{event:'obstacle-place'},({payload})=>{obstacles.push(payload);});
+  channel.on('broadcast',{event:'obstacle-remove'},({payload})=>{obstacles=obstacles.filter(o=>o.id!==payload.id);});
+  channel.on('broadcast',{event:'key-spawn'},({payload})=>{tunnelKeys.push(payload);});
+  channel.on('broadcast',{event:'key-pickup'},({payload})=>{const k=tunnelKeys.find(x=>x.id===payload.keyId);if(k)k.active=false;});
+  channel.on('broadcast',{event:'tunnel-used'},({payload})=>onTunnelUsed(payload));
+  // New events
+  channel.on('broadcast',{event:'chest-open'},({payload})=>onChestOpen(payload));
+  channel.on('broadcast',{event:'gate-toggle'},({payload})=>onGateToggle(payload));
 
-  channel.subscribe(async(status)=>{
+  channel.subscribe((status)=>{
     if(status==='SUBSCRIBED'){
+      gameState='lobby';showScreen('lobby-screen');
+      document.getElementById('lobby-room-name').textContent=roomName;
+      document.getElementById('lobby-room-code').textContent='#'+roomCode;
+      if(isHost)document.getElementById('force-start-btn').style.display='inline-block';
       broadcastPresence();
-      presenceInterval=setInterval(broadcastPresence,2000);
-      showScreen('lobby-screen');
-      document.getElementById('lobby-room-code').textContent=roomCode;
-      document.getElementById('lobby-room-name').textContent='🎮 '+(roomName||'游戏房间');
-      document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
-      // Also respond to room list requests on the global channel
-      const listCh=sb.channel('room-list');
-      listCh.subscribe(s=>{
-        if(s==='SUBSCRIBED'){
-          listCh.on('broadcast',{event:'list-request'},()=>{
-            if(isHost&&gameState==='lobby'){
-              listCh.send({type:'broadcast',event:'list-response',payload:{code:roomCode,name:roomName,host:myNick,count:Object.keys(lobbyPlayers).length,type:roomType,map:selectedMap}});
-            }
-          });
-        }
-      });
-      // Join voice channel
-      joinVoiceChannel('catch-voice-'+roomCode);
+      joinVoice();
     }
   });
 }
-
 function broadcastPresence(){
   if(!channel)return;
-  channel.send({type:'broadcast',event:'presence',payload:{id:myId,nick:myNick,charIdx:myCharIdx,isHost,ts:Date.now()}});
-  // Self
-  lobbyPlayers[myId]={nick:myNick,charIdx:myCharIdx,isHost};
-  lobbyTs[myId]=Date.now();
-  updateLobbyUI();
+  channel.send({type:'broadcast',event:'presence',payload:{
+    id:myId,nick:myNick,charIdx:myCharIdx,isHost,roomName,roomType,mapIdx:selectedMap
+  }});
 }
-
 function onPresence(p){
   lobbyPlayers[p.id]={nick:p.nick,charIdx:p.charIdx,isHost:p.isHost};
-  lobbyTs[p.id]=Date.now();
-  // Check for character conflict
-  if(p.id!==myId&&p.charIdx===myCharIdx){
-    // Auto-switch to next available
-    const used=new Set(Object.entries(lobbyPlayers).filter(([id])=>id!==myId).map(([,v])=>v.charIdx));
-    for(let i=0;i<CHARS.length;i++){if(!used.has(i)){myCharIdx=i;broadcastPresence();break;}}
-  }
-  updateLobbyUI();
-  // Clean stale
-  const now=Date.now();
-  Object.keys(lobbyTs).forEach(id=>{if(now-lobbyTs[id]>6000){delete lobbyPlayers[id];delete lobbyTs[id];}});
+  if(p.isHost){roomName=p.roomName||roomName;selectedMap=p.mapIdx??selectedMap;}
+  renderLobby();
+}
+function renderLobby(){
+  const el=document.getElementById('lobby-players');
+  el.innerHTML=Object.entries(lobbyPlayers).map(([id,p])=>`<span class="player-tag${p.isHost?' host':''}">${CHARS[p.charIdx].emoji} ${escH(p.nick)}${p.isHost?' 👑':''}</span>`).join('');
 }
 
-function updateLobbyUI(){
-  const list=document.getElementById('lobby-players');
-  const count=Object.keys(lobbyPlayers).length;
-  document.getElementById('lobby-count').textContent=`${count}/10 玩家`;
-  list.innerHTML='';
-  Object.entries(lobbyPlayers).forEach(([id,p])=>{
-    const hostBadge=p.isHost?'👑':'';
-    const kickBtn=(isHost&&id!==myId)?`<span class="kick-btn" onclick="kickPlayer('${id}')">踢出</span>`:'';
-    const voiceIcon=isPlayerInVoice(id)?'🎤':'';
-    list.innerHTML+=`<li><span class="dot" style="background:${CHARS[p.charIdx].color}"></span>${CHARS[p.charIdx].emoji} ${escH(p.nick)} ${hostBadge} ${voiceIcon}${kickBtn}</li>`;
-  });
-}
-// ===== KICK =====
-function kickPlayer(targetId){
-  if(!isHost)return;
-  channel.send({type:'broadcast',event:'kick',payload:{targetId}});
-}
-function onKick({targetId}){
-  if(targetId===myId){alert('你被队长踢出了房间！');leaveRoom();}
-  else{delete lobbyPlayers[targetId];updateLobbyUI();}
-}
-
-// ===== VOTE SYSTEM =====
+// ===== VOTING =====
 function proposeStart(){
   const count=Object.keys(lobbyPlayers).length;
   if(count<2){alert('至少需要2个玩家！');return;}
-  channel.send({type:'broadcast',event:'vote-propose',payload:{proposer:myId,proposerName:myNick}});
-  // Count self vote
-  onVotePropose({proposer:myId,proposerName:myNick});
+  currentVote={proposer:myId,needed:count,votes:{[myId]:'agree'}};
+  channel.send({type:'broadcast',event:'vote-propose',payload:{proposerId:myId,proposerName:myNick,needed:count}});
+  document.getElementById('lobby-wait-msg').textContent='等待其他玩家同意...';
+  checkVoteResult();
 }
-function onVotePropose({proposer,proposerName}){
-  if(gameState!=='lobby')return;
-  const ids=Object.keys(lobbyPlayers);
-  currentVote={proposer,proposerName,votes:{},needed:ids.length};
-  currentVote.votes[proposer]='agree';
-  if(proposer===myId){
-    document.getElementById('lobby-wait-msg').textContent='等待其他玩家投票...';
+function onVotePropose({proposerId,proposerName,needed}){
+  currentVote={proposer:proposerId,needed,votes:{[proposerId]:'agree'}};
+  if(proposerId===myId){
+    document.getElementById('lobby-wait-msg').textContent='等待其他玩家同意...';
   } else {
     document.getElementById('vote-msg').textContent=`${escH(proposerName)} 提议开始游戏，是否同意？`;
     document.getElementById('vote-modal').classList.add('active');
@@ -639,113 +645,102 @@ function forceStart(){
 function startGame(){
   const ids=Object.keys(lobbyPlayers);
   const catcherIdx=Math.floor(Math.random()*ids.length);
-  const startPositions=ids.map((_,i)=>({
-    x:100+Math.random()*(MAP_W-200),
-    y:100+Math.random()*(MAP_H-200)
-  }));
-  // Init foods
-  const initFoods=[];
-  for(let i=0;i<8;i++){
-    initFoods.push({id:i,x:50+Math.random()*(MAP_W-100),y:50+Math.random()*(MAP_H-100),active:true});
-  }
-  // Init item pickups
-  const initItems=[];
-  const itemTypes=['hp','spd','block'];
-  for(let i=0;i<5;i++){
-    initItems.push({id:'item_'+i,x:80+Math.random()*(MAP_W-160),y:80+Math.random()*(MAP_H-160),active:true,type:itemTypes[Math.floor(Math.random()*3)]});
-  }
-  // Init tunnel keys
   const map=MAPS[selectedMap];
-  const initKeys=[];
+  const startPositions=ids.map((_,i)=>{
+    let x,y,ok,tries=0;
+    do{x=80+Math.random()*(MAP_W-160);y=80+Math.random()*(MAP_H-160);ok=true;
+      for(const w of map.walls){if(x>w.x-20&&x<w.x+w.w+20&&y>w.y-20&&y<w.y+w.h+20){ok=false;break;}}
+      if(ok&&isInRiver(x,y,map))ok=false;
+      tries++;
+    }while(!ok&&tries<50);
+    return {x,y};
+  });
+  // Spawn initial keys
+  const keySpawns=[];
   map.tunnels.forEach(t=>{
-    if(t.locked&&t.keySpawn){
-      initKeys.push({id:'key_'+t.id,x:t.keySpawn.x,y:t.keySpawn.y,active:true,tunnelId:t.id});
-    }
+    if(t.keySpawn)keySpawns.push({id:'key_'+t.id+'_0',x:t.keySpawn.x,y:t.keySpawn.y,active:true});
   });
-  // Init tunnel states (all locked ones start locked)
-  const initTunnelStates={};
-  map.tunnels.forEach(t=>{initTunnelStates[t.id]=!t.locked;});
 
-  const payload={
-    catcherId:ids[catcherIdx],
-    players:ids.map((id,i)=>({id,nick:lobbyPlayers[id].nick,charIdx:lobbyPlayers[id].charIdx,x:startPositions[i].x,y:startPositions[i].y})),
-    foods:initFoods,
-    items:initItems,
-    keys:initKeys,
-    tunnelStates:initTunnelStates,
-    map:selectedMap
-  };
-  channel.send({type:'broadcast',event:'game-start',payload});
-  onGameStart(payload);
+  channel.send({type:'broadcast',event:'game-start',payload:{
+    catcherId:ids[catcherIdx],positions:startPositions,ids,mapIdx:selectedMap,keySpawns
+  }});
 }
-
-function onGameStart(data){
-  gameState='playing';
-  selectedMap=data.map;
-  timeLeft=GAME_DURATION;
-  isCaught=false;
-  players={};foods=data.foods||[];
-  itemPickups=data.items||[];
-  tunnelKeys=data.keys||[];
-  tunnelStates=data.tunnelStates||{};
-  obstacles=[];
+function onGameStart({catcherId,positions,ids,mapIdx,keySpawns}){
+  selectedMap=mapIdx;
+  gameState='playing';frameCount=0;gameStartTime=Date.now();
+  foods=[];obstacles=[];itemPickups=[];tunnelKeys=keySpawns||[];
   myItems=[null,null,null];
-  mySpeedBuff=0;mySpeedMul=1;
-  frameCount=0;itemSpawnTimer=0;
-  inTunnel=false;currentTunnelId=null;
-  teleportCooldown=0;tunnelCooldown=0;
+  chestStates={};gateStates={};
+  coinSpawnTimer=0;itemSpawnTimer=0;
+  inTunnel=false;tunnelCooldown=0;
+  springLaunch={active:false,dx:0,dy:0,frames:0};
   iceVX=0;iceVY=0;
-  springLaunch=0;
-
-  data.players.forEach(p=>{
-    players[p.id]={x:p.x,y:p.y,nick:p.nick,charIdx:p.charIdx,role:p.id===data.catcherId?'catcher':'runner',caught:false,dx:0,dy:0,stamina:STAMINA_MAX};
+  players={};
+  ids.forEach((id,i)=>{
+    const lp=lobbyPlayers[id]||{nick:'???',charIdx:0};
+    players[id]={
+      x:positions[i].x,y:positions[i].y,
+      nick:lp.nick,charIdx:lp.charIdx,
+      isCatcher:id===catcherId,caught:false,
+      stamina:STAMINA_MAX,speed:0,dir:0
+    };
   });
-
   showScreen('game-screen');
-  document.getElementById('vote-modal').classList.remove('active');
-  document.getElementById('result-overlay').classList.remove('active');
-  const me=players[myId];
-  document.getElementById('hud-role').textContent=me.role==='catcher'?'🏃 抓人者':'🐇 逃跑者';
-
-  // Show item bar
   document.getElementById('item-bar').classList.add('active');
+  document.getElementById('voice-panel').classList.add('active');
   updateItemBarUI();
-
-  setupCanvas();
-  if(isMobile)setupJoystick();
-  setupKeys();
-
-  if(gameInterval)clearInterval(gameInterval);
-  gameInterval=setInterval(gameLoop,1000/60);
-  if(timerInterval)clearInterval(timerInterval);
-  timerInterval=setInterval(()=>{
-    timeLeft--;
-    document.getElementById('hud-timer').textContent=`${Math.floor(timeLeft/60)}:${String(timeLeft%60).padStart(2,'0')}`;
-    if(timeLeft<=0){if(isHost){channel.send({type:'broadcast',event:'game-end',payload:{reason:'time'}});}endGame('time');}
-  },1000);
+  const me=players[myId];
+  document.getElementById('hud-role').textContent=me.isCatcher?'🏷️ 抓人者':'🏃 逃跑者';
+  document.getElementById('hud-role').style.background=me.isCatcher?'#FF6B6B':'#4ECDC4';
+  resizeCanvas();
+  if(isMobile())initJoystick();
+  requestAnimationFrame(tick);
 }
 
-// ===== CANVAS =====
-function setupCanvas(){
-  window.addEventListener("resize",setupCanvas);
+// ===== HELPER: Check if point is in river =====
+function isInRiver(px,py,map){
+  if(!map.river)return false;
+  const r=map.river;
+  const hw=r.width/2;
+  for(let i=0;i<r.path.length-1;i++){
+    const a=r.path[i],b=r.path[i+1];
+    // Check distance from point to line segment
+    const dx=b.x-a.x,dy=b.y-a.y;
+    const len=Math.sqrt(dx*dx+dy*dy);
+    if(len===0)continue;
+    let t=((px-a.x)*dx+(py-a.y)*dy)/(len*len);
+    t=Math.max(0,Math.min(1,t));
+    const cx=a.x+t*dx,cy=a.y+t*dy;
+    const dist=Math.sqrt((px-cx)*(px-cx)+(py-cy)*(py-cy));
+    if(dist<hw)return true;
+  }
+  return false;
+}
+function isOnBridge(px,py,map){
+  if(!map.river||!map.river.bridges)return false;
+  for(const br of map.river.bridges){
+    if(px>br.x&&px<br.x+br.w&&py>br.y&&py<br.y+br.h)return true;
+  }
+  return false;
+}
+
+
+// ===== CANVAS RESIZE =====
+function resizeCanvas(){
   const canvas=document.getElementById('game-canvas');
-  const ratio=Math.min(window.innerWidth/MAP_W,window.innerHeight/MAP_H);
   canvas.width=window.innerWidth;canvas.height=window.innerHeight;
-  
 }
+window.addEventListener('resize',resizeCanvas);
 
 // ===== INPUT =====
-function setupKeys(){
-  if(keys._bound)return;keys._bound=true;
-  window.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
-    // Item hotkeys 1,2,3
-    if(e.key==='1')useItem(0);
-    if(e.key==='2')useItem(1);
-    if(e.key==='3')useItem(2);
-  });
-  window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
-}
-function setupJoystick(){
+document.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
+  if(e.key>='1'&&e.key<='3')useItem(+e.key-1);
+  if(e.key.toLowerCase()==='e')interactNearby();
+});
+document.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+
+// ===== JOYSTICK (mobile) =====
+function initJoystick(){
   const area=document.getElementById('joystick-area');
   const knob=document.getElementById('joystick-knob');
   area.style.display='block';
@@ -764,315 +759,443 @@ function setupJoystick(){
   area.addEventListener('touchmove',handleTouch,{passive:false});
   area.addEventListener('touchend',()=>{knob.style.left='36px';knob.style.top='36px';joystickDX=0;joystickDY=0;joystickActive=false;});
 }
-// ===== GAME LOOP =====
-function gameLoop(){
+
+// ===== INTERACT (E key / tap) =====
+function interactNearby(){
   if(gameState!=='playing')return;
-  frameCount++;
-  const me=players[myId];
-  if(!me||me.caught){render();return;}
+  const me=players[myId];if(!me||me.caught)return;
+  const map=MAPS[selectedMap];
+  // Check chests
+  if(map.chests){
+    for(const ch of map.chests){
+      if(chestStates[ch.id])continue; // already opened
+      const dist=Math.hypot(me.x-ch.x,me.y-ch.y);
+      if(dist<45){
+        openChest(ch);return;
+      }
+    }
+  }
+  // Check gate switches
+  if(map.gates){
+    for(const g of map.gates){
+      const dist=Math.hypot(me.x-g.switchPos.x,me.y-g.switchPos.y);
+      if(dist<35){
+        toggleGate(g);return;
+      }
+    }
+  }
+}
 
-  // tunnel teleport is handled inline at entry point
-
-  let dx=0,dy=0;
-  if(isMobile&&joystickActive){dx=joystickDX;dy=joystickDY;}
-  else{if(keys['w']||keys['arrowup'])dy=-1;if(keys['s']||keys['arrowdown'])dy=1;if(keys['a']||keys['arrowleft'])dx=-1;if(keys['d']||keys['arrowright'])dx=1;}
-  const len=Math.sqrt(dx*dx+dy*dy);
-  if(len>0){dx/=len;dy/=len;}
-
-  // Get terrain at player position
-  const terrain=getTerrainAt(me.x,me.y);
-
-  // Stamina cost (movement + terrain)
-  if(len>0){
-    const stCost=STAMINA_MOVE_COST+terrain.staminaCost;
-    me.stamina-=stCost;
-    if(me.stamina<=0){me.stamina=0;dx=0;dy=0;}
+// ===== CHEST SYSTEM =====
+function openChest(ch){
+  chestStates[ch.id]=true;
+  // Random item from chest's item pool
+  const itemType=ch.items[Math.floor(Math.random()*ch.items.length)];
+  currentChest={chestId:ch.id,itemType};
+  // Show popup
+  const popup=document.getElementById('chest-popup');
+  popup.querySelector('.chest-item').textContent=ITEM_TYPES[itemType].emoji;
+  popup.querySelector('.chest-desc').textContent=ITEM_TYPES[itemType].name+' - '+ITEM_TYPES[itemType].desc;
+  popup.classList.add('active');
+  // Broadcast to others
+  channel.send({type:'broadcast',event:'chest-open',payload:{chestId:ch.id,playerId:myId}});
+}
+function takeChestItem(){
+  if(!currentChest)return;
+  const slot=myItems.indexOf(null);
+  if(slot!==-1){
+    myItems[slot]=currentChest.itemType;
+    updateItemBarUI();
+    showTunnelMsg('获得 '+ITEM_TYPES[currentChest.itemType].name+'！');
+    setTimeout(hideTunnelMsg,1200);
   } else {
-    me.stamina=Math.min(STAMINA_MAX,me.stamina+STAMINA_REGEN);
+    showTunnelMsg('物品栏已满！');setTimeout(hideTunnelMsg,1200);
   }
+  currentChest=null;
+  document.getElementById('chest-popup').classList.remove('active');
+}
+function onChestOpen({chestId}){
+  chestStates[chestId]=true;
+}
 
-  // Speed calculation
-  let spd=me.role==='catcher'?SPEED_CATCHER:SPEED_NORMAL;
-  spd*=terrain.spdMul;
-  // Speed buff from potion
-  if(mySpeedBuff>0){spd*=1.8;mySpeedBuff--;}
+// ===== GATE SYSTEM =====
+function toggleGate(g){
+  const newState=!gateStates[g.id];
+  gateStates[g.id]=newState;
+  channel.send({type:'broadcast',event:'gate-toggle',payload:{gateId:g.id,open:newState}});
+  showTunnelMsg(newState?'🚪 机关门已开启！':'🚪 机关门已关闭！');
+  setTimeout(hideTunnelMsg,1200);
+}
+function onGateToggle({gateId,open}){
+  gateStates[gateId]=open;
+}
 
-  // Spring launch (overrides normal movement)
-  if(springLaunch>0){
-    dx=springDX;dy=springDY;spd=6;
-    springLaunch--;
-  }
-
-  // Ice physics
-  if(terrain.friction){
-    iceVX=iceVX*terrain.friction+dx*spd*0.1;
-    iceVY=iceVY*terrain.friction+dy*spd*0.1;
-    // Cap ice speed
-    const iceSpd=Math.sqrt(iceVX*iceVX+iceVY*iceVY);
-    if(iceSpd>spd*1.5){iceVX=iceVX/iceSpd*spd*1.5;iceVY=iceVY/iceSpd*spd*1.5;}
-    var nx=me.x+iceVX, ny=me.y+iceVY;
-  } else {
-    iceVX=0;iceVY=0;
-    // Boost direction override
-    if(terrain.dir&&len===0&&terrain.spdMul>1.5){
-      // Standing on boost pad applies force
-      const bDir={right:{x:1,y:0},left:{x:-1,y:0},down:{x:0,y:1},up:{x:0,y:-1}}[terrain.dir]||{x:0,y:0};
-      dx=bDir.x;dy=bDir.y;
-    } else if(terrain.dir&&terrain.spdMul>1.5){
-      // Moving on boost: add boost direction
-      const bDir={right:{x:1,y:0},left:{x:-1,y:0},down:{x:0,y:1},up:{x:0,y:-1}}[terrain.dir]||{x:0,y:0};
-      dx=dx*0.5+bDir.x*0.5;dy=dy*0.5+bDir.y*0.5;
-    }
-    var nx=me.x+dx*spd, ny=me.y+dy*spd;
-  }
-
-  // Collision with walls
-  const map=MAPS[selectedMap];
-  const r=resolveCol(me.x,me.y,nx,ny,PLAYER_R,map.walls);
-  // Also check obstacles
-  const allWalls=[...map.walls,...obstacles.map(o=>({x:o.x-15,y:o.y-15,w:30,h:30}))];
-  const r2=resolveCol(me.x,me.y,r.x,r.y,PLAYER_R,allWalls);
-  me.x=Math.max(PLAYER_R,Math.min(MAP_W-PLAYER_R,r2.x));
-  me.y=Math.max(PLAYER_R,Math.min(MAP_H-PLAYER_R,r2.y));
-  me.dx=dx;me.dy=dy;
-
-  // Teleport terrain removed
-  if(teleportCooldown>0)teleportCooldown--;
-  if(false&&terrain.type==='TELEPORT'&&teleportCooldown<=0){
-    const tData=getTerrainDataAt(me.x,me.y);
-    if(tData&&tData.pairId){
-      const mapTerrains=map.terrains;
-      const pair=mapTerrains.find(t=>t.type==='TELEPORT'&&t.pairId===tData.pairId&&(t.x!==tData.x||t.y!==tData.y));
-      if(pair){
-        me.x=pair.x+pair.w/2;me.y=pair.y+pair.h/2;
-        teleportCooldown=120;
-        showTunnelMsg('⚡ 传送！');setTimeout(hideTunnelMsg,800);
-      }
-    }
-  }
-
-  // Spring check
-  if(terrain.type==='SPRING'&&springLaunch<=0){
-    // Launch in movement direction or random
-    springDX=dx||((Math.random()-0.5)*2);
-    springDY=dy||((Math.random()-0.5)*2);
-    const sLen=Math.sqrt(springDX*springDX+springDY*springDY);
-    if(sLen>0){springDX/=sLen;springDY/=sLen;}
-    springLaunch=20; // ~0.33 seconds
-    showTunnelMsg('🦘 弹飞！');setTimeout(hideTunnelMsg,600);
-  }
-
-  // Food/stamina pickup
-  foods.forEach(f=>{
-    if(!f.active)return;
-    if(Math.hypot(me.x-f.x,me.y-f.y)<PLAYER_R+FOOD_R){
-      f.active=false;me.stamina=Math.min(STAMINA_MAX,me.stamina+FOOD_STAMINA);
-      channel.send({type:'broadcast',event:'food-eaten',payload:{foodId:f.id}});
+// ===== ITEM BAR =====
+function updateItemBarUI(){
+  const slots=document.querySelectorAll('.item-slot');
+  myItems.forEach((item,i)=>{
+    if(item){
+      slots[i].textContent='';
+      slots[i].innerHTML=`<span class="slot-key">${i+1}</span>${ITEM_TYPES[item].emoji}`;
+      slots[i].classList.remove('empty');
+    } else {
+      slots[i].innerHTML=`<span class="slot-key">${i+1}</span>`;
+      slots[i].classList.add('empty');
     }
   });
-
-  // Item pickup
-  itemPickups.forEach(item=>{
-    if(!item.active)return;
-    if(Math.hypot(me.x-item.x,me.y-item.y)<PLAYER_R+12){
-      // Try to add to inventory
-      const slot=myItems.indexOf(null);
-      if(slot!==-1){
-        myItems[slot]=item.type;
-        item.active=false;
-        updateItemBarUI();
-        channel.send({type:'broadcast',event:'item-pickup',payload:{itemId:item.id}});
-      }
-    }
-  });
-
-  // Key pickup
-  tunnelKeys.forEach(k=>{
-    if(!k.active)return;
-    if(Math.hypot(me.x-k.x,me.y-k.y)<PLAYER_R+12){
-      // Key goes to inventory as 'key' type
-      const slot=myItems.indexOf(null);
-      if(slot!==-1){
-        myItems[slot]='key';
-        k.active=false;
-        updateItemBarUI();
-        channel.send({type:'broadcast',event:'key-pickup',payload:{keyId:k.id}});
-        showTunnelMsg('🔑 获得钥匙！');setTimeout(hideTunnelMsg,1000);
-      }
-    }
-  });
-
-  // Tunnel entry check — instant teleport, key consumed each time
-  if(tunnelCooldown>0)tunnelCooldown--;
-  map.tunnels.forEach(t=>{
-    // Helper: try enter tunnel from a given side
-    function tryEnterTunnel(fromSide){
-      const keySlot=myItems.indexOf('key');
-      if(keySlot!==-1){
-        // Consume key and teleport instantly
-        myItems[keySlot]=null;
-        updateItemBarUI();
-        channel.send({type:'broadcast',event:'item-use',payload:{id:myId,item:'key',slot:keySlot}});
-        const isRev=(fromSide==='exit');
-        const dest=isRev?t.entry:t.exit;
-        me.x=dest.x+dest.w/2;
-        me.y=dest.y+dest.h/2;
-        tunnelCooldown=120; // 2秒冷却防止立刻再触发
-        showTunnelMsg('🔑 穿越暗道！');setTimeout(hideTunnelMsg,800);
-        broadcastMove(me);
-      } else {
-        showTunnelMsg('🔒 需要钥匙才能进入暗道');setTimeout(hideTunnelMsg,1000);
-      }
-    }
-    const entry=t.entry;
-    if(tunnelCooldown<=0&&me.x>entry.x&&me.x<entry.x+entry.w&&me.y>entry.y&&me.y<entry.y+entry.h){
-      tryEnterTunnel('entry');
-    }
-    const exit=t.exit;
-    if(tunnelCooldown<=0&&me.x>exit.x&&me.x<exit.x+exit.w&&me.y>exit.y&&me.y<exit.y+exit.h){
-      tryEnterTunnel('exit');
-    }
-  });
-
-  // Coin spawn (host only)
-  tickCoinSpawn();
-  // Item spawn (host only)
-  tickItemSpawn();
-
-  // Expire obstacles
-  obstacles=obstacles.filter(o=>frameCount<o.expireFrame);
-
-  // Catch detection
-  if(me.role==='catcher'){
-    Object.entries(players).forEach(([id,p])=>{
-      if(id===myId||p.caught||p.role==='catcher')return;
-      if(Math.hypot(me.x-p.x,me.y-p.y)<CATCH_DIST)
-        channel.send({type:'broadcast',event:'player-caught',payload:{caughtId:id}});
-    });
-  }
-
-  // HUD
-  document.getElementById('hud-stamina').textContent='⚡'+Math.round(me.stamina);
-
-  broadcastMove(me);
-  render();
 }
-
-function broadcastMove(me){
-  if(frameCount%3===0&&channel){
-    channel.send({type:'broadcast',event:'player-move',payload:{id:myId,x:me.x,y:me.y,dx:me.dx,dy:me.dy,stamina:me.stamina,caught:me.caught}});
-  }
-}
-
-function onPlayerMove(p){
-  if(players[p.id]){Object.assign(players[p.id],{x:p.x,y:p.y,dx:p.dx,dy:p.dy,stamina:p.stamina,caught:p.caught});}
-}
-function onPlayerCaught({caughtId}){
-  if(players[caughtId])players[caughtId].caught=true;
-  if(caughtId===myId){isCaught=true;document.getElementById('spectator-banner').style.display='block';}
-  // Check if all runners caught
-  const runners=Object.values(players).filter(p=>p.role==='runner');
-  if(runners.every(p=>p.caught)&&isHost){channel.send({type:"broadcast",event:"game-end",payload:{reason:"allcaught"}});endGame("allcaught");}
-}
-function onFoodEaten({foodId}){const f=foods.find(x=>x.id===foodId);if(f)f.active=false;}
-function onCoinSpawn(coin){if(!foods.find(f=>f.id===coin.id))foods.push(coin);}
-function onItemPickup({itemId}){const it=itemPickups.find(x=>x.id===itemId);if(it)it.active=false;}
-function onItemUse(data){/* visual effects handled locally */}
-function onObstaclePlace({x,y,id,expireFrame}){obstacles.push({x,y,id,expireFrame});}
-function onTunnelUnlock({tunnelId}){} // no-op: tunnels now require key each time
-function onKeyPickup({keyId}){const k=tunnelKeys.find(x=>x.id===keyId);if(k)k.active=false;}
-function onItemSpawn(item){if(!itemPickups.find(x=>x.id===item.id))itemPickups.push(item);}
-
-// ===== TERRAIN HELPERS =====
-function getTerrainAt(px,py){
-  const map=MAPS[selectedMap];
-  if(!map.terrains)return TERRAIN.NORMAL;
-  for(const t of map.terrains){
-    if(px>=t.x&&px<=t.x+t.w&&py>=t.y&&py<=t.y+t.h){
-      const tt=TERRAIN[t.type];
-      return {...tt, type:t.type, dir:t.dir};
-    }
-  }
-  return TERRAIN.NORMAL;
-}
-function getTerrainDataAt(px,py){
-  const map=MAPS[selectedMap];
-  if(!map.terrains)return null;
-  for(const t of map.terrains){
-    if(px>=t.x&&px<=t.x+t.w&&py>=t.y&&py<=t.y+t.h) return t;
-  }
-  return null;
-}
-
-// ===== ITEM SYSTEM =====
 function useItem(slot){
   if(gameState!=='playing')return;
-  const item=myItems[slot];
-  if(!item)return;
-  const me=players[myId];
-  if(!me||me.caught)return;
-
-  if(item==='hp'){
-    me.stamina=Math.min(STAMINA_MAX,me.stamina+50);
-    showTunnelMsg('💊 体力+50！');setTimeout(hideTunnelMsg,800);
-  } else if(item==='spd'){
-    mySpeedBuff=300; // 5 seconds at 60fps
-    showTunnelMsg('⚡ 加速5秒！');setTimeout(hideTunnelMsg,800);
-  } else if(item==='block'){
-    // Place obstacle behind player (or at fixed offset if not moving)
-    const ddx=me.dx||0, ddy=me.dy||0;
-    const len=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-    const ox=me.x-(ddx/len)*50;
-    const oy=me.y-(ddy/len)*50;
-    // Clamp to map bounds
-    const clampedOx=Math.max(20,Math.min(MAP_W-20,ox));
-    const clampedOy=Math.max(20,Math.min(MAP_H-20,oy));
-    const obs={x:clampedOx,y:clampedOy,id:'obs_'+frameCount,expireFrame:frameCount+900}; // 15 seconds
-    obstacles.push(obs);
-    channel.send({type:'broadcast',event:'obstacle-place',payload:obs});
-    showTunnelMsg('🪨 放置障碍物！');setTimeout(hideTunnelMsg,800);
-  } else if(item==='key'){
-    // Key is used automatically at tunnel doors, not manually
-    showTunnelMsg('🔑 走到暗道门口自动使用');setTimeout(hideTunnelMsg,1000);
-    return; // Don't consume
-  }
-
+  const item=myItems[slot];if(!item)return;
+  const me=players[myId];if(!me||me.caught)return;
+  if(item==='key')return; // keys are used automatically at tunnels
   myItems[slot]=null;
   updateItemBarUI();
-  channel.send({type:'broadcast',event:'item-use',payload:{id:myId,item,slot}});
+  if(item==='hp'){
+    me.stamina=Math.min(STAMINA_MAX,me.stamina+50);
+    showTunnelMsg('💊 体力恢复！');setTimeout(hideTunnelMsg,800);
+  } else if(item==='spd'){
+    me._speedBoost=300; // 5 seconds
+    showTunnelMsg('⚡ 加速！');setTimeout(hideTunnelMsg,800);
+  } else if(item==='block'){
+    const ox=me.x-Math.cos(me.dir)*30,oy=me.y-Math.sin(me.dir)*30;
+    const obs={id:'obs_'+Date.now(),x:ox,y:oy,ttl:900};
+    obstacles.push(obs);
+    channel.send({type:'broadcast',event:'obstacle-place',payload:obs});
+    showTunnelMsg('🪨 放置路障！');setTimeout(hideTunnelMsg,800);
+  }
+  channel.send({type:'broadcast',event:'item-use',payload:{playerId:myId,item,slot}});
+}
+function onItemUse({playerId,item}){
+  if(playerId===myId)return;
+  const p=players[playerId];if(!p)return;
+  if(item==='spd')p._speedBoost=300;
 }
 
-function updateItemBarUI(){
-  for(let i=0;i<3;i++){
-    const el=document.getElementById('slot-'+i);
-    const item=myItems[i];
-    if(item){
-      el.classList.remove('empty');
-      const info=Object.values(ITEM_TYPES).find(t=>t.id===item);
-      el.innerHTML=`<span class="slot-key">${i+1}</span>${info?info.emoji:'?'}`;
-      el.title=info?info.desc:'';
+// ===== TUNNEL MSG =====
+function showTunnelMsg(msg){const el=document.getElementById('tunnel-msg');el.textContent=msg;el.classList.add('active');}
+function hideTunnelMsg(){document.getElementById('tunnel-msg').classList.remove('active');}
+
+// ===== INTERACT HINT =====
+function showInteractHint(msg){const el=document.getElementById('interact-hint');el.textContent=msg;el.classList.add('active');}
+function hideInteractHint(){document.getElementById('interact-hint').classList.remove('active');}
+
+// ===== COLLISION =====
+function resolveCol(ox,oy,nx,ny,r,map){
+  let fx=nx,fy=ny;
+  const allWalls=[...map.walls];
+  // Add closed gates as walls
+  if(map.gates){
+    map.gates.forEach(g=>{
+      if(!gateStates[g.id])allWalls.push({x:g.x,y:g.y,w:g.w,h:g.h});
+    });
+  }
+  // Add obstacles
+  obstacles.forEach(o=>{allWalls.push({x:o.x-12,y:o.y-12,w:24,h:24});});
+
+  for(let iter=0;iter<3;iter++){
+    let pushed=false;
+    for(const w of allWalls){
+      const cx=Math.max(w.x,Math.min(fx,w.x+w.w));
+      const cy=Math.max(w.y,Math.min(fy,w.y+w.h));
+      const dx=fx-cx,dy=fy-cy;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<r){
+        if(dist===0){fx=ox;fy=oy;pushed=true;break;}
+        const overlap=r-dist;
+        fx+=dx/dist*overlap;fy+=dy/dist*overlap;
+        pushed=true;
+      }
+    }
+    if(!pushed)break;
+  }
+  // River collision (can't cross unless on bridge)
+  if(isInRiver(fx,fy,map)&&!isOnBridge(fx,fy,map)){
+    fx=ox;fy=oy;
+  }
+  // Map bounds
+  fx=Math.max(r,Math.min(MAP_W-r,fx));
+  fy=Math.max(r,Math.min(MAP_H-r,fy));
+  return {x:fx,y:fy};
+}
+
+
+// ===== GAME TICK =====
+function tick(){
+  if(gameState!=='playing'){return;}
+  frameCount++;
+  const me=players[myId];
+  if(!me)return;
+
+  // Timer
+  const elapsed=Math.floor((Date.now()-gameStartTime)/1000);
+  const remain=Math.max(0,GAME_DURATION-elapsed);
+  document.getElementById('hud-time').textContent=`⏱ ${Math.floor(remain/60)}:${String(remain%60).padStart(2,'0')}`;
+  const caughtCount=Object.values(players).filter(p=>p.caught&&!p.isCatcher).length;
+  const runnerCount=Object.values(players).filter(p=>!p.isCatcher).length;
+  document.getElementById('hud-caught').textContent=`🏃 ${caughtCount}/${runnerCount}`;
+
+  // Check game end
+  if(isHost&&(remain<=0||caughtCount>=runnerCount)){
+    endGame(caughtCount>=runnerCount?'catcher':'runners');return;
+  }
+
+  if(!me.caught){
+    // Movement
+    let dx=0,dy=0;
+    if(joystickActive){dx=joystickDX;dy=joystickDY;}
+    else{
+      if(keys['w']||keys['arrowup'])dy=-1;
+      if(keys['s']||keys['arrowdown'])dy=1;
+      if(keys['a']||keys['arrowleft'])dx=-1;
+      if(keys['d']||keys['arrowright'])dx=1;
+    }
+    const len=Math.sqrt(dx*dx+dy*dy);
+    if(len>0){dx/=len;dy/=len;}
+
+    // Speed calculation
+    let speed=me.isCatcher?CATCHER_SPEED:BASE_SPEED;
+    if(me._speedBoost&&me._speedBoost>0){speed*=1.6;me._speedBoost--;}
+
+    // Terrain effects
+    const map=MAPS[selectedMap];
+    let onTerrain=null;
+    if(map.terrains){
+      for(const t of map.terrains){
+        if(me.x>t.x&&me.x<t.x+t.w&&me.y>t.y&&me.y<t.y+t.h){
+          onTerrain=t;break;
+        }
+      }
+    }
+    if(onTerrain){
+      const td=TERRAIN[onTerrain.type];
+      if(td){
+        speed*=td.speedMul;
+        if(td.staminaDrain)me.stamina-=td.staminaDrain;
+      }
+    }
+
+    // Spring launch
+    if(onTerrain&&onTerrain.type==='SPRING'&&len>0&&!springLaunch.active){
+      springLaunch={active:true,dx,dy,frames:20};
+    }
+    if(springLaunch.active){
+      dx=springLaunch.dx;dy=springLaunch.dy;speed=8;
+      springLaunch.frames--;
+      if(springLaunch.frames<=0)springLaunch.active=false;
+    }
+
+    // Ice friction
+    if(onTerrain&&onTerrain.type==='ICE'){
+      iceVX=iceVX*0.92+dx*speed*0.08;
+      iceVY=iceVY*0.92+dy*speed*0.08;
     } else {
-      el.classList.add('empty');
-      el.innerHTML=`<span class="slot-key">${i+1}</span>`;
-      el.title='空';
+      iceVX=dx*speed;iceVY=dy*speed;
+    }
+
+    // Boost direction
+    if(onTerrain&&onTerrain.type==='BOOST'&&onTerrain.dir){
+      const dirs={right:{x:1,y:0},left:{x:-1,y:0},up:{x:0,y:-1},down:{x:0,y:1}};
+      const d=dirs[onTerrain.dir]||{x:0,y:0};
+      iceVX+=d.x*speed*0.5;iceVY+=d.y*speed*0.5;
+    }
+
+    // Stamina
+    if(len>0){
+      me.stamina-=STAMINA_DRAIN;
+      if(me.stamina<=0){me.stamina=0;iceVX*=0.3;iceVY*=0.3;}
+    } else {
+      me.stamina=Math.min(STAMINA_MAX,me.stamina+STAMINA_REGEN);
+    }
+    document.getElementById('stamina-fill').style.width=(me.stamina/STAMINA_MAX*100)+'%';
+
+    // Move with collision
+    const ox=me.x,oy=me.y;
+    let nx=me.x+iceVX,ny=me.y+iceVY;
+    const res=resolveCol(ox,oy,nx,ny,PLAYER_R,map);
+    me.x=res.x;me.y=res.y;
+    if(len>0)me.dir=Math.atan2(dy,dx);
+    me.speed=Math.sqrt((me.x-ox)*(me.x-ox)+(me.y-oy)*(me.y-oy));
+
+    // Tunnel cooldown
+    if(tunnelCooldown>0)tunnelCooldown--;
+
+    // Check tunnel entry (instant teleport, costs 1 key each time)
+    if(!inTunnel&&tunnelCooldown<=0&&map.tunnels){
+      for(const t of map.tunnels){
+        const entry=t.entry,exit=t.exit;
+        // Check entry side
+        if(me.x>entry.x&&me.x<entry.x+entry.w&&me.y>entry.y&&me.y<entry.y+entry.h){
+          const keySlot=myItems.indexOf('key');
+          if(keySlot!==-1){
+            myItems[keySlot]=null;updateItemBarUI();
+            me.x=exit.x+exit.w/2;me.y=exit.y+exit.h/2;
+            tunnelCooldown=120; // 2 second cooldown at 60fps
+            showTunnelMsg('🔑 暗道传送！');setTimeout(hideTunnelMsg,1000);
+            channel.send({type:'broadcast',event:'tunnel-used',payload:{playerId:myId,tunnelId:t.id,dir:'entry'}});
+          } else {
+            showTunnelMsg('🔒 需要钥匙！');setTimeout(hideTunnelMsg,800);
+            tunnelCooldown=60; // prevent spam
+          }
+          break;
+        }
+        // Check exit side (can also enter from exit)
+        if(me.x>exit.x&&me.x<exit.x+exit.w&&me.y>exit.y&&me.y<exit.y+exit.h){
+          const keySlot=myItems.indexOf('key');
+          if(keySlot!==-1){
+            myItems[keySlot]=null;updateItemBarUI();
+            me.x=entry.x+entry.w/2;me.y=entry.y+entry.h/2;
+            tunnelCooldown=120;
+            showTunnelMsg('🔑 暗道传送！');setTimeout(hideTunnelMsg,1000);
+            channel.send({type:'broadcast',event:'tunnel-used',payload:{playerId:myId,tunnelId:t.id,dir:'exit'}});
+          } else {
+            showTunnelMsg('🔒 需要钥匙！');setTimeout(hideTunnelMsg,800);
+            tunnelCooldown=60;
+          }
+          break;
+        }
+      }
+    }
+
+    // Pick up food (coins)
+    foods.forEach(f=>{
+      if(!f.active)return;
+      if(Math.hypot(me.x-f.x,me.y-f.y)<PLAYER_R+FOOD_R){
+        f.active=false;
+        me.stamina=Math.min(STAMINA_MAX,me.stamina+FOOD_STAMINA);
+        channel.send({type:'broadcast',event:'food-eaten',payload:{foodId:f.id}});
+      }
+    });
+
+    // Pick up items
+    itemPickups.forEach(item=>{
+      if(!item.active)return;
+      if(Math.hypot(me.x-item.x,me.y-item.y)<PLAYER_R+12){
+        const slot=myItems.indexOf(null);
+        if(slot!==-1){
+          myItems[slot]=item.type;
+          item.active=false;
+          updateItemBarUI();
+          channel.send({type:'broadcast',event:'item-pickup',payload:{itemId:item.id}});
+        }
+      }
+    });
+
+    // Pick up tunnel keys
+    tunnelKeys.forEach(k=>{
+      if(!k.active)return;
+      if(Math.hypot(me.x-k.x,me.y-k.y)<PLAYER_R+12){
+        const slot=myItems.indexOf(null);
+        if(slot!==-1){
+          myItems[slot]='key';
+          k.active=false;
+          updateItemBarUI();
+          channel.send({type:'broadcast',event:'key-pickup',payload:{keyId:k.id}});
+          showTunnelMsg('🔑 获得钥匙！');setTimeout(hideTunnelMsg,800);
+        }
+      }
+    });
+
+    // Catching logic
+    if(me.isCatcher){
+      Object.entries(players).forEach(([id,p])=>{
+        if(id===myId||p.isCatcher||p.caught)return;
+        if(Math.hypot(me.x-p.x,me.y-p.y)<CATCH_DIST){
+          p.caught=true;
+          channel.send({type:'broadcast',event:'caught',payload:{catcherId:myId,runnerId:id}});
+        }
+      });
+    }
+
+    // Broadcast position
+    if(frameCount%2===0){
+      channel.send({type:'broadcast',event:'player-update',payload:{
+        id:myId,x:me.x,y:me.y,dir:me.dir,speed:me.speed,caught:me.caught,stamina:me.stamina
+      }});
     }
   }
+
+  // Interact hint
+  checkInteractHint();
+
+  // Host spawns
+  if(isHost){
+    tickCoinSpawn();
+    tickItemSpawn();
+    tickKeyRespawn();
+  }
+
+  // Remove expired obstacles
+  obstacles.forEach(o=>{if(o.ttl!==undefined){o.ttl--;if(o.ttl<=0)o._remove=true;}});
+  const toRemove=obstacles.filter(o=>o._remove);
+  toRemove.forEach(o=>{channel.send({type:'broadcast',event:'obstacle-remove',payload:{id:o.id}});});
+  obstacles=obstacles.filter(o=>!o._remove);
+
+  draw();
+  requestAnimationFrame(tick);
 }
 
-// ===== SPAWN TIMERS =====
-let coinSpawnTimer=0,nextCoinId=100;
+function onPlayerUpdate({id,x,y,dir,speed,caught,stamina}){
+  if(id===myId)return;
+  if(players[id]){players[id].x=x;players[id].y=y;players[id].dir=dir;players[id].speed=speed;players[id].caught=caught;players[id].stamina=stamina;}
+}
+function onCaught({catcherId,runnerId}){
+  if(players[runnerId])players[runnerId].caught=true;
+}
+function onTunnelUsed({playerId,tunnelId,dir}){
+  // Visual feedback for other players
+  if(playerId===myId)return;
+  const p=players[playerId];if(!p)return;
+  const map=MAPS[selectedMap];
+  const t=map.tunnels.find(x=>x.id===tunnelId);
+  if(!t)return;
+  if(dir==='entry')p.x=t.exit.x+t.exit.w/2;p.y=t.exit.y+t.exit.h/2;
+  if(dir==='exit')p.x=t.entry.x+t.entry.w/2;p.y=t.entry.y+t.entry.h/2;
+}
+
+// ===== INTERACT HINT =====
+function checkInteractHint(){
+  const me=players[myId];if(!me||me.caught)return;
+  const map=MAPS[selectedMap];
+  let hint='';
+  // Check chests
+  if(map.chests){
+    for(const ch of map.chests){
+      if(chestStates[ch.id])continue;
+      if(Math.hypot(me.x-ch.x,me.y-ch.y)<45){
+        hint='按 E 打开宝箱';break;
+      }
+    }
+  }
+  // Check gate switches
+  if(!hint&&map.gates){
+    for(const g of map.gates){
+      if(Math.hypot(me.x-g.switchPos.x,me.y-g.switchPos.y)<35){
+        hint='按 E '+(gateStates[g.id]?'关闭':'开启')+'机关门';break;
+      }
+    }
+  }
+  if(hint){showInteractHint(hint);}else{hideInteractHint();}
+}
+
+
+// ===== SPAWNING =====
 function tickCoinSpawn(){
   if(!isHost)return;
   coinSpawnTimer++;
-  if(coinSpawnTimer<420)return;
+  if(coinSpawnTimer<420)return; // every 7 seconds
   coinSpawnTimer=0;
   const map=MAPS[selectedMap];
   let fx,fy,ok,tries=0;
   do{fx=50+Math.random()*(MAP_W-100);fy=50+Math.random()*(MAP_H-100);ok=true;
     for(const w of map.walls){if(fx>w.x-15&&fx<w.x+w.w+15&&fy>w.y-15&&fy<w.y+w.h+15){ok=false;break;}}
+    if(ok&&isInRiver(fx,fy,map)&&!isOnBridge(fx,fy,map))ok=false;
     tries++;
   }while(!ok&&tries<30);
-  if(ok){const c={id:nextCoinId++,x:fx,y:fy,active:true};foods.push(c);channel.send({type:'broadcast',event:'coin-spawn',payload:c});}
+  if(!ok)return;
+  const food={id:'f_'+(nextCoinId++),x:fx,y:fy,active:true};
+  foods.push(food);
+  channel.send({type:'broadcast',event:'coin-spawn',payload:food});
 }
 
 function tickItemSpawn(){
@@ -1080,358 +1203,604 @@ function tickItemSpawn(){
   itemSpawnTimer++;
   if(itemSpawnTimer<ITEM_SPAWN_INTERVAL)return;
   itemSpawnTimer=0;
-  // Max 8 items on map
-  if(itemPickups.filter(i=>i.active).length>=8)return;
+  // Max items on map
+  const activeItems=itemPickups.filter(i=>i.active).length;
+  if(activeItems>=MAX_ITEMS_ON_MAP)return;
   const map=MAPS[selectedMap];
-  const types=['hp','spd','block'];
   let fx,fy,ok,tries=0;
   do{fx=50+Math.random()*(MAP_W-100);fy=50+Math.random()*(MAP_H-100);ok=true;
     for(const w of map.walls){if(fx>w.x-15&&fx<w.x+w.w+15&&fy>w.y-15&&fy<w.y+w.h+15){ok=false;break;}}
+    if(ok&&isInRiver(fx,fy,map)&&!isOnBridge(fx,fy,map))ok=false;
     tries++;
   }while(!ok&&tries<30);
-  if(ok){
-    const item={id:'item_'+Date.now()+'_'+Math.random().toString(36).substr(2,4),x:fx,y:fy,active:true,type:types[Math.floor(Math.random()*3)]};
-    itemPickups.push(item);
-    channel.send({type:'broadcast',event:'item-spawn',payload:item});
+  if(!ok)return;
+  // Item types (no key here - keys only from chests and fixed spawns)
+  const types=['hp','spd','block'];
+  const type=types[Math.floor(Math.random()*types.length)];
+  const item={id:'it_'+Date.now(),x:fx,y:fy,type,active:true};
+  itemPickups.push(item);
+  channel.send({type:'broadcast',event:'item-spawn',payload:item});
+}
+
+function tickKeyRespawn(){
+  if(!isHost)return;
+  const map=MAPS[selectedMap];
+  if(!map.tunnels)return;
+  // Respawn keys if none active on map
+  const activeKeys=tunnelKeys.filter(k=>k.active).length;
+  if(activeKeys===0&&frameCount%600===0){ // every 10 seconds check
+    map.tunnels.forEach(t=>{
+      if(t.keySpawn){
+        const k={id:'key_'+t.id+'_'+Date.now(),x:t.keySpawn.x,y:t.keySpawn.y,active:true};
+        tunnelKeys.push(k);
+        channel.send({type:'broadcast',event:'key-spawn',payload:k});
+      }
+    });
   }
 }
 
-// ===== TUNNEL MSG =====
-function showTunnelMsg(msg){const el=document.getElementById('tunnel-msg');el.textContent=msg;el.classList.add('active');}
-function hideTunnelMsg(){document.getElementById('tunnel-msg').classList.remove('active');}
-// ===== COLLISION =====
-function resolveCol(ox,oy,nx,ny,r,walls){
-  let x=nx,y=ny;
-  for(let iter=0;iter<4;iter++){
-    let moved=false;
-    for(const w of walls){
-      const cx=Math.max(w.x,Math.min(x,w.x+w.w)),cy=Math.max(w.y,Math.min(y,w.y+w.h));
-      const ddx=x-cx,ddy=y-cy,d=Math.sqrt(ddx*ddx+ddy*ddy);
-      if(d<r){moved=true;if(d<0.001){x=ox;y=oy;}else{const ov=(r-d)+0.5;x+=ddx/d*ov;y+=ddy/d*ov;}}
-    }
-    if(!moved)break;
-  }
-  return{x:Math.max(r,Math.min(MAP_W-r,x)),y:Math.max(r,Math.min(MAP_H-r,y))};
+// ===== GAME END =====
+function endGame(winner){
+  gameState='ended';
+  channel.send({type:'broadcast',event:'game-end',payload:{winner}});
+  showResult(winner);
+}
+function onGameEnd({winner}){
+  gameState='ended';
+  showResult(winner);
+}
+function showResult(winner){
+  const el=document.getElementById('result-content');
+  const catcher=Object.values(players).find(p=>p.isCatcher);
+  el.innerHTML=`
+    <h2>${winner==='catcher'?'🏷️ 抓人者胜利！':'🏃 逃跑者胜利！'}</h2>
+    <p style="margin:12px 0;color:#666">抓人者: ${catcher?CHARS[catcher.charIdx].emoji+' '+escH(catcher.nick):''}</p>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+      <button class="btn btn-green" onclick="returnToLobby()">🔄 回到房间</button>
+      <button class="btn btn-gray" onclick="backToMenu()">🚪 退出</button>
+    </div>
+  `;
+  document.getElementById('result-overlay').classList.add('active');
+}
+function returnToLobby(){
+  document.getElementById('result-overlay').classList.remove('active');
+  document.getElementById('item-bar').classList.remove('active');
+  gameState='lobby';players={};foods=[];obstacles=[];itemPickups=[];tunnelKeys=[];
+  showScreen('lobby-screen');
+  broadcastPresence();
+}
+function backToMenu(){
+  document.getElementById('result-overlay').classList.remove('active');
+  document.getElementById('item-bar').classList.remove('active');
+  leaveRoom();
 }
 
-// ===== RENDER =====
-function render(){
+// ===== BROWSE ROOMS =====
+async function loadRooms(){
+  document.getElementById('room-list').innerHTML='<p style="color:#999;text-align:center">暂无公开房间</p>';
+}
+
+
+// ===== DRAWING =====
+function draw(){
   const canvas=document.getElementById('game-canvas');
   const ctx=canvas.getContext('2d');
   const me=players[myId];if(!me)return;
 
-  // Camera follows player
-  const camX=Math.max(0,Math.min(MAP_W-canvas.width,me.x-canvas.width/2));
-  const camY=Math.max(0,Math.min(MAP_H-canvas.height,me.y-canvas.height/2));
-
+  // Camera
+  const camX=me.x-canvas.width/2;
+  const camY=me.y-canvas.height/2;
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.save();
   ctx.translate(-camX,-camY);
 
   const map=MAPS[selectedMap];
 
-  // Background
-  ctx.fillStyle=map.bg;ctx.fillRect(0,0,MAP_W,MAP_H);
-
-  // Grid
-  ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
-  for(let x=0;x<=MAP_W;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,MAP_H);ctx.stroke();}
-  for(let y=0;y<=MAP_H;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(MAP_W,y);ctx.stroke();}
+  // Background with grass texture
+  drawBackground(ctx,map);
 
   // Terrains
-  if(map.terrains){
-    map.terrains.forEach(t=>{
-      const tt=TERRAIN[t.type];
-      if(!tt||!tt.color)return;
-      ctx.fillStyle=tt.color;
-      ctx.fillRect(t.x,t.y,t.w,t.h);
-      // Labels/icons
-      ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillStyle='rgba(0,0,0,0.5)';
-      const cx=t.x+t.w/2,cy=t.y+t.h/2;
-      if(t.type==='SWAMP')ctx.fillText('🌿',cx,cy);
-      else if(t.type==='ICE')ctx.fillText('❄️',cx,cy);
-      else if(t.type==='BOOST'){
-        ctx.fillText('⏩',cx,cy);
-        // Arrow direction
-        ctx.strokeStyle='rgba(255,200,0,0.8)';ctx.lineWidth=2;
-        const dirs={right:[1,0],left:[-1,0],down:[0,1],up:[0,-1]};
-        const d=dirs[t.dir]||[1,0];
-        ctx.beginPath();ctx.moveTo(cx-d[0]*15,cy-d[1]*15);ctx.lineTo(cx+d[0]*15,cy+d[1]*15);ctx.stroke();
-      }
-      else if(t.type==='SLOPE_UP')ctx.fillText('⛰️',cx,cy);
-      else if(t.type==='SLOPE_DN')ctx.fillText('⬇️',cx,cy);
-      else if(t.type==='THORNS')ctx.fillText('🌵',cx,cy);
-      else if(t.type==='TELEPORT'){ctx.fillText('🌀',cx,cy);}
-      else if(t.type==='SPRING')ctx.fillText('🦘',cx,cy);
-    });
-  }
+  drawTerrains(ctx,map);
 
-  // Tunnel entries/exits — both sides 🔒, key required each time
-  map.tunnels.forEach(t=>{
-    ctx.fillStyle='rgba(160,80,220,0.55)';
-    ctx.fillRect(t.entry.x,t.entry.y,t.entry.w,t.entry.h);
-    ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText('🔒',t.entry.x+t.entry.w/2,t.entry.y+t.entry.h/2);
-    ctx.fillStyle='rgba(160,80,220,0.55)';
-    ctx.fillRect(t.exit.x,t.exit.y,t.exit.w,t.exit.h);
-    ctx.fillText('🔒',t.exit.x+t.exit.w/2,t.exit.y+t.exit.h/2);
-  });
+  // River (with animation)
+  drawRiver(ctx,map);
 
-  // Walls
-  ctx.fillStyle=map.wallColor;ctx.shadowColor='rgba(0,0,0,0.2)';ctx.shadowBlur=3;
-  map.walls.forEach(w=>ctx.fillRect(w.x,w.y,w.w,w.h));
-  ctx.shadowColor='transparent';ctx.shadowBlur=0;
+  // Decorations (behind players)
+  drawDecorations(ctx,map);
 
-  // Obstacles (player-placed)
-  obstacles.forEach(o=>{
-    ctx.fillStyle='#8B4513';
-    ctx.beginPath();ctx.arc(o.x,o.y,15,0,Math.PI*2);ctx.fill();
-    ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText('🪨',o.x,o.y);
-  });
+  // Walls (irregular shapes)
+  drawWalls(ctx,map);
 
-  // Foods (stamina stars)
+  // Gates
+  drawGates(ctx,map);
+
+  // Tunnels
+  drawTunnels(ctx,map);
+
+  // Chests
+  drawChests(ctx,map);
+
+  // Gate switches
+  drawGateSwitches(ctx,map);
+
+  // Foods (coins)
   foods.forEach(f=>{
     if(!f.active)return;
-    ctx.fillStyle='#FFD700';ctx.beginPath();ctx.arc(f.x,f.y,FOOD_R,0,Math.PI*2);ctx.fill();
-    ctx.font=`${FOOD_R}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⭐',f.x,f.y);
+    ctx.beginPath();ctx.arc(f.x,f.y,FOOD_R,0,Math.PI*2);
+    ctx.fillStyle='#FFD700';ctx.fill();
+    ctx.strokeStyle='#B8860B';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#B8860B';ctx.font='8px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('$',f.x,f.y);
   });
 
-  // Item pickups
+  // Items on ground
   itemPickups.forEach(item=>{
     if(!item.active)return;
-    const info=Object.values(ITEM_TYPES).find(t=>t.id===item.type);
-    ctx.fillStyle='rgba(255,255,255,0.8)';ctx.beginPath();ctx.arc(item.x,item.y,12,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#FFD700';ctx.lineWidth=2;ctx.stroke();
-    ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(info?info.emoji:'?',item.x,item.y);
+    ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(ITEM_TYPES[item.type].emoji,item.x,item.y);
+    // Glow
+    ctx.beginPath();ctx.arc(item.x,item.y,14,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,0,0.4)';ctx.lineWidth=2;ctx.stroke();
   });
 
-  // Tunnel keys
+  // Tunnel keys on ground
   tunnelKeys.forEach(k=>{
     if(!k.active)return;
-    ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText('🔑',k.x,k.y);
-    // Glow
-    ctx.strokeStyle='rgba(255,215,0,0.6)';ctx.lineWidth=2;
-    ctx.beginPath();ctx.arc(k.x,k.y,14,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(k.x,k.y,14,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,215,0,0.5)';ctx.lineWidth=2;ctx.stroke();
+  });
+
+  // Obstacles
+  obstacles.forEach(o=>{
+    ctx.beginPath();ctx.arc(o.x,o.y,12,0,Math.PI*2);
+    ctx.fillStyle='#795548';ctx.fill();
+    ctx.strokeStyle='#4E342E';ctx.lineWidth=2;ctx.stroke();
+    // Rock texture
+    ctx.beginPath();ctx.arc(o.x-3,o.y-3,4,0,Math.PI*2);
+    ctx.fillStyle='#5D4037';ctx.fill();
   });
 
   // Players
   Object.entries(players).forEach(([id,p])=>{
-    if(p.caught&&id!==myId)ctx.globalAlpha=0.3;
-    const ch=CHARS[p.charIdx]||CHARS[0];
-    const isSpeaking=getPlayerSpeaking(id);
-    // Speaking glow
-    if(isSpeaking){ctx.fillStyle='rgba(76,175,80,0.25)';ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+5,0,Math.PI*2);ctx.fill();}
-    // Shadow
-    ctx.fillStyle='rgba(0,0,0,0.1)';ctx.beginPath();ctx.ellipse(p.x,p.y+PLAYER_R+3,PLAYER_R*0.7,4,0,0,Math.PI*2);ctx.fill();
-    // Body
-    ctx.fillStyle=ch.color;ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R,0,Math.PI*2);ctx.fill();
-    // Role border
-    if(p.role==='catcher'){ctx.strokeStyle='#FF0000';ctx.lineWidth=3;ctx.stroke();}
-    else{ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=2;ctx.stroke();}
-    // Emoji
-    ctx.font=`${PLAYER_R*1.1}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ch.emoji,p.x,p.y);
-    // Name
-    ctx.font='bold 10px sans-serif';ctx.fillStyle='#333';ctx.textBaseline='bottom';ctx.fillText(p.nick||'',p.x,p.y-PLAYER_R-5);
-    // Role icon
-    if(p.role==='catcher'){ctx.font='12px sans-serif';ctx.fillText('👹',p.x,p.y-PLAYER_R-16);}
-    // Stamina bar (self only)
-    if(id===myId){
-      const bw=32,bh=4;
-      ctx.fillStyle='#333';ctx.fillRect(p.x-bw/2,p.y+PLAYER_R+8,bw,bh);
-      ctx.fillStyle=p.stamina>30?'#4CAF50':'#FF5722';
-      ctx.fillRect(p.x-bw/2,p.y+PLAYER_R+8,bw*(p.stamina/STAMINA_MAX),bh);
+    if(p.caught&&!p.isCatcher){
+      // Ghost
+      ctx.globalAlpha=0.4;
+      drawPlayer(ctx,p,id===myId);
+      ctx.globalAlpha=1;
+    } else {
+      drawPlayer(ctx,p,id===myId);
     }
-    // Speed buff indicator
-    if(id===myId&&mySpeedBuff>0){ctx.font='10px sans-serif';ctx.fillStyle='#FF8C00';ctx.textBaseline='top';ctx.fillText('⚡加速中',p.x,p.y+PLAYER_R+14);}
-    ctx.globalAlpha=1;
   });
 
-  // Border
-  ctx.strokeStyle='#333';ctx.lineWidth=4;ctx.strokeRect(0,0,MAP_W,MAP_H);
-
   ctx.restore();
+
+  // River animation
+  riverAnimOffset+=0.5;
 }
 
-// ===== END GAME =====
-function onGameEnd({reason}){endGame(reason);}
-function endGame(reason){
-  if(gameState!=='playing')return;
-  gameState='result';
-  if(gameInterval){clearInterval(gameInterval);gameInterval=null;}
-  if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
-  document.getElementById('item-bar').classList.remove('active');
-
-  const elapsed=GAME_DURATION-timeLeft;
-  const me=players[myId];
-  let title='',msg='';
-  if(reason==='time'){
-    // Time up = runners win
-    title=me.role==='runner'&&!me.caught?'🎉 胜利！':'😈 时间到！';
-    msg=me.role==='runner'&&!me.caught?'你成功逃脱了！':'逃跑者们赢了！';
-  } else {
-    // All caught = catcher wins
-    title=me.role==='catcher'?'🎉 全部抓住！':'😢 被抓了...';
-    msg=me.role==='catcher'?'你抓住了所有人！':'抓人者获胜！';
+function drawPlayer(ctx,p,isMe){
+  const ch=CHARS[p.charIdx];
+  // Shadow
+  ctx.beginPath();ctx.ellipse(p.x,p.y+PLAYER_R,PLAYER_R*0.8,PLAYER_R*0.3,0,0,Math.PI*2);
+  ctx.fillStyle='rgba(0,0,0,0.15)';ctx.fill();
+  // Body
+  ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R,0,Math.PI*2);
+  ctx.fillStyle=ch.color;ctx.fill();
+  ctx.strokeStyle=p.isCatcher?'#FF0000':'#333';ctx.lineWidth=p.isCatcher?3:2;ctx.stroke();
+  // Emoji
+  ctx.font='16px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(ch.emoji,p.x,p.y);
+  // Name
+  ctx.font='bold 10px sans-serif';ctx.fillStyle='#333';ctx.textAlign='center';
+  ctx.fillText(p.nick,p.x,p.y-PLAYER_R-6);
+  // Catcher indicator
+  if(p.isCatcher){
+    ctx.font='12px sans-serif';ctx.fillText('🏷️',p.x,p.y-PLAYER_R-18);
   }
-  document.getElementById('result-title').textContent=title;
-  document.getElementById('result-msg').textContent=msg;
-
-  const runners=Object.values(players).filter(p=>p.role==='runner');
-  const caught=runners.filter(p=>p.caught).length;
-  document.getElementById('result-details').innerHTML=`
-    <div class="result-stat-row"><span class="result-stat-label">⏱️ 时长</span><span class="result-stat-value">${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')}</span></div>
-    <div class="result-stat-row"><span class="result-stat-label">🐾 逃跑者</span><span class="result-stat-value">${runners.length}人</span></div>
-    <div class="result-stat-row"><span class="result-stat-label">❌ 被抓</span><span class="result-stat-value">${caught}人</span></div>
-    <div class="result-stat-row"><span class="result-stat-label">🗺️ 地图</span><span class="result-stat-value">${MAPS[selectedMap].name}</span></div>
-  `;
-  document.getElementById('result-overlay').classList.add('active');
+  // Speed boost indicator
+  if(p._speedBoost&&p._speedBoost>0){
+    ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+4,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,200,0,0.6)';ctx.lineWidth=2;ctx.stroke();
+  }
 }
 
-function returnToLobby(){
-  document.getElementById('result-overlay').classList.remove('active');
-  gameState='lobby';players={};foods=[];obstacles=[];
-  showScreen('lobby-screen');
-  broadcastPresence();
+// ===== DRAW BACKGROUND =====
+function drawBackground(ctx,map){
+  ctx.fillStyle=map.bg;ctx.fillRect(0,0,MAP_W,MAP_H);
+  // Grass/ground texture
+  ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;
+  for(let x=0;x<=MAP_W;x+=40){
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,MAP_H);ctx.stroke();
+  }
+  for(let y=0;y<=MAP_H;y+=40){
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(MAP_W,y);ctx.stroke();
+  }
+  // Random grass tufts (seeded by map index for consistency)
+  const seed=selectedMap*1000;
+  for(let i=0;i<60;i++){
+    const gx=((seed+i*137)%MAP_W);
+    const gy=((seed+i*251)%MAP_H);
+    ctx.strokeStyle='rgba(0,100,0,0.15)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(gx,gy);ctx.lineTo(gx-3,gy-8);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(gx,gy);ctx.lineTo(gx+2,gy-7);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(gx,gy);ctx.lineTo(gx+4,gy-5);ctx.stroke();
+  }
+  // Map border
+  ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=4;ctx.strokeRect(0,0,MAP_W,MAP_H);
 }
-function backToMenu(){
-  document.getElementById('result-overlay').classList.remove('active');
-  leaveRoom();
-}
-// ===== 声网语音聊天模块 =====
-const AGORA_TOKEN_URL = SUPABASE_URL + '/functions/v1/agora-token';
-let voiceEnabled = true;
-let agoraClient = null;
-let localAudioTrack = null;
-let voiceJoined = false;
-let voiceMuted = false;
-let voiceUid = 0;
-let speakingUsers = {};
-let voiceUidToPlayerId = {};
 
-function initAgoraClient() {
-  if (typeof AgoraRTC === 'undefined') { voiceEnabled = false; return; }
-  try {
-    agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-    agoraClient.on('user-published', async (user, mediaType) => {
-      if (mediaType === 'audio') {
-        await agoraClient.subscribe(user, mediaType);
-        user.audioTrack.play();
-        updateSpeakerUI(user.uid, true);
+// ===== DRAW TERRAINS =====
+function drawTerrains(ctx,map){
+  if(!map.terrains)return;
+  map.terrains.forEach(t=>{
+    const td=TERRAIN[t.type];if(!td)return;
+    ctx.fillStyle=td.color;
+    // Rounded rect for terrain
+    const r=8;
+    ctx.beginPath();
+    ctx.moveTo(t.x+r,t.y);ctx.lineTo(t.x+t.w-r,t.y);ctx.quadraticCurveTo(t.x+t.w,t.y,t.x+t.w,t.y+r);
+    ctx.lineTo(t.x+t.w,t.y+t.h-r);ctx.quadraticCurveTo(t.x+t.w,t.y+t.h,t.x+t.w-r,t.y+t.h);
+    ctx.lineTo(t.x+r,t.y+t.h);ctx.quadraticCurveTo(t.x,t.y+t.h,t.x,t.y+t.h-r);
+    ctx.lineTo(t.x,t.y+r);ctx.quadraticCurveTo(t.x,t.y,t.x+r,t.y);
+    ctx.closePath();ctx.fill();
+    // Label
+    ctx.font='11px sans-serif';ctx.fillStyle='rgba(0,0,0,0.5)';ctx.textAlign='center';ctx.textBaseline='middle';
+    const labels={SWAMP:'沼泽',ICE:'冰面',BOOST:'加速',SLOPE_UP:'上坡',SLOPE_DN:'下坡',THORNS:'荆棘',SPRING:'弹簧'};
+    ctx.fillText(labels[t.type]||'',t.x+t.w/2,t.y+t.h/2);
+    // Boost arrow
+    if(t.type==='BOOST'&&t.dir){
+      ctx.font='16px sans-serif';
+      const arrows={right:'→',left:'←',up:'↑',down:'↓'};
+      ctx.fillText(arrows[t.dir]||'',t.x+t.w/2,t.y+t.h/2+14);
+    }
+  });
+}
+
+// ===== DRAW RIVER =====
+function drawRiver(ctx,map){
+  if(!map.river)return;
+  const r=map.river;
+  const hw=r.width/2;
+
+  // Draw water body
+  ctx.beginPath();
+  // Build path along river with width
+  const pts=r.path;
+  if(pts.length<2)return;
+
+  // Left bank
+  const leftBank=[],rightBank=[];
+  for(let i=0;i<pts.length;i++){
+    let nx,ny;
+    if(i<pts.length-1){nx=pts[i+1].x-pts[i].x;ny=pts[i+1].y-pts[i].y;}
+    else{nx=pts[i].x-pts[i-1].x;ny=pts[i].y-pts[i-1].y;}
+    const len=Math.sqrt(nx*nx+ny*ny)||1;
+    const perpX=-ny/len*hw,perpY=nx/len*hw;
+    leftBank.push({x:pts[i].x+perpX,y:pts[i].y+perpY});
+    rightBank.push({x:pts[i].x-perpX,y:pts[i].y-perpY});
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(leftBank[0].x,leftBank[0].y);
+  for(let i=1;i<leftBank.length;i++){
+    ctx.lineTo(leftBank[i].x,leftBank[i].y);
+  }
+  for(let i=rightBank.length-1;i>=0;i--){
+    ctx.lineTo(rightBank[i].x,rightBank[i].y);
+  }
+  ctx.closePath();
+  ctx.fillStyle=r.color;ctx.globalAlpha=0.7;ctx.fill();ctx.globalAlpha=1;
+
+  // Water ripple animation
+  ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1.5;
+  for(let i=0;i<pts.length-1;i++){
+    const mx=(pts[i].x+pts[i+1].x)/2;
+    const my=(pts[i].y+pts[i+1].y)/2;
+    const offset=Math.sin(riverAnimOffset*0.05+i*2)*5;
+    ctx.beginPath();
+    ctx.moveTo(mx-10+offset,my);ctx.lineTo(mx+10+offset,my);
+    ctx.stroke();
+  }
+  // More ripples
+  for(let i=0;i<pts.length-1;i++){
+    const mx=(pts[i].x+pts[i+1].x)/2;
+    const my=(pts[i].y+pts[i+1].y)/2;
+    const offset=Math.cos(riverAnimOffset*0.04+i*3)*7;
+    ctx.beginPath();
+    ctx.arc(mx+offset,my+8,3,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.stroke();
+  }
+
+  // Draw bridges
+  if(r.bridges){
+    r.bridges.forEach(br=>{
+      // Wooden bridge
+      ctx.fillStyle='#8D6E63';
+      ctx.fillRect(br.x,br.y,br.w,br.h);
+      // Planks
+      ctx.strokeStyle='#5D4037';ctx.lineWidth=1;
+      for(let i=0;i<br.w;i+=8){
+        ctx.beginPath();ctx.moveTo(br.x+i,br.y);ctx.lineTo(br.x+i,br.y+br.h);ctx.stroke();
       }
+      // Rails
+      ctx.fillStyle='#4E342E';
+      ctx.fillRect(br.x,br.y,br.w,3);
+      ctx.fillRect(br.x,br.y+br.h-3,br.w,3);
     });
-    agoraClient.on('user-unpublished', (user, mediaType) => {
-      if (mediaType === 'audio') updateSpeakerUI(user.uid, false);
+  }
+}
+
+
+// ===== DRAW WALLS (irregular polygons) =====
+function drawWalls(ctx,map){
+  map.walls.forEach(w=>{
+    if(w.shape==='poly'&&w.pts&&w.pts.length>2){
+      ctx.beginPath();
+      ctx.moveTo(w.pts[0].x,w.pts[0].y);
+      for(let i=1;i<w.pts.length;i++){ctx.lineTo(w.pts[i].x,w.pts[i].y);}
+      ctx.closePath();
+      ctx.fillStyle=map.wallColor;ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=2;ctx.stroke();
+      // Texture lines
+      ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
+      const cx=w.x+w.w/2,cy=w.y+w.h/2;
+      for(let i=0;i<3;i++){
+        ctx.beginPath();
+        ctx.moveTo(cx-15+i*12,cy-10);ctx.lineTo(cx-10+i*12,cy+10);
+        ctx.stroke();
+      }
+    } else {
+      // Fallback rect
+      ctx.fillStyle=map.wallColor;
+      ctx.fillRect(w.x,w.y,w.w,w.h);
+      ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=2;
+      ctx.strokeRect(w.x,w.y,w.w,w.h);
+    }
+  });
+}
+
+// ===== DRAW GATES =====
+function drawGates(ctx,map){
+  if(!map.gates)return;
+  map.gates.forEach(g=>{
+    const open=gateStates[g.id];
+    if(!open){
+      // Draw closed gate
+      ctx.fillStyle=g.color||'#8B0000';
+      ctx.fillRect(g.x,g.y,g.w,g.h);
+      // Bars
+      ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;
+      if(g.w>g.h){
+        for(let i=g.x+8;i<g.x+g.w;i+=10){ctx.beginPath();ctx.moveTo(i,g.y);ctx.lineTo(i,g.y+g.h);ctx.stroke();}
+      } else {
+        for(let i=g.y+8;i<g.y+g.h;i+=10){ctx.beginPath();ctx.moveTo(g.x,i);ctx.lineTo(g.x+g.w,i);ctx.stroke();}
+      }
+      // Lock icon
+      ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('🚧',g.x+g.w/2,g.y+g.h/2);
+    } else {
+      // Open gate - just outline
+      ctx.strokeStyle='rgba(100,100,100,0.3)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+      ctx.strokeRect(g.x,g.y,g.w,g.h);
+      ctx.setLineDash([]);
+    }
+  });
+}
+
+// ===== DRAW GATE SWITCHES =====
+function drawGateSwitches(ctx,map){
+  if(!map.gates)return;
+  map.gates.forEach(g=>{
+    const open=gateStates[g.id];
+    const sx=g.switchPos.x,sy=g.switchPos.y;
+    // Pressure plate
+    ctx.beginPath();ctx.arc(sx,sy,14,0,Math.PI*2);
+    ctx.fillStyle=open?'rgba(0,200,0,0.5)':'rgba(200,0,0,0.4)';ctx.fill();
+    ctx.strokeStyle=g.color||'#333';ctx.lineWidth=2;ctx.stroke();
+    ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(open?'🟢':'🔴',sx,sy);
+  });
+}
+
+// ===== DRAW TUNNELS =====
+function drawTunnels(ctx,map){
+  if(!map.tunnels)return;
+  map.tunnels.forEach(t=>{
+    // Both ends show locked icon (🔒)
+    [t.entry,t.exit].forEach(portal=>{
+      ctx.fillStyle='rgba(80,0,120,0.4)';
+      ctx.fillRect(portal.x,portal.y,portal.w,portal.h);
+      ctx.strokeStyle='#6A0DAD';ctx.lineWidth=2;
+      ctx.strokeRect(portal.x,portal.y,portal.w,portal.h);
+      // Swirl effect
+      ctx.beginPath();
+      const cx=portal.x+portal.w/2,cy=portal.y+portal.h/2;
+      for(let a=0;a<Math.PI*4;a+=0.3){
+        const r2=3+a*2;
+        const px=cx+Math.cos(a+frameCount*0.05)*r2;
+        const py=cy+Math.sin(a+frameCount*0.05)*r2;
+        if(a===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+      }
+      ctx.strokeStyle='rgba(180,100,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
+      // Lock icon on both sides
+      ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('🔒',cx,cy);
     });
-    agoraClient.on('user-left', (user) => { delete speakingUsers[user.uid]; renderSpeakers(); });
+  });
+}
+
+// ===== DRAW CHESTS =====
+function drawChests(ctx,map){
+  if(!map.chests)return;
+  map.chests.forEach(ch=>{
+    const opened=chestStates[ch.id];
+    const cx=ch.x,cy=ch.y;
+    if(!opened){
+      // Closed chest - wooden box
+      ctx.fillStyle='#8B4513';
+      ctx.fillRect(cx-18,cy-14,36,28);
+      // Lid
+      ctx.fillStyle='#A0522D';
+      ctx.fillRect(cx-20,cy-18,40,10);
+      // Metal band
+      ctx.fillStyle='#FFD700';
+      ctx.fillRect(cx-2,cy-18,4,28);
+      // Lock
+      ctx.beginPath();ctx.arc(cx,cy+2,5,0,Math.PI*2);
+      ctx.fillStyle='#FFD700';ctx.fill();
+      ctx.strokeStyle='#B8860B';ctx.lineWidth=1;ctx.stroke();
+      // Sparkle
+      if(frameCount%60<30){
+        ctx.font='10px sans-serif';ctx.textAlign='center';
+        ctx.fillText('✨',cx+15,cy-15);
+      }
+    } else {
+      // Open empty chest
+      ctx.fillStyle='#6B3A0A';
+      ctx.fillRect(cx-18,cy-8,36,22);
+      // Open lid (tilted)
+      ctx.fillStyle='#8B4513';
+      ctx.fillRect(cx-20,cy-22,40,8);
+      ctx.globalAlpha=0.5;
+      ctx.fillStyle='#333';
+      ctx.font='12px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('空',cx,cy+4);
+      ctx.globalAlpha=1;
+    }
+  });
+}
+
+// ===== DRAW DECORATIONS =====
+function drawDecorations(ctx,map){
+  if(!map.decorations)return;
+  map.decorations.forEach(d=>{
+    switch(d.type){
+      case 'tree':
+        // Trunk
+        ctx.fillStyle='#5D4037';ctx.fillRect(d.x-4,d.y,8,20);
+        // Canopy (circle)
+        ctx.beginPath();ctx.arc(d.x,d.y-5,18,0,Math.PI*2);
+        ctx.fillStyle='#2E7D32';ctx.fill();
+        ctx.beginPath();ctx.arc(d.x-6,d.y-8,12,0,Math.PI*2);
+        ctx.fillStyle='#388E3C';ctx.fill();
+        ctx.beginPath();ctx.arc(d.x+7,d.y-3,10,0,Math.PI*2);
+        ctx.fillStyle='#43A047';ctx.fill();
+        break;
+      case 'bush':
+        ctx.beginPath();ctx.arc(d.x,d.y,12,0,Math.PI*2);
+        ctx.fillStyle='#4CAF50';ctx.fill();
+        ctx.beginPath();ctx.arc(d.x+8,d.y+3,9,0,Math.PI*2);
+        ctx.fillStyle='#66BB6A';ctx.fill();
+        break;
+      case 'flower':
+        ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(['🌸','🌼','🌺'][Math.floor(d.x)%3],d.x,d.y);
+        break;
+      case 'rock':
+        ctx.beginPath();ctx.ellipse(d.x,d.y,14,10,0,0,Math.PI*2);
+        ctx.fillStyle='#757575';ctx.fill();
+        ctx.strokeStyle='#616161';ctx.lineWidth=1;ctx.stroke();
+        break;
+      case 'lamp':
+        ctx.fillStyle='#333';ctx.fillRect(d.x-2,d.y,4,25);
+        ctx.beginPath();ctx.arc(d.x,d.y,6,0,Math.PI*2);
+        ctx.fillStyle='#FFF9C4';ctx.fill();
+        ctx.strokeStyle='#F9A825';ctx.lineWidth=1;ctx.stroke();
+        break;
+      case 'barrel':
+        ctx.fillStyle='#6D4C41';ctx.fillRect(d.x-8,d.y-10,16,20);
+        ctx.strokeStyle='#4E342E';ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(d.x-9,d.y-5);ctx.lineTo(d.x+9,d.y-5);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(d.x-9,d.y+5);ctx.lineTo(d.x+9,d.y+5);ctx.stroke();
+        break;
+      case 'torch':
+        ctx.fillStyle='#5D4037';ctx.fillRect(d.x-2,d.y,4,18);
+        ctx.beginPath();ctx.arc(d.x,d.y-2,5,0,Math.PI*2);
+        ctx.fillStyle=frameCount%40<20?'#FF6F00':'#FF8F00';ctx.fill();
+        break;
+      case 'skull':
+        ctx.font='16px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('💀',d.x,d.y);
+        break;
+      case 'moss':
+        ctx.beginPath();ctx.ellipse(d.x,d.y,10,6,0.3,0,Math.PI*2);
+        ctx.fillStyle='rgba(76,175,80,0.4)';ctx.fill();
+        break;
+    }
+  });
+}
+
+
+// ===== VOICE CHAT (Agora) =====
+const AGORA_TOKEN_URL=SUPABASE_URL+'/functions/v1/agora-token';
+let voiceEnabled=true,agoraClient=null,localAudioTrack=null;
+let voiceJoined=false,voiceMuted=false,voiceUid=0;
+let speakingUsers={},voiceUidToPlayerId={};
+
+function initAgoraClient(){
+  if(typeof AgoraRTC==='undefined'){voiceEnabled=false;return;}
+  try{
+    agoraClient=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
+    agoraClient.on('user-published',async(user,mediaType)=>{
+      if(mediaType==='audio'){await agoraClient.subscribe(user,mediaType);user.audioTrack.play();speakingUsers[user.uid]={speaking:false};}
+    });
+    agoraClient.on('user-unpublished',(user,mediaType)=>{if(mediaType==='audio')delete speakingUsers[user.uid];});
+    agoraClient.on('user-left',(user)=>{delete speakingUsers[user.uid];});
     agoraClient.enableAudioVolumeIndicator();
-    agoraClient.on('volume-indicator', (volumes) => {
-      Object.keys(speakingUsers).forEach(uid => { speakingUsers[uid].speaking = false; });
-      volumes.forEach(({ uid, level }) => {
-        if (level > 5) {
-          if (uid === 0) uid = voiceUid;
-          if (speakingUsers[uid]) speakingUsers[uid].speaking = true;
+    agoraClient.on('volume-indicator',(volumes)=>{
+      Object.keys(speakingUsers).forEach(uid=>{speakingUsers[uid].speaking=false;});
+      volumes.forEach(({uid,level})=>{
+        if(level>5){
+          const realUid=uid===0?voiceUid:uid;
+          if(speakingUsers[realUid])speakingUsers[realUid].speaking=true;
         }
       });
-      renderSpeakers();
     });
-  } catch (e) { voiceEnabled = false; }
+  }catch(e){voiceEnabled=false;}
 }
 
-async function joinVoiceChannel(channelName) {
-  if (!voiceEnabled || !agoraClient) return;
-  try {
-    voiceUid = hashStringToUid(myId);
-    const tokenResp = await fetch(AGORA_TOKEN_URL, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channelName, uid: voiceUid })
-    });
-    if (!tokenResp.ok) { showVoiceStatus('语音连接失败'); return; }
-    const { token, appId } = await tokenResp.json();
-    await agoraClient.join(appId, channelName, token, voiceUid);
-    localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: 'speech_low_quality' });
+async function joinVoice(){
+  if(!voiceEnabled||!agoraClient||!roomCode)return;
+  try{
+    voiceUid=hashUid(myId);
+    const resp=await fetch(AGORA_TOKEN_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channelName:'catch-'+roomCode,uid:voiceUid})});
+    if(!resp.ok)return;
+    const{token,appId}=await resp.json();
+    await agoraClient.join(appId,'catch-'+roomCode,token,voiceUid);
+    localAudioTrack=await AgoraRTC.createMicrophoneAudioTrack({encoderConfig:'speech_low_quality'});
     await agoraClient.publish([localAudioTrack]);
-    voiceJoined = true; voiceMuted = false;
-    speakingUsers[voiceUid] = { nickname: myNick, charIdx: myCharIdx, speaking: false };
-    if (channel) channel.send({ type: 'broadcast', event: 'voice-uid', payload: { id: myId, voiceUid, nickname: myNick, charIdx: myCharIdx } });
+    voiceJoined=true;voiceMuted=false;
+    speakingUsers[voiceUid]={speaking:false};
     document.getElementById('voice-panel').classList.add('active');
     updateMicBtn();
-    showVoiceStatus('🎙️ 语音已连接'); setTimeout(hideVoiceStatus, 2000);
-    renderSpeakers();
-  } catch (err) { showVoiceStatus('语音连接失败'); }
+  }catch(e){console.log('Voice join failed',e);}
 }
 
-async function leaveVoiceChannel() {
-  if (!voiceJoined) return;
-  try { if (localAudioTrack) { localAudioTrack.close(); localAudioTrack = null; } await agoraClient.leave(); } catch (e) {}
-  voiceJoined = false; speakingUsers = {}; voiceUidToPlayerId = {};
+async function leaveVoice(){
+  if(!voiceJoined)return;
+  try{if(localAudioTrack){localAudioTrack.close();localAudioTrack=null;}await agoraClient.leave();}catch(e){}
+  voiceJoined=false;speakingUsers={};
   document.getElementById('voice-panel').classList.remove('active');
 }
 
-function toggleMic() {
-  if (!voiceJoined || !localAudioTrack) return;
-  voiceMuted = !voiceMuted;
+function toggleMic(){
+  if(!voiceJoined||!localAudioTrack)return;
+  voiceMuted=!voiceMuted;
   localAudioTrack.setEnabled(!voiceMuted);
   updateMicBtn();
-  showVoiceStatus(voiceMuted ? '🔇 麦克风已关闭' : '🎤 麦克风已开启');
-  setTimeout(hideVoiceStatus, 1500);
 }
-
-function updateMicBtn() {
-  const btn = document.getElementById('mic-btn');
-  btn.textContent = voiceMuted ? '🔇' : '🎤';
-  btn.classList.toggle('muted', voiceMuted);
+function updateMicBtn(){
+  const btn=document.getElementById('mic-btn');
+  btn.textContent=voiceMuted?'🔇':'🎤';
+  btn.classList.toggle('muted',voiceMuted);
 }
-
-function updateSpeakerUI(uid, isPublishing) {
-  if (isPublishing && !speakingUsers[uid]) {
-    const playerId = voiceUidToPlayerId[uid];
-    const pd = playerId ? (lobbyPlayers[playerId] || players[playerId]) : null;
-    speakingUsers[uid] = { nickname: pd ? pd.nick || pd.nickname : '玩家', charIdx: pd ? pd.charIdx : 0, speaking: false };
-  }
-  renderSpeakers();
-}
-
-function renderSpeakers() {
-  const container = document.getElementById('voice-speakers');
-  const entries = Object.entries(speakingUsers);
-  container.innerHTML = entries.map(([uid, info]) => {
-    const ch = CHARS[info.charIdx] || CHARS[0];
-    const cls = info.speaking ? ' speaking' : '';
-    const isMe = Number(uid) === voiceUid;
-    return `<div class="voice-speaker${cls}"><span class="speaker-dot"></span>${ch.emoji} ${escH(info.nickname)}${isMe ? '(我)' : ''}</div>`;
-  }).join('');
-}
-
-function showVoiceStatus(msg) { const el = document.getElementById('voice-status'); el.textContent = msg; el.classList.add('active'); }
-function hideVoiceStatus() { document.getElementById('voice-status').classList.remove('active'); }
-function hashStringToUid(str) { let h = 0; for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; } return Math.abs(h) % 100000000 + 1; }
-function onVoiceUid(payload) {
-  if (!payload || !payload.id || !payload.voiceUid) return;
-  voiceUidToPlayerId[payload.voiceUid] = payload.id;
-  if (!speakingUsers[payload.voiceUid]) speakingUsers[payload.voiceUid] = { nickname: payload.nickname, charIdx: payload.charIdx, speaking: false };
-  else { speakingUsers[payload.voiceUid].nickname = payload.nickname; speakingUsers[payload.voiceUid].charIdx = payload.charIdx; }
-  renderSpeakers();
-}
-function getPlayerSpeaking(playerId) {
-  for (const [vUid, pId] of Object.entries(voiceUidToPlayerId)) {
-    if (pId === playerId && speakingUsers[vUid] && speakingUsers[vUid].speaking) return true;
-  }
-  if (playerId === myId && speakingUsers[voiceUid] && speakingUsers[voiceUid].speaking) return true;
-  return false;
-}
-function isPlayerInVoice(playerId) {
-  for (const [vUid, pId] of Object.entries(voiceUidToPlayerId)) { if (pId === playerId) return true; }
-  if (playerId === myId && voiceJoined) return true;
-  return false;
-}
+function hashUid(str){let h=0;for(let i=0;i<str.length;i++){h=((h<<5)-h)+str.charCodeAt(i);h=h&h;}return Math.abs(h)%100000000+1;}
 
 // ===== INIT =====
-window.addEventListener('load', () => {
-  myId = genId();
+window.addEventListener('load',()=>{
+  myId=genId();
   initUI();
   initAgoraClient();
 });
