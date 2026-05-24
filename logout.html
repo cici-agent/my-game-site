@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>退出登录</title></head>
+<body>
+<script>
+// 清除所有 session
+Object.keys(localStorage).forEach(function(k){
+  if(k.includes('supabase')||k.includes('xiaocainiao')||k.includes('sb-'))localStorage.removeItem(k);
+});
+Object.keys(sessionStorage).forEach(function(k){
+  if(k.includes('supabase')||k.includes('xiaocainiao')||k.includes('sb-'))sessionStorage.removeItem(k);
+});
+window.location.href='login.html';
+</script>
+<p>正在退出...</p>
+</body>
+</html>
