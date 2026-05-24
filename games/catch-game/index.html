@@ -492,6 +492,7 @@ function joinChannel(){
   channel.on('broadcast',{event:'player-caught'},({payload})=>onPlayerCaught(payload));
   channel.on('broadcast',{event:'food-eaten'},({payload})=>onFoodEaten(payload));
   channel.on('broadcast',{event:'coin-spawn'},({payload})=>onCoinSpawn(payload));
+  channel.on('broadcast',{event:'game-end'},({payload})=>onGameEnd(payload));
   channel.on('broadcast',{event:'list-request'},()=>{
     if(isHost&&gameState==='lobby'){
       channel.send({type:'broadcast',event:'list-response',payload:{code:roomCode,name:roomName,host:myNick,count:Object.keys(lobbyPlayers).length,type:roomType,map:selectedMap}});
@@ -720,7 +721,7 @@ function onGameStart(data){
   timerInterval=setInterval(()=>{
     timeLeft--;
     document.getElementById('hud-timer').textContent=`${Math.floor(timeLeft/60)}:${String(timeLeft%60).padStart(2,'0')}`;
-    if(timeLeft<=0)endGame('time');
+    if(timeLeft<=0){if(isHost){channel.send({type:'broadcast',event:'game-end',payload:{reason:'time'}});}endGame('time');}
   },1000);
 }
 
@@ -996,7 +997,7 @@ function onPlayerCaught({caughtId}){
   if(caughtId===myId){isCaught=true;document.getElementById('spectator-banner').style.display='block';}
   // Check if all runners caught
   const runners=Object.values(players).filter(p=>p.role==='runner');
-  if(runners.every(p=>p.caught))endGame('allcaught');
+  if(runners.every(p=>p.caught)&&isHost){channel.send({type:"broadcast",event:"game-end",payload:{reason:"allcaught"}});endGame("allcaught");}
 }
 function onFoodEaten({foodId}){const f=foods.find(x=>x.id===foodId);if(f)f.active=false;}
 function onCoinSpawn(coin){if(!foods.find(f=>f.id===coin.id))foods.push(coin);}
@@ -1279,6 +1280,7 @@ function render(){
 }
 
 // ===== END GAME =====
+function onGameEnd({reason}){endGame(reason);}
 function endGame(reason){
   if(gameState!=='playing')return;
   gameState='result';
