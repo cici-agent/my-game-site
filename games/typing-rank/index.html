@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<!--
+  ===== 小菜鸟 · 打字排名赛 =====
+  路径: games/typing-rank/index.html
+  
+  ===== 需要在 Supabase SQL Editor 执行的建表 SQL =====
+  （与打字挑战赛共用，如果已执行过则跳过）
+  
+  -- 1. 打字挑战赛通关记录表
+  CREATE TABLE IF NOT EXISTS typing_challenge_records (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('english', 'chinese')),
+    level INT NOT NULL CHECK (level >= 1 AND level <= 10),
+    passed_at TIMESTAMPTZ DEFAULT now(),
+    best_wpm NUMERIC DEFAULT 0,
+    best_cpm NUMERIC DEFAULT 0,
+    best_accuracy NUMERIC DEFAULT 0,
+    coins_rewarded INT DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(user_id, type, level)
+  );
+
+  -- 2. 打字成绩流水记录表
+  CREATE TABLE IF NOT EXISTS typing_records (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    username TEXT NOT NULL,
+    mode TEXT NOT NULL CHECK (mode IN ('challenge', 'rank')),
+    lang TEXT NOT NULL CHECK (lang IN ('zh', 'en')),
+    level INT,
+    speed NUMERIC NOT NULL,
+    accuracy NUMERIC NOT NULL,
+    passed BOOLEAN DEFAULT false,
+    coins_earned INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now()
+  );
+
+  -- 3. 排名赛周榜表
+  CREATE TABLE IF NOT EXISTS typing_weekly_rank (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    username TEXT NOT NULL,
+    lang TEXT NOT NULL CHECK (lang IN ('zh', 'en')),
+    best_speed NUMERIC NOT NULL,
+    accuracy NUMERIC NOT NULL,
+    week_start DATE NOT NULL,
+    attempts_today INT DEFAULT 1,
+    last_attempt_date DATE DEFAULT CURRENT_DATE,
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(user_id, lang, week_start)
+  );
+
+  -- 4. 排名赛结算记录
+  CREATE TABLE IF NOT EXISTS typing_rank_settlements (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    week_start DATE NOT NULL,
+    lang TEXT NOT NULL,
+    settled_at TIMESTAMPTZ DEFAULT now(),
+    first_user_id UUID,
+    first_username TEXT,
+    first_coins INT DEFAULT 20,
+    second_user_id UUID,
+    second_username TEXT,
+    second_coins INT DEFAULT 15,
+    third_user_id UUID,
+    third_username TEXT,
+    third_coins INT DEFAULT 10,
+    UNIQUE(week_start, lang)
+  );
+
+  -- 5. RLS 策略
+  ALTER TABLE typing_challenge_records ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE typing_records ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE typing_weekly_rank ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE typing_rank_settlements ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY "Users can read own challenge records" ON typing_challenge_records
+    FOR SELECT USING (auth.uid() = user_id);
+  CREATE POLICY "Users can insert own challenge records" ON typing_challenge_records
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+  CREATE POLICY "Users can update own challenge records" ON typing_challenge_records
+    FOR UPDATE USING (auth.uid() = user_id);
+
+  CREATE POLICY "Users can insert own typing records" ON typing_records
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+  CREATE POLICY "Anyone can read typing records" ON typing_records
+    FOR SELECT USING (true);
+
+  CREATE POLICY "Users can insert own weekly rank" ON typing_weekly_rank
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+  CREATE POLICY "Users can update own weekly rank" ON typing_weekly_rank
+    FOR UPDATE USING (auth.uid() = user_id);
+  CREATE POLICY "Anyone can read weekly rank" ON typing_weekly_rank
+    FOR SELECT USING (true);
+
+  CREATE POLICY "Anyone can read settlements" ON typing_rank_settlements
+    FOR SELECT USING (true);
+  CREATE POLICY "Users can insert settlements" ON typing_rank_settlements
+    FOR INSERT WITH CHECK (true);
+
+  ===== END SQL =====
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>打字排名赛 - 小菜鸟</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 50%, #ff8c00 100%);
+  min-height: 100vh;
+  color: #333;
+  overflow-x: hidden;
+}
+.container {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* 顶部导航 */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+.top-bar .back-btn {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.top-bar .back-btn:hover { background: rgba(255,255,255,0.35); }
+.top-bar .title {
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.top-bar .coins-display {
+  background: rgba(255,200,0,0.25);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+/* 卡片 */
+.card {
+  background: rgba(255,255,255,0.95);
+  border-radius: 20px;
+  padding: 28px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+/* Tab 切换 */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  background: #f0f0f0;
+  border-radius: 14px;
+  padding: 4px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #666;
+  transition: all 0.2s;
+}
+.tab-btn.active {
+  background: #fff;
+  color: #f5576c;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* 模式选择 */
+.mode-select {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.mode-btn {
+  padding: 10px 20px;
+  border: 3px solid #e0e0e0;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  transition: all 0.2s;
+  color: #555;
+}
+.mode-btn:hover { border-color: #f5576c; color: #f5576c; }
+.mode-btn.active { border-color: #f5576c; background: #f5576c; color: #fff; box-shadow: 0 4px 12px rgba(245,87,108,0.3); }
+
+/* 排行榜 */
+.rank-list { list-style: none; }
+.rank-item {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: #f9f9f9;
+  transition: all 0.2s;
+}
+.rank-item:hover { background: #f0f0f0; }
+.rank-item.top1 { background: linear-gradient(135deg, #fff9c4, #fff176); }
+.rank-item.top2 { background: linear-gradient(135deg, #f5f5f5, #e0e0e0); }
+.rank-item.top3 { background: linear-gradient(135deg, #ffe0b2, #ffcc80); }
+.rank-item.me { border: 2px solid #f5576c; }
+.rank-pos {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 1rem;
+  margin-right: 14px;
+  background: #e0e0e0;
+  color: #666;
+  flex-shrink: 0;
+}
+.rank-item.top1 .rank-pos { background: #ffd700; color: #fff; font-size: 1.2rem; }
+.rank-item.top2 .rank-pos { background: #c0c0c0; color: #fff; }
+.rank-item.top3 .rank-pos { background: #cd7f32; color: #fff; }
+.rank-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+.rank-speed { font-weight: 800; color: #f5576c; font-size: 1.1rem; margin-right: 8px; }
+.rank-acc { font-size: 0.8rem; color: #888; }
+
+/* 规则说明 */
+.rules-box {
+  background: #fff3e0;
+  border-left: 4px solid #ff8c00;
+  padding: 14px 18px;
+  border-radius: 0 12px 12px 0;
+  margin: 16px 0;
+  font-size: 0.85rem;
+  color: #e65100;
+  line-height: 1.8;
+}
+
+/* 结算信息 */
+.settlement-box {
+  background: #f3e5f5;
+  border-left: 4px solid #9c27b0;
+  padding: 14px 18px;
+  border-radius: 0 12px 12px 0;
+  margin: 16px 0;
+  font-size: 0.85rem;
+  color: #6a1b9a;
+  line-height: 1.8;
+}
+
+/* 参赛状态 */
+.entry-info {
+  text-align: center;
+  padding: 16px;
+  background: #f8f9ff;
+  border-radius: 14px;
+  margin: 16px 0;
+}
+.entry-info .cost { font-size: 1.1rem; color: #f5576c; font-weight: 700; }
+.entry-info .attempts { font-size: 0.9rem; color: #666; margin-top: 6px; }
+
+/* 打字区域 */
+.typing-area { display: none; text-align: center; }
+.text-display {
+  font-size: 1.4rem;
+  line-height: 2.2;
+  padding: 20px;
+  background: #f8f9ff;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  min-height: 120px;
+  text-align: left;
+  word-break: break-all;
+  user-select: none;
+}
+.text-display .char { transition: color 0.1s; }
+.text-display .char.correct { color: #4caf50; }
+.text-display .char.wrong { color: #f44336; background: #ffebee; border-radius: 3px; }
+.text-display .char.current { background: #e3f2fd; border-radius: 3px; border-bottom: 3px solid #2196f3; }
+
+#typingInput {
+  width: 100%;
+  padding: 16px 20px;
+  font-size: 1.2rem;
+  border: 3px solid #e0e0e0;
+  border-radius: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+#typingInput:focus { border-color: #f5576c; }
+
+/* 统计 */
+.stats-bar {
+  display: flex;
+  justify-content: space-around;
+  padding: 14px;
+  background: linear-gradient(135deg, #f5576c, #ff8c00);
+  border-radius: 14px;
+  margin-bottom: 16px;
+  color: #fff;
+}
+.stat-item { text-align: center; }
+.stat-item .stat-value { font-size: 1.4rem; font-weight: 800; }
+.stat-item .stat-label { font-size: 0.7rem; opacity: 0.8; }
+
+/* 倒计时 */
+.countdown {
+  font-size: 3rem;
+  font-weight: 900;
+  color: #f5576c;
+  text-align: center;
+  padding: 30px;
+  display: none;
+}
+
+/* 结果 */
+.result-panel { display: none; text-align: center; padding: 30px; }
+.result-panel .result-icon { font-size: 4rem; margin-bottom: 16px; }
+.result-panel .result-title { font-size: 1.8rem; font-weight: 800; margin-bottom: 8px; }
+.result-panel .result-detail { font-size: 1rem; color: #666; margin-bottom: 20px; line-height: 1.8; }
+.result-panel .rank-update { font-size: 1.1rem; color: #f5576c; font-weight: 700; margin: 12px 0; }
+
+/* 按钮 */
+.btn-primary {
+  background: linear-gradient(135deg, #f5576c, #ff8c00);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 32px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(245,87,108,0.3);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(245,87,108,0.4); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: #555;
+  border: none;
+  border-radius: 14px;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 0 6px;
+}
+.btn-secondary:hover { background: #e0e0e0; }
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+.empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+
+/* 上周冠军 */
+.champion-banner {
+  background: linear-gradient(135deg, #ffd700, #ffb300);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  text-align: center;
+  color: #5d4037;
+}
+.champion-banner .crown { font-size: 2rem; }
+.champion-banner .champ-text { font-size: 0.9rem; margin-top: 4px; }
+.champion-banner .champ-name { font-weight: 800; font-size: 1.2rem; }
+
+/* 响应式 */
+@media (max-width: 600px) {
+  .container { padding: 12px; }
+  .card { padding: 18px; border-radius: 16px; }
+  .text-display { font-size: 1.1rem; padding: 14px; line-height: 2; }
+  .stats-bar { flex-wrap: wrap; gap: 6px; padding: 10px; }
+  .stat-item .stat-value { font-size: 1.2rem; }
+  .top-bar .title { font-size: 1rem; }
+  .top-bar { padding: 10px 14px; }
+  .rank-item { padding: 10px 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- 顶部栏 -->
+  <div class="top-bar">
+    <a href="/index.html" class="back-btn">← 首页</a>
+    <div class="title">🏅 打字排名赛</div>
+    <div class="coins-display" id="coinsDisplay">🪙 --</div>
+  </div>
+
+  <!-- 主面板 -->
+  <div class="card" id="mainPanel">
+    <!-- Tab 切换 -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('rank')">🏆 本周排行</button>
+      <button class="tab-btn" onclick="switchTab('play')">⌨️ 参加比赛</button>
+      <button class="tab-btn" onclick="switchTab('history')">📜 历史结算</button>
+    </div>
+
+    <!-- 排行榜 Tab -->
+    <div id="tabRank">
+      <div class="mode-select">
+        <button class="mode-btn active" id="rankLangZh" onclick="switchRankLang('zh')">🇨🇳 中文榜</button>
+        <button class="mode-btn" id="rankLangEn" onclick="switchRankLang('en')">🇺🇸 英文榜</button>
+      </div>
+
+      <div id="championBanner"></div>
+
+      <div id="rankListContainer">
+        <div class="empty-state">
+          <div class="empty-icon">🏆</div>
+          <div>本周还没有人参赛，快来争第一吧！</div>
+        </div>
+      </div>
+
+      <div class="settlement-box">
+        ⏰ <b>结算时间：</b>每周六北京时间 20:00<br>
+        🥇 第一名 +20🪙 | 🥈 第二名 +15🪙 | 🥉 第三名 +10🪙<br>
+        📅 下次结算：<span id="nextSettlement">--</span>
+      </div>
+    </div>
+
+    <!-- 参赛 Tab -->
+    <div id="tabPlay" style="display:none;">
+      <div class="mode-select">
+        <button class="mode-btn active" id="playLangZh" onclick="switchPlayLang('zh')">🇨🇳 中文</button>
+        <button class="mode-btn" id="playLangEn" onclick="switchPlayLang('en')">🇺🇸 英文</button>
+      </div>
+
+      <div class="rules-box">
+        📋 <b>排名赛规则：</b><br>
+        • 每次参赛消耗 <b>2金币</b><br>
+        • 每人每天最多参赛 <b>5次</b><br>
+        • 限时 <b>60秒</b>，取你的最佳成绩上榜<br>
+        • 每周六 20:00 结算，前三名获得金币奖励<br>
+        • 新的一周排行榜重置，重新开始竞争！
+      </div>
+
+      <div class="entry-info">
+        <div class="cost">💰 参赛费用：2 金币</div>
+        <div class="attempts" id="attemptsInfo">今日剩余次数：5/5</div>
+      </div>
+
+      <div style="text-align:center; margin-top:16px;">
+        <button class="btn-primary" id="enterBtn" onclick="enterRank()">🎯 开始比赛（-2🪙）</button>
+      </div>
+    </div>
+
+    <!-- 历史结算 Tab -->
+    <div id="tabHistory" style="display:none;">
+      <h3 style="text-align:center; margin-bottom:16px; color:#555;">📜 历史结算记录</h3>
+      <div id="historyList">
+        <div class="empty-state">
+          <div class="empty-icon">📜</div>
+          <div>暂无历史结算记录</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 倒计时 -->
+  <div class="card countdown" id="countdownPanel"></div>
+
+  <!-- 打字区域 -->
+  <div class="card typing-area" id="typingPanel">
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-value" id="statSpeed">0</div>
+        <div class="stat-label" id="statSpeedLabel">字/分钟</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="statAccuracy">100%</div>
+        <div class="stat-label">准确率</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="statTime">60</div>
+        <div class="stat-label">剩余秒</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="statCount">0</div>
+        <div class="stat-label" id="statCountLabel">已打字数</div>
+      </div>
+    </div>
+
+    <div class="text-display" id="textDisplay"></div>
+
+    <div>
+      <input type="text" id="typingInput" placeholder="在这里开始打字..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </div>
+  </div>
+
+  <!-- 结果面板 -->
+  <div class="card result-panel" id="resultPanel">
+    <div class="result-icon" id="resultIcon">🏅</div>
+    <div class="result-title" id="resultTitle">比赛结束！</div>
+    <div class="result-detail" id="resultDetail"></div>
+    <div class="rank-update" id="rankUpdate"></div>
+    <div style="margin-top:20px;">
+      <button class="btn-primary" onclick="enterRank()">🔄 再来一次（-2🪙）</button>
+      <button class="btn-secondary" onclick="backToMain()">📋 返回排行榜</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Supabase 初始化 =====
+var SUPABASE_URL = 'https://aqxbpuetdypcbmqdncpl.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5ODg5MzksImV4cCI6MjA5NDU2NDkzOX0.YUwFQeJgbmhrtY32tGXbm9wz0jtou0Zxg1626EJl3r0';
+var sb = null;
+var currentUser = null;
+var currentProfile = null;
+
+function initSupabase() {
+  var lib = (typeof supabase !== 'undefined' && supabase.createClient) ? supabase : window.supabase;
+  sb = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, storageKey: 'xiaocainiao_session', storage: window.localStorage, autoRefreshToken: true, detectSessionInUrl: false }
+  });
+}
+
+async function checkAuth() {
+  initSupabase();
+  var sess = null;
+  try {
+    var { data } = await sb.auth.getSession();
+    sess = data.session;
+  } catch(e) {}
+  if (!sess) {
+    alert('请先登录！');
+    window.location.href = '/login.html';
+    return false;
+  }
+  currentUser = sess.user;
+  try {
+    var { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+    currentProfile = profile;
+    document.getElementById('coinsDisplay').textContent = '🪙 ' + (profile ? profile.coins : 0);
+  } catch(e) {
+    currentProfile = { coins: 0, username: 'player' };
+  }
+  return true;
+}
+
+// ===== 时间工具 =====
+// 获取本周一的日期（北京时间）
+function getWeekStart() {
+  var now = new Date();
+  // 转北京时间
+  var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
+  var day = bjNow.getUTCDay(); // 0=周日
+  var diff = day === 0 ? 6 : day - 1; // 周一为起点
+  var monday = new Date(bjNow);
+  monday.setUTCDate(monday.getUTCDate() - diff);
+  return monday.toISOString().split('T')[0];
+}
+
+// 获取今天日期（北京时间）
+function getTodayBJ() {
+  var now = new Date();
+  var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
+  return bjNow.toISOString().split('T')[0];
+}
+
+// 获取下次结算时间
+function getNextSettlement() {
+  var now = new Date();
+  var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
+  var day = bjNow.getUTCDay();
+  var daysUntilSat = (6 - day + 7) % 7;
+  if (daysUntilSat === 0) {
+    // 今天是周六，检查是否已过20:00
+    if (bjNow.getUTCHours() >= 20) {
+      daysUntilSat = 7;
+    }
+  }
+  var satDate = new Date(bjNow);
+  satDate.setUTCDate(satDate.getUTCDate() + daysUntilSat);
+  var month = satDate.getUTCMonth() + 1;
+  var date = satDate.getUTCDate();
+  return month + '月' + date + '日 周六 20:00';
+}
+
+// 获取上周的 week_start
+function getLastWeekStart() {
+  var now = new Date();
+  var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
+  var day = bjNow.getUTCDay();
+  var diff = day === 0 ? 6 : day - 1;
+  var monday = new Date(bjNow);
+  monday.setUTCDate(monday.getUTCDate() - diff - 7);
+  return monday.toISOString().split('T')[0];
+}
+
+// ===== Tab 切换 =====
+var currentTab = 'rank';
+var rankLang = 'zh';
+var playLang = 'zh';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(function(btn, i) {
+    btn.classList.toggle('active', 
+      (i === 0 && tab === 'rank') || (i === 1 && tab === 'play') || (i === 2 && tab === 'history'));
+  });
+  document.getElementById('tabRank').style.display = tab === 'rank' ? 'block' : 'none';
+  document.getElementById('tabPlay').style.display = tab === 'play' ? 'block' : 'none';
+  document.getElementById('tabHistory').style.display = tab === 'history' ? 'block' : 'none';
+  
+  if (tab === 'rank') loadRankList();
+  if (tab === 'play') loadAttempts();
+  if (tab === 'history') loadHistory();
+}
+
+function switchRankLang(lang) {
+  rankLang = lang;
+  document.getElementById('rankLangZh').classList.toggle('active', lang === 'zh');
+  document.getElementById('rankLangEn').classList.toggle('active', lang === 'en');
+  loadRankList();
+}
+
+function switchPlayLang(lang) {
+  playLang = lang;
+  document.getElementById('playLangZh').classList.toggle('active', lang === 'zh');
+  document.getElementById('playLangEn').classList.toggle('active', lang === 'en');
+  loadAttempts();
+}
+
+// ===== 排行榜 =====
+async function loadRankList() {
+  var weekStart = getWeekStart();
+  
+  try {
+    var { data, error } = await sb.from('typing_weekly_rank')
+      .select('*')
+      .eq('lang', rankLang)
+      .eq('week_start', weekStart)
+      .order('best_speed', { ascending: false })
+      .limit(20);
+    
+    if (error) throw error;
+    
+    var container = document.getElementById('rankListContainer');
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">🏆</div><div>本周还没有人参赛，快来争第一吧！</div></div>';
+      return;
+    }
+    
+    var unit = rankLang === 'zh' ? '字/分' : 'WPM';
+    var html = '<ul class="rank-list">';
+    data.forEach(function(item, i) {
+      var posClass = '';
+      if (i === 0) posClass = ' top1';
+      else if (i === 1) posClass = ' top2';
+      else if (i === 2) posClass = ' top3';
+      var isMe = currentUser && item.user_id === currentUser.id;
+      if (isMe) posClass += ' me';
+      
+      var medal = '';
+      if (i === 0) medal = '🥇';
+      else if (i === 1) medal = '🥈';
+      else if (i === 2) medal = '🥉';
+      else medal = (i + 1);
+      
+      html += '<li class="rank-item' + posClass + '">';
+      html += '<div class="rank-pos">' + medal + '</div>';
+      html += '<div class="rank-name">' + escapeHtml(item.username) + (isMe ? ' (我)' : '') + '</div>';
+      html += '<div class="rank-speed">' + Math.round(item.best_speed) + ' ' + unit + '</div>';
+      html += '<div class="rank-acc">' + Math.round(item.accuracy) + '%</div>';
+      html += '</li>';
+    });
+    html += '</ul>';
+    container.innerHTML = html;
+  } catch(e) {
+    console.log('加载排行榜失败:', e);
+  }
+  
+  // 检查并执行结算
+  checkAndSettle();
+}
+
+// ===== 结算逻辑 =====
+async function checkAndSettle() {
+  // 检查上周是否已结算
+  var lastWeekStart = getLastWeekStart();
+  
+  try {
+    // 检查是否已有结算记录
+    var { data: existing } = await sb.from('typing_rank_settlements')
+      .select('id')
+      .eq('week_start', lastWeekStart)
+      .eq('lang', rankLang)
+      .maybeSingle();
+    
+    if (existing) return; // 已结算
+    
+    // 检查当前时间是否已过上周六20:00（即本周一之后）
+    var now = new Date();
+    var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
+    var day = bjNow.getUTCDay();
+    // 如果今天是周一到周日，且上周有数据，就可以结算
+    
+    // 获取上周排行
+    var { data: lastWeekData } = await sb.from('typing_weekly_rank')
+      .select('*')
+      .eq('lang', rankLang)
+      .eq('week_start', lastWeekStart)
+      .order('best_speed', { ascending: false })
+      .limit(3);
+    
+    if (!lastWeekData || lastWeekData.length === 0) return; // 上周没人参赛
+    
+    // 执行结算
+    var settlementData = {
+      week_start: lastWeekStart,
+      lang: rankLang
+    };
+    
+    var rewards = [20, 15, 10];
+    var fields = ['first', 'second', 'third'];
+    
+    for (var i = 0; i < Math.min(lastWeekData.length, 3); i++) {
+      var player = lastWeekData[i];
+      settlementData[fields[i] + '_user_id'] = player.user_id;
+      settlementData[fields[i] + '_username'] = player.username;
+      settlementData[fields[i] + '_coins'] = rewards[i];
+      
+      // 发放金币
+      try {
+        var { data: profile } = await sb.from('profiles').select('coins').eq('id', player.user_id).single();
+        if (profile) {
+          await sb.from('profiles').update({ coins: (profile.coins || 0) + rewards[i] }).eq('id', player.user_id);
+        }
+      } catch(e) {
+        console.log('发放奖励失败:', e);
+      }
+    }
+    
+    // 插入结算记录
+    await sb.from('typing_rank_settlements').insert(settlementData);
+    
+    // 如果当前用户是获奖者，刷新金币显示
+    if (currentUser) {
+      var { data: myProfile } = await sb.from('profiles').select('coins').eq('id', currentUser.id).single();
+      if (myProfile) {
+        currentProfile.coins = myProfile.coins;
+        document.getElementById('coinsDisplay').textContent = '🪙 ' + myProfile.coins;
+      }
+    }
+    
+    // 显示上周冠军
+    showChampion(lastWeekData[0]);
+  } catch(e) {
+    console.log('结算检查失败:', e);
+  }
+}
+
+function showChampion(champion) {
+  if (!champion) return;
+  var unit = rankLang === 'zh' ? '字/分' : 'WPM';
+  document.getElementById('championBanner').innerHTML = 
+    '<div class="champion-banner">' +
+    '<div class="crown">👑</div>' +
+    '<div class="champ-text">上周冠军</div>' +
+    '<div class="champ-name">' + escapeHtml(champion.username) + '</div>' +
+    '<div class="champ-text">' + Math.round(champion.best_speed) + ' ' + unit + ' | 获得 20🪙</div>' +
+    '</div>';
+}
+
+// ===== 参赛次数 =====
+async function loadAttempts() {
+  if (!currentUser) return;
+  var weekStart = getWeekStart();
+  var today = getTodayBJ();
+  
+  try {
+    var { data } = await sb.from('typing_weekly_rank')
+      .select('attempts_today, last_attempt_date')
+      .eq('user_id', currentUser.id)
+      .eq('lang', playLang)
+      .eq('week_start', weekStart)
+      .maybeSingle();
+    
+    var attemptsUsed = 0;
+    if (data && data.last_attempt_date === today) {
+      attemptsUsed = data.attempts_today || 0;
+    }
+    
+    var remaining = 5 - attemptsUsed;
+    document.getElementById('attemptsInfo').textContent = '今日剩余次数：' + remaining + '/5';
+    
+    var btn = document.getElementById('enterBtn');
+    if (remaining <= 0) {
+      btn.disabled = true;
+      btn.textContent = '今日次数已用完，明天再来！';
+    } else if ((currentProfile.coins || 0) < 2) {
+      btn.disabled = true;
+      btn.textContent = '金币不足（需要2🪙）';
+    } else {
+      btn.disabled = false;
+      btn.textContent = '🎯 开始比赛（-2🪙）';
+    }
+  } catch(e) {
+    document.getElementById('attemptsInfo').textContent = '今日剩余次数：5/5';
+  }
+}
+
+// ===== 历史结算 =====
+async function loadHistory() {
+  try {
+    var { data, error } = await sb.from('typing_rank_settlements')
+      .select('*')
+      .order('settled_at', { ascending: false })
+      .limit(10);
+    
+    if (error) throw error;
+    
+    var container = document.getElementById('historyList');
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">📜</div><div>暂无历史结算记录</div></div>';
+      return;
+    }
+    
+    var html = '';
+    data.forEach(function(s) {
+      var langLabel = s.lang === 'zh' ? '🇨🇳中文' : '🇺🇸英文';
+      html += '<div style="background:#f9f9f9; border-radius:12px; padding:14px; margin-bottom:10px;">';
+      html += '<div style="font-weight:700; margin-bottom:8px;">' + langLabel + ' | 周起始：' + s.week_start + '</div>';
+      if (s.first_username) html += '<div>🥇 ' + escapeHtml(s.first_username) + ' +' + s.first_coins + '🪙</div>';
+      if (s.second_username) html += '<div>🥈 ' + escapeHtml(s.second_username) + ' +' + s.second_coins + '🪙</div>';
+      if (s.third_username) html += '<div>🥉 ' + escapeHtml(s.third_username) + ' +' + s.third_coins + '🪙</div>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  } catch(e) {
+    console.log('加载历史失败:', e);
+  }
+}
+
+// ===== 参赛逻辑 =====
+async function enterRank() {
+  if (!currentUser) { alert('请先登录！'); return; }
+  
+  // 检查金币
+  if ((currentProfile.coins || 0) < 2) {
+    alert('金币不足！参赛需要2金币。');
+    return;
+  }
+  
+  // 检查今日次数
+  var weekStart = getWeekStart();
+  var today = getTodayBJ();
+  
+  try {
+    var { data: rankRecord } = await sb.from('typing_weekly_rank')
+      .select('attempts_today, last_attempt_date')
+      .eq('user_id', currentUser.id)
+      .eq('lang', playLang)
+      .eq('week_start', weekStart)
+      .maybeSingle();
+    
+    var attemptsUsed = 0;
+    if (rankRecord && rankRecord.last_attempt_date === today) {
+      attemptsUsed = rankRecord.attempts_today || 0;
+    }
+    
+    if (attemptsUsed >= 5) {
+      alert('今日参赛次数已用完（5/5），明天再来吧！');
+      return;
+    }
+  } catch(e) {}
+  
+  // 扣除金币
+  var newCoins = (currentProfile.coins || 0) - 2;
+  await sb.from('profiles').update({ coins: newCoins }).eq('id', currentUser.id);
+  currentProfile.coins = newCoins;
+  document.getElementById('coinsDisplay').textContent = '🪙 ' + newCoins;
+  
+  // 开始游戏
+  startRankGame();
+}
+
+// ===== 打字素材 =====
+var zhTexts = [
+  "春天来了花儿开了小朋友们一起去公园玩耍",
+  "我最喜欢吃妈妈做的红烧肉又香又好吃",
+  "图书馆里有很多有趣的故事书和漫画书",
+  "小猫咪蹲在窗台上看着外面飞来飞去的小鸟",
+  "科学家发现了一种新的恐龙化石非常珍贵",
+  "我们要保护环境不能随便扔垃圾到地上",
+  "学习编程可以让我们创造出有趣的游戏和网站",
+  "地球是太阳系中唯一有生命存在的行星非常特别",
+  "阅读是获取知识的最好方式我们要养成读书的好习惯",
+  "人工智能技术正在改变我们的生活方式让很多事情变得更加方便",
+  "宇宙中有数不清的星球和星系科学家们一直在探索其中的奥秘",
+  "互联网让全世界的人们可以随时随地交流分享知识和快乐",
+  "数学是一切科学的基础学好数学可以帮助我们更好地理解世界",
+  "中国有五千年的文明历史留下了无数珍贵的文化遗产",
+  "科技的发展让我们的生活越来越便利从智能手机到人工智能",
+  "保护地球环境是每个人的责任我们应该从身边的小事做起节约资源"
+];
+
+var enTexts = [
+  "the quick brown fox jumps over the lazy dog near the river bank",
+  "learning to code is like learning a new language for computers and machines",
+  "the solar system has eight planets that orbit around the sun in outer space",
+  "artificial intelligence is changing the way we live and work in modern society",
+  "the internet connects billions of people around the world allowing them to share ideas",
+  "programming requires logical thinking and problem solving skills for many areas",
+  "the development of technology has transformed communication across continents",
+  "understanding mathematics is essential for scientific discovery and innovation",
+  "biodiversity is crucial for maintaining healthy ecosystems on our planet earth",
+  "renewable energy sources like solar and wind power are better for the environment",
+  "space exploration has taught us many things about our universe and planet earth",
+  "computers can process millions of calculations in just one single second easily",
+  "the great wall of china is one of the most famous landmarks in the entire world",
+  "playing sports helps us stay healthy and teaches us about teamwork and effort",
+  "scientists are working hard to find solutions for climate change problems today",
+  "reading books every day helps us become smarter and more creative thinkers"
+];
+
+// ===== 游戏状态 =====
+var gameActive = false;
+var gameTimer = null;
+var timeLeft = 60;
+var startTime = 0;
+var displayText = '';
+var charElements = [];
+var cumulativeCorrect = 0;
+var cumulativeWrong = 0;
+var currentCorrect = 0;
+var currentWrong = 0;
+
+function startRankGame() {
+  // 准备文本
+  var pool = playLang === 'zh' ? zhTexts : enTexts;
+  var shuffled = pool.slice().sort(function() { return Math.random() - 0.5; });
+  displayText = shuffled.join(playLang === 'en' ? ' ' : '');
+  while (displayText.length < 500) {
+    displayText += (playLang === 'en' ? ' ' : '') + pool[Math.floor(Math.random() * pool.length)];
+  }
+  
+  cumulativeCorrect = 0;
+  cumulativeWrong = 0;
+  currentCorrect = 0;
+  currentWrong = 0;
+  
+  // 隐藏主面板，显示倒计时
+  document.getElementById('mainPanel').style.display = 'none';
+  document.getElementById('resultPanel').style.display = 'none';
+  document.getElementById('typingPanel').style.display = 'none';
+  var cdPanel = document.getElementById('countdownPanel');
+  cdPanel.style.display = 'block';
+  
+  var count = 3;
+  cdPanel.textContent = count;
+  var cdTimer = setInterval(function() {
+    count--;
+    if (count > 0) {
+      cdPanel.textContent = count;
+    } else {
+      clearInterval(cdTimer);
+      cdPanel.style.display = 'none';
+      beginRankTyping();
+    }
+  }, 800);
+}
+
+function beginRankTyping() {
+  document.getElementById('typingPanel').style.display = 'block';
+  document.getElementById('statSpeedLabel').textContent = playLang === 'zh' ? '字/分钟' : 'WPM';
+  document.getElementById('statCountLabel').textContent = playLang === 'zh' ? '已打字数' : '已打词数';
+  
+  renderDisplayText();
+  
+  var input = document.getElementById('typingInput');
+  // 移除旧事件
+  var newInput = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+  newInput.value = '';
+  newInput.focus();
+  
+  timeLeft = 60;
+  startTime = Date.now();
+  gameActive = true;
+  document.getElementById('statTime').textContent = '60';
+  document.getElementById('statSpeed').textContent = '0';
+  document.getElementById('statAccuracy').textContent = '100%';
+  document.getElementById('statCount').textContent = '0';
+  
+  gameTimer = setInterval(function() {
+    timeLeft--;
+    document.getElementById('statTime').textContent = timeLeft;
+    updateStats();
+    if (timeLeft <= 0) {
+      endRankGame();
+    }
+  }, 1000);
+  
+  var typingInput = document.getElementById('typingInput');
+  if (playLang === 'zh') {
+    setupChineseInput(typingInput);
+  } else {
+    setupEnglishInput(typingInput);
+  }
+  typingInput.focus();
+}
+
+function renderDisplayText() {
+  var container = document.getElementById('textDisplay');
+  var showLen = Math.min(displayText.length, 200);
+  var html = '';
+  for (var i = 0; i < showLen; i++) {
+    var cls = 'char';
+    if (i === 0) cls += ' current';
+    html += '<span class="' + cls + '">' + escapeHtml(displayText[i]) + '</span>';
+  }
+  container.innerHTML = html;
+  charElements = container.querySelectorAll('.char');
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/ /g, '&nbsp;');
+}
+
+// 中文输入
+function setupChineseInput(input) {
+  var composing = false;
+  input.addEventListener('compositionstart', function() { composing = true; });
+  input.addEventListener('compositionend', function() {
+    composing = false;
+    processInput(input.value);
+  });
+  input.addEventListener('input', function() {
+    if (!composing) processInput(input.value);
+  });
+}
+
+// 英文输入
+function setupEnglishInput(input) {
+  input.addEventListener('input', function() {
+    if (!gameActive) return;
+    processInput(input.value);
+  });
+}
+
+function processInput(value) {
+  if (!gameActive) return;
+  
+  currentCorrect = 0;
+  currentWrong = 0;
+  
+  for (var i = 0; i < charElements.length; i++) {
+    charElements[i].className = 'char';
+    if (i < value.length) {
+      if (value[i] === displayText[i]) {
+        charElements[i].className = 'char correct';
+        currentCorrect++;
+      } else {
+        charElements[i].className = 'char wrong';
+        currentWrong++;
+      }
+    } else if (i === value.length) {
+      charElements[i].className = 'char current';
+    }
+  }
+  
+  updateStats();
+  
+  if (value.length >= charElements.length && charElements.length > 0) {
+    cumulativeCorrect += currentCorrect;
+    cumulativeWrong += currentWrong;
+    displayText = displayText.substring(value.length);
+    var input = document.getElementById('typingInput');
+    input.value = '';
+    currentCorrect = 0;
+    currentWrong = 0;
+    renderDisplayText();
+  }
+}
+
+function updateStats() {
+  var elapsed = (Date.now() - startTime) / 1000 / 60;
+  if (elapsed < 0.01) elapsed = 0.01;
+  
+  var totalCorrectNow = cumulativeCorrect + currentCorrect;
+  var totalWrongNow = cumulativeWrong + currentWrong;
+  var totalAll = totalCorrectNow + totalWrongNow;
+  
+  var speed = 0;
+  if (playLang === 'zh') {
+    speed = Math.round(totalCorrectNow / elapsed);
+    document.getElementById('statCount').textContent = totalCorrectNow;
+  } else {
+    speed = Math.round((totalCorrectNow / 5) / elapsed);
+    document.getElementById('statCount').textContent = Math.round(totalCorrectNow / 5);
+  }
+  
+  var accuracy = totalAll > 0 ? Math.round((totalCorrectNow / totalAll) * 100) : 100;
+  document.getElementById('statSpeed').textContent = speed;
+  document.getElementById('statAccuracy').textContent = accuracy + '%';
+}
+
+async function endRankGame() {
+  gameActive = false;
+  clearInterval(gameTimer);
+  
+  cumulativeCorrect += currentCorrect;
+  cumulativeWrong += currentWrong;
+  
+  var totalCorrectFinal = cumulativeCorrect;
+  var totalWrongFinal = cumulativeWrong;
+  var totalAll = totalCorrectFinal + totalWrongFinal;
+  
+  var speed = 0;
+  if (playLang === 'zh') {
+    speed = totalCorrectFinal;
+  } else {
+    speed = Math.round(totalCorrectFinal / 5);
+  }
+  
+  var accuracy = totalAll > 0 ? Math.round((totalCorrectFinal / totalAll) * 100) : 0;
+  
+  // 更新排行榜
+  await updateWeeklyRank(speed, accuracy);
+  
+  // 保存流水记录
+  try {
+    await sb.from('typing_records').insert({
+      user_id: currentUser.id,
+      username: currentProfile.username || 'player',
+      mode: 'rank',
+      lang: playLang,
+      level: null,
+      speed: speed,
+      accuracy: accuracy,
+      passed: true,
+      coins_earned: -2
+    });
+  } catch(e) {}
+  
+  // 显示结果
+  showRankResult(speed, accuracy);
+}
+
+async function updateWeeklyRank(speed, accuracy) {
+  var weekStart = getWeekStart();
+  var today = getTodayBJ();
+  
+  try {
+    // 查询现有记录
+    var { data: existing } = await sb.from('typing_weekly_rank')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .eq('lang', playLang)
+      .eq('week_start', weekStart)
+      .maybeSingle();
+    
+    if (existing) {
+      // 更新记录
+      var updateData = {
+        updated_at: new Date().toISOString()
+      };
+      
+      // 更新最佳成绩
+      if (speed > existing.best_speed) {
+        updateData.best_speed = speed;
+        updateData.accuracy = accuracy;
+      }
+      
+      // 更新今日次数
+      if (existing.last_attempt_date === today) {
+        updateData.attempts_today = (existing.attempts_today || 0) + 1;
+      } else {
+        updateData.attempts_today = 1;
+        updateData.last_attempt_date = today;
+      }
+      
+      await sb.from('typing_weekly_rank')
+        .update(updateData)
+        .eq('user_id', currentUser.id)
+        .eq('lang', playLang)
+        .eq('week_start', weekStart);
+    } else {
+      // 新建记录
+      await sb.from('typing_weekly_rank').insert({
+        user_id: currentUser.id,
+        username: currentProfile.username || 'player',
+        lang: playLang,
+        best_speed: speed,
+        accuracy: accuracy,
+        week_start: weekStart,
+        attempts_today: 1,
+        last_attempt_date: today
+      });
+    }
+  } catch(e) {
+    console.log('更新排行榜失败:', e);
+  }
+}
+
+function showRankResult(speed, accuracy) {
+  document.getElementById('typingPanel').style.display = 'none';
+  var panel = document.getElementById('resultPanel');
+  panel.style.display = 'block';
+  
+  var unit = playLang === 'zh' ? '字/分钟' : 'WPM';
+  
+  document.getElementById('resultIcon').textContent = '🏅';
+  document.getElementById('resultTitle').textContent = '比赛结束！';
+  document.getElementById('resultDetail').innerHTML = 
+    '本次成绩：<b>' + speed + ' ' + unit + '</b><br>' +
+    '准确率：<b>' + accuracy + '%</b><br>' +
+    '消耗：2🪙';
+  
+  document.getElementById('rankUpdate').textContent = '成绩已更新到本周排行榜！';
+  
+  // 刷新参赛次数
+  loadAttempts();
+}
+
+function backToMain() {
+  document.getElementById('resultPanel').style.display = 'none';
+  document.getElementById('mainPanel').style.display = 'block';
+  switchTab('rank');
+}
+
+// ===== 初始化 =====
+(async function() {
+  var ok = await checkAuth();
+  if (ok) {
+    document.getElementById('nextSettlement').textContent = getNextSettlement();
+    loadRankList();
+    loadAttempts();
+  }
+})();
+</script>
+</body>
+</html>
