@@ -437,16 +437,37 @@ function getWaveEnemies(wave) {
       type = 'stealth'; hp = baseHP * 0.9; speed = 1.6 * baseSpeed; reward += 15; size = 0.55;
     }
     
-    // BOSS波
-    if (wave % 5 === 0 && i === 0) {
-      type = 'boss'; hp = baseHP * 5; speed = 0.55 * baseSpeed; reward += 30; size = 1.0;
+    // 后期（后1/3波次）整体加强
+    const lateGame = wave > TOTAL_WAVES * 0.65;
+    const veryLate = wave > TOTAL_WAVES * 0.85;
+    if (lateGame) {
+      hp *= 1.3;
+      speed *= 1.1;
+    }
+    if (veryLate) {
+      hp *= 1.25;
+      speed *= 1.1;
+    }
+
+    // BOSS波：每3波出一个BOSS（wave>=6开始），越到后期越强
+    const bossInterval = veryLate ? 2 : lateGame ? 2 : 3;
+    if (wave >= 6 && wave % bossInterval === 0 && i === 0) {
+      const bossScale = 1 + (wave / TOTAL_WAVES) * 2.5;
+      type = 'boss'; hp = baseHP * bossScale * (lateGame ? 1.5 : 1.0);
+      speed = 0.55 * baseSpeed * (lateGame ? 1.15 : 1.0);
+      reward += 20 + wave * 2; size = 0.9 + (wave / TOTAL_WAVES) * 0.3;
+    }
+    // 后期额外BOSS（每波最后一个也可能是小BOSS）
+    if (veryLate && i === count - 2 && Math.random() < 0.5) {
+      type = 'boss'; hp = baseHP * 2.5; speed = 0.6 * baseSpeed; reward += 15; size = 0.85;
     }
     // 最终BOSS
     if (wave === TOTAL_WAVES && i === count - 1) {
-      type = 'finalboss'; hp = baseHP * 10; speed = 0.45 * baseSpeed; reward += 80; size = 1.3;
+      type = 'finalboss'; hp = baseHP * 12; speed = 0.45 * baseSpeed; reward += 100; size = 1.35;
     }
     
-    enemies.push({ type, hp, maxHp: hp, speed, reward, size, delay: i * 700, healTimer: 0 });
+    const spawnDelay = wave > TOTAL_WAVES * 0.65 ? 500 : wave > TOTAL_WAVES * 0.4 ? 600 : 700;
+    enemies.push({ type, hp, maxHp: hp, speed, reward, size, delay: i * spawnDelay, healTimer: 0 });
   }
   return enemies;
 }
