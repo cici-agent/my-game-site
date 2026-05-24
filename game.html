@@ -391,10 +391,9 @@
       if (isStorageUrl(fileUrl)) {
         // === iframe 模式：Supabase Storage 游戏 ===
         isIframeMode = true;
-        document.getElementById('iframeWrapper').style.display = 'flex';
         document.getElementById('iframeGameTitle').textContent = gameName;
-        // 检查金币后加载 iframe
-        await checkAndStartIframe(fileUrl);
+        // 先显示封面+开始按钮，不直接加载游戏
+        showIframeStartScreen(gameData, fileUrl);
       } else {
         // === 传统模式：站内游戏，点击按钮跳转 ===
         isIframeMode = false;
@@ -403,7 +402,37 @@
       }
     }
 
-    // ===== iframe 模式：检查金币并加载 =====
+    // ===== iframe 模式：显示封面+开始按钮 =====
+    function showIframeStartScreen(gameData, fileUrl) {
+      var cover = gameData.cover_url || '';
+      var name = gameData.name || gameData.title || '游戏';
+      var desc = gameData.description || '';
+      var wrapper = document.getElementById('iframeWrapper');
+      wrapper.style.display = 'flex';
+      wrapper.innerHTML =
+        '<div class="game-iframe-topbar">' +
+          '<button class="back-btn" onclick="history.back()">← 返回</button>' +
+          '<span class="game-title-bar">' + name + '</span>' +
+        '</div>' +
+        '<div id="iframeStartScreen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:20px;padding:30px;background:#1a1a2e;">' +
+          (cover ? '<img src="' + cover + '" style="max-width:320px;max-height:200px;border-radius:16px;object-fit:cover;box-shadow:0 4px 20px rgba(0,0,0,0.5);">' : '<div style="font-size:5rem">🎮</div>') +
+          '<div style="font-size:1.4rem;font-weight:700;color:#fff;">' + name + '</div>' +
+          (desc ? '<div style="font-size:0.95rem;color:#aaa;max-width:400px;text-align:center;">' + desc + '</div>' : '') +
+          '<button onclick="launchIframeGame('' + fileUrl.replace(/'/g, "\'") + '')" style="background:linear-gradient(135deg,#ff8c00,#ff6b35);color:#fff;border:none;padding:14px 48px;border-radius:50px;font-size:1.1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 15px rgba(255,140,0,0.4);">▶ 开始游戏</button>' +
+        '</div>' +
+        '<iframe id="gameIframe" style="display:none;flex:1;width:100%;border:none;" sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups" allowfullscreen></iframe>';
+    }
+
+    async function launchIframeGame(fileUrl) {
+      // 隐藏开始界面，显示 iframe
+      var startScreen = document.getElementById('iframeStartScreen');
+      if (startScreen) startScreen.style.display = 'none';
+      var iframe = document.getElementById('gameIframe');
+      if (iframe) iframe.style.display = 'block';
+      await checkAndStartIframe(fileUrl);
+    }
+
+        // ===== iframe 模式：检查金币并加载 =====
     async function checkAndStartIframe(fileUrl) {
       var user = await getCurrentUser();
       if (!user) return;
