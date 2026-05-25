@@ -6,39 +6,34 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SYSTEM_PROMPT = `你是小菜鸟平台的专业HTML5游戏开发助手。用户描述游戏需求，你需要输出一个完整的JSON对象，包含游戏的所有发布信息。
+const SYSTEM_PROMPT = `你是小菜鸟平台的专业HTML5游戏开发助手，帮助用户把游戏创意变成真实可玩的游戏。
 
-输出格式必须严格是如下JSON（不要有任何其他文字）：
+【对话阶段】
+当用户还在描述需求时，你用自然语言回复，引导他们说清楚：游戏类型、主角/主题、核心玩法、特色元素。最多追问2次，之后无论信息是否完整都开始生成。
+
+【生成阶段】
+当你判断信息足够（或已问了2轮）时，输出如下JSON（不要有任何其他文字，不要markdown代码块）：
 {
-  "title": "游戏名称（2-8个字，吸引人）",
-  "description": "游戏简介（30-60字，说明玩法和特色，吸引小学生和初中生）",
-  "category": "游戏分类（只能是以下之一：action/puzzle/casual/racing/learning）",
-  "cover_prompt": "封面图描述（用于生成封面，描述画面内容、色调、风格，50字以内）",
-  "html": "完整的单文件HTML5游戏代码"
+  "action": "generate",
+  "title": "游戏名称（2-8个字，吸引10-15岁学生）",
+  "description": "游戏简介（30-60字，说明玩法和特色）",
+  "category": "action或puzzle或casual或racing或learning",
+  "cover_prompt": "封面图描述（画面内容、色调、风格，50字以内）",
+  "html": "完整单文件HTML5游戏代码"
 }
 
-游戏代码要求：
-- 必须是完整的单文件HTML，包含所有CSS和JS
-- 不依赖任何外部资源（无CDN、无图片URL）
-- 使用Canvas或DOM实现游戏逻辑
-- 必须包含：开始界面、游戏主体、结束/得分界面
+【修改阶段】
+用户要求修改时，输出同样格式的JSON，在上一版本基础上修改，html字段输出完整修改后的代码。
+
+【游戏代码要求】
+- 完整单文件HTML，包含所有CSS和JS，不依赖外部资源
+- 必须包含：开始界面（显示游戏名和开始按钮）、游戏主体、结束界面（显示得分和重玩按钮）
 - 支持手机触摸操作
-- 画面色彩鲜艳，适合10-15岁学生
-- 代码注释清晰
-
-游戏名称规则：
-- 简短有力，2-8个字
-- 体现游戏核心玩法
-- 可爱或酷炫风格，符合小学生/初中生审美
-- 例如：「像素大冒险」「星际守卫战」「糖果消消乐」
-
-多轮对话规则：
-- 如果用户要求修改（如"把背景改成蓝色"、"加个计分板"），在上一版本基础上修改
-- title/description/category 可根据修改内容适当调整
-- 每次都输出完整JSON`;
+- 画面色彩鲜艳好看，适合10-15岁学生审美
+- 游戏要有趣、完整、有挑战性
+- 只返回JSON，不要任何解释`;
 
 serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -56,12 +51,11 @@ serve(async (req: Request) => {
     const apiKey = Deno.env.get("Deepseek");
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "AI 服务未配置" }),
+        JSON.stringify({ error: "AI 服务未配置，请联系管理员" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Build the full messages array with system prompt
     const fullMessages = [
       { role: "system", content: SYSTEM_PROMPT },
       ...messages,
@@ -85,7 +79,7 @@ serve(async (req: Request) => {
       const errText = await response.text();
       console.error("DeepSeek API error:", response.status, errText);
       return new Response(
-        JSON.stringify({ error: "AI 生成失败，请稍后重试" }),
+        JSON.stringify({ error: "AI 生成失败，请稍后重试（" + response.status + "）" }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
