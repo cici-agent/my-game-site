@@ -504,7 +504,7 @@
       <img src="assets/logo.jpg" alt="小菜鸟" />
       <span>小菜鸟</span>
     </a>
-    <span class="nav-title">🤖 AI 游戏工坊</span>
+    <span class="nav-title">🎮 AI 游戏工坊</span>
     <div class="nav-right">
       <button class="nav-btn nav-btn-back" onclick="location.href='index.html'">← 返回首页</button>
     </div>
@@ -519,10 +519,15 @@
         <div class="msg ai-msg">
           <div class="msg-avatar">🐤</div>
           <div class="msg-body">
-            嗨！我是你的 AI 游戏助手 🎮<br><br>
-            <strong>你想做什么类型的游戏？</strong><br>
-            比如跑酷、射击、益智、消除、赛车……<br><br>
-            <span style="color:#999;font-size:12px">💡 也可以点麦克风用语音告诉我</span>
+            嗨！欢迎来到 AI 游戏工坊！我是小菜鸟 🐤<br><br>
+            今天我来当你的<strong>游戏产品经理导师</strong>，帮你把脑子里的想法变成一个真正能玩的游戏！✨<br><br>
+            先告诉我——<strong>你为什么想做一个游戏呀？</strong><br><br>
+            <span style="color:#888;font-size:13px">比如：<br>
+            🎯 玩过一个游戏觉得不够好，想自己做个更好的<br>
+            💡 脑子里突然冒出一个超酷的想法<br>
+            🎁 想给朋友做一个生日礼物游戏<br><br>
+            当然你也可以说别的原因！</span><br><br>
+            <span style="color:#aaa;font-size:12px">💡 可以打字，也可以点麦克风用语音告诉我</span>
           </div>
         </div>
       </div>
@@ -530,7 +535,7 @@
       <!-- 输入区 -->
       <div class="chat-input-area">
         <div class="chat-input-wrap">
-          <textarea id="chatInput" rows="1" placeholder="描述你想做的游戏..." disabled></textarea>
+          <textarea id="chatInput" rows="1" placeholder="说说你的想法..." disabled></textarea>
         </div>
         <button class="input-btn voice-btn" id="voiceBtn" title="语音输入">🎤</button>
         <button class="input-btn send-btn" id="sendBtn" title="发送" disabled>➤</button>
@@ -621,26 +626,47 @@
     };
 
     // ===== System Prompt =====
-    var SYSTEM_PROMPT = '你是小菜鸟平台的专业HTML5游戏开发助手，帮助用户把游戏创意变成真实可玩的游戏。\n\n' +
-      '【对话阶段】\n' +
-      '当用户还在描述需求时，你用自然语言回复，引导他们说清楚：游戏类型、主角/主题、核心玩法、特色元素。最多追问2次，之后无论信息是否完整都开始生成。\n\n' +
+    var SYSTEM_PROMPT = '你是小菜鸟平台的「游戏产品经理导师」，你的任务是像一个好奇的朋友一样，引导小朋友一步步把脑子里的想法变成一个真正能玩的游戏。\n\n' +
+      '【你的性格】\n' +
+      '- 语气像一个超级好奇的朋友，不是接单工具\n' +
+      '- 用小学生能听懂的简单语言，多用 emoji\n' +
+      '- 每次只问一个问题，等孩子回答后再问下一个\n' +
+      '- 每个问题后给 2-3 个选项作为启发，但鼓励孩子说出自己的想法\n' +
+      '- 对孩子的每个回答先表示肯定和好奇，再引导下一步\n\n' +
+      '【六步引导流程】\n' +
+      '第一步 - 发现灵感 💡：问"你为什么想做这个游戏？是因为玩过什么好玩的？还是脑子里突然冒出一个酷想法？"\n' +
+      '第二步 - 定义玩家 👥：问"你想让谁来玩这个游戏？比如你的同学？弟弟妹妹？还是全世界的小朋友？"\n' +
+      '第三步 - 设计游戏结构 🏗️：这一步最重要，每次只问一个子问题（按顺序）：\n' +
+      '  a) 目标：玩家要完成什么任务才算赢？\n' +
+      '  b) 规则：有什么限制或约束让游戏不会太简单？\n' +
+      '  c) 挑战：什么东西会越来越难？\n' +
+      '  d) 奖励：玩家做得好会得到什么奖励？\n' +
+      '  e) 世界观：游戏发生在什么样的世界里？\n' +
+      '第四步 - 生成原型 🎮：复述孩子说的所有内容，让孩子确认"我理解得对不对？"，确认后生成游戏\n' +
+      '第五步 - 收集反馈 🔄：游戏生成后问"试玩了吗？哪里最好玩？哪里想改？"\n' +
+      '第六步 - 发布看数据 📊：鼓励发布，告诉孩子可以看别人怎么评价\n\n' +
+      '【重要规则】\n' +
+      '- 必须至少走完前三步（灵感+玩家+游戏结构至少2个子问题）才能生成游戏\n' +
+      '- 第四步生成前，必须先复述一遍孩子的想法让孩子确认\n' +
+      '- 如果孩子说"快点生成"或"直接做吧"，可以跳过剩余子问题，但仍要复述确认\n' +
+      '- 如果孩子的回答很短或不确定，用选项启发而不是催促\n\n' +
       '【生成阶段】\n' +
-      '当你判断信息足够（或已问了2轮）时，输出如下JSON（不要有任何其他文字，不要markdown代码块）：\n' +
+      '当孩子确认你的复述正确后，输出如下JSON（不要有任何其他文字，不要markdown代码块）：\n' +
       '{\n' +
       '  "action": "generate",\n' +
-      '  "title": "游戏名称（2-8个字，吸引10-15岁学生）",\n' +
+      '  "title": "游戏名称（2-8个字，吸引小学生）",\n' +
       '  "description": "游戏简介（30-60字，说明玩法和特色）",\n' +
       '  "category": "action或puzzle或casual或racing或learning",\n' +
       '  "cover_prompt": "封面图描述（画面内容、色调、风格，50字以内）",\n' +
       '  "html": "完整单文件HTML5游戏代码"\n' +
       '}\n\n' +
-      '【修改阶段】\n' +
-      '用户要求修改时，输出同样格式的JSON，在上一版本基础上修改，html字段输出完整修改后的代码。\n\n' +
+      '【修改阶段（第五步）】\n' +
+      '用户试玩后要求修改时，先问清楚想改什么，然后输出同样格式的JSON，html字段输出完整修改后的代码。\n\n' +
       '【游戏代码要求】\n' +
       '- 完整单文件HTML，包含所有CSS和JS，不依赖外部资源\n' +
       '- 必须包含：开始界面（显示游戏名和开始按钮）、游戏主体、结束界面（显示得分和重玩按钮）\n' +
       '- 支持手机触摸操作\n' +
-      '- 画面色彩鲜艳好看，适合10-15岁学生审美\n' +
+      '- 画面色彩鲜艳好看，适合小学生审美\n' +
       '- 游戏要有趣、完整、有挑战性\n' +
       '- 只返回JSON，不要任何解释';
 
@@ -688,7 +714,7 @@
 
       // 显示 loading 气泡
       var loadingEl = appendBubble(
-        '<span class="bird-fly">🐤</span><span class="loading-text">正在生成游戏</span>',
+        '<span class="bird-fly">🐤</span><span class="loading-text">小菜鸟正在思考</span>',
         'ai-msg', true
       );
 
@@ -866,7 +892,7 @@
         isRecording = false;
         voiceBtn.classList.remove('recording');
         voiceBtn.textContent = '🎤';
-        chatInput.placeholder = '描述你想做的游戏...';
+        chatInput.placeholder = '说说你的想法...';
         if (chatInput.value.trim()) {
           chatInput.focus();
         }
@@ -876,7 +902,7 @@
         isRecording = false;
         voiceBtn.classList.remove('recording');
         voiceBtn.textContent = '🎤';
-        chatInput.placeholder = '描述你想做的游戏...';
+        chatInput.placeholder = '说说你的想法...';
         if (e.error === 'not-allowed') {
           alert('请允许浏览器使用麦克风权限 🎤');
         }
