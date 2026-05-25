@@ -11,6 +11,98 @@
   <title>小菜鸟 - 儿童游戏乐园</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="index.css">
+  <style>
+    /* ===== 三分区入口 ===== */
+    .zone-nav {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      max-width: 1100px;
+      margin: 24px auto 0;
+      padding: 0 20px;
+    }
+    .zone-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 20px;
+      border-radius: 16px;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.25s ease;
+      border: 2px solid transparent;
+      position: relative;
+      overflow: hidden;
+    }
+    .zone-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .zone-learn {
+      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+      border-color: #a5d6a7;
+    }
+    .zone-learn:hover { border-color: #66bb6a; }
+    .zone-make {
+      background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+      border-color: #ffcc80;
+    }
+    .zone-make:hover { border-color: #ffa726; }
+    .zone-play {
+      background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+      border-color: #90caf9;
+    }
+    .zone-play:hover { border-color: #42a5f5; }
+    .zone-icon {
+      font-size: 36px;
+      flex-shrink: 0;
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.7);
+      border-radius: 14px;
+    }
+    .zone-info h3 {
+      font-size: 15px;
+      font-weight: 800;
+      margin: 0 0 4px;
+      color: #333;
+    }
+    .zone-info p {
+      font-size: 12px;
+      color: #666;
+      margin: 0;
+      line-height: 1.4;
+    }
+    .zone-arrow {
+      margin-left: auto;
+      font-size: 18px;
+      color: #999;
+      font-weight: 700;
+      transition: transform 0.2s;
+    }
+    .zone-card:hover .zone-arrow {
+      transform: translateX(4px);
+      color: #555;
+    }
+    @media (max-width: 768px) {
+      .zone-nav {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .zone-card {
+        padding: 14px 16px;
+      }
+      .zone-icon {
+        font-size: 28px;
+        width: 44px;
+        height: 44px;
+      }
+    }
+  </style>
 </head>
 <body style="opacity:0;transition:opacity 0.15s">
   <!-- 导航栏 -->
@@ -90,6 +182,34 @@
     </div>
   </section>
 
+  <!-- 三分区入口 -->
+  <section class="zone-nav">
+    <a href="learn.html" class="zone-card zone-learn">
+      <div class="zone-icon">📚</div>
+      <div class="zone-info">
+        <h3>学习赚积分</h3>
+        <p>打字、答题、闯关，边学边赚金币</p>
+      </div>
+      <span class="zone-arrow">→</span>
+    </a>
+    <a href="editor.html" class="zone-card zone-make" onclick="return zoneGoEditor(event)">
+      <div class="zone-icon">🛠️</div>
+      <div class="zone-info">
+        <h3>做游戏赚积分</h3>
+        <p>用 AI 把你的想法变成游戏，发布赚金币</p>
+      </div>
+      <span class="zone-arrow">→</span>
+    </a>
+    <a href="#gamesGrid" class="zone-card zone-play" onclick="return zoneGoPlay(event)">
+      <div class="zone-icon">🎮</div>
+      <div class="zone-info">
+        <h3>用积分玩游戏</h3>
+        <p>用金币解锁小伙伴们做的好玩游戏</p>
+      </div>
+      <span class="zone-arrow">→</span>
+    </a>
+  </section>
+
   <!-- 分类导航 -->
   <nav class="category-nav">
     <ul class="category-list">
@@ -134,6 +254,21 @@
       return false;
     }
     async function bannerGoPlay(e) {
+      e.preventDefault();
+      var loggedIn = await requireLogin('index.html#gamesGrid');
+      if (loggedIn) {
+        document.getElementById('gamesGrid').scrollIntoView({ behavior: 'smooth' });
+      }
+      return false;
+    }
+    // 三分区入口按钮
+    async function zoneGoEditor(e) {
+      e.preventDefault();
+      var loggedIn = await requireLogin('editor.html');
+      if (loggedIn) window.location.href = 'editor.html';
+      return false;
+    }
+    async function zoneGoPlay(e) {
       e.preventDefault();
       var loggedIn = await requireLogin('index.html#gamesGrid');
       if (loggedIn) {
