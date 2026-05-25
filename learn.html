@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>学习中心 - 小菜鸟</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      margin: 0;
+      background: var(--bg-main);
+      font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+    }
+    .coming-soon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 200px);
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .coming-icon {
+      font-size: 100px;
+      margin-bottom: 24px;
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
+    .coming-title {
+      font-size: 28px;
+      font-weight: 900;
+      color: #333;
+      margin-bottom: 12px;
+    }
+    .coming-desc {
+      font-size: 16px;
+      color: #666;
+      line-height: 1.8;
+      max-width: 500px;
+      margin-bottom: 32px;
+    }
+    .coming-features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      max-width: 700px;
+      width: 100%;
+      margin-bottom: 40px;
+    }
+    .feature-card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      border: 2px solid #f0f0f0;
+      transition: all 0.2s;
+    }
+    .feature-card:hover {
+      border-color: #a5d6a7;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+    }
+    .feature-card .f-icon {
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
+    .feature-card .f-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #333;
+      margin-bottom: 4px;
+    }
+    .feature-card .f-desc {
+      font-size: 12px;
+      color: #888;
+    }
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      background: linear-gradient(135deg, #43a047, #66bb6a);
+      color: white;
+      border: none;
+      border-radius: 24px;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 4px 14px rgba(67, 160, 71, 0.3);
+      transition: all 0.2s;
+    }
+    .back-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(67, 160, 71, 0.4);
+    }
+    .badge-soon {
+      display: inline-block;
+      padding: 6px 16px;
+      background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+      color: #e65100;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body style="opacity:0;transition:opacity 0.15s">
+  <!-- 导航栏 -->
+  <nav class="navbar" id="navbar">
+    <a href="index.html" class="logo">
+      <img src="assets/logo.jpg" alt="小菜鸟" />
+      <span>小菜鸟</span>
+    </a>
+    <div class="nav-links" id="navLinks"></div>
+  </nav>
+
+  <div class="coming-soon">
+    <div class="coming-icon">📚</div>
+    <span class="badge-soon">🚧 即将上线</span>
+    <h1 class="coming-title">学习中心</h1>
+    <p class="coming-desc">
+      边学边赚金币！完成学习挑战就能获得积分，<br>
+      用积分去玩更多好玩的游戏 🎮
+    </p>
+
+    <div class="coming-features">
+      <div class="feature-card">
+        <div class="f-icon">⌨️</div>
+        <div class="f-title">打字挑战</div>
+        <div class="f-desc">10级挑战，越快越多金币</div>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">🔤</div>
+        <div class="f-title">英语拼读</div>
+        <div class="f-desc">听音拼词，轻松记单词</div>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">🧮</div>
+        <div class="f-title">数学闯关</div>
+        <div class="f-desc">口算速算，越算越快</div>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">📖</div>
+        <div class="f-title">语文知识</div>
+        <div class="f-desc">成语、古诗、阅读理解</div>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">🔬</div>
+        <div class="f-title">科学探索</div>
+        <div class="f-desc">有趣的科学实验和问答</div>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">🏆</div>
+        <div class="f-title">排名赛</div>
+        <div class="f-desc">每周比拼，前三名有大奖</div>
+      </div>
+    </div>
+
+    <a href="index.html" class="back-btn">← 返回首页</a>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
