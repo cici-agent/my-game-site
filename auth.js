@@ -123,11 +123,15 @@ async function updateNavbar() {
     var isAdmin = profile && profile.role === 'admin';
     var username = (profile && profile.username) ? profile.username : '我的';
     navLinks.innerHTML =
-      '<a href="index.html">首页</a>' +
+      '<a href="learn.html">📚 学习</a>' +
+      '<a href="editor.html">🛠️ 做游戏</a>' +
+      '<a href="index.html">🎮 玩游戏</a>' +
       '<a href="profile.html">👤 ' + username + '</a>';
   } else {
     navLinks.innerHTML =
-      '<a href="index.html">首页</a>' +
+      '<a href="learn.html">📚 学习</a>' +
+      '<a href="editor.html">🛠️ 做游戏</a>' +
+      '<a href="index.html">🎮 玩游戏</a>' +
       '<a href="login.html">登录 / 注册</a>';
   }
 }
