@@ -106,7 +106,7 @@
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .msg.user {
+    .msg.user-msg {
       align-self: flex-end;
       flex-direction: row-reverse;
     }
@@ -120,29 +120,29 @@
       justify-content: center;
       font-size: 18px;
     }
-    .msg.ai .msg-avatar {
+    .msg.ai-msg .msg-avatar {
       background: linear-gradient(135deg, #fff3e0, #ffe0b2);
       border: 2px solid #ffcc80;
     }
-    .msg.user .msg-avatar {
+    .msg.user-msg .msg-avatar {
       background: linear-gradient(135deg, var(--primary), var(--primary-light));
       color: white;
       font-size: 14px;
     }
-    .msg-content {
+    .msg-body {
       padding: 12px 16px;
       border-radius: 18px;
       font-size: 14px;
       line-height: 1.7;
       word-break: break-word;
     }
-    .msg.ai .msg-content {
+    .msg.ai-msg .msg-body {
       background: #f8f9fa;
       color: var(--text-dark);
       border-bottom-left-radius: 6px;
       border: 1.5px solid #f0f0f0;
     }
-    .msg.user .msg-content {
+    .msg.user-msg .msg-body {
       background: linear-gradient(135deg, var(--primary), #ff8c5a);
       color: white;
       border-bottom-right-radius: 6px;
@@ -150,22 +150,22 @@
     }
 
     /* 游戏生成成功的特殊气泡 */
-    .msg-game-card {
+    .game-card-bubble {
       background: linear-gradient(135deg, #f0fdf4, #ecfdf5) !important;
       border: 1.5px solid #86efac !important;
     }
-    .msg-game-card .game-title {
+    .game-card-bubble .gc-title {
       font-weight: 800;
       font-size: 15px;
       color: #166534;
       margin-bottom: 6px;
     }
-    .msg-game-card .game-desc {
+    .game-card-bubble .gc-desc {
       font-size: 13px;
       color: #555;
       margin-bottom: 8px;
     }
-    .msg-game-card .game-tag {
+    .game-card-bubble .gc-tag {
       display: inline-block;
       padding: 3px 10px;
       background: #dcfce7;
@@ -176,7 +176,7 @@
     }
 
     /* Loading 动画 - 小鸟飞翔 */
-    .msg-loading .msg-content {
+    .msg-loading .msg-body {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -310,6 +310,7 @@
       border-radius: 12px;
       font-size: 12px;
       font-weight: 700;
+      display: none;
     }
     .preview-topbar .spacer { flex: 1; }
     .btn-publish {
@@ -387,14 +388,13 @@
       box-shadow: 0 8px 30px rgba(0,0,0,0.1);
       background: white;
       display: none;
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     .preview-iframe.show {
       display: block;
       animation: slide-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     @keyframes slide-in {
-      from { opacity: 0; transform: scale(0.9) translateY(20px); }
+      from { opacity: 0; transform: scale(0.92) translateY(20px); }
       to { opacity: 1; transform: scale(1) translateY(0); }
     }
 
@@ -497,7 +497,7 @@
     }
   </style>
 </head>
-<body>
+<body style="opacity:0;transition:opacity 0.15s">
   <!-- 顶部导航 -->
   <nav class="editor-nav">
     <a href="index.html" class="logo">
@@ -515,24 +515,24 @@
     <!-- 左侧对话 -->
     <div class="chat-panel">
       <div class="chat-messages" id="chatMessages">
-        <!-- AI 初始引导消息 -->
-        <div class="msg ai">
+        <!-- AI 初始引导 -->
+        <div class="msg ai-msg">
           <div class="msg-avatar">🐤</div>
-          <div class="msg-content">
+          <div class="msg-body">
             嗨！我是你的 AI 游戏助手 🎮<br><br>
             <strong>你想做什么类型的游戏？</strong><br>
             比如跑酷、射击、益智、消除、赛车……<br><br>
-            <span style="color:#999;font-size:12px">💡 也可以点麦克风用语音告诉我哦</span>
+            <span style="color:#999;font-size:12px">💡 也可以点麦克风用语音告诉我</span>
           </div>
         </div>
       </div>
 
       <!-- 输入区 -->
       <div class="chat-input-area">
-        <button class="input-btn voice-btn" id="voiceBtn" title="语音输入">🎤</button>
         <div class="chat-input-wrap">
           <textarea id="chatInput" rows="1" placeholder="描述你想做的游戏..." disabled></textarea>
         </div>
+        <button class="input-btn voice-btn" id="voiceBtn" title="语音输入">🎤</button>
         <button class="input-btn send-btn" id="sendBtn" title="发送" disabled>➤</button>
       </div>
     </div>
@@ -541,14 +541,14 @@
     <div class="preview-panel">
       <div class="preview-topbar">
         <span class="preview-game-title" id="previewTitle">游戏预览</span>
-        <span class="preview-game-tag" id="previewTag" style="display:none"></span>
+        <span class="preview-game-tag" id="previewTag"></span>
         <div class="spacer"></div>
-        <button class="btn-modify" id="btnModify" onclick="focusChat()">✏️ 继续修改</button>
-        <button class="btn-publish" id="btnPublish" onclick="showPublishModal()">🚀 满意，发布！</button>
+        <button class="btn-modify" id="btnModify">✏️ 继续修改</button>
+        <button class="btn-publish" id="btnPublish">🚀 满意，发布！</button>
       </div>
       <div class="preview-body">
         <div class="preview-empty" id="previewEmpty">
-          <div class="big-icon">🎨</div>
+          <div class="big-icon">🎮</div>
           <h3>你的游戏将在这里预览</h3>
           <p>在左边告诉 AI 你想做什么游戏<br>生成后可以直接试玩！</p>
         </div>
@@ -560,7 +560,7 @@
   <!-- 发布确认弹窗 -->
   <div class="publish-modal" id="publishModal">
     <div class="publish-modal-box">
-      <h3>🚀 发布游戏</h3>
+      <h3>🚀 发布游戏到小菜鸟</h3>
       <div class="pub-field">
         <label>游戏名称</label>
         <input type="text" id="pubTitle" maxlength="20">
@@ -580,8 +580,8 @@
         </select>
       </div>
       <div class="pub-actions">
-        <button class="pub-btn-cancel" onclick="hidePublishModal()">取消</button>
-        <button class="pub-btn-confirm" id="pubConfirmBtn" onclick="doPublish()">确认发布</button>
+        <button class="pub-btn-cancel" id="pubCancelBtn">取消</button>
+        <button class="pub-btn-confirm" id="pubConfirmBtn">确认发布</button>
       </div>
     </div>
   </div>
@@ -591,7 +591,10 @@
   <script src="supabase.js"></script>
   <script src="auth.js"></script>
   <script>
-    // ===== 全局状态 =====
+  (function() {
+    'use strict';
+
+    // ===== DOM 引用 =====
     var chatMessages = document.getElementById('chatMessages');
     var chatInput = document.getElementById('chatInput');
     var sendBtn = document.getElementById('sendBtn');
@@ -602,23 +605,48 @@
     var previewTag = document.getElementById('previewTag');
     var btnPublish = document.getElementById('btnPublish');
     var btnModify = document.getElementById('btnModify');
+    var publishModal = document.getElementById('publishModal');
 
-    var conversationHistory = [];
-    var currentGameData = null; // {title, description, category, cover_prompt, html}
+    // ===== 状态 =====
+    var conversationHistory = []; // 完整对话历史 [{role, content}, ...]
+    var currentGameData = null;   // {title, description, category, cover_prompt, html}
     var isGenerating = false;
     var currentUser = null;
 
     var FUNC_URL = SUPABASE_URL + '/functions/v1/ai-game-generator';
 
-    var categoryMap = {
+    var CATEGORY_MAP = {
       action: '动作', puzzle: '益智', casual: '休闲',
       racing: '竞速', learning: '学习'
     };
 
+    // ===== System Prompt =====
+    var SYSTEM_PROMPT = '你是小菜鸟平台的专业HTML5游戏开发助手，帮助用户把游戏创意变成真实可玩的游戏。\n\n' +
+      '【对话阶段】\n' +
+      '当用户还在描述需求时，你用自然语言回复，引导他们说清楚：游戏类型、主角/主题、核心玩法、特色元素。最多追问2次，之后无论信息是否完整都开始生成。\n\n' +
+      '【生成阶段】\n' +
+      '当你判断信息足够（或已问了2轮）时，输出如下JSON（不要有任何其他文字，不要markdown代码块）：\n' +
+      '{\n' +
+      '  "action": "generate",\n' +
+      '  "title": "游戏名称（2-8个字，吸引10-15岁学生）",\n' +
+      '  "description": "游戏简介（30-60字，说明玩法和特色）",\n' +
+      '  "category": "action或puzzle或casual或racing或learning",\n' +
+      '  "cover_prompt": "封面图描述（画面内容、色调、风格，50字以内）",\n' +
+      '  "html": "完整单文件HTML5游戏代码"\n' +
+      '}\n\n' +
+      '【修改阶段】\n' +
+      '用户要求修改时，输出同样格式的JSON，在上一版本基础上修改，html字段输出完整修改后的代码。\n\n' +
+      '【游戏代码要求】\n' +
+      '- 完整单文件HTML，包含所有CSS和JS，不依赖外部资源\n' +
+      '- 必须包含：开始界面（显示游戏名和开始按钮）、游戏主体、结束界面（显示得分和重玩按钮）\n' +
+      '- 支持手机触摸操作\n' +
+      '- 画面色彩鲜艳好看，适合10-15岁学生审美\n' +
+      '- 游戏要有趣、完整、有挑战性\n' +
+      '- 只返回JSON，不要任何解释';
+
     // ===== 初始化 =====
-    (async function init() {
+    async function init() {
       document.body.style.opacity = '1';
-      // 更新导航栏（如果 auth.js 有这个函数）
       if (typeof updateNavbar === 'function') {
         try { updateNavbar(); } catch(e) {}
       }
@@ -632,18 +660,23 @@
       chatInput.disabled = false;
       sendBtn.disabled = false;
       chatInput.focus();
-    })();
+    }
+    init();
 
     // ===== 发送消息 =====
     function sendMessage() {
       var text = chatInput.value.trim();
       if (!text || isGenerating) return;
 
-      appendMsg(text, 'user');
+      // 显示用户气泡
+      appendBubble(escapeHtml(text), 'user-msg');
       chatInput.value = '';
-      autoResizeInput();
+      autoResize();
 
+      // 存入历史
       conversationHistory.push({ role: 'user', content: text });
+
+      // 调用 AI
       callAI();
     }
 
@@ -653,14 +686,26 @@
       sendBtn.disabled = true;
       chatInput.disabled = true;
 
-      // 显示 loading
-      var loadingEl = appendMsg('<span class="bird-fly">🐤</span><span class="loading-text">正在生成游戏</span>', 'ai', true, true);
+      // 显示 loading 气泡
+      var loadingEl = appendBubble(
+        '<span class="bird-fly">🐤</span><span class="loading-text">正在生成游戏</span>',
+        'ai-msg', true
+      );
 
       try {
+        // 拼装 messages：system + 最近10条历史
+        var recentHistory = conversationHistory.slice(-10);
+        var messages = [
+          { role: 'system', content: SYSTEM_PROMPT }
+        ].concat(recentHistory);
+
+        // 获取 token
         var sb = getSupabase();
         var sessionResult = await sb.auth.getSession();
-        var token = (sessionResult && sessionResult.data && sessionResult.data.session)
-          ? sessionResult.data.session.access_token : '';
+        var token = '';
+        if (sessionResult && sessionResult.data && sessionResult.data.session) {
+          token = sessionResult.data.session.access_token;
+        }
 
         var resp = await fetch(FUNC_URL, {
           method: 'POST',
@@ -669,49 +714,49 @@
             'Authorization': 'Bearer ' + token,
             'apikey': SUPABASE_ANON_KEY
           },
-          body: JSON.stringify({ messages: conversationHistory })
+          body: JSON.stringify({ messages: messages })
         });
 
         if (!resp.ok) {
-          var errData = {};
-          try { errData = await resp.json(); } catch(e) {}
-          throw new Error(errData.error || 'AI 服务暂时不可用（' + resp.status + '）');
+          var errBody = {};
+          try { errBody = await resp.json(); } catch(e) {}
+          throw new Error(errBody.error || 'AI 服务暂时不可用（' + resp.status + '）');
         }
 
         var data = await resp.json();
         var content = data.content || '';
 
-        // 尝试解析为 JSON（游戏生成）
-        var gameData = tryParseGame(content);
-
         // 移除 loading
         if (loadingEl && loadingEl.parentNode) loadingEl.remove();
 
+        // 尝试解析为游戏 JSON
+        var gameData = tryParseGame(content);
+
         if (gameData && gameData.action === 'generate' && gameData.html) {
-          // 游戏生成成功
+          // === 游戏生成成功 ===
           currentGameData = gameData;
+
+          // 存原始 JSON 到历史（让 AI 下轮能看到完整游戏信息）
           conversationHistory.push({ role: 'assistant', content: content });
 
-          // 显示成功气泡
-          var cardHtml = '<div class="msg-game-card" style="padding:0">' +
-            '✅ 游戏已生成！<br><br>' +
-            '<div class="game-title">' + esc(gameData.title) + '</div>' +
-            '<div class="game-desc">' + esc(gameData.description) + '</div>' +
-            '<span class="game-tag">' + (categoryMap[gameData.category] || '休闲') + '</span>' +
-            '</div><br>' +
-            '<span style="color:#999;font-size:12px">👉 右侧可试玩，满意就点「发布」<br>想改就继续说，比如"加个排行榜"</span>';
-          appendMsg(cardHtml, 'ai', false, false, 'msg-game-card');
+          // 显示友好气泡
+          var cardHtml = '✅ 游戏已生成！<br><br>' +
+            '<div class="gc-title">' + escapeHtml(gameData.title) + '</div>' +
+            '<div class="gc-desc">' + escapeHtml(gameData.description) + '</div>' +
+            '<span class="gc-tag">' + (CATEGORY_MAP[gameData.category] || '休闲') + '</span>' +
+            '<br><br><span style="color:#999;font-size:12px">👉 右侧可试玩！满意就点「发布」<br>想改就继续说，比如"加个排行榜"</span>';
+          appendBubble(cardHtml, 'ai-msg', false, 'game-card-bubble');
 
           // 渲染预览
           showPreview(gameData);
         } else {
-          // 普通对话回复
+          // === 普通对话回复 ===
           conversationHistory.push({ role: 'assistant', content: content });
-          appendMsg(esc(content), 'ai');
+          appendBubble(escapeHtml(content), 'ai-msg');
         }
       } catch (err) {
         if (loadingEl && loadingEl.parentNode) loadingEl.remove();
-        appendMsg('❌ ' + esc(err.message || '生成失败，请稍后重试'), 'ai');
+        appendBubble('❌ ' + escapeHtml(err.message || '生成失败，请稍后重试'), 'ai-msg');
         // 失败时移除最后的用户消息
         conversationHistory.pop();
       } finally {
@@ -730,7 +775,7 @@
         if (d.html && d.title) return d;
       } catch(e) {}
 
-      // 提取最外层 {}
+      // 提取最外层 { ... }
       var m = content.match(/\{[\s\S]*\}/);
       if (m) {
         try {
@@ -754,56 +799,53 @@
     // ===== 显示预览 =====
     function showPreview(gameData) {
       previewEmpty.style.display = 'none';
-      previewIframe.classList.add('show');
+      previewIframe.style.display = 'block';
+      previewIframe.className = 'preview-iframe show';
       previewIframe.srcdoc = gameData.html;
 
       previewTitle.textContent = gameData.title;
-      previewTag.textContent = categoryMap[gameData.category] || '休闲';
+      previewTag.textContent = CATEGORY_MAP[gameData.category] || '休闲';
       previewTag.style.display = 'inline-block';
       btnPublish.classList.add('show');
       btnModify.classList.add('show');
     }
 
     // ===== 聊天气泡 =====
-    function appendMsg(html, type, isLoading, raw, extraClass) {
+    function appendBubble(html, type, isLoading, extraClass) {
       var wrapper = document.createElement('div');
       wrapper.className = 'msg ' + type + (isLoading ? ' msg-loading' : '');
 
       var avatar = document.createElement('div');
       avatar.className = 'msg-avatar';
-      avatar.textContent = type === 'ai' ? '🐤' : '😊';
+      avatar.textContent = (type === 'ai-msg') ? '🐤' : '😊';
 
-      var content = document.createElement('div');
-      content.className = 'msg-content' + (extraClass ? ' ' + extraClass : '');
-      if (raw) {
-        content.innerHTML = html;
-      } else {
-        content.innerHTML = html;
-      }
+      var body = document.createElement('div');
+      body.className = 'msg-body' + (extraClass ? ' ' + extraClass : '');
+      body.innerHTML = html;
 
       wrapper.appendChild(avatar);
-      wrapper.appendChild(content);
+      wrapper.appendChild(body);
       chatMessages.appendChild(wrapper);
       chatMessages.scrollTop = chatMessages.scrollHeight;
       return wrapper;
     }
 
-    function esc(str) {
+    function escapeHtml(str) {
       if (!str) return '';
       var div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML.replace(/\n/g, '<br>');
     }
 
-    // ===== 语音输入 =====
+    // ===== 语音输入 (Web Speech API, 可替换) =====
     var recognition = null;
     var isRecording = false;
 
-    (function initSpeech() {
+    function initSpeech() {
       var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) {
-        voiceBtn.title = '浏览器不支持语音';
-        voiceBtn.style.opacity = '0.4';
+        // 浏览器不支持，隐藏麦克风按钮
+        voiceBtn.style.display = 'none';
         return;
       }
       recognition = new SR();
@@ -812,12 +854,12 @@
       recognition.interimResults = true;
 
       recognition.onresult = function(e) {
-        var t = '';
+        var transcript = '';
         for (var i = e.resultIndex; i < e.results.length; i++) {
-          t += e.results[i][0].transcript;
+          transcript += e.results[i][0].transcript;
         }
-        chatInput.value = t;
-        autoResizeInput();
+        chatInput.value = transcript;
+        autoResize();
       };
 
       recognition.onend = function() {
@@ -825,18 +867,22 @@
         voiceBtn.classList.remove('recording');
         voiceBtn.textContent = '🎤';
         chatInput.placeholder = '描述你想做的游戏...';
-        if (chatInput.value.trim()) chatInput.focus();
+        if (chatInput.value.trim()) {
+          chatInput.focus();
+        }
       };
 
       recognition.onerror = function(e) {
         isRecording = false;
         voiceBtn.classList.remove('recording');
         voiceBtn.textContent = '🎤';
+        chatInput.placeholder = '描述你想做的游戏...';
         if (e.error === 'not-allowed') {
-          alert('请允许浏览器使用麦克风 🎤');
+          alert('请允许浏览器使用麦克风权限 🎤');
         }
       };
-    })();
+    }
+    initSpeech();
 
     function toggleVoice() {
       if (!recognition) {
@@ -851,25 +897,22 @@
         voiceBtn.textContent = '⏹';
         chatInput.value = '';
         chatInput.placeholder = '正在听你说...';
-        recognition.start();
+        try {
+          recognition.start();
+        } catch(e) {
+          // 可能已经在运行
+          isRecording = false;
+          voiceBtn.classList.remove('recording');
+          voiceBtn.textContent = '🎤';
+        }
       }
     }
 
-    voiceBtn.addEventListener('click', toggleVoice);
-
     // ===== 输入框自动高度 =====
-    function autoResizeInput() {
+    function autoResize() {
       chatInput.style.height = 'auto';
       chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
     }
-    chatInput.addEventListener('input', autoResizeInput);
-    chatInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-    sendBtn.addEventListener('click', sendMessage);
 
     // ===== 继续修改 =====
     function focusChat() {
@@ -883,11 +926,11 @@
       document.getElementById('pubTitle').value = currentGameData.title || '';
       document.getElementById('pubDesc').value = currentGameData.description || '';
       document.getElementById('pubCategory').value = currentGameData.category || 'casual';
-      document.getElementById('publishModal').classList.add('show');
+      publishModal.classList.add('show');
     }
 
     function hidePublishModal() {
-      document.getElementById('publishModal').classList.remove('show');
+      publishModal.classList.remove('show');
     }
 
     async function doPublish() {
@@ -906,7 +949,7 @@
         var sb = getSupabase();
         if (!currentUser) throw new Error('请先登录');
 
-        // 1. 上传 HTML 到 Storage
+        // 1. 上传 HTML 到 Supabase Storage (games bucket)
         var fileName = 'ai_' + currentUser.id.substring(0, 8) + '_' + Date.now() + '.html';
         var filePath = currentUser.id + '/' + fileName;
         var blob = new Blob([currentGameData.html], { type: 'text/html' });
@@ -921,7 +964,7 @@
         var urlRes = sb.storage.from('games').getPublicUrl(filePath);
         var fileUrl = urlRes.data.publicUrl;
 
-        // 3. 插入 games 记录
+        // 3. 插入 games 表记录
         var insRes = await sb.from('games').insert({
           title: title,
           description: desc,
@@ -951,10 +994,25 @@
       }
     }
 
-    // 点击弹窗外部关闭
-    document.getElementById('publishModal').addEventListener('click', function(e) {
-      if (e.target === this) hidePublishModal();
+    // ===== 事件绑定 =====
+    sendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('input', autoResize);
+    chatInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
     });
+    voiceBtn.addEventListener('click', toggleVoice);
+    btnModify.addEventListener('click', focusChat);
+    btnPublish.addEventListener('click', showPublishModal);
+    document.getElementById('pubCancelBtn').addEventListener('click', hidePublishModal);
+    document.getElementById('pubConfirmBtn').addEventListener('click', doPublish);
+    publishModal.addEventListener('click', function(e) {
+      if (e.target === publishModal) hidePublishModal();
+    });
+
+  })();
   </script>
 </body>
 </html>
