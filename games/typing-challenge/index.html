@@ -76,7 +76,6 @@
   ALTER TABLE typing_weekly_rank ENABLE ROW LEVEL SECURITY;
   ALTER TABLE typing_rank_settlements ENABLE ROW LEVEL SECURITY;
 
-  -- typing_challenge_records 策略
   CREATE POLICY "Users can read own challenge records" ON typing_challenge_records
     FOR SELECT USING (auth.uid() = user_id);
   CREATE POLICY "Users can insert own challenge records" ON typing_challenge_records
@@ -84,13 +83,11 @@
   CREATE POLICY "Users can update own challenge records" ON typing_challenge_records
     FOR UPDATE USING (auth.uid() = user_id);
 
-  -- typing_records 策略
   CREATE POLICY "Users can insert own typing records" ON typing_records
     FOR INSERT WITH CHECK (auth.uid() = user_id);
   CREATE POLICY "Anyone can read typing records" ON typing_records
     FOR SELECT USING (true);
 
-  -- typing_weekly_rank 策略
   CREATE POLICY "Users can insert own weekly rank" ON typing_weekly_rank
     FOR INSERT WITH CHECK (auth.uid() = user_id);
   CREATE POLICY "Users can update own weekly rank" ON typing_weekly_rank
@@ -98,7 +95,6 @@
   CREATE POLICY "Anyone can read weekly rank" ON typing_weekly_rank
     FOR SELECT USING (true);
 
-  -- typing_rank_settlements 策略
   CREATE POLICY "Anyone can read settlements" ON typing_rank_settlements
     FOR SELECT USING (true);
   CREATE POLICY "Users can insert settlements" ON typing_rank_settlements
@@ -163,7 +159,7 @@ body {
   font-size: 0.9rem;
 }
 
-/* 卡片通用 */
+/* 卡片 */
 .card {
   background: rgba(255,255,255,0.95);
   border-radius: 20px;
@@ -181,12 +177,12 @@ body {
   margin-bottom: 16px;
 }
 .mode-btn {
-  padding: 12px 24px;
+  padding: 10px 20px;
   border: 3px solid #e0e0e0;
   border-radius: 14px;
   background: #fff;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   transition: all 0.2s;
   color: #555;
@@ -232,24 +228,34 @@ body {
 /* 打字区域 */
 .typing-area { display: none; text-align: center; }
 .text-display {
-  font-size: 1.4rem;
-  line-height: 2.2;
-  padding: 20px;
+  font-size: 1.5rem;
+  line-height: 2.4;
+  padding: 24px 28px;
   background: #f8f9ff;
   border-radius: 14px;
   margin-bottom: 16px;
   min-height: 120px;
-  text-align: left;
-  word-break: break-all;
-  position: relative;
+  text-align: center;
   user-select: none;
+}
+.poem-title {
+  font-size: 0.95rem;
+  color: #999;
+  margin-bottom: 16px;
+  font-weight: 400;
+}
+.poem-lines {
+  font-size: 1.6rem;
+  line-height: 2.2;
+  letter-spacing: 2px;
 }
 .text-display .char { transition: color 0.1s; }
 .text-display .char.correct { color: #4caf50; }
 .text-display .char.wrong { color: #f44336; background: #ffebee; border-radius: 3px; }
 .text-display .char.current { background: #e3f2fd; border-radius: 3px; border-bottom: 3px solid #2196f3; }
+.text-display .line-break { display: block; height: 8px; }
 
-.input-area { position: relative; }
+.input-area { margin-top: 12px; }
 #typingInput {
   width: 100%;
   padding: 16px 20px;
@@ -261,7 +267,7 @@ body {
 }
 #typingInput:focus { border-color: #667eea; }
 
-/* 统计信息 */
+/* 统计 */
 .stats-bar {
   display: flex;
   justify-content: space-around;
@@ -347,6 +353,29 @@ body {
   line-height: 1.6;
 }
 
+/* 防作弊提示 */
+.cheat-warning {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #f44336;
+  color: #fff;
+  padding: 20px 30px;
+  border-radius: 14px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  z-index: 9999;
+  box-shadow: 0 8px 32px rgba(244,67,54,0.4);
+  animation: shake 0.5s;
+}
+@keyframes shake {
+  0%,100% { transform: translate(-50%,-50%) rotate(0); }
+  25% { transform: translate(-50%,-50%) rotate(-2deg); }
+  75% { transform: translate(-50%,-50%) rotate(2deg); }
+}
+
 /* 响应式 */
 @media (max-width: 600px) {
   .container { padding: 12px; }
@@ -355,7 +384,8 @@ body {
   .level-btn { padding: 10px 4px; }
   .level-btn .lv-num { font-size: 1rem; }
   .level-btn .lv-req { font-size: 0.6rem; }
-  .text-display { font-size: 1.1rem; padding: 14px; line-height: 2; }
+  .text-display { font-size: 1.2rem; padding: 16px; line-height: 2; }
+  .poem-lines { font-size: 1.3rem; }
   .stats-bar { flex-wrap: wrap; gap: 6px; padding: 10px; }
   .stat-item .stat-value { font-size: 1.2rem; }
   .top-bar .title { font-size: 1rem; }
@@ -375,19 +405,18 @@ body {
 
   <!-- 选择面板 -->
   <div class="card" id="selectPanel">
-    <h2 style="text-align:center; margin-bottom:16px; color:#333;">🏆 选择语言和等级</h2>
     <div class="mode-select">
-      <button class="mode-btn active" onclick="switchLang('zh')">🇨🇳 中文打字</button>
-      <button class="mode-btn" onclick="switchLang('en')">🇺🇸 英文打字</button>
+      <button class="mode-btn active" id="modeZh" onclick="switchMode('zh')">🇨🇳 古诗词</button>
+      <button class="mode-btn" id="modeEn" onclick="switchMode('en')">🇺🇸 English</button>
     </div>
 
     <div class="tip-box" id="tipBox">
-      💡 中文打字：用拼音输入法打出汉字，计算每分钟打出的汉字数量（字/分钟）<br>
-      ⏱️ 每次挑战限时 <b>60秒</b>，达到等级要求速度即通关！
+      📝 中文模式：输入古诗词的每个字和标点，打完整首诗即可结算。<br>
+      ⏱️ 计时从你第一次按键开始，打得又快又准才能通关！
     </div>
 
     <div class="reward-info">
-      🎁 <b>通关奖励（每个等级首次通关发放，不重复）：</b><br>
+      🎁 <b>通关奖励（首次通关发放）：</b><br>
       Lv.1 +3🪙 | Lv.2 +5🪙 | Lv.3 +7🪙 | Lv.4 +10🪙 | Lv.5 +15🪙<br>
       Lv.6 +20🪙 | Lv.7 +30🪙 | Lv.8 +50🪙 | Lv.9 +70🪙 | Lv.10 +100🪙<br>
       ✅ 已通关等级可继续挑战刷新最佳成绩，但不再发积分
@@ -416,8 +445,8 @@ body {
         <div class="stat-label">准确率</div>
       </div>
       <div class="stat-item">
-        <div class="stat-value" id="statTime">60</div>
-        <div class="stat-label">剩余秒</div>
+        <div class="stat-value" id="statTime">0</div>
+        <div class="stat-label">用时(秒)</div>
       </div>
       <div class="stat-item">
         <div class="stat-value" id="statCount">0</div>
@@ -428,23 +457,26 @@ body {
     <div class="text-display" id="textDisplay"></div>
 
     <div class="input-area">
-      <input type="text" id="typingInput" placeholder="在这里开始打字..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <input type="text" id="typingInput" placeholder="在这里开始打字..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" x-webkit-speech="false">
     </div>
   </div>
 
   <!-- 结果面板 -->
   <div class="card result-panel" id="resultPanel">
     <div class="result-icon" id="resultIcon">🎉</div>
-    <div class="result-title" id="resultTitle">挑战完成！</div>
+    <div class="result-title" id="resultTitle">挑战成功！</div>
     <div class="result-detail" id="resultDetail"></div>
-    <div class="best-record" id="bestRecord"></div>
     <div class="coins-reward" id="coinsReward"></div>
+    <div class="best-record" id="bestRecord"></div>
     <div style="margin-top:20px;">
       <button class="btn-primary" onclick="retryLevel()">🔄 再来一次</button>
-      <button class="btn-secondary" onclick="backToSelect()">📋 选择等级</button>
+      <button class="btn-secondary" onclick="backToSelect()">📋 返回选择</button>
     </div>
   </div>
 </div>
+
+<!-- 防作弊提示 -->
+<div class="cheat-warning" id="cheatWarning">⚠️ 请用键盘打字哦！</div>
 
 <script>
 // ===== Supabase 初始化 =====
@@ -453,9 +485,6 @@ var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 var sb = null;
 var currentUser = null;
 var currentProfile = null;
-
-// 通关记录缓存
-var passedRecords = {}; // key: "zh_1" or "en_3", value: record object
 
 function initSupabase() {
   var lib = (typeof supabase !== 'undefined' && supabase.createClient) ? supabase : window.supabase;
@@ -501,92 +530,235 @@ var currentLang = 'zh';
 var currentLevel = 1;
 var gameActive = false;
 var gameTimer = null;
-var timeLeft = 60;
 var startTime = 0;
+var elapsedSeconds = 0;
 
-// 累计统计
-var cumulativeCorrect = 0;
-var cumulativeWrong = 0;
-
-// 当前段落统计
-var currentCorrect = 0;
-var currentWrong = 0;
+// 统计
+var totalCorrect = 0;
+var totalWrong = 0;
 
 var displayText = '';
 var charElements = [];
+var currentPoem = null; // 当前诗/文章信息
 
-// ===== 中文打字素材 =====
-var zhTexts = [
-  ["小鸟在天上飞", "太阳出来了", "我爱吃苹果", "小猫在睡觉", "今天天气好", "花儿开了", "小狗跑得快", "月亮圆圆的", "我去上学了", "妈妈做饭了", "爸爸回来了", "小鱼游啊游", "白云飘啊飘", "星星亮晶晶", "大树长高了"],
-  ["春天来了花儿开了", "小朋友们一起玩游戏", "我最喜欢吃冰淇淋", "今天我们去公园玩", "小兔子在草地上跳", "蝴蝶在花丛中飞舞", "下雨了我要打伞", "老师教我们写字", "我有一个好朋友", "放学了我们回家吧"],
-  ["春天的花园里开满了五颜六色的花朵", "小明和小红一起去图书馆看书学习", "妈妈今天做了我最爱吃的红烧肉", "我们学校有一个很大的操场可以跑步", "夏天到了我们去游泳池游泳吧", "爷爷奶奶住在乡下有一个大院子"],
-  ["清晨的阳光透过窗户照进房间里面", "图书馆里有很多有趣的故事书和漫画", "我们班的同学都很喜欢上体育课跑步", "秋天的树叶变成了金黄色飘落下来", "小猫咪蹲在窗台上看着外面的小鸟"],
-  ["科学家发现了一种新的恐龙化石非常珍贵", "我们要保护环境不能随便扔垃圾到地上", "周末爸爸带我去动物园看了大熊猫和长颈鹿", "学习编程可以让我们创造出有趣的游戏和网站", "音乐课上老师教我们唱了一首很好听的歌曲"],
-  ["地球是太阳系中唯一有生命存在的行星非常特别", "中国的长城是世界上最伟大的建筑之一历史悠久", "阅读是获取知识的最好方式我们要养成读书的好习惯", "计算机科学是现代社会最重要的学科之一改变了世界", "春节是中国最重要的传统节日全家人团聚在一起庆祝"],
-  ["人工智能技术正在改变我们的生活方式让很多事情变得更加方便快捷", "宇宙中有数不清的星球和星系科学家们一直在探索其中的奥秘", "保护地球环境是每个人的责任我们应该从身边的小事做起节约资源", "互联网让全世界的人们可以随时随地交流分享知识和快乐"],
-  ["编程语言有很多种每种都有自己的特点和用途选择适合自己的语言开始学习是很重要的", "数学是一切科学的基础学好数学可以帮助我们更好地理解世界解决各种复杂的问题", "中国有五千年的文明历史留下了无数珍贵的文化遗产值得我们每个人去了解和传承"],
-  ["科技的发展让我们的生活越来越便利从智能手机到人工智能每一项发明都凝聚着科学家们的智慧和汗水", "读万卷书行万里路这句古话告诉我们既要通过阅读学习知识也要通过实践来增长见识和能力"],
-  ["未来的世界将会是科技与人文并重的时代我们不仅要学习先进的科学技术还要培养良好的品德和审美能力这样才能成为一个全面发展的人为社会做出更大的贡献"]
+// ===== 中文古诗词素材（三年级到六年级人教版必背） =====
+var zhPoems = [
+  // Level 1: 短诗（5言绝句，简单）
+  [
+    { title: "静夜思", author: "李白", lines: ["床前明月光，", "疑是地上霜。", "举头望明月，", "低头思故乡。"] },
+    { title: "春晓", author: "孟浩然", lines: ["春眠不觉晓，", "处处闻啼鸟。", "夜来风雨声，", "花落知多少。"] },
+    { title: "咏鹅", author: "骆宾王", lines: ["鹅，鹅，鹅，", "曲项向天歌。", "白毛浮绿水，", "红掌拨清波。"] },
+    { title: "悯农（其二）", author: "李绅", lines: ["锄禾日当午，", "汗滴禾下土。", "谁知盘中餐，", "粒粒皆辛苦。"] },
+    { title: "画", author: "王维", lines: ["远看山有色，", "近听水无声。", "春去花还在，", "人来鸟不惊。"] },
+    { title: "登鹳雀楼", author: "王之涣", lines: ["白日依山尽，", "黄河入海流。", "欲穷千里目，", "更上一层楼。"] }
+  ],
+  // Level 2: 5言绝句（稍长）
+  [
+    { title: "鹿柴", author: "王维", lines: ["空山不见人，", "但闻人语响。", "返景入深林，", "复照青苔上。"] },
+    { title: "相思", author: "王维", lines: ["红豆生南国，", "春来发几枝。", "愿君多采撷，", "此物最相思。"] },
+    { title: "夜宿山寺", author: "李白", lines: ["危楼高百尺，", "手可摘星辰。", "不敢高声语，", "恐惊天上人。"] },
+    { title: "江雪", author: "柳宗元", lines: ["千山鸟飞绝，", "万径人踪灭。", "孤舟蓑笠翁，", "独钓寒江雪。"] },
+    { title: "池上", author: "白居易", lines: ["小娒撑小艇，", "偷采白莲回。", "不解藏踪迹，", "浮萍一道开。"] },
+    { title: "寻隐者不遇", author: "贾岛", lines: ["松下问童子，", "言师采药去。", "只在此山中，", "云深不知处。"] }
+  ],
+  // Level 3: 5言绝句（更多字）
+  [
+    { title: "望庐山瀑布", author: "李白", lines: ["日照香炉生紫烟，", "遥看瀑布挂前川。", "飞流直下三千尺，", "疑是银河落九天。"] },
+    { title: "绝句", author: "杜甫", lines: ["两个黄鹂鸣翠柳，", "一行白鹭上青天。", "窗含西岭千秋雪，", "门泊东吴万里船。"] },
+    { title: "早发白帝城", author: "李白", lines: ["朝辞白帝彩云间，", "千里江陵一日还。", "两岸猿声啼不住，", "轻舟已过万重山。"] },
+    { title: "望天门山", author: "李白", lines: ["天门中断楚江开，", "碧水东流至此回。", "两岸青山相对出，", "孤帆一片日边来。"] },
+    { title: "春日", author: "朱熹", lines: ["胜日寻芳泗水滨，", "无边光景一时新。", "等闲识得东风面，", "万紫千红总是春。"] },
+    { title: "惠崇春江晚景", author: "苏轼", lines: ["竹外桃花三两枝，", "春江水暖鸭先知。", "蒌蒿满地芦芽短，", "正是河豚欲上时。"] }
+  ],
+  // Level 4: 7言绝句
+  [
+    { title: "芙蓉楼送辛渐", author: "王昌龄", lines: ["寒雨连江夜入吴，", "平明送客楚山孤。", "洛阳亲友如相问，", "一片冰心在玉壶。"] },
+    { title: "黄鹤楼送孟浩然之广陵", author: "李白", lines: ["故人西辞黄鹤楼，", "烟花三月下扬州。", "孤帆远影碧空尽，", "唯见长江天际流。"] },
+    { title: "乌衣巷", author: "刘禹锡", lines: ["朱雀桥边野草花，", "乌衣巷口夕阳斜。", "旧时王谢堂前燕，", "飞入寻常百姓家。"] },
+    { title: "九月九日忆山东兄弟", author: "王维", lines: ["独在异乡为异客，", "每逢佳节倍思亲。", "遥知兄弟登高处，", "遍插茱萸少一人。"] },
+    { title: "题西林壁", author: "苏轼", lines: ["横看成岭侧成峰，", "远近高低各不同。", "不识庐山真面目，", "只缘身在此山中。"] },
+    { title: "清明", author: "杜牧", lines: ["清明时节雨纷纷，", "路上行人欲断魂。", "借问酒家何处有，", "牧童遥指杏花村。"] }
+  ],
+  // Level 5: 7言绝句（较难）
+  [
+    { title: "江南春", author: "杜牧", lines: ["千里莺啼绿映红，", "水村山郭酒旗风。", "南朝四百八十寺，", "多少楼台烟雨中。"] },
+    { title: "泊船瓜洲", author: "王安石", lines: ["京口瓜洲一水间，", "钟山只隔数重山。", "春风又绿江南岸，", "明月何时照我还。"] },
+    { title: "饮湖上初晴后雨", author: "苏轼", lines: ["水光潋滟晴方好，", "山色空蒙雨亦奇。", "欲把西湖比西子，", "淡妆浓抹总相宜。"] },
+    { title: "秋夕", author: "杜牧", lines: ["银烛秋光冷画屏，", "轻罗小扇扑流萤。", "天阶夜色凉如水，", "坐看牵牛织女星。"] },
+    { title: "山行", author: "杜牧", lines: ["远上寒山石径斜，", "白云生处有人家。", "停车坐爱枫林晚，", "霜叶红于二月花。"] },
+    { title: "赠汪伦", author: "李白", lines: ["李白乘舟将欲行，", "忽闻岸上踏歌声。", "桃花潭水深千尺，", "不及汪伦送我情。"] }
+  ],
+  // Level 6: 较长诗
+  [
+    { title: "出塞", author: "王昌龄", lines: ["秦时明月汉时关，", "万里长征人未还。", "但使龙城飞将在，", "不教胡马度阴山。"] },
+    { title: "凉州词", author: "王翰", lines: ["葡萄美酒夜光杯，", "欲饮琵琶马上催。", "醉卧沙场君莫笑，", "古来征战几人回。"] },
+    { title: "送元二使安西", author: "王维", lines: ["渭城朝雨浥轻尘，", "客舍青青柳色新。", "劝君更尽一杯酒，", "西出阳关无故人。"] },
+    { title: "枫桥夜泊", author: "张继", lines: ["月落乌啼霜满天，", "江枫渔火对愁眠。", "姑苏城外寒山寺，", "夜半钟声到客船。"] },
+    { title: "滁州西涧", author: "韦应物", lines: ["独怜幽草涧边生，", "上有黄鹂深树鸣。", "春潮带雨晚来急，", "野渡无人舟自横。"] },
+    { title: "夜雨寄北", author: "李商隐", lines: ["君问归期未有期，", "巴山夜雨涨秋池。", "何当共剪西窗烛，", "却话巴山夜雨时。"] }
+  ],
+  // Level 7: 五言律诗/较长
+  [
+    { title: "游子吟", author: "孟郊", lines: ["慈母手中线，", "游子身上衣。", "临行密密缝，", "意恐迟迟归。", "谁言寸草心，", "报得三春晖。"] },
+    { title: "竹石", author: "郑燮", lines: ["咬定青山不放松，", "立根原在破岩中。", "千磨万击还坚劲，", "任尔东西南北风。"] },
+    { title: "石灰吟", author: "于谦", lines: ["千锤万凿出深山，", "烈火焚烧若等闲。", "粉骨碎身浑不怕，", "要留清白在人间。"] },
+    { title: "己亥杂诗", author: "龚自珍", lines: ["浩荡离愁白日斜，", "吟鞭东指即天涯。", "落红不是无情物，", "化作春泥更护花。"] },
+    { title: "望岳", author: "杜甫", lines: ["岱宗夫如何？", "齐鲁青未了。", "造化钟神秀，", "阴阳割昏晓。", "荡胸生曾云，", "决眦入归鸟。", "会当凌绝顶，", "一览众山小。"] },
+    { title: "春望", author: "杜甫", lines: ["国破山河在，", "城春草木深。", "感时花溅泪，", "恨别鸟惊心。", "烽火连三月，", "家书抵万金。", "白头搔更短，", "浑欲不胜簪。"] }
+  ],
+  // Level 8: 长诗
+  [
+    { title: "过零丁洋", author: "文天祥", lines: ["辛苦遭逢起一经，", "干戈寥落四周星。", "山河破碎风飘絮，", "身世浮沉雨打萍。", "惶恐滩头说惶恐，", "零丁洋里叹零丁。", "人生自古谁无死？", "留取丹心照汗青。"] },
+    { title: "闻官军收河南河北", author: "杜甫", lines: ["剑外忽传收蓟北，", "初闻涕泪满衣裳。", "却看妻子愁何在，", "漫卷诗书喜欲狂。", "白日放歌须纵酒，", "青春作伴好还乡。", "即从巴峡穿巫峡，", "便下襄阳向洛阳。"] },
+    { title: "登高", author: "杜甫", lines: ["风急天高猿啸哀，", "渚清沙白鸟飞回。", "无边落木萧萧下，", "不尽长江滚滚来。", "万里悲秋常作客，", "百年多病独登台。", "艰难苦恨繁霜鬓，", "潦倒新停浊酒杯。"] },
+    { title: "蜀相", author: "杜甫", lines: ["丞相祠堂何处寻？", "锦官城外柏森森。", "映阶碧草自春色，", "隔叶黄鹂空好音。", "三顾频烦天下计，", "两朝开济老臣心。", "出师未捷身先死，", "长使英雄泪满襟。"] },
+    { title: "泊秦淮", author: "杜牧", lines: ["烟笼寒水月笼沙，", "夜泊秦淮近酒家。", "商女不知亡国恨，", "隔江犹唱后庭花。"] },
+    { title: "赤壁", author: "杜牧", lines: ["折戟沉沙铁未销，", "自将磨洗认前朝。", "东风不与周郎便，", "铜雀春深锁二乔。"] }
+  ],
+  // Level 9: 长诗/词
+  [
+    { title: "长歌行", author: "汉乐府", lines: ["青青园中葵，", "朝露待日晞。", "阳春布德泽，", "万物生光辉。", "常恐秋节至，", "焜黄华叶衰。", "百川东到海，", "何时复西归？", "少壮不努力，", "老大徒伤悲。"] },
+    { title: "茅屋为秋风所破歌（节选）", author: "杜甫", lines: ["八月秋高风怒号，", "卷我屋上三重茅。", "茅飞渡江洒江郊，", "高者挂罥长林梢，", "下者飘转沉塘坳。", "安得广厦千万间，", "大庇天下寒士俱欢颜！", "风雨不动安如山。"] },
+    { title: "水调歌头", author: "苏轼", lines: ["明月几时有？", "把酒问青天。", "不知天上宫阙，", "今夕是何年。", "我欲乘风归去，", "又恐琼楼玉宇，", "高处不胜寒。", "起舞弄清影，", "何似在人间。"] },
+    { title: "满江红（节选）", author: "岳飞", lines: ["怒发冲冠，", "凭栏处、潇潇雨歇。", "抬望眼、仰天长啸，", "壮怀激烈。", "三十功名尘与土，", "八千里路云和月。", "莫等闲、白了少年头，", "空悲切！"] },
+    { title: "行路难", author: "李白", lines: ["金樽清酒斗十千，", "玉盘珍羞直万钱。", "停杯投箸不能食，", "拔剑四顾心茫然。", "欲渡黄河冰塞川，", "将登太行雪满山。", "长风破浪会有时，", "直挂云帆济沧海。"] },
+    { title: "渔家傲·秋思", author: "范仲淹", lines: ["塞下秋来风景异，", "衡阳雁去无留意。", "四面边声连角起，", "千嶂里，", "长烟落日孤城闭。", "浊酒一杯家万里，", "燕然未勒归无计。", "羌管悠悠霜满地，", "人不寐，", "将军白发征夫泪。"] }
+  ],
+  // Level 10: 最长/最难
+  [
+    { title: "琵琶行（节选）", author: "白居易", lines: ["浔阳江头夜送客，", "枫叶荻花秋瑟瑟。", "主人下马客在船，", "举酒欲饮无管弦。", "醉不成欢惨将别，", "别时茫茫江浸月。", "忽闻水上琵琶声，", "主人忘归客不发。", "千呼万唤始出来，", "犹抱琵琶半遮面。"] },
+    { title: "白雪歌送武判官归京（节选）", author: "岑参", lines: ["北风卷地白草折，", "胡天八月即飞雪。", "忽如一夜春风来，", "千树万树梨花开。", "散入珠帘湿罗幕，", "狐裘不暖锦衾薄。", "将军角弓不得控，", "都护铁衣冷难着。", "瀚海阑干百丈冰，", "愁云惨淡万里凝。"] },
+    { title: "春江花月夜（节选）", author: "张若虚", lines: ["春江潮水连海平，", "海上明月共潮生。", "滟滟随波千万里，", "何处春江无月明！", "江流宛转绕芳甸，", "月照花林皆似霰。", "空里流霜不觉飞，", "汀上白沙看不见。", "江天一色无纤尘，", "皎皎空中孤月轮。"] },
+    { title: "将进酒（节选）", author: "李白", lines: ["君不见黄河之水天上来，", "奔流到海不复回。", "君不见高堂明镜悲白发，", "朝如青丝暮成雪。", "人生得意须尽欢，", "莫使金樽空对月。", "天生我材必有用，", "千金散尽还复来。"] },
+    { title: "念奴娇·赤壁怀古", author: "苏轼", lines: ["大江东去，", "浪淘尽、千古风流人物。", "故垒西边，", "人道是、三国周郎赤壁。", "乱石穿空，", "惊涛拍岸，", "卷起千堆雪。", "江山如画，", "一时多少豪杰。"] },
+    { title: "沁园春·雪", author: "毛泽东", lines: ["北国风光，", "千里冰封，", "万里雪飘。", "望长城内外，", "惟余莽莽；", "大河上下，", "顿失滔滔。", "山舞银蛇，", "原驰蜡象，", "欲与天公试比高。"] }
+  ]
 ];
 
-// ===== 英文打字素材 =====
-var enTexts = [
-  ["the cat sat on the mat", "i like to play games", "the sun is very hot", "my dog is big and brown", "we go to school today", "she has a red ball", "the bird can fly high", "i love my mom and dad", "the fish is in water", "he runs very fast"],
-  ["the little cat likes to play with a ball", "i have a big red apple on the table", "my best friend and i play games together", "the sun comes up in the morning sky", "we like to read books in the library"],
-  ["the beautiful butterfly flies from flower to flower", "my family went to the beach last summer vacation", "the teacher told us an interesting story about animals", "i want to learn how to ride a bicycle this weekend", "the stars shine brightly in the dark night sky"],
-  ["the quick brown fox jumps over the lazy dog near the river", "learning to code is like learning a new language for computers", "my favorite subject in school is science because we do experiments", "the ocean is home to many amazing creatures like dolphins and whales", "reading books every day helps us become smarter and more creative"],
-  ["the solar system has eight planets that orbit around the sun in space", "computers can process millions of calculations in just one single second", "the great wall of china is one of the most famous landmarks in the world", "playing sports helps us stay healthy and teaches us about teamwork and effort", "scientists are working hard to find solutions for climate change problems"],
-  ["artificial intelligence is changing the way we live and work in modern society", "the internet connects billions of people around the world and allows them to share ideas", "learning multiple languages opens doors to different cultures and new opportunities", "space exploration has taught us many things about our universe and planet earth", "renewable energy sources like solar and wind power are better for our environment"],
-  ["programming requires logical thinking and problem solving skills that can be applied to many areas of life", "the development of technology has transformed communication making it possible to connect instantly across continents", "understanding mathematics is essential for scientific discovery and technological innovation in the modern world", "biodiversity is crucial for maintaining healthy ecosystems that provide food clean water and fresh air for all living things"],
-  ["quantum computing represents a fundamental shift in how we process information and could revolutionize fields from medicine to cryptography", "the human brain contains approximately one hundred billion neurons each forming thousands of connections creating an incredibly complex network", "sustainable development requires balancing economic growth with environmental protection to ensure future generations can meet their needs"],
-  ["machine learning algorithms can analyze vast amounts of data to identify patterns and make predictions that would be impossible for humans to discover manually", "the exploration of mars has revealed fascinating geological features suggesting that liquid water once flowed on the surface of the red planet billions of years ago"],
-  ["advances in genetic engineering and biotechnology are opening new possibilities for treating diseases that were previously considered incurable while also raising important ethical questions about the limits of human intervention in natural biological processes"]
+// ===== 英文 RAZ 分级阅读素材（M-V level） =====
+var enArticles = [
+  // Level 1: RAZ M level (~50 words, simple topics)
+  [
+    { title: "My Pet Cat", lines: ["I have a cat named Sunny.", "She has soft, orange fur.", "Every morning, she sits by the window.", "She watches the birds outside.", "When I come home from school,", "she runs to the door.", "I love my cat very much."] },
+    { title: "The Park", lines: ["The park is my favorite place.", "There are tall trees and green grass.", "I like to play on the swings.", "My friend likes the slide.", "We run and laugh together.", "The park makes us happy."] },
+    { title: "Rainy Day", lines: ["Today it is raining outside.", "I can hear the drops on the roof.", "I put on my yellow raincoat.", "I splash in the puddles.", "The flowers are drinking the water.", "Rain helps everything grow."] },
+    { title: "My School", lines: ["My school is not far from home.", "I walk there every day.", "My teacher is kind and funny.", "We read books and draw pictures.", "I have many friends at school.", "I like learning new things."] },
+    { title: "The Dog", lines: ["My neighbor has a big dog.", "His name is Max.", "Max likes to run in the yard.", "He can catch a ball in the air.", "When I walk by, he wags his tail.", "Max is a friendly dog."] }
+  ],
+  // Level 2: RAZ N level (~55 words)
+  [
+    { title: "The Beach", lines: ["Last summer, we went to the beach.", "The sand was warm under my feet.", "I built a sandcastle with my brother.", "We found shells along the shore.", "The waves splashed against our legs.", "We ate ice cream before going home.", "It was a perfect day."] },
+    { title: "My Garden", lines: ["I planted seeds in my garden.", "I water them every morning.", "After two weeks, small green plants grew.", "Now I can see tiny flowers.", "Bees come to visit the flowers.", "I feel proud of my garden.", "Growing things takes patience."] },
+    { title: "The Library", lines: ["The library is a quiet place.", "There are hundreds of books on the shelves.", "I like to read about animals.", "My sister likes fairy tales.", "We can borrow books for two weeks.", "Reading takes me to new worlds."] },
+    { title: "Winter Morning", lines: ["This morning, everything was white.", "Snow covered the ground and the trees.", "I put on my warm coat and boots.", "I made a snowman in the yard.", "His nose was a carrot.", "Winter mornings are beautiful."] },
+    { title: "Cooking with Mom", lines: ["Today I helped Mom make cookies.", "We mixed flour, sugar, and eggs.", "I stirred the dough with a big spoon.", "We put the cookies in the oven.", "The kitchen smelled wonderful.", "We shared the cookies with our family."] }
+  ],
+  // Level 3: RAZ O level (~60 words)
+  [
+    { title: "The Butterfly", lines: ["A butterfly starts as a tiny egg.", "Then it becomes a caterpillar.", "The caterpillar eats leaves all day long.", "It grows bigger and bigger.", "Then it makes a cocoon around itself.", "Inside the cocoon, it changes completely.", "Finally, a beautiful butterfly comes out.", "It spreads its colorful wings and flies away."] },
+    { title: "Our Solar System", lines: ["The sun is at the center of our solar system.", "Eight planets orbit around it.", "Earth is the third planet from the sun.", "It is the only planet with liquid water.", "Mars is called the red planet.", "Jupiter is the biggest planet of all.", "Space is full of amazing things to discover."] },
+    { title: "The Treehouse", lines: ["My dad built a treehouse in our backyard.", "It sits high up in the old oak tree.", "I climb a wooden ladder to get inside.", "From up there, I can see the whole neighborhood.", "Sometimes I read books in my treehouse.", "It is my special, secret place."] },
+    { title: "Dolphins", lines: ["Dolphins are very smart animals.", "They live in the ocean in groups called pods.", "They talk to each other with clicks and whistles.", "Dolphins can jump high out of the water.", "They are friendly to people.", "Some dolphins help fishermen find fish.", "I hope to see dolphins in the wild someday."] },
+    { title: "The Farmer", lines: ["Mr. Chen is a farmer.", "He wakes up very early every morning.", "He feeds the chickens and collects their eggs.", "He waters the vegetables in his field.", "In autumn, he picks apples from his trees.", "Being a farmer is hard work,", "but Mr. Chen loves his life on the farm."] }
+  ],
+  // Level 4: RAZ P level (~65 words)
+  [
+    { title: "Volcanoes", lines: ["A volcano is a mountain with an opening at the top.", "Deep under the earth, rocks get very hot.", "They melt and become liquid called magma.", "When pressure builds up, the magma pushes upward.", "It explodes out of the volcano as lava.", "Lava flows down the mountain and destroys everything.", "Volcanoes are powerful and dangerous forces of nature."] },
+    { title: "The Invention of Paper", lines: ["Long ago, people wrote on animal skins and bamboo.", "These materials were heavy and hard to carry.", "A Chinese man named Cai Lun had an idea.", "He mixed tree bark, cloth, and water together.", "He pressed the mixture flat and let it dry.", "This became the first paper in the world.", "His invention changed how people share knowledge forever."] },
+    { title: "Penguins", lines: ["Penguins are birds, but they cannot fly.", "They live in cold places near the South Pole.", "Their black and white feathers keep them warm.", "Penguins are excellent swimmers.", "They catch fish and squid in the icy water.", "Baby penguins stay close to their parents.", "Penguin families huddle together to stay warm in storms."] },
+    { title: "The Water Cycle", lines: ["Water moves in a cycle that never stops.", "The sun heats water in rivers and oceans.", "The water turns into vapor and rises into the sky.", "High up, the vapor cools and forms clouds.", "When clouds get heavy, rain or snow falls down.", "The water flows back into rivers and oceans.", "Then the cycle begins all over again."] },
+    { title: "My Bicycle", lines: ["I got a new bicycle for my birthday.", "It is blue with silver handlebars.", "At first, I was afraid to ride it.", "My dad held the back while I pedaled.", "One day, he let go without telling me.", "I was riding all by myself!", "Now I ride my bicycle to school every day."] }
+  ],
+  // Level 5: RAZ Q level (~70 words)
+  [
+    { title: "The Great Wall", lines: ["The Great Wall of China is over 2,000 years old.", "It stretches across mountains and valleys for thousands of miles.", "Ancient emperors built it to protect their land from enemies.", "Millions of workers spent many years building the wall.", "Some parts are wide enough for horses to walk on top.", "Today, people from all over the world come to visit it.", "It is one of the greatest structures ever built by humans."] },
+    { title: "Earthquakes", lines: ["The ground beneath our feet is always moving slowly.", "Earth's surface is made of huge pieces called plates.", "When these plates push against each other, pressure builds up.", "Sometimes the pressure is released suddenly.", "The ground shakes, and buildings may fall down.", "Scientists use special machines to measure earthquakes.", "People in earthquake zones learn how to stay safe.", "They practice hiding under strong tables and desks."] },
+    { title: "Honeybees", lines: ["Honeybees are some of the hardest workers in nature.", "Each hive has one queen, many workers, and some drones.", "Worker bees fly from flower to flower collecting nectar.", "They bring the nectar back to the hive.", "Other bees turn the nectar into sweet honey.", "Bees also help plants grow by spreading pollen.", "Without bees, many of our favorite fruits would disappear."] },
+    { title: "The Amazon Rainforest", lines: ["The Amazon is the largest rainforest on Earth.", "It covers parts of nine different countries.", "Millions of plants and animals live there.", "Some animals, like the jaguar, cannot be found anywhere else.", "The trees produce oxygen that the whole world needs.", "Sadly, people are cutting down the trees for farmland.", "We must protect the Amazon before it is too late."] },
+    { title: "Thomas Edison", lines: ["Thomas Edison was one of the greatest inventors in history.", "He created the light bulb that changed the world.", "Before his invention, people used candles and oil lamps.", "Edison tried thousands of times before he succeeded.", "He never gave up, even when experiments failed.", "He said that failure taught him what did not work.", "His determination is an example for all of us."] }
+  ],
+  // Level 6: RAZ R level (~75 words)
+  [
+    { title: "The Ocean Floor", lines: ["The bottom of the ocean is a mysterious place.", "It is so deep that sunlight cannot reach it.", "Strange creatures live in the darkness down there.", "Some fish make their own light to see.", "There are mountains taller than any on land.", "Hot water shoots up from cracks in the ocean floor.", "Scientists send robots to explore these hidden worlds.", "We know more about the moon than our own ocean floor."] },
+    { title: "Ancient Egypt", lines: ["Ancient Egypt was one of the greatest civilizations in history.", "The Egyptians built huge pyramids as tombs for their kings.", "They invented a writing system called hieroglyphics.", "The Nile River gave them water for farming.", "Egyptian doctors knew how to treat many diseases.", "They also created a calendar with 365 days.", "Many of their discoveries still influence our world today.", "Their culture lasted for over 3,000 years."] },
+    { title: "Recycling", lines: ["Every day, people throw away tons of garbage.", "Much of this waste ends up in landfills or the ocean.", "Recycling helps reduce the amount of trash we produce.", "Paper, glass, plastic, and metal can all be recycled.", "Old newspapers become new paper products.", "Plastic bottles can be turned into clothing.", "When we recycle, we save energy and natural resources.", "Small actions by everyone can make a big difference."] },
+    { title: "The Human Heart", lines: ["Your heart is about the size of your fist.", "It beats around 100,000 times every single day.", "Each beat pumps blood through your entire body.", "Blood carries oxygen to all your muscles and organs.", "The heart has four chambers that work together.", "Exercise makes your heart stronger and healthier.", "Eating fruits and vegetables helps keep it working well.", "Your heart never takes a break, even when you sleep."] },
+    { title: "Robots", lines: ["Robots are machines that can do tasks on their own.", "Some robots build cars in factories.", "Others explore dangerous places like deep oceans or outer space.", "Doctors use tiny robots to help with surgery.", "Some robots can even talk and answer questions.", "Scientists are making robots smarter every year.", "In the future, robots might help us in many more ways.", "But they will never replace human creativity and kindness."] }
+  ],
+  // Level 7: RAZ S level (~80 words)
+  [
+    { title: "Climate Change", lines: ["Earth's climate has been changing for millions of years.", "But now it is changing faster than ever before.", "Burning coal, oil, and gas releases harmful gases.", "These gases trap heat in our atmosphere.", "This makes the planet warmer year after year.", "Ice at the poles is melting, and sea levels are rising.", "Extreme weather events are becoming more common.", "Everyone can help by using less energy,", "planting trees, and choosing clean transportation."] },
+    { title: "The Silk Road", lines: ["The Silk Road was an ancient network of trade routes.", "It connected China to Europe and the Middle East.", "Merchants traveled thousands of miles carrying silk, spices, and gold.", "The journey was long and dangerous.", "Travelers faced deserts, mountains, and bandits along the way.", "But the Silk Road did more than move goods.", "It spread ideas, religions, and inventions between civilizations.", "It helped connect the ancient world in ways that still matter today."] },
+    { title: "Photosynthesis", lines: ["Plants make their own food through a process called photosynthesis.", "They use sunlight, water, and carbon dioxide from the air.", "Inside their leaves are tiny parts called chloroplasts.", "Chloroplasts contain a green substance called chlorophyll.", "Chlorophyll captures energy from sunlight.", "The plant uses this energy to turn water and carbon dioxide into sugar.", "Oxygen is released as a byproduct.", "This oxygen is what humans and animals breathe.", "Without photosynthesis, life on Earth would not exist."] },
+    { title: "The Wright Brothers", lines: ["Wilbur and Orville Wright dreamed of flying.", "They studied how birds moved through the air.", "They built and tested many different wing designs.", "On December 17, 1903, they made history.", "Their airplane flew for just 12 seconds.", "It traveled only 120 feet above the ground.", "But that short flight changed the world forever.", "Today, millions of people fly in airplanes every day.", "It all started with two brothers who refused to give up."] },
+    { title: "Coral Reefs", lines: ["Coral reefs are sometimes called the rainforests of the sea.", "They are home to thousands of different species.", "Colorful fish, sea turtles, and sharks all live there.", "Coral looks like rock, but it is actually alive.", "Tiny animals called polyps build the reef over many years.", "Reefs protect coastlines from powerful ocean waves.", "Sadly, pollution and warming oceans are killing many reefs.", "Scientists are working hard to save these underwater treasures."] }
+  ],
+  // Level 8: RAZ T level (~85 words)
+  [
+    { title: "Black Holes", lines: ["A black hole is one of the strangest objects in space.", "It forms when a massive star runs out of fuel and collapses.", "The gravity of a black hole is incredibly strong.", "Nothing can escape from it, not even light.", "That is why we call it black.", "Scientists cannot see black holes directly.", "But they can detect them by watching how nearby stars behave.", "Some black holes are millions of times heavier than our sun.", "They remain one of the biggest mysteries in the universe."] },
+    { title: "The Industrial Revolution", lines: ["The Industrial Revolution began in England around 1760.", "Before that time, most people worked on farms or made things by hand.", "New machines changed everything.", "Factories could produce goods much faster and cheaper.", "Steam engines powered trains and ships.", "People moved from the countryside to cities for factory jobs.", "Life became easier in some ways but harder in others.", "Workers often faced long hours and dangerous conditions.", "The Industrial Revolution shaped the modern world we live in today."] },
+    { title: "DNA", lines: ["DNA is like a instruction book inside every living cell.", "It tells your body how to grow and work.", "DNA is shaped like a twisted ladder called a double helix.", "It is made of four chemical building blocks.", "The order of these blocks creates a unique code.", "This code determines things like your eye color and height.", "You get half your DNA from your mother and half from your father.", "That is why you might look like your parents.", "Every person's DNA is slightly different, making each of us unique."] },
+    { title: "Migration", lines: ["Every year, millions of animals travel long distances.", "This journey is called migration.", "Birds fly south in autumn to find warmer weather and food.", "Whales swim thousands of miles across the ocean.", "Monarch butterflies travel from Canada to Mexico.", "Some animals use the sun or stars to find their way.", "Others follow Earth's magnetic field.", "Migration is dangerous, but it helps animals survive.", "Climate change is making these journeys harder for many species."] },
+    { title: "The Internet", lines: ["The internet connects billions of people around the world.", "It started as a small network between a few computers in the 1960s.", "Scientists wanted a way to share information quickly.", "Today, we use the internet for almost everything.", "We send messages, watch videos, and learn new things online.", "Businesses sell products to customers in other countries.", "The internet has made the world feel much smaller.", "But we must also be careful about safety and privacy online."] }
+  ],
+  // Level 9: RAZ U level (~90 words)
+  [
+    { title: "Artificial Intelligence", lines: ["Artificial intelligence, or AI, is changing our world rapidly.", "AI allows computers to learn from experience and make decisions.", "It powers voice assistants, self-driving cars, and medical tools.", "AI can recognize faces, translate languages, and play chess.", "Some people worry that AI might take away jobs.", "Others believe it will create new opportunities we cannot imagine.", "The key is to use AI responsibly and fairly.", "We need rules to make sure AI helps everyone.", "The future of AI depends on the choices we make today.", "It is a tool that reflects the values of its creators."] },
+    { title: "The Human Brain", lines: ["The human brain is the most complex organ in the body.", "It contains about 86 billion nerve cells called neurons.", "These neurons communicate through electrical and chemical signals.", "The brain controls everything you do, think, and feel.", "Different parts handle different tasks.", "The front part helps you make decisions and solve problems.", "The back part processes what you see.", "Your brain uses about 20 percent of your body's energy.", "Even while you sleep, your brain is busy organizing memories.", "Scientists are still discovering new things about how the brain works."] },
+    { title: "Renewable Energy", lines: ["The world needs energy to power homes, cars, and factories.", "For many years, we have burned fossil fuels like coal and oil.", "But these fuels pollute the air and cause climate change.", "Renewable energy offers a cleaner solution.", "Solar panels capture energy from sunlight.", "Wind turbines turn the power of wind into electricity.", "Hydroelectric dams use flowing water to generate power.", "These sources will never run out.", "Many countries are building more renewable energy systems.", "The transition to clean energy is one of the most important challenges of our time."] },
+    { title: "Democracy", lines: ["Democracy is a system where people choose their leaders.", "The word comes from Greek and means rule by the people.", "In a democracy, every citizen has the right to vote.", "Leaders must follow laws and respect people's freedoms.", "Free speech and a free press are important parts of democracy.", "Not every country in the world is a democracy.", "Some places are ruled by one person or a small group.", "Democracy is not perfect, but it gives people a voice.", "Citizens must participate to keep democracy strong and healthy."] },
+    { title: "Vaccines", lines: ["Vaccines are one of the greatest inventions in medical history.", "They teach your body how to fight dangerous diseases.", "A vaccine contains a weak or inactive form of a germ.", "When you get vaccinated, your immune system learns to recognize it.", "If the real germ enters your body later, you can fight it off.", "Vaccines have saved millions of lives around the world.", "Diseases like smallpox have been completely eliminated.", "Scientists work hard to develop new vaccines for new diseases.", "Getting vaccinated protects not just you, but everyone around you."] }
+  ],
+  // Level 10: RAZ V level (~100 words)
+  [
+    { title: "Space Exploration", lines: ["Humans have always looked up at the stars with wonder.", "In 1969, astronauts first walked on the moon.", "Since then, we have sent robots to Mars and beyond.", "The International Space Station orbits Earth every 90 minutes.", "Astronauts live and work there for months at a time.", "Private companies are now building rockets for space tourism.", "Scientists dream of sending humans to Mars within the next decade.", "Space exploration teaches us about our universe and ourselves.", "It pushes the boundaries of technology and human courage.", "The next chapter of space exploration is being written right now,", "and it promises to be the most exciting one yet."] },
+    { title: "The Power of Language", lines: ["There are over 7,000 languages spoken in the world today.", "Language is how we share ideas, tell stories, and express feelings.", "Some languages are spoken by billions of people.", "Others are spoken by only a few hundred.", "When a language disappears, a unique way of seeing the world is lost.", "Learning a new language opens doors to different cultures.", "It helps you understand how other people think and live.", "Bilingual people often find it easier to solve problems.", "Language is more than just words.", "It is the bridge that connects all of humanity together."] },
+    { title: "Evolution", lines: ["All living things on Earth are connected through evolution.", "Over millions of years, species change to survive in their environment.", "Small differences between individuals give some an advantage.", "Those with helpful traits are more likely to survive and reproduce.", "Over time, these traits become common in the population.", "This process is called natural selection.", "Charles Darwin first explained this idea in 1859.", "Evolution explains why there are so many different species.", "From tiny bacteria to giant whales, all life shares a common ancestor.", "Understanding evolution helps us protect the diversity of life on our planet."] },
+    { title: "The Ocean and Climate", lines: ["The ocean covers more than 70 percent of Earth's surface.", "It plays a crucial role in regulating our planet's climate.", "Ocean currents move warm water from the equator toward the poles.", "This helps distribute heat around the globe.", "The ocean also absorbs carbon dioxide from the atmosphere.", "Phytoplankton in the ocean produce half of the world's oxygen.", "But rising temperatures are making the ocean more acidic.", "This threatens coral reefs and marine life.", "Protecting the ocean is essential for the health of our entire planet.", "What happens in the ocean affects every living thing on Earth."] },
+    { title: "Critical Thinking", lines: ["In today's world, we are surrounded by information.", "News, social media, and advertisements compete for our attention.", "Not everything we read or hear is true.", "Critical thinking helps us separate facts from opinions.", "It means asking questions and looking for evidence.", "Instead of believing something because everyone says it,", "we should check the source and consider different viewpoints.", "Critical thinking is a skill that takes practice.", "It helps us make better decisions in school and in life.", "The ability to think clearly and independently is more important than ever."] }
+  ]
 ];
 
-// ===== 加载通关记录 =====
+// ===== 通关记录 =====
+var passedRecords = {};
+
 async function loadPassedRecords() {
   if (!currentUser) return;
   try {
-    var { data, error } = await sb.from('typing_challenge_records')
-      .select('*')
-      .eq('user_id', currentUser.id);
+    var { data } = await sb.from('typing_challenge_records').select('*').eq('user_id', currentUser.id);
     if (data) {
-      passedRecords = {};
       data.forEach(function(r) {
-        var key = r.type + '_' + r.level;
-        passedRecords[key] = r;
+        passedRecords[r.type + '_' + r.level] = r;
       });
     }
-  } catch(e) {
-    console.log('加载通关记录失败:', e);
-  }
+  } catch(e) {}
 }
 
-// ===== UI 逻辑 =====
-function switchLang(lang) {
+// ===== 模式切换 =====
+function switchMode(lang) {
   currentLang = lang;
-  document.querySelectorAll('.mode-btn').forEach(function(btn, i) {
-    btn.classList.toggle('active', (i === 0 && lang === 'zh') || (i === 1 && lang === 'en'));
-  });
-  document.getElementById('tipBox').innerHTML = lang === 'zh'
-    ? '💡 中文打字：用拼音输入法打出汉字，计算每分钟打出的汉字数量（字/分钟）<br>⏱️ 每次挑战限时 <b>60秒</b>，达到等级要求速度即通关！'
-    : '💡 英文打字：打出英文单词和句子，计算每分钟打出的单词数（WPM）<br>⏱️ 每次挑战限时 <b>60秒</b>，达到等级要求速度即通关！';
+  document.getElementById('modeZh').classList.toggle('active', lang === 'zh');
+  document.getElementById('modeEn').classList.toggle('active', lang === 'en');
+  if (lang === 'zh') {
+    document.getElementById('tipBox').innerHTML = '📝 中文模式：输入古诗词的每个字和标点，打完整首诗即可结算。<br>⏱️ 计时从你第一次按键开始，打得又快又准才能通关！';
+  } else {
+    document.getElementById('tipBox').innerHTML = '📝 英文模式：输入完整文章（含标点），打完整篇即可结算。<br>⏱️ 计时从你第一次按键开始，打得又快又准才能通关！';
+  }
   renderLevelGrid();
 }
 
+// ===== 等级渲染 =====
 function renderLevelGrid() {
   var grid = document.getElementById('levelGrid');
-  var levels = currentLang === 'zh' ? zhLevels : enLevels;
-  var unit = currentLang === 'zh' ? '字/分' : 'WPM';
-  var typeKey = currentLang === 'zh' ? 'chinese' : 'english';
   var html = '';
   for (var i = 0; i < 10; i++) {
-    var req = levels[i];
-    var key = typeKey + '_' + (i + 1);
-    var isPassed = !!passedRecords[key];
+    var req = currentLang === 'zh' ? zhLevels[i] : enLevels[i];
+    var unit = currentLang === 'zh' ? '字/分' : 'WPM';
+    var recordKey = (currentLang === 'zh' ? 'chinese' : 'english') + '_' + (i + 1);
+    var isPassed = !!passedRecords[recordKey];
     var cls = '';
     if (isPassed) cls += ' passed';
-    if (i + 1 === currentLevel) cls += ' active';
+    if (currentLevel === i + 1) cls += ' active';
     html += '<div class="level-btn' + cls + '" onclick="selectLevel(' + (i+1) + ')">';
     html += '<div class="lv-num">Lv.' + (i+1) + '</div>';
     html += '<div class="lv-req">≥' + req + unit + '</div>';
@@ -601,33 +773,59 @@ function selectLevel(lv) {
   renderLevelGrid();
 }
 
+// ===== 防作弊工具 =====
+function showCheatWarning() {
+  var w = document.getElementById('cheatWarning');
+  w.style.display = 'block';
+  setTimeout(function() { w.style.display = 'none'; }, 2000);
+}
+
+function setupAntiCheat(input) {
+  // 禁止粘贴
+  input.addEventListener('paste', function(e) {
+    e.preventDefault();
+    showCheatWarning();
+  });
+  // 禁止拖拽输入
+  input.addEventListener('drop', function(e) {
+    e.preventDefault();
+    showCheatWarning();
+  });
+  // 检测语音输入和粘贴
+  input.addEventListener('beforeinput', function(e) {
+    if (e.inputType === 'insertFromPaste' || 
+        e.inputType === 'insertFromDrop' ||
+        e.inputType === 'insertFromYank' ||
+        e.inputType === 'insertFromSpeech' ||
+        e.inputType === 'insertReplacementText') {
+      e.preventDefault();
+      showCheatWarning();
+    }
+  });
+}
+
 // ===== 游戏逻辑 =====
 function startChallenge() {
   if (!currentUser) { alert('请先登录！'); return; }
   
-  // 准备文本
-  var textPool = currentLang === 'zh' ? zhTexts : enTexts;
-  var levelIndex = Math.min(currentLevel - 1, textPool.length - 1);
-  var pool = textPool[levelIndex];
-  var shuffled = pool.slice().sort(function() { return Math.random() - 0.5; });
-  var combined = '';
-  for (var i = 0; i < shuffled.length; i++) {
-    combined += shuffled[i];
-    if (currentLang === 'en') combined += ' ';
-  }
-  displayText = combined.trim();
-  
-  // 确保文本足够长
-  while (displayText.length < 500) {
-    var extra = pool[Math.floor(Math.random() * pool.length)];
-    displayText += (currentLang === 'en' ? ' ' : '') + extra;
+  // 选择诗/文章
+  if (currentLang === 'zh') {
+    var levelIndex = Math.min(currentLevel - 1, zhPoems.length - 1);
+    var pool = zhPoems[levelIndex];
+    currentPoem = pool[Math.floor(Math.random() * pool.length)];
+    displayText = currentPoem.lines.join('');
+  } else {
+    var levelIndex = Math.min(currentLevel - 1, enArticles.length - 1);
+    var pool = enArticles[levelIndex];
+    currentPoem = pool[Math.floor(Math.random() * pool.length)];
+    displayText = currentPoem.lines.join(' ');
   }
   
   // 重置统计
-  cumulativeCorrect = 0;
-  cumulativeWrong = 0;
-  currentCorrect = 0;
-  currentWrong = 0;
+  totalCorrect = 0;
+  totalWrong = 0;
+  elapsedSeconds = 0;
+  startTime = 0;
   
   // 显示倒计时
   document.getElementById('selectPanel').style.display = 'none';
@@ -655,57 +853,97 @@ function beginTyping() {
   document.getElementById('statSpeedLabel').textContent = currentLang === 'zh' ? '字/分钟' : 'WPM';
   document.getElementById('statCountLabel').textContent = currentLang === 'zh' ? '已打字数' : '已打词数';
   
-  renderDisplayText();
+  renderPoemDisplay();
   
   var input = document.getElementById('typingInput');
-  input.value = '';
-  input.focus();
-  
-  // 移除旧事件
+  // 移除旧事件监听器
   var newInput = input.cloneNode(true);
   input.parentNode.replaceChild(newInput, input);
+  newInput.value = '';
   
-  timeLeft = 60;
-  startTime = Date.now();
+  // 设置防作弊
+  setupAntiCheat(newInput);
+  
   gameActive = true;
-  document.getElementById('statTime').textContent = '60';
+  startTime = 0; // 第一次按键时才开始计时
+  elapsedSeconds = 0;
+  document.getElementById('statTime').textContent = '0';
   document.getElementById('statSpeed').textContent = '0';
   document.getElementById('statAccuracy').textContent = '100%';
   document.getElementById('statCount').textContent = '0';
   
-  gameTimer = setInterval(function() {
-    timeLeft--;
-    document.getElementById('statTime').textContent = timeLeft;
-    updateStats();
-    if (timeLeft <= 0) {
-      endGame();
-    }
-  }, 1000);
-  
   // 绑定输入事件
-  var typingInput = document.getElementById('typingInput');
   if (currentLang === 'zh') {
-    setupChineseInput(typingInput);
+    setupChineseInput(newInput);
   } else {
-    setupEnglishInput(typingInput);
+    setupEnglishInput(newInput);
   }
-  typingInput.focus();
+  newInput.focus();
 }
 
-function renderDisplayText() {
+function renderPoemDisplay() {
   var container = document.getElementById('textDisplay');
-  var showLen = Math.min(displayText.length, 200);
   var html = '';
-  for (var i = 0; i < showLen; i++) {
-    var cls = 'char';
-    if (i === 0) cls += ' current';
-    html += '<span class="' + cls + '">' + escapeHtml(displayText[i]) + '</span>';
+  
+  // 显示标题和作者
+  if (currentPoem) {
+    if (currentLang === 'zh') {
+      html += '<div class="poem-title">《' + currentPoem.title + '》— ' + currentPoem.author + '</div>';
+    } else {
+      html += '<div class="poem-title">' + currentPoem.title + '</div>';
+    }
   }
+  
+  html += '<div class="poem-lines">';
+  
+  // 按行展示，每行一句
+  var charIndex = 0;
+  if (currentLang === 'zh') {
+    for (var li = 0; li < currentPoem.lines.length; li++) {
+      var line = currentPoem.lines[li];
+      for (var ci = 0; ci < line.length; ci++) {
+        var cls = 'char';
+        if (charIndex === 0) cls += ' current';
+        html += '<span class="' + cls + '" data-index="' + charIndex + '">' + escapeHtml(line[ci]) + '</span>';
+        charIndex++;
+      }
+      if (li < currentPoem.lines.length - 1) {
+        html += '<span class="line-break"></span>';
+      }
+    }
+  } else {
+    // 英文按行展示
+    var fullText = displayText;
+    var lineStart = 0;
+    for (var li = 0; li < currentPoem.lines.length; li++) {
+      var line = currentPoem.lines[li];
+      var lineInFull = line;
+      // 找到这行在 fullText 中的位置
+      for (var ci = 0; ci < lineInFull.length; ci++) {
+        var cls = 'char';
+        if (charIndex === 0) cls += ' current';
+        html += '<span class="' + cls + '" data-index="' + charIndex + '">' + escapeHtml(fullText[charIndex]) + '</span>';
+        charIndex++;
+      }
+      // 行间加空格（已包含在 displayText 中）
+      if (li < currentPoem.lines.length - 1) {
+        // 空格字符
+        var cls = 'char';
+        if (charIndex === 0) cls += ' current';
+        html += '<span class="' + cls + '" data-index="' + charIndex + '">' + escapeHtml(fullText[charIndex]) + '</span>';
+        charIndex++;
+        html += '<span class="line-break"></span>';
+      }
+    }
+  }
+  
+  html += '</div>';
   container.innerHTML = html;
   charElements = container.querySelectorAll('.char');
 }
 
 function escapeHtml(str) {
+  if (!str) return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/ /g, '&nbsp;');
 }
 
@@ -740,18 +978,28 @@ function setupEnglishInput(input) {
 function processInput(value) {
   if (!gameActive) return;
   
-  currentCorrect = 0;
-  currentWrong = 0;
+  // 第一次输入时开始计时
+  if (startTime === 0 && value.length > 0) {
+    startTime = Date.now();
+    gameTimer = setInterval(function() {
+      elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+      document.getElementById('statTime').textContent = elapsedSeconds;
+      updateStats();
+    }, 1000);
+  }
+  
+  totalCorrect = 0;
+  totalWrong = 0;
   
   for (var i = 0; i < charElements.length; i++) {
     charElements[i].className = 'char';
     if (i < value.length) {
       if (value[i] === displayText[i]) {
         charElements[i].className = 'char correct';
-        currentCorrect++;
+        totalCorrect++;
       } else {
         charElements[i].className = 'char wrong';
-        currentWrong++;
+        totalWrong++;
       }
     } else if (i === value.length) {
       charElements[i].className = 'char current';
@@ -760,37 +1008,27 @@ function processInput(value) {
   
   updateStats();
   
-  // 如果打完了显示的文字，加载更多
-  if (value.length >= charElements.length && charElements.length > 0) {
-    cumulativeCorrect += currentCorrect;
-    cumulativeWrong += currentWrong;
-    displayText = displayText.substring(value.length);
-    var input = document.getElementById('typingInput');
-    input.value = '';
-    currentCorrect = 0;
-    currentWrong = 0;
-    renderDisplayText();
+  // 打完整首诗/文章
+  if (value.length >= displayText.length) {
+    endGame();
   }
 }
 
 function updateStats() {
-  var elapsed = (Date.now() - startTime) / 1000 / 60;
+  var elapsed = startTime > 0 ? (Date.now() - startTime) / 1000 / 60 : 0.01;
   if (elapsed < 0.01) elapsed = 0.01;
-  
-  var totalCorrectNow = cumulativeCorrect + currentCorrect;
-  var totalWrongNow = cumulativeWrong + currentWrong;
-  var totalAll = totalCorrectNow + totalWrongNow;
   
   var speed = 0;
   if (currentLang === 'zh') {
-    speed = Math.round(totalCorrectNow / elapsed);
-    document.getElementById('statCount').textContent = totalCorrectNow;
+    speed = Math.round(totalCorrect / elapsed);
+    document.getElementById('statCount').textContent = totalCorrect;
   } else {
-    speed = Math.round((totalCorrectNow / 5) / elapsed);
-    document.getElementById('statCount').textContent = Math.round(totalCorrectNow / 5);
+    speed = Math.round((totalCorrect / 5) / elapsed);
+    document.getElementById('statCount').textContent = Math.round(totalCorrect / 5);
   }
   
-  var accuracy = totalAll > 0 ? Math.round((totalCorrectNow / totalAll) * 100) : 100;
+  var totalAll = totalCorrect + totalWrong;
+  var accuracy = totalAll > 0 ? Math.round((totalCorrect / totalAll) * 100) : 100;
   
   document.getElementById('statSpeed').textContent = speed;
   document.getElementById('statAccuracy').textContent = accuracy + '%';
@@ -798,24 +1036,20 @@ function updateStats() {
 
 function endGame() {
   gameActive = false;
-  clearInterval(gameTimer);
+  if (gameTimer) clearInterval(gameTimer);
   
-  // 最终统计
-  cumulativeCorrect += currentCorrect;
-  cumulativeWrong += currentWrong;
-  
-  var totalCorrectFinal = cumulativeCorrect;
-  var totalWrongFinal = cumulativeWrong;
-  var totalAll = totalCorrectFinal + totalWrongFinal;
+  var elapsed = startTime > 0 ? (Date.now() - startTime) / 1000 / 60 : 0.01;
+  if (elapsed < 0.01) elapsed = 0.01;
   
   var speed = 0;
   if (currentLang === 'zh') {
-    speed = totalCorrectFinal; // 60秒 = 1分钟，所以正确字数就是字/分钟
+    speed = Math.round(totalCorrect / elapsed);
   } else {
-    speed = Math.round(totalCorrectFinal / 5); // WPM
+    speed = Math.round((totalCorrect / 5) / elapsed);
   }
   
-  var accuracy = totalAll > 0 ? Math.round((totalCorrectFinal / totalAll) * 100) : 0;
+  var totalAll = totalCorrect + totalWrong;
+  var accuracy = totalAll > 0 ? Math.round((totalCorrect / totalAll) * 100) : 0;
   
   // 判断是否通过
   var requirement = currentLang === 'zh' ? zhLevels[currentLevel - 1] : enLevels[currentLevel - 1];
@@ -833,56 +1067,49 @@ async function showResult(speed, accuracy, passed, requirement) {
   var unit = currentLang === 'zh' ? '字/分钟' : 'WPM';
   var typeKey = currentLang === 'zh' ? 'chinese' : 'english';
   var recordKey = typeKey + '_' + currentLevel;
+  var bestField = currentLang === 'zh' ? 'best_cpm' : 'best_wpm';
+  
   var existingRecord = passedRecords[recordKey];
   
   if (passed) {
     document.getElementById('resultIcon').textContent = '🎉';
-    document.getElementById('resultTitle').textContent = '恭喜通过 Lv.' + currentLevel + '！';
+    document.getElementById('resultTitle').textContent = '挑战成功！';
     document.getElementById('resultDetail').innerHTML = 
       '速度：<b>' + speed + ' ' + unit + '</b>（要求≥' + requirement + '）<br>' +
-      '准确率：<b>' + accuracy + '%</b>';
+      '准确率：<b>' + accuracy + '%</b><br>' +
+      '用时：<b>' + elapsedSeconds + '秒</b>';
     
-    // 检查是否首次通关
-    var isFirstPass = !existingRecord;
-    var coinsEarned = 0;
-    
-    if (isFirstPass) {
-      coinsEarned = levelRewards[currentLevel - 1];
-      // 插入通关记录
-      var insertData = {
-        user_id: currentUser.id,
-        type: typeKey,
-        level: currentLevel,
-        coins_rewarded: coinsEarned
-      };
-      if (currentLang === 'zh') {
-        insertData.best_cpm = speed;
-      } else {
-        insertData.best_wpm = speed;
-      }
-      insertData.best_accuracy = accuracy;
-      
-      await sb.from('typing_challenge_records').insert(insertData);
+    if (!existingRecord) {
+      // 首次通关
+      var reward = levelRewards[currentLevel - 1];
+      document.getElementById('coinsReward').textContent = '🎁 获得 ' + reward + ' 金币！';
       
       // 发放金币
-      var newCoins = (currentProfile.coins || 0) + coinsEarned;
+      var newCoins = (currentProfile.coins || 0) + reward;
       await sb.from('profiles').update({ coins: newCoins }).eq('id', currentUser.id);
       currentProfile.coins = newCoins;
       document.getElementById('coinsDisplay').textContent = '🪙 ' + newCoins;
       
-      document.getElementById('coinsReward').textContent = '🪙 +' + coinsEarned + ' 金币（首次通关奖励）！';
+      // 保存通关记录
+      var insertData = {
+        user_id: currentUser.id,
+        type: typeKey,
+        level: currentLevel,
+        coins_rewarded: reward
+      };
+      insertData[bestField] = speed;
+      insertData.best_accuracy = accuracy;
       
-      // 更新缓存
+      await sb.from('typing_challenge_records').insert(insertData);
       passedRecords[recordKey] = insertData;
+      document.getElementById('bestRecord').textContent = '';
     } else {
-      // 已通关，检查是否刷新最佳成绩
-      var bestField = currentLang === 'zh' ? 'best_cpm' : 'best_wpm';
+      // 已通关，检查是否刷新记录
       var oldBest = existingRecord[bestField] || 0;
-      var newBest = speed > oldBest;
-      
-      if (newBest) {
-        var updateData = { updated_at: new Date().toISOString(), best_accuracy: accuracy };
+      if (speed > oldBest) {
+        var updateData = { updated_at: new Date().toISOString() };
         updateData[bestField] = speed;
+        updateData.best_accuracy = accuracy;
         await sb.from('typing_challenge_records').update(updateData)
           .eq('user_id', currentUser.id)
           .eq('type', typeKey)
@@ -900,6 +1127,7 @@ async function showResult(speed, accuracy, passed, requirement) {
     document.getElementById('resultDetail').innerHTML = 
       '速度：<b>' + speed + ' ' + unit + '</b>（要求≥' + requirement + '）<br>' +
       '准确率：<b>' + accuracy + '%</b><br>' +
+      '用时：<b>' + elapsedSeconds + '秒</b><br>' +
       '<span style="color:#ff8c00;">再快一点就能通过啦！加油！</span>';
     document.getElementById('coinsReward').textContent = '';
     document.getElementById('bestRecord').textContent = '';
