@@ -86,6 +86,61 @@
       border-right: 2px solid #f0f0f0;
     }
 
+    /* ===== 五要素进度条 ===== */
+    .progress-tracker {
+      padding: 12px 18px;
+      background: linear-gradient(135deg, #fffbeb, #fef3c7);
+      border-bottom: 2px solid #fde68a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .progress-tracker .pt-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #92400e;
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+    .progress-step {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      background: white;
+      border: 1.5px solid #e5e7eb;
+      color: #9ca3af;
+      transition: all 0.3s;
+      white-space: nowrap;
+    }
+    .progress-step.active {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: #fff7ed;
+      box-shadow: 0 2px 8px rgba(255, 107, 53, 0.15);
+    }
+    .progress-step.done {
+      border-color: #86efac;
+      color: #166534;
+      background: #f0fdf4;
+    }
+    .progress-step .step-icon {
+      font-size: 13px;
+    }
+    .progress-step .step-check {
+      display: none;
+    }
+    .progress-step.done .step-check {
+      display: inline;
+    }
+    .progress-step.done .step-icon {
+      display: none;
+    }
+
     .chat-messages {
       flex: 1;
       overflow-y: auto;
@@ -174,6 +229,71 @@
       font-size: 12px;
       font-weight: 600;
     }
+
+    /* 确认卡片样式 */
+    .confirm-card {
+      background: linear-gradient(135deg, #eff6ff, #dbeafe) !important;
+      border: 1.5px solid #93c5fd !important;
+      padding: 16px !important;
+    }
+    .confirm-card .cc-header {
+      font-weight: 800;
+      font-size: 15px;
+      color: #1e40af;
+      margin-bottom: 12px;
+    }
+    .confirm-card .cc-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .confirm-card .cc-item .cc-emoji {
+      flex-shrink: 0;
+      font-size: 16px;
+    }
+    .confirm-card .cc-item .cc-label {
+      font-weight: 700;
+      color: #1e40af;
+      margin-right: 4px;
+    }
+    .confirm-card .cc-item .cc-value {
+      color: #374151;
+    }
+    .confirm-card .cc-footer {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed #93c5fd;
+      font-size: 13px;
+      color: #6b7280;
+    }
+    .confirm-card .cc-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .confirm-card .cc-btn {
+      padding: 8px 16px;
+      border-radius: 14px;
+      border: none;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .cc-btn-confirm {
+      background: linear-gradient(135deg, #10b981, #34d399);
+      color: white;
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+    }
+    .cc-btn-confirm:hover { transform: scale(1.05); }
+    .cc-btn-modify {
+      background: #f3f4f6;
+      color: #4b5563;
+    }
+    .cc-btn-modify:hover { background: #e5e7eb; }
 
     /* Loading 动画 - 小鸟飞翔 */
     .msg-loading .msg-body {
@@ -494,6 +614,14 @@
       .preview-topbar {
         padding: 10px 16px;
       }
+      .progress-tracker {
+        padding: 8px 12px;
+        gap: 4px;
+      }
+      .progress-step {
+        padding: 3px 7px;
+        font-size: 11px;
+      }
     }
   </style>
 </head>
@@ -514,19 +642,53 @@
   <div class="editor-main">
     <!-- 左侧对话 -->
     <div class="chat-panel">
+      <!-- 五要素进度条 -->
+      <div class="progress-tracker" id="progressTracker">
+        <span class="pt-label">🎮 设计进度：</span>
+        <span class="progress-step active" data-step="goal">
+          <span class="step-icon">🎯</span>
+          <span class="step-check">✅</span>
+          目标
+        </span>
+        <span class="progress-step" data-step="rule">
+          <span class="step-icon">📋</span>
+          <span class="step-check">✅</span>
+          规则
+        </span>
+        <span class="progress-step" data-step="challenge">
+          <span class="step-icon">⚡</span>
+          <span class="step-check">✅</span>
+          挑战
+        </span>
+        <span class="progress-step" data-step="reward">
+          <span class="step-icon">🏆</span>
+          <span class="step-check">✅</span>
+          奖励
+        </span>
+        <span class="progress-step" data-step="world">
+          <span class="step-icon">🌍</span>
+          <span class="step-check">✅</span>
+          世界
+        </span>
+      </div>
+
       <div class="chat-messages" id="chatMessages">
         <!-- AI 初始引导 -->
         <div class="msg ai-msg">
           <div class="msg-avatar">🐤</div>
           <div class="msg-body">
             嗨！欢迎来到 AI 游戏工坊！我是小菜鸟 🐤<br><br>
-            今天我来当你的<strong>游戏产品经理导师</strong>，帮你把脑子里的想法变成一个真正能玩的游戏！✨<br><br>
-            先告诉我——<strong>你为什么想做一个游戏呀？</strong><br><br>
+            今天你来当<strong>游戏设计师</strong>！我会帮你一步步把脑子里的想法变成一个真正能玩的游戏 ✨<br><br>
+            做一个好游戏需要想清楚 <strong>5 个要素</strong>：<br>
+            🎯 目标 · 📋 规则 · ⚡ 挑战 · 🏆 奖励 · 🌍 世界<br><br>
+            我们一个一个来！先从第一个开始——<br><br>
+            <strong>🎯 在你的游戏里，玩家要做什么才算赢？</strong><br><br>
             <span style="color:#888;font-size:13px">比如：<br>
-            🎯 玩过一个游戏觉得不够好，想自己做个更好的<br>
-            💡 脑子里突然冒出一个超酷的想法<br>
-            🎁 想给朋友做一个生日礼物游戏<br><br>
-            当然你也可以说别的原因！</span><br><br>
+            · 跑到终点就赢了<br>
+            · 打败所有怪物<br>
+            · 收集够 100 个金币<br>
+            · 活到最后一个人<br><br>
+            当然你也可以说别的！</span><br><br>
             <span style="color:#aaa;font-size:12px">💡 可以打字，也可以点麦克风用语音告诉我</span>
           </div>
         </div>
@@ -555,7 +717,7 @@
         <div class="preview-empty" id="previewEmpty">
           <div class="big-icon">🎮</div>
           <h3>你的游戏将在这里预览</h3>
-          <p>在左边告诉 AI 你想做什么游戏<br>生成后可以直接试玩！</p>
+          <p>完成左边的 5 个设计要素<br>确认后就能生成你的专属游戏！</p>
         </div>
         <iframe class="preview-iframe" id="previewIframe"></iframe>
       </div>
@@ -618,6 +780,17 @@
     var isGenerating = false;
     var currentUser = null;
 
+    // ===== 五要素状态 =====
+    var gameDesign = {
+      goal: '',       // 目标
+      rule: '',       // 规则
+      challenge: '',  // 挑战
+      reward: '',     // 奖励
+      world: ''       // 世界观
+    };
+    var designConfirmed = false; // 是否已确认设计
+    var gameGenerated = false;   // 是否已生成游戏
+
     var FUNC_URL = SUPABASE_URL + '/functions/v1/ai-game-generator';
 
     var CATEGORY_MAP = {
@@ -626,32 +799,45 @@
     };
 
     // ===== System Prompt =====
-    var SYSTEM_PROMPT = '你是小菜鸟平台的「游戏产品经理导师」，你的任务是像一个好奇的朋友一样，引导小朋友一步步把脑子里的想法变成一个真正能玩的游戏。\n\n' +
+    var SYSTEM_PROMPT = '你是小菜鸟平台的「游戏设计导师」，帮助小朋友（小学生）一步步设计出自己的游戏。你的任务是引导孩子自己说出游戏的五个核心要素。\n\n' +
       '【你的性格】\n' +
-      '- 语气像一个超级好奇的朋友，不是接单工具\n' +
+      '- 语气像一个超级好奇的朋友，热情、鼓励\n' +
       '- 用小学生能听懂的简单语言，多用 emoji\n' +
       '- 每次只问一个问题，等孩子回答后再问下一个\n' +
-      '- 每个问题后给 2-3 个选项作为启发，但鼓励孩子说出自己的想法\n' +
-      '- 对孩子的每个回答先表示肯定和好奇，再引导下一步\n\n' +
-      '【六步引导流程】\n' +
-      '第一步 - 发现灵感 💡：问"你为什么想做这个游戏？是因为玩过什么好玩的？还是脑子里突然冒出一个酷想法？"\n' +
-      '第二步 - 定义玩家 👥：问"你想让谁来玩这个游戏？比如你的同学？弟弟妹妹？还是全世界的小朋友？"\n' +
-      '第三步 - 设计游戏结构 🏗️：这一步最重要，每次只问一个子问题（按顺序）：\n' +
-      '  a) 目标：玩家要完成什么任务才算赢？\n' +
-      '  b) 规则：有什么限制或约束让游戏不会太简单？\n' +
-      '  c) 挑战：什么东西会越来越难？\n' +
-      '  d) 奖励：玩家做得好会得到什么奖励？\n' +
-      '  e) 世界观：游戏发生在什么样的世界里？\n' +
-      '第四步 - 生成原型 🎮：复述孩子说的所有内容，让孩子确认"我理解得对不对？"，确认后生成游戏\n' +
-      '第五步 - 收集反馈 🔄：游戏生成后问"试玩了吗？哪里最好玩？哪里想改？"\n' +
-      '第六步 - 发布看数据 📊：鼓励发布，告诉孩子可以看别人怎么评价\n\n' +
+      '- 对孩子的每个回答先表示肯定（"哇！""太酷了！""好有创意！"），再引导下一步\n' +
+      '- 如果孩子的回答很短或不确定，给 2-3 个选项启发，但鼓励孩子说出自己的想法\n\n' +
+      '【五要素引导流程（必须按顺序收集）】\n' +
+      '你必须按顺序引导孩子说出以下五个要素，每收集完一个才进入下一个：\n\n' +
+      '1️⃣ 目标 🎯：「在你的游戏里，玩家要做什么才算赢？」\n' +
+      '   - 启发：跑到终点？打败Boss？收集够东西？活到最后？\n\n' +
+      '2️⃣ 规则 📋：「玩家可以做哪些操作？有什么不能做的？」\n' +
+      '   - 启发：能跳？能射击？不能碰墙？有时间限制？\n\n' +
+      '3️⃣ 挑战 ⚡：「游戏里什么东西会让玩家觉得难、但又想继续挑战？」\n' +
+      '   - 启发：怪物越来越多？速度越来越快？迷宫越来越复杂？\n\n' +
+      '4️⃣ 奖励 🏆：「玩家做到了什么会得到奖励？奖励是什么？」\n' +
+      '   - 启发：得分？解锁新角色？获得超能力？\n\n' +
+      '5️⃣ 世界观 🌍：「你的游戏发生在什么地方？是什么风格？」\n' +
+      '   - 启发：太空？森林？古代？未来城市？海底？糖果世界？\n\n' +
+      '【确认环节（最重要！有仪式感）】\n' +
+      '当五个要素全部收集完毕后，你必须用以下格式复述，让孩子确认：\n\n' +
+      '「🎉 太棒了！你已经完成了所有设计！让我来复述一下你设计的游戏：\n\n' +
+      '🎯 目标：[孩子说的目标]\n' +
+      '📋 规则：[孩子说的规则]\n' +
+      '⚡ 挑战：[孩子说的挑战]\n' +
+      '🏆 奖励：[孩子说的奖励]\n' +
+      '🌍 世界：[孩子说的世界观]\n\n' +
+      '这就是你设计的游戏！确认没问题的话，我就开始帮你制作啦！\n' +
+      '如果想改哪个部分，直接告诉我就好～」\n\n' +
       '【重要规则】\n' +
-      '- 必须至少走完前三步（灵感+玩家+游戏结构至少2个子问题）才能生成游戏\n' +
-      '- 第四步生成前，必须先复述一遍孩子的想法让孩子确认\n' +
-      '- 如果孩子说"快点生成"或"直接做吧"，可以跳过剩余子问题，但仍要复述确认\n' +
-      '- 如果孩子的回答很短或不确定，用选项启发而不是催促\n\n' +
+      '- 必须收集完全部五个要素才能复述确认，不能跳过任何一个\n' +
+      '- 孩子确认后（说"好""可以""没问题""开始吧"等肯定词），才输出生成JSON\n' +
+      '- 如果孩子说"改一下目标/规则/挑战/奖励/世界"，回到对应要素重新收集，然后重新复述确认\n' +
+      '- 如果孩子说"快点""直接做"，温柔地说"别急，好的游戏需要想清楚每一步哦～我们已经完成X个了，还差Y个！"\n' +
+      '- 每次回复末尾，用 [PROGRESS:goal=1,rule=0,challenge=0,reward=0,world=0] 标记当前各要素的完成状态（1=已收集，0=未收集）\n' +
+      '- 确认环节回复末尾标记 [CONFIRM_PENDING]\n' +
+      '- 孩子确认后标记 [CONFIRMED]\n\n' +
       '【生成阶段】\n' +
-      '当孩子确认你的复述正确后，输出如下JSON（不要有任何其他文字，不要markdown代码块）：\n' +
+      '只有在孩子确认复述正确后（你标记了[CONFIRMED]），才输出如下JSON（不要有任何其他文字，不要markdown代码块）：\n' +
       '{\n' +
       '  "action": "generate",\n' +
       '  "title": "游戏名称（2-8个字，吸引小学生）",\n' +
@@ -660,7 +846,7 @@
       '  "cover_prompt": "封面图描述（画面内容、色调、风格，50字以内）",\n' +
       '  "html": "完整单文件HTML5游戏代码"\n' +
       '}\n\n' +
-      '【修改阶段（第五步）】\n' +
+      '【修改阶段（游戏生成后）】\n' +
       '用户试玩后要求修改时，先问清楚想改什么，然后输出同样格式的JSON，html字段输出完整修改后的代码。\n\n' +
       '【游戏代码要求】\n' +
       '- 完整单文件HTML，包含所有CSS和JS，不依赖外部资源\n' +
@@ -688,6 +874,72 @@
       chatInput.focus();
     }
     init();
+
+    // ===== 更新进度条 =====
+    function updateProgress() {
+      var steps = document.querySelectorAll('.progress-step');
+      var keys = ['goal', 'rule', 'challenge', 'reward', 'world'];
+      var foundActive = false;
+
+      keys.forEach(function(key, i) {
+        var el = steps[i];
+        el.classList.remove('active', 'done');
+        if (gameDesign[key]) {
+          el.classList.add('done');
+        } else if (!foundActive) {
+          el.classList.add('active');
+          foundActive = true;
+        }
+      });
+
+      // 如果全部完成但未确认，最后一个高亮
+      if (!foundActive && allElementsDone()) {
+        // 全部完成，不需要额外高亮
+      }
+    }
+
+    function allElementsDone() {
+      return gameDesign.goal && gameDesign.rule && gameDesign.challenge && gameDesign.reward && gameDesign.world;
+    }
+
+    // ===== 解析 AI 回复中的进度标记 =====
+    function parseProgressMarkers(content) {
+      // 解析 [PROGRESS:goal=1,rule=0,...] 标记
+      var progressMatch = content.match(/\[PROGRESS:([^\]]+)\]/);
+      if (progressMatch) {
+        var pairs = progressMatch[1].split(',');
+        pairs.forEach(function(pair) {
+          var kv = pair.trim().split('=');
+          if (kv.length === 2) {
+            var key = kv[0].trim();
+            var val = kv[1].trim();
+            if (key in gameDesign) {
+              if (val === '1' && !gameDesign[key]) {
+                gameDesign[key] = 'collected';
+              } else if (val === '0') {
+                gameDesign[key] = '';
+              }
+            }
+          }
+        });
+        updateProgress();
+      }
+
+      // 检测确认状态
+      if (content.indexOf('[CONFIRMED]') !== -1) {
+        designConfirmed = true;
+      }
+      if (content.indexOf('[CONFIRM_PENDING]') !== -1) {
+        // 确认等待中，不做特殊处理
+      }
+
+      // 清理标记，不显示给用户
+      return content
+        .replace(/\[PROGRESS:[^\]]+\]/g, '')
+        .replace(/\[CONFIRM_PENDING\]/g, '')
+        .replace(/\[CONFIRMED\]/g, '')
+        .trim();
+    }
 
     // ===== 发送消息 =====
     function sendMessage() {
@@ -761,57 +1013,59 @@
         if (gameData && gameData.action === 'generate' && gameData.html) {
           // === 游戏生成成功 ===
           currentGameData = gameData;
+          gameGenerated = true;
 
-          // 存原始 JSON 到历史（让 AI 下轮能看到完整游戏信息）
+          // 存原始 JSON 到历史
           conversationHistory.push({ role: 'assistant', content: content });
 
           // 显示友好气泡
-          var cardHtml = '✅ 游戏已生成！<br><br>' +
+          var cardHtml = '🎉 游戏制作完成！<br><br>' +
             '<div class="gc-title">' + escapeHtml(gameData.title) + '</div>' +
             '<div class="gc-desc">' + escapeHtml(gameData.description) + '</div>' +
             '<span class="gc-tag">' + (CATEGORY_MAP[gameData.category] || '休闲') + '</span>' +
-            '<br><br><span style="color:#999;font-size:12px">👉 右侧可试玩！满意就点「发布」<br>想改就继续说，比如"加个排行榜"</span>';
+            '<br><br><span style="font-size:13px;color:#555">👉 右边可以试玩！觉得满意就点「发布」吧～<br>想改什么随时告诉我！</span>';
           appendBubble(cardHtml, 'ai-msg', false, 'game-card-bubble');
 
-          // 渲染预览
+          // 显示预览
           showPreview(gameData);
+
         } else {
-          // === 普通对话回复 ===
+          // === 普通对话 ===
+          // 解析进度标记
+          var cleanContent = parseProgressMarkers(content);
+
           conversationHistory.push({ role: 'assistant', content: content });
-          appendBubble(escapeHtml(content), 'ai-msg');
+
+          // 显示 AI 回复
+          appendBubble(escapeHtml(cleanContent), 'ai-msg');
         }
+
       } catch (err) {
         if (loadingEl && loadingEl.parentNode) loadingEl.remove();
-        appendBubble('❌ ' + escapeHtml(err.message || '生成失败，请稍后重试'), 'ai-msg');
-        // 失败时移除最后的用户消息
-        conversationHistory.pop();
-      } finally {
-        isGenerating = false;
-        sendBtn.disabled = false;
-        chatInput.disabled = false;
-        chatInput.focus();
+        appendBubble('😅 哎呀出了点问题：' + escapeHtml(err.message) + '<br><br>再试一次吧！', 'ai-msg');
       }
+
+      isGenerating = false;
+      sendBtn.disabled = false;
+      chatInput.disabled = false;
+      chatInput.focus();
     }
 
     // ===== 解析游戏 JSON =====
     function tryParseGame(content) {
-      // 直接解析
-      try {
-        var d = JSON.parse(content);
-        if (d.html && d.title) return d;
-      } catch(e) {}
+      if (!content) return null;
+      var trimmed = content.trim();
 
-      // 提取最外层 { ... }
-      var m = content.match(/\{[\s\S]*\}/);
-      if (m) {
+      // 直接尝试解析
+      if (trimmed.startsWith('{')) {
         try {
-          var d = JSON.parse(m[0]);
+          var d = JSON.parse(trimmed);
           if (d.html && d.title) return d;
         } catch(e) {}
       }
 
-      // 提取 ```json ... ```
-      var cm = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      // 尝试从 markdown 代码块中提取
+      var cm = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (cm) {
         try {
           var d = JSON.parse(cm[1]);
@@ -863,14 +1117,13 @@
       return div.innerHTML.replace(/\n/g, '<br>');
     }
 
-    // ===== 语音输入 (Web Speech API, 可替换) =====
+    // ===== 语音输入 (Web Speech API) =====
     var recognition = null;
     var isRecording = false;
 
     function initSpeech() {
       var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) {
-        // 浏览器不支持，隐藏麦克风按钮
         voiceBtn.style.display = 'none';
         return;
       }
@@ -926,7 +1179,6 @@
         try {
           recognition.start();
         } catch(e) {
-          // 可能已经在运行
           isRecording = false;
           voiceBtn.classList.remove('recording');
           voiceBtn.textContent = '🎤';
