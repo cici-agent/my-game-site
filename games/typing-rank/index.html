@@ -452,7 +452,7 @@ body {
 
       <div class="settlement-box">
         ⏰ <b>结算时间：</b>每周六北京时间 20:00<br>
-        🥇 第一名 +20🪙 | 🥈 第二名 +15🪙 | 🥉 第三名 +10🪙<br>
+        🥇 第一名 +30🪙 | 🥈 第二名 +20🪙 | 🥉 第三名 +10🪙<br>
         📅 下次结算：<span id="nextSettlement">--</span>
       </div>
     </div>
@@ -751,7 +751,7 @@ async function checkAndSettle() {
       lang: rankLang
     };
     
-    var rewards = [20, 15, 10];
+    var rewards = [30, 20, 10];
     var fields = ['first', 'second', 'third'];
     
     for (var i = 0; i < Math.min(lastWeekData.length, 3); i++) {
@@ -798,7 +798,7 @@ function showChampion(champion) {
     '<div class="crown">👑</div>' +
     '<div class="champ-text">上周冠军</div>' +
     '<div class="champ-name">' + escapeHtml(champion.username) + '</div>' +
-    '<div class="champ-text">' + Math.round(champion.best_speed) + ' ' + unit + ' | 获得 20🪙</div>' +
+    '<div class="champ-text">' + Math.round(champion.best_speed) + ' ' + unit + ' | 获得 30🪙</div>' +
     '</div>';
 }
 
