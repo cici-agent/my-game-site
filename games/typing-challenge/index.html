@@ -774,8 +774,9 @@ function selectLevel(lv) {
 }
 
 // ===== 防作弊工具 =====
-function showCheatWarning() {
+function showCheatWarning(msg) {
   var w = document.getElementById('cheatWarning');
+  w.textContent = '⚠️ ' + (msg || '请用键盘打字哦！');
   w.style.display = 'block';
   setTimeout(function() { w.style.display = 'none'; }, 2000);
 }
@@ -784,14 +785,14 @@ function setupAntiCheat(input) {
   // 禁止粘贴
   input.addEventListener('paste', function(e) {
     e.preventDefault();
-    showCheatWarning();
+    showCheatWarning('不能粘贴哦！');
   });
   // 禁止拖拽输入
   input.addEventListener('drop', function(e) {
     e.preventDefault();
-    showCheatWarning();
+    showCheatWarning('请用键盘打字哦！');
   });
-  // 检测语音输入和粘贴
+  // 检测语音输入和粘贴（beforeinput 拦截）
   input.addEventListener('beforeinput', function(e) {
     if (e.inputType === 'insertFromPaste' || 
         e.inputType === 'insertFromDrop' ||
@@ -799,7 +800,25 @@ function setupAntiCheat(input) {
         e.inputType === 'insertFromSpeech' ||
         e.inputType === 'insertReplacementText') {
       e.preventDefault();
-      showCheatWarning();
+      if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromYank') {
+        showCheatWarning('不能粘贴哦！');
+      } else {
+        showCheatWarning('请用键盘打字哦！');
+      }
+    }
+  });
+  // 二次检测：input 事件检查 inputType（部分浏览器 beforeinput 不触发）
+  input.addEventListener('input', function(e) {
+    if (e.inputType === 'insertFromPaste' || 
+        e.inputType === 'insertFromDrop' ||
+        e.inputType === 'insertFromSpeech' ||
+        e.inputType === 'insertReplacementText') {
+      input.value = '';
+      if (e.inputType === 'insertFromPaste') {
+        showCheatWarning('不能粘贴哦！');
+      } else {
+        showCheatWarning('请用键盘打字哦！');
+      }
     }
   });
 }
