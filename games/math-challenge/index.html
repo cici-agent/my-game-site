@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>数学闯关 - 小菜鸟</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #fff0f5 0%, #fff5e6 100%);
+  min-height: 100vh;
+  color: #333;
+}
+.container { max-width: 800px; margin: 0 auto; padding: 16px; }
+
+/* Header */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; margin-bottom: 16px;
+}
+.header h1 { font-size: 1.4em; background: linear-gradient(135deg, #ff6b9d, #ffa751); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header .coins { background: #fff3cd; border-radius: 20px; padding: 6px 14px; font-size: 0.9em; font-weight: 600; }
+.back-btn {
+  background: none; border: none; font-size: 1.5em; cursor: pointer; padding: 4px 8px;
+}
+
+/* Category Cards */
+.categories { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 500px) { .categories { grid-template-columns: 1fr; } }
+.cat-card {
+  background: white; border-radius: 16px; padding: 20px; cursor: pointer;
+  box-shadow: 0 4px 15px rgba(255,107,157,0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative; overflow: hidden;
+}
+.cat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(255,107,157,0.2); }
+.cat-card .icon { font-size: 2.2em; margin-bottom: 8px; }
+.cat-card .name { font-size: 1.1em; font-weight: 700; margin-bottom: 4px; }
+.cat-card .desc { font-size: 0.8em; color: #888; margin-bottom: 10px; }
+.cat-card .progress-bar { height: 6px; background: #f0f0f0; border-radius: 3px; overflow: hidden; }
+.cat-card .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.cat-card .progress-text { font-size: 0.75em; color: #999; margin-top: 4px; }
+.cat-card:nth-child(1) .progress-fill { background: linear-gradient(90deg, #ff6b9d, #ff8a80); }
+.cat-card:nth-child(2) .progress-fill { background: linear-gradient(90deg, #ffa751, #ffcc02); }
+.cat-card:nth-child(3) .progress-fill { background: linear-gradient(90deg, #a18cd1, #fbc2eb); }
+.cat-card:nth-child(4) .progress-fill { background: linear-gradient(90deg, #43e97b, #38f9d7); }
+.cat-card:nth-child(5) .progress-fill { background: linear-gradient(90deg, #4facfe, #00f2fe); }
+
+/* Level Select */
+.levels-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 16px; }
+@media (max-width: 500px) { .levels-grid { grid-template-columns: repeat(4, 1fr); } }
+.level-btn {
+  aspect-ratio: 1; border-radius: 14px; border: none; font-size: 1.2em; font-weight: 700;
+  cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: transform 0.2s;
+}
+.level-btn.completed { background: linear-gradient(135deg, #43e97b, #38f9d7); color: white; }
+.level-btn.current { background: linear-gradient(135deg, #ff6b9d, #ffa751); color: white; animation: pulse 2s infinite; }
+.level-btn.locked { background: #e8e8e8; color: #bbb; cursor: not-allowed; }
+.level-btn .check { font-size: 0.7em; margin-top: 2px; }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+
+/* Quiz Screen */
+.quiz-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px; padding: 12px 16px; background: white; border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+.quiz-progress { font-size: 0.9em; color: #666; }
+.quiz-score { font-size: 0.9em; font-weight: 600; color: #ff6b9d; }
+.question-card {
+  background: white; border-radius: 16px; padding: 24px; margin-bottom: 16px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 120px;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+}
+.question-text { font-size: 1.2em; font-weight: 600; text-align: center; line-height: 1.6; }
+.question-canvas { margin-top: 12px; }
+.options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 400px) { .options { grid-template-columns: 1fr; } }
+.option-btn {
+  background: white; border: 2px solid #f0f0f0; border-radius: 12px; padding: 16px;
+  font-size: 1.05em; font-weight: 500; cursor: pointer; transition: all 0.2s;
+  text-align: center; word-break: break-all;
+}
+.option-btn:hover { border-color: #ff6b9d; background: #fff5f8; }
+.option-btn.correct { border-color: #43e97b; background: #e8fff0; }
+.option-btn.wrong { border-color: #ff4757; background: #fff0f0; }
+.option-btn.disabled { pointer-events: none; }
+.explanation {
+  margin-top: 12px; padding: 12px 16px; border-radius: 10px;
+  background: #f8f9fa; font-size: 0.9em; color: #555; line-height: 1.5;
+  display: none;
+}
+.explanation.show { display: block; }
+.next-btn {
+  display: none; margin: 16px auto 0; padding: 12px 32px; border: none;
+  background: linear-gradient(135deg, #ff6b9d, #ffa751); color: white;
+  border-radius: 25px; font-size: 1em; font-weight: 600; cursor: pointer;
+}
+.next-btn.show { display: block; }
+
+/* Result Screen */
+.result-card {
+  background: white; border-radius: 20px; padding: 32px; text-align: center;
+  box-shadow: 0 8px 30px rgba(255,107,157,0.15);
+}
+.result-card .emoji { font-size: 3em; margin-bottom: 12px; }
+.result-card .title { font-size: 1.5em; font-weight: 700; margin-bottom: 8px; }
+.result-card .subtitle { color: #888; margin-bottom: 20px; }
+.result-stats { display: flex; justify-content: center; gap: 24px; margin-bottom: 20px; }
+.result-stats .stat { text-align: center; }
+.result-stats .stat .num { font-size: 1.8em; font-weight: 700; color: #ff6b9d; }
+.result-stats .stat .label { font-size: 0.8em; color: #999; }
+.result-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.result-btns button {
+  padding: 12px 24px; border: none; border-radius: 25px; font-size: 1em;
+  font-weight: 600; cursor: pointer;
+}
+.btn-primary { background: linear-gradient(135deg, #ff6b9d, #ffa751); color: white; }
+.btn-secondary { background: #f0f0f0; color: #666; }
+
+/* Utility */
+.hidden { display: none !important; }
+.screen { animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Login prompt */
+.login-prompt {
+  text-align: center; padding: 40px 20px;
+}
+.login-prompt p { margin-bottom: 16px; color: #666; }
+.login-prompt a {
+  display: inline-block; padding: 12px 32px; background: linear-gradient(135deg, #ff6b9d, #ffa751);
+  color: white; border-radius: 25px; text-decoration: none; font-weight: 600;
+}
+</style>
+</head>
+<body>
+<div class="container" id="app">
+  <!-- Screen: Categories -->
+  <div id="screen-categories" class="screen">
+    <div class="header">
+      <h1>🧮 数学闯关</h1>
+      <div class="coins" id="coin-display">🪙 --</div>
+    </div>
+    <div class="categories" id="cat-list"></div>
+  </div>
+
+  <!-- Screen: Levels -->
+  <div id="screen-levels" class="screen hidden">
+    <div class="header">
+      <button class="back-btn" onclick="showCategories()">←</button>
+      <h1 id="level-title"></h1>
+      <div></div>
+    </div>
+    <div class="levels-grid" id="levels-grid"></div>
+  </div>
+
+  <!-- Screen: Quiz -->
+  <div id="screen-quiz" class="screen hidden">
+    <div class="quiz-header">
+      <span class="quiz-progress" id="quiz-progress">1 / 10</span>
+      <span class="quiz-score" id="quiz-score">✓ 0</span>
+    </div>
+    <div class="question-card" id="question-card">
+      <div class="question-text" id="question-text"></div>
+      <canvas id="question-canvas" class="question-canvas hidden" width="280" height="280"></canvas>
+    </div>
+    <div class="options" id="options"></div>
+    <div class="explanation" id="explanation"></div>
+    <button class="next-btn" id="next-btn" onclick="nextQuestion()">下一题 →</button>
+  </div>
+
+  <!-- Screen: Result -->
+  <div id="screen-result" class="screen hidden">
+    <div class="result-card">
+      <div class="emoji" id="result-emoji">🎉</div>
+      <div class="title" id="result-title">太棒了！</div>
+      <div class="subtitle" id="result-subtitle"></div>
+      <div class="result-stats">
+        <div class="stat"><div class="num" id="result-correct">0</div><div class="label">答对</div></div>
+        <div class="stat"><div class="num" id="result-coins">0</div><div class="label">金币</div></div>
+      </div>
+      <div class="result-btns">
+        <button class="btn-secondary" onclick="showLevels(currentCat)">返回关卡</button>
+        <button class="btn-primary" id="btn-next-level" onclick="startNextLevel()">下一关 →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Prompt -->
+  <div id="screen-login" class="screen hidden">
+    <div class="login-prompt">
+      <p>🔒 请先登录才能保存闯关进度哦</p>
+      <a href="/login.html">去登录</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ CONFIG ============
+const SUPABASE_URL = 'https://aqxbpuetdypcbmqdncpl.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5ODg5MzksImV4cCI6MjA5NDU2NDkzOX0.YUwFQeJgbmhrtY32tGXbm9wz0jtou0Zxg1626EJl3r0';
+
+const CATEGORIES = [
+  { id: 'arithmetic', icon: '🔢', name: '数感运算', desc: '加减乘除、小数分数、混合运算', color: '#ff6b9d' },
+  { id: 'sequence', icon: '🔄', name: '数列规律', desc: '等差等比、周期数列、复合规律', color: '#ffa751' },
+  { id: 'logic', icon: '🧠', name: '逻辑推理', desc: '鸡兔同笼、植树问题、行程问题', color: '#a18cd1' },
+  { id: 'geometry', icon: '📐', name: '几何直觉', desc: '面积计算、旋转翻转、展开图', color: '#43e97b' },
+  { id: 'counting', icon: '🎲', name: '计数组合', desc: '路径计数、排列组合、握手问题', color: '#4facfe' }
+];
+
+const COIN_REWARDS = [5,5,5,8,8,8,12,12,12,20]; // level 1-10
+
+// ============ STATE ============
+let currentUser = null;
+let userProgress = {}; // { arithmetic: [true,true,false,...], ... }
+let currentCat = null;
+let currentLevel = 0;
+let questions = [];
+let currentQ = 0;
+let score = 0;
+let answered = false;
+
+// ============ SUPABASE HELPERS ============
+async function supaFetch(path, options = {}) {
+  const headers = {
+    'apikey': SUPABASE_KEY,
+    'Content-Type': 'application/json',
+    ...(currentUser?.access_token ? { 'Authorization': 'Bearer ' + currentUser.access_token } : {}),
+    ...options.headers
+  };
+  const res = await fetch(SUPABASE_URL + path, { ...options, headers });
+  return res;
+}
+
+function getUser() {
+  try {
+    const raw = localStorage.getItem('sb-aqxbpuetdypcbmqdncpl-auth-token');
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (data?.user && data?.access_token) return data;
+    return null;
+  } catch { return null; }
+}
+
+async function loadProgress() {
+  if (!currentUser) return;
+  const res = await supaFetch('/rest/v1/math_progress?user_id=eq.' + currentUser.user.id + '&select=category,level', { method: 'GET' });
+  if (res.ok) {
+    const rows = await res.json();
+    userProgress = {};
+    CATEGORIES.forEach(c => { userProgress[c.id] = new Array(10).fill(false); });
+    rows.forEach(r => {
+      if (userProgress[r.category] && r.level >= 1 && r.level <= 10) {
+        userProgress[r.category][r.level - 1] = true;
+      }
+    });
+  }
+}
+
+async function saveProgress(catId, level) {
+  if (!currentUser) return;
+  await supaFetch('/rest/v1/math_progress', {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates' },
+    body: JSON.stringify({ user_id: currentUser.user.id, category: catId, level: level })
+  });
+}
+
+async function addCoins(amount) {
+  if (!currentUser) return;
+  // Use RPC or direct update
+  await supaFetch('/rest/v1/rpc/add_coins', {
+    method: 'POST',
+    body: JSON.stringify({ uid: currentUser.user.id, amount: amount })
+  });
+}
+
+async function getUserCoins() {
+  if (!currentUser) return 0;
+  const res = await supaFetch('/rest/v1/profiles?id=eq.' + currentUser.user.id + '&select=coins', { method: 'GET' });
+  if (res.ok) {
+    const data = await res.json();
+    return data[0]?.coins || 0;
+  }
+  return 0;
+}
+
+// ============ SCREENS ============
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  document.getElementById('screen-' + id).classList.remove('hidden');
+}
+
+async function showCategories() {
+  showScreen('categories');
+  const list = document.getElementById('cat-list');
+  list.innerHTML = '';
+  CATEGORIES.forEach((cat, i) => {
+    const completed = userProgress[cat.id] ? userProgress[cat.id].filter(Boolean).length : 0;
+    const card = document.createElement('div');
+    card.className = 'cat-card';
+    card.onclick = () => showLevels(cat.id);
+    card.innerHTML = `
+      <div class="icon">${cat.icon}</div>
+      <div class="name">${cat.name}</div>
+      <div class="desc">${cat.desc}</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${completed*10}%"></div></div>
+      <div class="progress-text">已通关 ${completed}/10 级</div>
+    `;
+    list.appendChild(card);
+  });
+  // Update coins
+  const coins = await getUserCoins();
+  document.getElementById('coin-display').textContent = '🪙 ' + coins;
+}
+
+function showLevels(catId) {
+  currentCat = catId;
+  const cat = CATEGORIES.find(c => c.id === catId);
+  showScreen('levels');
+  document.getElementById('level-title').textContent = cat.icon + ' ' + cat.name;
+  const grid = document.getElementById('levels-grid');
+  grid.innerHTML = '';
+  const progress = userProgress[catId] || new Array(10).fill(false);
+  for (let i = 0; i < 10; i++) {
+    const btn = document.createElement('button');
+    const isCompleted = progress[i];
+    const isUnlocked = i === 0 || progress[i - 1];
+    if (isCompleted) {
+      btn.className = 'level-btn completed';
+      btn.innerHTML = `${i+1}<span class="check">✅</span>`;
+      btn.onclick = () => startLevel(catId, i + 1);
+    } else if (isUnlocked) {
+      btn.className = 'level-btn current';
+      btn.innerHTML = `${i+1}`;
+      btn.onclick = () => startLevel(catId, i + 1);
+    } else {
+      btn.className = 'level-btn locked';
+      btn.innerHTML = `🔒`;
+    }
+    grid.appendChild(btn);
+  }
+}
+
+function startLevel(catId, level) {
+  currentCat = catId;
+  currentLevel = level;
+  currentQ = 0;
+  score = 0;
+  answered = false;
+  questions = generateQuestions(catId, level);
+  showScreen('quiz');
+  renderQuestion();
+}
+
+function startNextLevel() {
+  if (currentLevel < 10) {
+    startLevel(currentCat, currentLevel + 1);
+  } else {
+    showCategories();
+  }
+}
+
+function renderQuestion() {
+  const q = questions[currentQ];
+  document.getElementById('quiz-progress').textContent = `${currentQ + 1} / 10`;
+  document.getElementById('quiz-score').textContent = `✓ ${score}`;
+  document.getElementById('question-text').textContent = q.text;
+  
+  // Canvas for geometry
+  const canvas = document.getElementById('question-canvas');
+  if (q.draw) {
+    canvas.classList.remove('hidden');
+    q.draw(canvas);
+  } else {
+    canvas.classList.add('hidden');
+  }
+
+  const optDiv = document.getElementById('options');
+  optDiv.innerHTML = '';
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.textContent = opt;
+    btn.onclick = () => selectAnswer(i, q.answer);
+    optDiv.appendChild(btn);
+  });
+
+  document.getElementById('explanation').classList.remove('show');
+  document.getElementById('explanation').textContent = '';
+  document.getElementById('next-btn').classList.remove('show');
+  answered = false;
+}
+
+function selectAnswer(selected, correct) {
+  if (answered) return;
+  answered = true;
+  const btns = document.querySelectorAll('.option-btn');
+  btns.forEach((btn, i) => {
+    btn.classList.add('disabled');
+    if (i === correct) btn.classList.add('correct');
+    if (i === selected && selected !== correct) btn.classList.add('wrong');
+  });
+  if (selected === correct) score++;
+  
+  const q = questions[currentQ];
+  if (q.explanation) {
+    const exp = document.getElementById('explanation');
+    exp.textContent = (selected === correct ? '✅ 正确！' : '❌ 答错了。') + ' ' + q.explanation;
+    exp.classList.add('show');
+  }
+  document.getElementById('next-btn').classList.add('show');
+}
+
+async function nextQuestion() {
+  currentQ++;
+  if (currentQ >= 10) {
+    await showResult();
+  } else {
+    renderQuestion();
+  }
+}
+
+async function showResult() {
+  showScreen('result');
+  const passed = score >= 7; // 7/10 to pass
+  const coins = passed ? COIN_REWARDS[currentLevel - 1] : 0;
+  
+  document.getElementById('result-emoji').textContent = passed ? '🎉' : '😅';
+  document.getElementById('result-title').textContent = passed ? '恭喜通关！' : '再试一次吧';
+  document.getElementById('result-subtitle').textContent = passed 
+    ? `第${currentLevel}关通过！答对 ${score}/10 题` 
+    : `需要答对 7 题才能通关哦（你答对了 ${score} 题）`;
+  document.getElementById('result-correct').textContent = score;
+  document.getElementById('result-coins').textContent = passed ? '+' + coins : '0';
+  
+  const nextBtn = document.getElementById('btn-next-level');
+  if (passed && currentLevel < 10) {
+    nextBtn.classList.remove('hidden');
+    nextBtn.textContent = '下一关 →';
+  } else if (passed && currentLevel === 10) {
+    nextBtn.classList.add('hidden');
+  } else {
+    nextBtn.textContent = '重新挑战';
+    nextBtn.onclick = () => startLevel(currentCat, currentLevel);
+    nextBtn.classList.remove('hidden');
+  }
+
+  if (passed) {
+    userProgress[currentCat][currentLevel - 1] = true;
+    await saveProgress(currentCat, currentLevel);
+    if (coins > 0) await addCoins(coins);
+  }
+}
+
+// ============ QUESTION GENERATORS ============
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = rand(0, i); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
+
+function makeOptions(correct, generator) {
+  const opts = new Set([correct]);
+  let tries = 0;
+  while (opts.size < 4 && tries < 50) {
+    opts.add(generator());
+    tries++;
+  }
+  while (opts.size < 4) opts.add(correct + opts.size);
+  const arr = [...opts];
+  shuffle(arr);
+  return { options: arr.map(String), answer: arr.indexOf(correct) };
+}
+
+function generateQuestions(catId, level) {
+  const generators = {
+    arithmetic: genArithmetic,
+    sequence: genSequence,
+    logic: genLogic,
+    geometry: genGeometry,
+    counting: genCounting
+  };
+  const gen = generators[catId];
+  const qs = [];
+  for (let i = 0; i < 10; i++) {
+    qs.push(gen(level, i));
+  }
+  return qs;
+}
+
+// ---- 1. ARITHMETIC ----
+function genArithmetic(level, idx) {
+  if (level <= 2) {
+    // Simple add/subtract
+    const a = rand(10 * level, 50 * level);
+    const b = rand(1, 30 * level);
+    const op = Math.random() < 0.5 ? '+' : '-';
+    const correct = op === '+' ? a + b : a - b;
+    const text = `${a} ${op} ${b} = ?`;
+    const { options, answer } = makeOptions(correct, () => correct + rand(-10, 10));
+    return { text, options, answer, explanation: `${a} ${op} ${b} = ${correct}` };
+  }
+  if (level === 3) {
+    // Multiply/divide
+    const a = rand(2, 12);
+    const b = rand(2, 12);
+    if (Math.random() < 0.5) {
+      const correct = a * b;
+      const text = `${a} × ${b} = ?`;
+      const { options, answer } = makeOptions(correct, () => rand(2, 12) * rand(2, 12));
+      return { text, options, answer, explanation: `${a} × ${b} = ${correct}` };
+    } else {
+      const product = a * b;
+      const correct = b;
+      const text = `${product} ÷ ${a} = ?`;
+      const { options, answer } = makeOptions(correct, () => rand(2, 15));
+      return { text, options, answer, explanation: `${product} ÷ ${a} = ${correct}` };
+    }
+  }
+  if (level === 4 || level === 5) {
+    // Decimal operations
+    const a = (rand(10, 99) / 10).toFixed(1);
+    const b = (rand(10, 99) / 10).toFixed(1);
+    const op = level === 4 ? (Math.random() < 0.5 ? '+' : '-') : '×';
+    let correct;
+    if (op === '+') correct = (parseFloat(a) + parseFloat(b)).toFixed(1);
+    else if (op === '-') correct = (parseFloat(a) - parseFloat(b)).toFixed(1);
+    else correct = (parseFloat(a) * parseFloat(b)).toFixed(1);
+    const text = `${a} ${op} ${b} = ?`;
+    const { options, answer } = makeOptions(correct, () => (parseFloat(correct) + (rand(-20, 20) / 10)).toFixed(1));
+    return { text, options, answer, explanation: `${a} ${op} ${b} = ${correct}` };
+  }
+  if (level === 6) {
+    // Fraction add/subtract
+    const d = [2, 3, 4, 5, 6, 8][rand(0, 5)];
+    const n1 = rand(1, d - 1);
+    const n2 = rand(1, d - 1);
+    const correct = n1 + n2;
+    const text = `${n1}/${d} + ${n2}/${d} = ?/${d}`;
+    const { options, answer } = makeOptions(correct, () => rand(1, d * 2));
+    return { text, options: options.map(o => o + '/' + d), answer, explanation: `${n1}/${d} + ${n2}/${d} = ${correct}/${d}` };
+  }
+  if (level === 7) {
+    // Fraction multiply
+    const a = rand(1, 5), b = rand(2, 6), c = rand(1, 5), d = rand(2, 6);
+    const numR = a * c, denR = b * d;
+    const g = gcd(numR, denR);
+    const correct = `${numR/g}/${denR/g}`;
+    const text = `${a}/${b} × ${c}/${d} = ?`;
+    const opts = [correct];
+    while (opts.length < 4) {
+      const nn = rand(1, 15), dd = rand(2, 15);
+      const gg = gcd(nn, dd);
+      const o = `${nn/gg}/${dd/gg}`;
+      if (!opts.includes(o)) opts.push(o);
+    }
+    shuffle(opts);
+    return { text, options: opts, answer: opts.indexOf(correct), explanation: `${a}/${b} × ${c}/${d} = ${numR}/${denR} = ${correct}` };
+  }
+  if (level === 8) {
+    // Percentage
+    const whole = rand(50, 200);
+    const pct = [10, 20, 25, 30, 40, 50, 60, 75, 80][rand(0, 8)];
+    const correct = whole * pct / 100;
+    const text = `${whole} 的 ${pct}% 是多少？`;
+    const { options, answer } = makeOptions(correct, () => rand(5, 200));
+    return { text, options, answer, explanation: `${whole} × ${pct}% = ${correct}` };
+  }
+  if (level === 9) {
+    // Mixed operations
+    const a = rand(2, 15), b = rand(2, 10), c = rand(1, 10);
+    const correct = a * b + c;
+    const text = `${a} × ${b} + ${c} = ?`;
+    const { options, answer } = makeOptions(correct, () => correct + rand(-15, 15));
+    return { text, options, answer, explanation: `${a} × ${b} + ${c} = ${a*b} + ${c} = ${correct}` };
+  }
+  // level 10: number puzzle
+  const a = rand(2, 9), b = rand(2, 9);
+  const result = a * b;
+  const text = `□ × ${b} = ${result}，□ = ?`;
+  const correct = a;
+  const { options, answer } = makeOptions(correct, () => rand(1, 12));
+  return { text, options, answer, explanation: `${a} × ${b} = ${result}，所以 □ = ${a}` };
+}
+
+function gcd(a, b) { return b === 0 ? Math.abs(a) : gcd(b, a % b); }
+
+// ---- 2. SEQUENCE ----
+function genSequence(level, idx) {
+  if (level <= 3) {
+    // Arithmetic sequence
+    const start = rand(1, 20);
+    const diff = rand(2, level + 3);
+    const seq = [];
+    for (let i = 0; i < 6; i++) seq.push(start + diff * i);
+    const hideIdx = rand(3, 5);
+    const correct = seq[hideIdx];
+    const display = seq.map((v, i) => i === hideIdx ? '?' : v).join(', ');
+    const text = `找规律填数：${display}`;
+    const { options, answer } = makeOptions(correct, () => correct + rand(-diff * 2, diff * 2));
+    return { text, options, answer, explanation: `每次加 ${diff}，所以 ? = ${correct}` };
+  }
+  if (level === 4 || level === 5) {
+    // Geometric sequence
+    const start = rand(1, 4);
+    const ratio = rand(2, 3);
+    const seq = [];
+    for (let i = 0; i < 5; i++) seq.push(start * Math.pow(ratio, i));
+    const hideIdx = rand(2, 4);
+    const correct = seq[hideIdx];
+    const display = seq.map((v, i) => i === hideIdx ? '?' : v).join(', ');
+    const text = `找规律填数：${display}`;
+    const { options, answer } = makeOptions(correct, () => correct + rand(-correct, correct));
+    return { text, options, answer, explanation: `每次乘 ${ratio}，所以 ? = ${correct}` };
+  }
+  if (level === 6 || level === 7) {
+    // Second-order arithmetic or periodic
+    if (Math.random() < 0.5) {
+      // Periodic: repeat pattern
+      const pattern = [rand(1, 9), rand(1, 9), rand(1, 9)];
+      const seq = [];
+      for (let i = 0; i < 8; i++) seq.push(pattern[i % 3]);
+      const hideIdx = rand(5, 7);
+      const correct = seq[hideIdx];
+      const display = seq.map((v, i) => i === hideIdx ? '?' : v).join(', ');
+      const text = `找规律填数：${display}`;
+      const { options, answer } = makeOptions(correct, () => rand(1, 9));
+      return { text, options, answer, explanation: `周期为 ${pattern.join(',')}，重复出现，? = ${correct}` };
+    } else {
+      // Second-order: differences increase
+      const start = rand(1, 5);
+      const d0 = rand(1, 3);
+      const dd = rand(1, 2);
+      const seq = [start];
+      let diff = d0;
+      for (let i = 1; i < 6; i++) { seq.push(seq[i-1] + diff); diff += dd; }
+      const hideIdx = rand(3, 5);
+      const correct = seq[hideIdx];
+      const display = seq.map((v, i) => i === hideIdx ? '?' : v).join(', ');
+      const text = `找规律填数：${display}`;
+      const { options, answer } = makeOptions(correct, () => correct + rand(-8, 8));
+      return { text, options, answer, explanation: `差依次增加 ${dd}，? = ${correct}` };
+    }
+  }
+  if (level === 8 || level === 9) {
+    // Fibonacci variant
+    const a = rand(1, 5), b = rand(1, 5);
+    const seq = [a, b];
+    for (let i = 2; i < 7; i++) seq.push(seq[i-1] + seq[i-2]);
+    const hideIdx = rand(4, 6);
+    const correct = seq[hideIdx];
+    const display = seq.map((v, i) => i === hideIdx ? '?' : v).join(', ');
+    const text = `找规律填数：${display}`;
+    const { options, answer } = makeOptions(correct, () => correct + rand(-10, 10));
+    return { text, options, answer, explanation: `每个数 = 前两个数之和，? = ${seq[hideIdx-1]} + ${seq[hideIdx-2]} = ${correct}` };
+  }
+  // level 10: compound
+  const start = rand(1, 3);
+  const seq = [start];
+  for (let i = 1; i < 7; i++) seq.push(seq[i-1] * 2 + 1);
+  const hideIdx = rand(4, 6);
+  const correct = seq[hideIdx];
+  const display = seq.map((v, i) => i === hideIdx ? '?' : v).join(', ');
+  const text = `找规律填数：${display}`;
+  const { options, answer } = makeOptions(correct, () => correct + rand(-20, 20));
+  return { text, options, answer, explanation: `规律：×2 + 1，? = ${seq[hideIdx-1]} × 2 + 1 = ${correct}` };
+}
+
+// ---- 3. LOGIC ----
+function genLogic(level, idx) {
+  if (level <= 3) {
+    // Chicken-rabbit problem
+    const heads = rand(8, 20 + level * 5);
+    const rabbits = rand(1, heads - 1);
+    const chickens = heads - rabbits;
+    const legs = chickens * 2 + rabbits * 4;
+    const text = `鸡兔同笼：共 ${heads} 个头，${legs} 条腿，有几只兔子？`;
+    const correct = rabbits;
+    const { options, answer } = makeOptions(correct, () => rand(1, heads - 1));
+    return { text, options, answer, explanation: `设兔 x 只，则 2(${heads}-x)+4x=${legs}，解得 x=${rabbits}` };
+  }
+  if (level === 4 || level === 5) {
+    // Tree planting problem
+    const trees = rand(5, 20);
+    const gap = rand(2, 5);
+    if (Math.random() < 0.5) {
+      // Line: distance = (trees-1) * gap
+      const correct = (trees - 1) * gap;
+      const text = `一条路两端都种树，共种 ${trees} 棵，每两棵间隔 ${gap} 米，这条路多长？`;
+      const { options, answer } = makeOptions(correct, () => rand(10, 100));
+      return { text, options, answer, explanation: `间隔数 = ${trees}-1 = ${trees-1}，路长 = ${trees-1} × ${gap} = ${correct} 米` };
+    } else {
+      // Circle: distance = trees * gap
+      const correct = trees * gap;
+      const text = `圆形花坛周围种 ${trees} 棵树，每两棵间隔 ${gap} 米，花坛周长是多少米？`;
+      const { options, answer } = makeOptions(correct, () => rand(10, 100));
+      return { text, options, answer, explanation: `封闭图形间隔数 = 棵数 = ${trees}，周长 = ${trees} × ${gap} = ${correct} 米` };
+    }
+  }
+  if (level === 6 || level === 7) {
+    // Position reasoning
+    const names = ['小明', '小红', '小华', '小丽', '小刚'];
+    const n = level === 6 ? 3 : 4;
+    const selected = names.slice(0, n);
+    const positions = shuffle([...Array(n).keys()]);
+    // Generate a clue
+    const target = rand(0, n - 1);
+    const pos = positions[target];
+    const correct = selected[target];
+    let clue1Idx = (target + 1) % n;
+    const text = `${n}个人排队：${selected.join('、')}。已知${selected[clue1Idx]}排第${positions[clue1Idx]+1}位，${selected[(target+2)%n]}排第${positions[(target+2)%n]+1}位。谁排第${pos+1}位？`;
+    const opts = selected.slice();
+    shuffle(opts);
+    if (!opts.includes(correct)) opts[0] = correct;
+    while (opts.length > 4) opts.pop();
+    while (opts.length < 4) opts.push(names[opts.length]);
+    return { text, options: opts, answer: opts.indexOf(correct), explanation: `根据已知条件排除，第${pos+1}位是${correct}` };
+  }
+  if (level === 8 || level === 9) {
+    // Travel problem
+    const v1 = rand(30, 60);
+    const v2 = rand(30, 60);
+    const dist = (v1 + v2) * rand(1, 3);
+    const time = dist / (v1 + v2);
+    if (Math.random() < 0.5) {
+      const correct = time;
+      const text = `甲乙两地相距 ${dist} 千米，小明从甲地出发速度 ${v1} 千米/时，小红从乙地出发速度 ${v2} 千米/时，相向而行，几小时后相遇？`;
+      const { options, answer } = makeOptions(correct, () => rand(1, 8));
+      return { text, options, answer, explanation: `相遇时间 = ${dist} ÷ (${v1}+${v2}) = ${dist} ÷ ${v1+v2} = ${correct} 小时` };
+    } else {
+      const t = rand(1, 4);
+      const correct = v1 * t + v2 * t;
+      const text = `小明速度 ${v1} 千米/时，小红速度 ${v2} 千米/时，相向而行 ${t} 小时后，两人共走了多少千米？`;
+      const { options, answer } = makeOptions(correct, () => rand(50, 400));
+      return { text, options, answer, explanation: `共走 = (${v1}+${v2}) × ${t} = ${correct} 千米` };
+    }
+  }
+  // level 10: multi-condition
+  const total = rand(20, 50);
+  const priceA = rand(2, 5), priceB = rand(6, 10);
+  const money = rand(total * priceA, total * priceB);
+  const countB = Math.floor((money - total * priceA) / (priceB - priceA));
+  const countA = total - countB;
+  const correct = countB;
+  const text = `买 ${total} 件物品，A 类每件 ${priceA} 元，B 类每件 ${priceB} 元，共花 ${countA * priceA + countB * priceB} 元，B 类买了几件？`;
+  const { options, answer } = makeOptions(correct, () => rand(1, total - 1));
+  return { text, options, answer, explanation: `设 B 类 x 件，${priceA}(${total}-x)+${priceB}x=${countA*priceA+countB*priceB}，x=${correct}` };
+}
+
+// ---- 4. GEOMETRY ----
+function genGeometry(level, idx) {
+  if (level <= 3) {
+    // Grid area counting
+    const w = rand(2, 3 + level);
+    const h = rand(2, 3 + level);
+    const correct = w * h;
+    const text = `数格子：一个长方形占了 ${w} × ${h} 个格子，面积是多少个格子？`;
+    const draw = (canvas) => {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 280, 280);
+      const size = Math.min(240 / Math.max(w, h), 40);
+      const ox = (280 - w * size) / 2, oy = (280 - h * size) / 2;
+      ctx.strokeStyle = '#ddd';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= w; i++) { ctx.beginPath(); ctx.moveTo(ox + i * size, oy); ctx.lineTo(ox + i * size, oy + h * size); ctx.stroke(); }
+      for (let j = 0; j <= h; j++) { ctx.beginPath(); ctx.moveTo(ox, oy + j * size); ctx.lineTo(ox + w * size, oy + j * size); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(255,107,157,0.2)';
+      ctx.fillRect(ox, oy, w * size, h * size);
+      ctx.strokeStyle = '#ff6b9d';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(ox, oy, w * size, h * size);
+    };
+    const { options, answer } = makeOptions(correct, () => rand(4, 40));
+    return { text, options, answer, draw, explanation: `面积 = ${w} × ${h} = ${correct} 个格子` };
+  }
+  if (level === 4 || level === 5) {
+    // Rotation/flip judgment
+    const shapes = ['▲', '◆', '■', '●'];
+    const rotations = ['旋转90°', '旋转180°', '水平翻转', '垂直翻转'];
+    const rotType = rand(0, 3);
+    // Simple: which shape is the result of rotating
+    const originalDir = rand(0, 3); // 0=up, 1=right, 2=down, 3=left
+    const dirs = ['朝上 △', '朝右 ▷', '朝下 ▽', '朝左 ◁'];
+    let resultDir;
+    if (rotType === 0) resultDir = (originalDir + 1) % 4;
+    else if (rotType === 1) resultDir = (originalDir + 2) % 4;
+    else if (rotType === 2) resultDir = [0, 3, 2, 1][originalDir]; // horizontal flip
+    else resultDir = [2, 1, 0, 3][originalDir]; // vertical flip
+    const correct = dirs[resultDir];
+    const text = `一个三角形${dirs[originalDir]}，${rotations[rotType]}后朝哪个方向？`;
+    const opts = shuffle([...dirs]);
+    return { text, options: opts, answer: opts.indexOf(correct), explanation: `${dirs[originalDir]}经过${rotations[rotType]}后变成${correct}` };
+  }
+  if (level === 6 || level === 7) {
+    // Cube net judgment
+    const nets = [
+      { desc: '十字形（上下左右各一格+中间两格）', valid: true },
+      { desc: 'T形（上面一排三格+下面中间三格竖排）', valid: true },
+      { desc: 'L形（横三格+竖三格共用一角）', valid: false },
+      { desc: '一字形（六格排成一排）', valid: false },
+      { desc: '阶梯形（2-2-2错开排列）', valid: true },
+      { desc: 'Z形（上两格+中两格+下两格错开）', valid: false }
+    ];
+    const chosen = nets[rand(0, nets.length - 1)];
+    const correct = chosen.valid ? '能' : '不能';
+    const text = `${chosen.desc}的展开图，${chosen.valid ? '能' : '不能'}折成正方体吗？`;
+    const opts = ['能', '不能'];
+    // Make it 4 options with more context
+    const text2 = `判断：${chosen.desc}，能否折成正方体？`;
+    return { text: text2, options: ['能', '不能', '缺一面', '多一面'], answer: chosen.valid ? 0 : 1, explanation: `${chosen.desc}${correct}折成正方体` };
+  }
+  if (level === 8 || level === 9) {
+    // Top view of blocks
+    const grid = [[rand(0,2), rand(0,2)], [rand(0,2), rand(0,2)]];
+    // Count visible from top (non-zero cells)
+    const topCount = grid.flat().filter(v => v > 0).length;
+    const totalBlocks = grid.flat().reduce((a, b) => a + b, 0);
+    const text = `2×2 的格子上叠积木，四格高度分别是 ${grid[0][0]},${grid[0][1]},${grid[1][0]},${grid[1][1]}。从上面看能看到几个格子有积木？`;
+    const correct = topCount;
+    const { options, answer } = makeOptions(correct, () => rand(0, 4));
+    const draw = (canvas) => {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 280, 280);
+      const size = 60;
+      const ox = 70, oy = 70;
+      for (let r = 0; r < 2; r++) {
+        for (let c = 0; c < 2; c++) {
+          const x = ox + c * size, y = oy + r * size;
+          ctx.strokeStyle = '#999';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x, y, size, size);
+          if (grid[r][c] > 0) {
+            ctx.fillStyle = `rgba(255,107,157,${0.3 + grid[r][c] * 0.2})`;
+            ctx.fillRect(x, y, size, size);
+          }
+          ctx.fillStyle = '#333';
+          ctx.font = '20px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(grid[r][c].toString(), x + size/2, y + size/2 + 7);
+        }
+      }
+      ctx.fillStyle = '#666';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('俯视图（数字=积木高度）', 140, 220);
+    };
+    return { text, options, answer, draw, explanation: `高度>0的格子有 ${topCount} 个` };
+  }
+  // level 10: composite area
+  const a = rand(3, 8), b = rand(3, 8);
+  const cutW = rand(1, a - 1), cutH = rand(1, b - 1);
+  const correct = a * b - cutW * cutH;
+  const text = `一个 ${a}×${b} 的长方形，切掉一个 ${cutW}×${cutH} 的小长方形，剩余面积是多少？`;
+  const { options, answer } = makeOptions(correct, () => rand(5, 60));
+  return { text, options, answer, explanation: `${a}×${b} - ${cutW}×${cutH} = ${a*b} - ${cutW*cutH} = ${correct}` };
+}
+
+// ---- 5. COUNTING ----
+function genCounting(level, idx) {
+  if (level <= 3) {
+    // Grid path counting (simplified)
+    const m = rand(2, 2 + level);
+    const n = rand(2, 2 + level);
+    // Paths from (0,0) to (m,n) going only right/down = C(m+n, m)
+    const correct = comb(m + n, m);
+    const text = `从左上角到右下角，只能向右或向下走，${m+1}×${n+1} 的网格有几条最短路径？`;
+    const { options, answer } = makeOptions(correct, () => rand(1, correct * 2));
+    const draw = (canvas) => {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 280, 280);
+      const size = Math.min(220 / Math.max(m, n), 50);
+      const ox = (280 - m * size) / 2, oy = (280 - n * size) / 2;
+      ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1;
+      for (let i = 0; i <= m; i++) for (let j = 0; j <= n; j++) {
+        if (i < m) { ctx.beginPath(); ctx.moveTo(ox + i * size, oy + j * size); ctx.lineTo(ox + (i+1) * size, oy + j * size); ctx.stroke(); }
+        if (j < n) { ctx.beginPath(); ctx.moveTo(ox + i * size, oy + j * size); ctx.lineTo(ox + i * size, oy + (j+1) * size); ctx.stroke(); }
+      }
+      ctx.fillStyle = '#ff6b9d'; ctx.beginPath(); ctx.arc(ox, oy, 8, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#43e97b'; ctx.beginPath(); ctx.arc(ox + m*size, oy + n*size, 8, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#333'; ctx.font = '12px sans-serif';
+      ctx.fillText('起点', ox - 5, oy - 12);
+      ctx.fillText('终点', ox + m*size - 10, oy + n*size + 20);
+    };
+    return { text, options, answer, draw, explanation: `C(${m+n},${m}) = ${correct} 条路径` };
+  }
+  if (level === 4 || level === 5) {
+    // Handshake problem
+    const n = rand(3, 6 + level);
+    const correct = n * (n - 1) / 2;
+    const text = `${n} 个人互相握手，每两人握一次，一共握几次手？`;
+    const { options, answer } = makeOptions(correct, () => rand(1, n * n));
+    return { text, options, answer, explanation: `C(${n},2) = ${n}×${n-1}÷2 = ${correct}` };
+  }
+  if (level === 6 || level === 7) {
+    // Permutation/combination
+    const n = rand(4, 7);
+    const r = rand(2, Math.min(3, n - 1));
+    if (Math.random() < 0.5) {
+      // Choose r from n (combination)
+      const correct = comb(n, r);
+      const text = `从 ${n} 个人中选 ${r} 个人参加比赛，有几种选法？`;
+      const { options, answer } = makeOptions(correct, () => rand(1, 100));
+      return { text, options, answer, explanation: `C(${n},${r}) = ${correct}` };
+    } else {
+      // Arrange r from n (permutation)
+      const correct = perm(n, r);
+      const text = `${n} 个人排成一排选 ${r} 个位置（有顺序），有几种排法？`;
+      const { options, answer } = makeOptions(correct, () => rand(10, 200));
+      return { text, options, answer, explanation: `P(${n},${r}) = ${correct}` };
+    }
+  }
+  if (level === 8 || level === 9) {
+    // Calendar/clock problems
+    if (Math.random() < 0.5) {
+      // Days between dates
+      const month = rand(1, 12);
+      const daysInMonth = [31,28,31,30,31,30,31,31,30,31,30,31][month-1];
+      const d1 = rand(1, daysInMonth - 5);
+      const d2 = d1 + rand(3, Math.min(15, daysInMonth - d1));
+      const correct = d2 - d1;
+      const text = `从${month}月${d1}日到${month}月${d2}日，中间经过了几天？`;
+      const { options, answer } = makeOptions(correct, () => rand(1, 20));
+      return { text, options, answer, explanation: `${d2} - ${d1} = ${correct} 天` };
+    } else {
+      // Clock angle
+      const hour = rand(1, 11);
+      const correct = hour * 30;
+      const text = `时钟 ${hour} 点整，时针和分针的夹角是多少度？`;
+      const { options, answer } = makeOptions(correct, () => rand(1, 11) * 30);
+      return { text, options, answer, explanation: `每小时时针走 30°，${hour}点 = ${hour}×30° = ${correct}°` };
+    }
+  }
+  // level 10: AMC style
+  const n = rand(3, 5);
+  const total = Math.pow(2, n);
+  const text = `一个集合有 ${n} 个元素，它的所有子集（包括空集）共有多少个？`;
+  const correct = total;
+  const { options, answer } = makeOptions(correct, () => rand(2, 64));
+  return { text, options, answer, explanation: `${n} 个元素的子集数 = 2^${n} = ${total}` };
+}
+
+function factorial(n) { let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; }
+function comb(n, r) { if (r > n) return 0; return factorial(n) / (factorial(r) * factorial(n - r)); }
+function perm(n, r) { let result = 1; for (let i = 0; i < r; i++) result *= (n - i); return result; }
+
+// ============ INIT ============
+async function init() {
+  currentUser = getUser();
+  if (!currentUser) {
+    // Allow playing without login but show prompt
+    CATEGORIES.forEach(c => { userProgress[c.id] = new Array(10).fill(false); });
+    showCategories();
+    return;
+  }
+  CATEGORIES.forEach(c => { userProgress[c.id] = new Array(10).fill(false); });
+  await loadProgress();
+  showCategories();
+}
+
+init();
+</script>
+</body>
+</html>
