@@ -293,21 +293,32 @@ body {
 /* 打字区域 */
 .typing-area { display: none; text-align: center; }
 .text-display {
-  font-size: 1.4rem;
-  line-height: 2.2;
-  padding: 20px;
+  font-size: 1.5rem;
+  line-height: 2.4;
+  padding: 24px 28px;
   background: #f8f9ff;
   border-radius: 14px;
   margin-bottom: 16px;
   min-height: 120px;
-  text-align: left;
-  word-break: break-all;
+  text-align: center;
   user-select: none;
+}
+.poem-title {
+  font-size: 0.95rem;
+  color: #999;
+  margin-bottom: 16px;
+  font-weight: 400;
+}
+.poem-lines {
+  font-size: 1.6rem;
+  line-height: 2.2;
+  letter-spacing: 2px;
 }
 .text-display .char { transition: color 0.1s; }
 .text-display .char.correct { color: #4caf50; }
 .text-display .char.wrong { color: #f44336; background: #ffebee; border-radius: 3px; }
 .text-display .char.current { background: #e3f2fd; border-radius: 3px; border-bottom: 3px solid #2196f3; }
+.text-display .line-break { display: block; height: 8px; }
 
 #typingInput {
   width: 100%;
@@ -402,11 +413,35 @@ body {
 .champion-banner .champ-text { font-size: 0.9rem; margin-top: 4px; }
 .champion-banner .champ-name { font-weight: 800; font-size: 1.2rem; }
 
+/* 防作弊提示 */
+.cheat-warning {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #f44336;
+  color: #fff;
+  padding: 20px 30px;
+  border-radius: 14px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  z-index: 9999;
+  box-shadow: 0 8px 32px rgba(244,67,54,0.4);
+  animation: shake 0.5s;
+}
+@keyframes shake {
+  0%,100% { transform: translate(-50%,-50%) rotate(0); }
+  25% { transform: translate(-50%,-50%) rotate(-2deg); }
+  75% { transform: translate(-50%,-50%) rotate(2deg); }
+}
+
 /* 响应式 */
 @media (max-width: 600px) {
   .container { padding: 12px; }
   .card { padding: 18px; border-radius: 16px; }
-  .text-display { font-size: 1.1rem; padding: 14px; line-height: 2; }
+  .text-display { font-size: 1.2rem; padding: 16px; line-height: 2; }
+  .poem-lines { font-size: 1.3rem; }
   .stats-bar { flex-wrap: wrap; gap: 6px; padding: 10px; }
   .stat-item .stat-value { font-size: 1.2rem; }
   .top-bar .title { font-size: 1rem; }
@@ -522,7 +557,7 @@ body {
     <div class="text-display" id="textDisplay"></div>
 
     <div>
-      <input type="text" id="typingInput" placeholder="在这里开始打字..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <input type="text" id="typingInput" placeholder="在这里开始打字..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" x-webkit-speech="false">
     </div>
   </div>
 
@@ -538,6 +573,9 @@ body {
     </div>
   </div>
 </div>
+
+<!-- 防作弊提示 -->
+<div class="cheat-warning" id="cheatWarning">⚠️ 请用键盘打字哦！</div>
 
 <script>
 // ===== Supabase 初始化 =====
@@ -578,45 +616,33 @@ async function checkAuth() {
 }
 
 // ===== 时间工具 =====
-// 获取本周一的日期（北京时间）
 function getWeekStart() {
   var now = new Date();
-  // 转北京时间
   var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
-  var day = bjNow.getUTCDay(); // 0=周日
-  var diff = day === 0 ? 6 : day - 1; // 周一为起点
+  var day = bjNow.getUTCDay();
+  var diff = day === 0 ? 6 : day - 1;
   var monday = new Date(bjNow);
   monday.setUTCDate(monday.getUTCDate() - diff);
   return monday.toISOString().split('T')[0];
 }
 
-// 获取今天日期（北京时间）
 function getTodayBJ() {
   var now = new Date();
   var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
   return bjNow.toISOString().split('T')[0];
 }
 
-// 获取下次结算时间
 function getNextSettlement() {
   var now = new Date();
   var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
   var day = bjNow.getUTCDay();
   var daysUntilSat = (6 - day + 7) % 7;
-  if (daysUntilSat === 0) {
-    // 今天是周六，检查是否已过20:00
-    if (bjNow.getUTCHours() >= 20) {
-      daysUntilSat = 7;
-    }
-  }
+  if (daysUntilSat === 0 && bjNow.getUTCHours() >= 20) daysUntilSat = 7;
   var satDate = new Date(bjNow);
   satDate.setUTCDate(satDate.getUTCDate() + daysUntilSat);
-  var month = satDate.getUTCMonth() + 1;
-  var date = satDate.getUTCDate();
-  return month + '月' + date + '日 周六 20:00';
+  return (satDate.getUTCMonth() + 1) + '月' + satDate.getUTCDate() + '日 周六 20:00';
 }
 
-// 获取上周的 week_start
 function getLastWeekStart() {
   var now = new Date();
   var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
@@ -626,6 +652,39 @@ function getLastWeekStart() {
   monday.setUTCDate(monday.getUTCDate() - diff - 7);
   return monday.toISOString().split('T')[0];
 }
+
+// ===== 古诗词素材（排名赛用，随机选取） =====
+var zhPoems = [
+  { title: "静夜思", author: "李白", lines: ["床前明月光，", "疑是地上霜。", "举头望明月，", "低头思故乡。"] },
+  { title: "春晓", author: "孟浩然", lines: ["春眠不觉晓，", "处处闻啼鸟。", "夜来风雨声，", "花落知多少。"] },
+  { title: "望庐山瀑布", author: "李白", lines: ["日照香炉生紫烟，", "遥看瀑布挂前川。", "飞流直下三千尺，", "疑是银河落九天。"] },
+  { title: "绝句", author: "杜甫", lines: ["两个黄鹂鸣翠柳，", "一行白鹭上青天。", "窗含西岭千秋雪，", "门泊东吴万里船。"] },
+  { title: "黄鹤楼送孟浩然之广陵", author: "李白", lines: ["故人西辞黄鹤楼，", "烟花三月下扬州。", "孤帆远影碧空尽，", "唯见长江天际流。"] },
+  { title: "题西林壁", author: "苏轼", lines: ["横看成岭侧成峰，", "远近高低各不同。", "不识庐山真面目，", "只缘身在此山中。"] },
+  { title: "出塞", author: "王昌龄", lines: ["秦时明月汉时关，", "万里长征人未还。", "但使龙城飞将在，", "不教胡马度阴山。"] },
+  { title: "游子吟", author: "孟郊", lines: ["慈母手中线，", "游子身上衣。", "临行密密缝，", "意恐迟迟归。", "谁言寸草心，", "报得三春晖。"] },
+  { title: "饮湖上初晴后雨", author: "苏轼", lines: ["水光潋滟晴方好，", "山色空蒙雨亦奇。", "欲把西湖比西子，", "淡妆浓抹总相宜。"] },
+  { title: "江南春", author: "杜牧", lines: ["千里莺啼绿映红，", "水村山郭酒旗风。", "南朝四百八十寺，", "多少楼台烟雨中。"] },
+  { title: "清明", author: "杜牧", lines: ["清明时节雨纷纷，", "路上行人欲断魂。", "借问酒家何处有，", "牧童遥指杏花村。"] },
+  { title: "山行", author: "杜牧", lines: ["远上寒山石径斜，", "白云生处有人家。", "停车坐爱枫林晚，", "霜叶红于二月花。"] },
+  { title: "竹石", author: "郑燮", lines: ["咬定青山不放松，", "立根原在破岩中。", "千磨万击还坚劲，", "任尔东西南北风。"] },
+  { title: "石灰吟", author: "于谦", lines: ["千锤万凿出深山，", "烈火焚烧若等闲。", "粉骨碎身浑不怕，", "要留清白在人间。"] },
+  { title: "过零丁洋", author: "文天祥", lines: ["辛苦遭逢起一经，", "干戈寥落四周星。", "山河破碎风飘絮，", "身世浮沉雨打萍。", "惶恐滩头说惶恐，", "零丁洋里叹零丁。", "人生自古谁无死？", "留取丹心照汗青。"] }
+];
+
+// ===== 英文 RAZ 素材（排名赛用） =====
+var enArticles = [
+  { title: "My Pet Cat", lines: ["I have a cat named Sunny.", "She has soft, orange fur.", "Every morning, she sits by the window.", "She watches the birds outside.", "When I come home from school,", "she runs to the door.", "I love my cat very much."] },
+  { title: "The Beach", lines: ["Last summer, we went to the beach.", "The sand was warm under my feet.", "I built a sandcastle with my brother.", "We found shells along the shore.", "The waves splashed against our legs.", "We ate ice cream before going home.", "It was a perfect day."] },
+  { title: "The Butterfly", lines: ["A butterfly starts as a tiny egg.", "Then it becomes a caterpillar.", "The caterpillar eats leaves all day long.", "It grows bigger and bigger.", "Then it makes a cocoon around itself.", "Inside the cocoon, it changes completely.", "Finally, a beautiful butterfly comes out."] },
+  { title: "The Great Wall", lines: ["The Great Wall of China is over 2,000 years old.", "It stretches across mountains and valleys.", "Ancient emperors built it to protect their land.", "Millions of workers spent many years building it.", "Today, people from all over the world visit it.", "It is one of the greatest structures ever built."] },
+  { title: "Honeybees", lines: ["Honeybees are some of the hardest workers in nature.", "Each hive has one queen and many workers.", "Worker bees fly from flower to flower.", "They collect nectar and bring it back.", "Other bees turn the nectar into honey.", "Bees also help plants grow by spreading pollen.", "Without bees, many fruits would disappear."] },
+  { title: "The Ocean Floor", lines: ["The bottom of the ocean is a mysterious place.", "It is so deep that sunlight cannot reach it.", "Strange creatures live in the darkness.", "Some fish make their own light to see.", "There are mountains taller than any on land.", "Scientists send robots to explore these worlds.", "We know more about the moon than our ocean floor."] },
+  { title: "Climate Change", lines: ["Earth's climate has been changing for millions of years.", "But now it is changing faster than ever before.", "Burning coal, oil, and gas releases harmful gases.", "These gases trap heat in our atmosphere.", "This makes the planet warmer year after year.", "Everyone can help by using less energy.", "Planting trees and choosing clean transportation helps too."] },
+  { title: "The Wright Brothers", lines: ["Wilbur and Orville Wright dreamed of flying.", "They studied how birds moved through the air.", "They built and tested many different wing designs.", "On December 17, 1903, they made history.", "Their airplane flew for just 12 seconds.", "But that short flight changed the world forever.", "Today, millions of people fly every day."] },
+  { title: "Recycling", lines: ["Every day, people throw away tons of garbage.", "Much of this waste ends up in landfills.", "Recycling helps reduce the amount of trash.", "Paper, glass, plastic, and metal can be recycled.", "Old newspapers become new paper products.", "Plastic bottles can be turned into clothing.", "Small actions by everyone make a big difference."] },
+  { title: "The Human Heart", lines: ["Your heart is about the size of your fist.", "It beats around 100,000 times every day.", "Each beat pumps blood through your body.", "Blood carries oxygen to your muscles.", "The heart has four chambers that work together.", "Exercise makes your heart stronger.", "Your heart never takes a break, even when you sleep."] }
+];
 
 // ===== Tab 切换 =====
 var currentTab = 'rank';
@@ -664,7 +723,6 @@ function switchPlayLang(lang) {
 // ===== 排行榜 =====
 async function loadRankList() {
   var weekStart = getWeekStart();
-  
   try {
     var { data, error } = await sb.from('typing_weekly_rank')
       .select('*')
@@ -691,11 +749,7 @@ async function loadRankList() {
       var isMe = currentUser && item.user_id === currentUser.id;
       if (isMe) posClass += ' me';
       
-      var medal = '';
-      if (i === 0) medal = '🥇';
-      else if (i === 1) medal = '🥈';
-      else if (i === 2) medal = '🥉';
-      else medal = (i + 1);
+      var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
       
       html += '<li class="rank-item' + posClass + '">';
       html += '<div class="rank-pos">' + medal + '</div>';
@@ -709,33 +763,21 @@ async function loadRankList() {
   } catch(e) {
     console.log('加载排行榜失败:', e);
   }
-  
-  // 检查并执行结算
   checkAndSettle();
 }
 
 // ===== 结算逻辑 =====
 async function checkAndSettle() {
-  // 检查上周是否已结算
   var lastWeekStart = getLastWeekStart();
-  
   try {
-    // 检查是否已有结算记录
     var { data: existing } = await sb.from('typing_rank_settlements')
       .select('id')
       .eq('week_start', lastWeekStart)
       .eq('lang', rankLang)
       .maybeSingle();
     
-    if (existing) return; // 已结算
+    if (existing) return;
     
-    // 检查当前时间是否已过上周六20:00（即本周一之后）
-    var now = new Date();
-    var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
-    var day = bjNow.getUTCDay();
-    // 如果今天是周一到周日，且上周有数据，就可以结算
-    
-    // 获取上周排行
     var { data: lastWeekData } = await sb.from('typing_weekly_rank')
       .select('*')
       .eq('lang', rankLang)
@@ -743,14 +785,9 @@ async function checkAndSettle() {
       .order('best_speed', { ascending: false })
       .limit(3);
     
-    if (!lastWeekData || lastWeekData.length === 0) return; // 上周没人参赛
+    if (!lastWeekData || lastWeekData.length === 0) return;
     
-    // 执行结算
-    var settlementData = {
-      week_start: lastWeekStart,
-      lang: rankLang
-    };
-    
+    var settlementData = { week_start: lastWeekStart, lang: rankLang };
     var rewards = [30, 20, 10];
     var fields = ['first', 'second', 'third'];
     
@@ -759,22 +796,16 @@ async function checkAndSettle() {
       settlementData[fields[i] + '_user_id'] = player.user_id;
       settlementData[fields[i] + '_username'] = player.username;
       settlementData[fields[i] + '_coins'] = rewards[i];
-      
-      // 发放金币
       try {
         var { data: profile } = await sb.from('profiles').select('coins').eq('id', player.user_id).single();
         if (profile) {
           await sb.from('profiles').update({ coins: (profile.coins || 0) + rewards[i] }).eq('id', player.user_id);
         }
-      } catch(e) {
-        console.log('发放奖励失败:', e);
-      }
+      } catch(e) {}
     }
     
-    // 插入结算记录
     await sb.from('typing_rank_settlements').insert(settlementData);
     
-    // 如果当前用户是获奖者，刷新金币显示
     if (currentUser) {
       var { data: myProfile } = await sb.from('profiles').select('coins').eq('id', currentUser.id).single();
       if (myProfile) {
@@ -782,12 +813,8 @@ async function checkAndSettle() {
         document.getElementById('coinsDisplay').textContent = '🪙 ' + myProfile.coins;
       }
     }
-    
-    // 显示上周冠军
     showChampion(lastWeekData[0]);
-  } catch(e) {
-    console.log('结算检查失败:', e);
-  }
+  } catch(e) {}
 }
 
 function showChampion(champion) {
@@ -807,7 +834,6 @@ async function loadAttempts() {
   if (!currentUser) return;
   var weekStart = getWeekStart();
   var today = getTodayBJ();
-  
   try {
     var { data } = await sb.from('typing_weekly_rank')
       .select('attempts_today, last_attempt_date')
@@ -843,12 +869,10 @@ async function loadAttempts() {
 // ===== 历史结算 =====
 async function loadHistory() {
   try {
-    var { data, error } = await sb.from('typing_rank_settlements')
+    var { data } = await sb.from('typing_rank_settlements')
       .select('*')
       .order('settled_at', { ascending: false })
       .limit(10);
-    
-    if (error) throw error;
     
     var container = document.getElementById('historyList');
     if (!data || data.length === 0) {
@@ -867,25 +891,16 @@ async function loadHistory() {
       html += '</div>';
     });
     container.innerHTML = html;
-  } catch(e) {
-    console.log('加载历史失败:', e);
-  }
+  } catch(e) {}
 }
 
 // ===== 参赛逻辑 =====
 async function enterRank() {
   if (!currentUser) { alert('请先登录！'); return; }
+  if ((currentProfile.coins || 0) < 2) { alert('金币不足！参赛需要2金币。'); return; }
   
-  // 检查金币
-  if ((currentProfile.coins || 0) < 2) {
-    alert('金币不足！参赛需要2金币。');
-    return;
-  }
-  
-  // 检查今日次数
   var weekStart = getWeekStart();
   var today = getTodayBJ();
-  
   try {
     var { data: rankRecord } = await sb.from('typing_weekly_rank')
       .select('attempts_today, last_attempt_date')
@@ -898,11 +913,7 @@ async function enterRank() {
     if (rankRecord && rankRecord.last_attempt_date === today) {
       attemptsUsed = rankRecord.attempts_today || 0;
     }
-    
-    if (attemptsUsed >= 5) {
-      alert('今日参赛次数已用完（5/5），明天再来吧！');
-      return;
-    }
+    if (attemptsUsed >= 5) { alert('今日参赛次数已用完（5/5），明天再来吧！'); return; }
   } catch(e) {}
   
   // 扣除金币
@@ -911,48 +922,36 @@ async function enterRank() {
   currentProfile.coins = newCoins;
   document.getElementById('coinsDisplay').textContent = '🪙 ' + newCoins;
   
-  // 开始游戏
   startRankGame();
 }
 
-// ===== 打字素材 =====
-var zhTexts = [
-  "春天来了花儿开了小朋友们一起去公园玩耍",
-  "我最喜欢吃妈妈做的红烧肉又香又好吃",
-  "图书馆里有很多有趣的故事书和漫画书",
-  "小猫咪蹲在窗台上看着外面飞来飞去的小鸟",
-  "科学家发现了一种新的恐龙化石非常珍贵",
-  "我们要保护环境不能随便扔垃圾到地上",
-  "学习编程可以让我们创造出有趣的游戏和网站",
-  "地球是太阳系中唯一有生命存在的行星非常特别",
-  "阅读是获取知识的最好方式我们要养成读书的好习惯",
-  "人工智能技术正在改变我们的生活方式让很多事情变得更加方便",
-  "宇宙中有数不清的星球和星系科学家们一直在探索其中的奥秘",
-  "互联网让全世界的人们可以随时随地交流分享知识和快乐",
-  "数学是一切科学的基础学好数学可以帮助我们更好地理解世界",
-  "中国有五千年的文明历史留下了无数珍贵的文化遗产",
-  "科技的发展让我们的生活越来越便利从智能手机到人工智能",
-  "保护地球环境是每个人的责任我们应该从身边的小事做起节约资源"
-];
+// ===== 防作弊工具 =====
+function showCheatWarning() {
+  var w = document.getElementById('cheatWarning');
+  w.style.display = 'block';
+  setTimeout(function() { w.style.display = 'none'; }, 2000);
+}
 
-var enTexts = [
-  "the quick brown fox jumps over the lazy dog near the river bank",
-  "learning to code is like learning a new language for computers and machines",
-  "the solar system has eight planets that orbit around the sun in outer space",
-  "artificial intelligence is changing the way we live and work in modern society",
-  "the internet connects billions of people around the world allowing them to share ideas",
-  "programming requires logical thinking and problem solving skills for many areas",
-  "the development of technology has transformed communication across continents",
-  "understanding mathematics is essential for scientific discovery and innovation",
-  "biodiversity is crucial for maintaining healthy ecosystems on our planet earth",
-  "renewable energy sources like solar and wind power are better for the environment",
-  "space exploration has taught us many things about our universe and planet earth",
-  "computers can process millions of calculations in just one single second easily",
-  "the great wall of china is one of the most famous landmarks in the entire world",
-  "playing sports helps us stay healthy and teaches us about teamwork and effort",
-  "scientists are working hard to find solutions for climate change problems today",
-  "reading books every day helps us become smarter and more creative thinkers"
-];
+function setupAntiCheat(input) {
+  input.addEventListener('paste', function(e) {
+    e.preventDefault();
+    showCheatWarning();
+  });
+  input.addEventListener('drop', function(e) {
+    e.preventDefault();
+    showCheatWarning();
+  });
+  input.addEventListener('beforeinput', function(e) {
+    if (e.inputType === 'insertFromPaste' || 
+        e.inputType === 'insertFromDrop' ||
+        e.inputType === 'insertFromYank' ||
+        e.inputType === 'insertFromSpeech' ||
+        e.inputType === 'insertReplacementText') {
+      e.preventDefault();
+      showCheatWarning();
+    }
+  });
+}
 
 // ===== 游戏状态 =====
 var gameActive = false;
@@ -965,14 +964,29 @@ var cumulativeCorrect = 0;
 var cumulativeWrong = 0;
 var currentCorrect = 0;
 var currentWrong = 0;
+var currentPoem = null;
 
 function startRankGame() {
-  // 准备文本
-  var pool = playLang === 'zh' ? zhTexts : enTexts;
-  var shuffled = pool.slice().sort(function() { return Math.random() - 0.5; });
-  displayText = shuffled.join(playLang === 'en' ? ' ' : '');
-  while (displayText.length < 500) {
-    displayText += (playLang === 'en' ? ' ' : '') + pool[Math.floor(Math.random() * pool.length)];
+  // 选择诗/文章
+  if (playLang === 'zh') {
+    // 随机选2-3首诗拼接
+    var shuffled = zhPoems.slice().sort(function() { return Math.random() - 0.5; });
+    var selected = shuffled.slice(0, 3);
+    currentPoem = selected[0]; // 显示第一首的标题
+    displayText = '';
+    for (var i = 0; i < selected.length; i++) {
+      displayText += selected[i].lines.join('');
+    }
+  } else {
+    // 随机选2-3篇文章拼接
+    var shuffled = enArticles.slice().sort(function() { return Math.random() - 0.5; });
+    var selected = shuffled.slice(0, 3);
+    currentPoem = selected[0];
+    displayText = '';
+    for (var i = 0; i < selected.length; i++) {
+      if (i > 0) displayText += ' ';
+      displayText += selected[i].lines.join(' ');
+    }
   }
   
   cumulativeCorrect = 0;
@@ -1009,11 +1023,12 @@ function beginRankTyping() {
   renderDisplayText();
   
   var input = document.getElementById('typingInput');
-  // 移除旧事件
   var newInput = input.cloneNode(true);
   input.parentNode.replaceChild(newInput, input);
   newInput.value = '';
-  newInput.focus();
+  
+  // 设置防作弊
+  setupAntiCheat(newInput);
   
   timeLeft = 60;
   startTime = Date.now();
@@ -1027,9 +1042,7 @@ function beginRankTyping() {
     timeLeft--;
     document.getElementById('statTime').textContent = timeLeft;
     updateStats();
-    if (timeLeft <= 0) {
-      endRankGame();
-    }
+    if (timeLeft <= 0) endRankGame();
   }, 1000);
   
   var typingInput = document.getElementById('typingInput');
@@ -1045,16 +1058,29 @@ function renderDisplayText() {
   var container = document.getElementById('textDisplay');
   var showLen = Math.min(displayText.length, 200);
   var html = '';
+  
+  // 显示标题
+  if (currentPoem) {
+    if (playLang === 'zh') {
+      html += '<div class="poem-title">📝 古诗词打字</div>';
+    } else {
+      html += '<div class="poem-title">📝 English Typing</div>';
+    }
+  }
+  
+  html += '<div class="poem-lines">';
   for (var i = 0; i < showLen; i++) {
     var cls = 'char';
     if (i === 0) cls += ' current';
     html += '<span class="' + cls + '">' + escapeHtml(displayText[i]) + '</span>';
   }
+  html += '</div>';
   container.innerHTML = html;
   charElements = container.querySelectorAll('.char');
 }
 
 function escapeHtml(str) {
+  if (!str) return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/ /g, '&nbsp;');
 }
 
@@ -1110,7 +1136,11 @@ function processInput(value) {
     input.value = '';
     currentCorrect = 0;
     currentWrong = 0;
-    renderDisplayText();
+    if (displayText.length > 0) {
+      renderDisplayText();
+    } else {
+      endRankGame();
+    }
   }
 }
 
@@ -1144,8 +1174,7 @@ async function endRankGame() {
   cumulativeWrong += currentWrong;
   
   var totalCorrectFinal = cumulativeCorrect;
-  var totalWrongFinal = cumulativeWrong;
-  var totalAll = totalCorrectFinal + totalWrongFinal;
+  var totalAll = totalCorrectFinal + cumulativeWrong;
   
   var speed = 0;
   if (playLang === 'zh') {
@@ -1156,10 +1185,8 @@ async function endRankGame() {
   
   var accuracy = totalAll > 0 ? Math.round((totalCorrectFinal / totalAll) * 100) : 0;
   
-  // 更新排行榜
   await updateWeeklyRank(speed, accuracy);
   
-  // 保存流水记录
   try {
     await sb.from('typing_records').insert({
       user_id: currentUser.id,
@@ -1174,16 +1201,13 @@ async function endRankGame() {
     });
   } catch(e) {}
   
-  // 显示结果
   showRankResult(speed, accuracy);
 }
 
 async function updateWeeklyRank(speed, accuracy) {
   var weekStart = getWeekStart();
   var today = getTodayBJ();
-  
   try {
-    // 查询现有记录
     var { data: existing } = await sb.from('typing_weekly_rank')
       .select('*')
       .eq('user_id', currentUser.id)
@@ -1192,32 +1216,20 @@ async function updateWeeklyRank(speed, accuracy) {
       .maybeSingle();
     
     if (existing) {
-      // 更新记录
-      var updateData = {
-        updated_at: new Date().toISOString()
-      };
-      
-      // 更新最佳成绩
+      var updateData = { updated_at: new Date().toISOString() };
       if (speed > existing.best_speed) {
         updateData.best_speed = speed;
         updateData.accuracy = accuracy;
       }
-      
-      // 更新今日次数
       if (existing.last_attempt_date === today) {
         updateData.attempts_today = (existing.attempts_today || 0) + 1;
       } else {
         updateData.attempts_today = 1;
         updateData.last_attempt_date = today;
       }
-      
-      await sb.from('typing_weekly_rank')
-        .update(updateData)
-        .eq('user_id', currentUser.id)
-        .eq('lang', playLang)
-        .eq('week_start', weekStart);
+      await sb.from('typing_weekly_rank').update(updateData)
+        .eq('user_id', currentUser.id).eq('lang', playLang).eq('week_start', weekStart);
     } else {
-      // 新建记录
       await sb.from('typing_weekly_rank').insert({
         user_id: currentUser.id,
         username: currentProfile.username || 'player',
@@ -1240,17 +1252,13 @@ function showRankResult(speed, accuracy) {
   panel.style.display = 'block';
   
   var unit = playLang === 'zh' ? '字/分钟' : 'WPM';
-  
   document.getElementById('resultIcon').textContent = '🏅';
   document.getElementById('resultTitle').textContent = '比赛结束！';
   document.getElementById('resultDetail').innerHTML = 
     '本次成绩：<b>' + speed + ' ' + unit + '</b><br>' +
     '准确率：<b>' + accuracy + '%</b><br>' +
     '消耗：2🪙';
-  
   document.getElementById('rankUpdate').textContent = '成绩已更新到本周排行榜！';
-  
-  // 刷新参赛次数
   loadAttempts();
 }
 
