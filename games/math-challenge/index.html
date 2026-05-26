@@ -246,45 +246,62 @@ function getUser() {
 }
 
 async function loadProgress() {
-  if (!currentUser) return;
-  const res = await supaFetch('/rest/v1/math_progress?user_id=eq.' + currentUser.user.id + '&select=category,level', { method: 'GET' });
-  if (res.ok) {
-    const rows = await res.json();
-    userProgress = {};
-    CATEGORIES.forEach(c => { userProgress[c.id] = new Array(10).fill(false); });
-    rows.forEach(r => {
-      if (userProgress[r.category] && r.level >= 1 && r.level <= 10) {
-        userProgress[r.category][r.level - 1] = true;
-      }
-    });
+  // Always load from localStorage first as fallback
+  const local = localStorage.getItem('math_progress');
+  if (local) {
+    try { userProgress = JSON.parse(local); } catch(e) {}
   }
+  if (!currentUser) return;
+  try {
+    const res = await supaFetch('/rest/v1/math_progress?user_id=eq.' + currentUser.user.id + '&select=category,level', { method: 'GET' });
+    if (res.ok) {
+      const rows = await res.json();
+      if (rows.length > 0) {
+        CATEGORIES.forEach(c => { userProgress[c.id] = new Array(10).fill(false); });
+        rows.forEach(r => {
+          if (userProgress[r.category] && r.level >= 1 && r.level <= 10) {
+            userProgress[r.category][r.level - 1] = true;
+          }
+        });
+      }
+    }
+  } catch(e) { console.log('Supabase load failed, using localStorage'); }
+  // Sync to localStorage
+  localStorage.setItem('math_progress', JSON.stringify(userProgress));
 }
 
 async function saveProgress(catId, level) {
+  // Always save to localStorage
+  localStorage.setItem('math_progress', JSON.stringify(userProgress));
   if (!currentUser) return;
-  await supaFetch('/rest/v1/math_progress', {
-    method: 'POST',
-    headers: { 'Prefer': 'resolution=merge-duplicates' },
-    body: JSON.stringify({ user_id: currentUser.user.id, category: catId, level: level })
-  });
+  try {
+    await supaFetch('/rest/v1/math_progress', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ user_id: currentUser.user.id, category: catId, level: level })
+    });
+  } catch(e) { console.log('Supabase save failed, progress saved locally'); }
 }
 
 async function addCoins(amount) {
   if (!currentUser) return;
-  // Use RPC or direct update
-  await supaFetch('/rest/v1/rpc/add_coins', {
-    method: 'POST',
-    body: JSON.stringify({ uid: currentUser.user.id, amount: amount })
-  });
+  try {
+    await supaFetch('/rest/v1/rpc/add_coins', {
+      method: 'POST',
+      body: JSON.stringify({ uid: currentUser.user.id, amount: amount })
+    });
+  } catch(e) { console.log('Add coins failed'); }
 }
 
 async function getUserCoins() {
   if (!currentUser) return 0;
-  const res = await supaFetch('/rest/v1/profiles?id=eq.' + currentUser.user.id + '&select=coins', { method: 'GET' });
-  if (res.ok) {
-    const data = await res.json();
-    return data[0]?.coins || 0;
-  }
+  try {
+    const res = await supaFetch('/rest/v1/profiles?id=eq.' + currentUser.user.id + '&select=coins', { method: 'GET' });
+    if (res.ok) {
+      const data = await res.json();
+      return data[0]?.coins || 0;
+    }
+  } catch(e) {}
   return 0;
 }
 
@@ -461,16 +478,29 @@ function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + m
 function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = rand(0, i); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
 
 function makeOptions(correct, generator) {
-  const opts = new Set([correct]);
+  const opts = new Set([String(correct)]);
   let tries = 0;
   while (opts.size < 4 && tries < 50) {
-    opts.add(generator());
+    const v = generator();
+    if (v !== null && v !== undefined && String(v) !== String(correct)) {
+      opts.add(String(v));
+    }
     tries++;
   }
-  while (opts.size < 4) opts.add(correct + opts.size);
+  // Fallback: add nearby numbers
+  let fallback = 1;
+  while (opts.size < 4) {
+    const numCorrect = parseFloat(correct);
+    if (!isNaN(numCorrect)) {
+      opts.add(String(numCorrect + fallback));
+    } else {
+      opts.add(String(correct) + fallback);
+    }
+    fallback++;
+  }
   const arr = [...opts];
   shuffle(arr);
-  return { options: arr.map(String), answer: arr.indexOf(correct) };
+  return { options: arr, answer: arr.indexOf(String(correct)) };
 }
 
 function generateQuestions(catId, level) {
@@ -946,12 +976,6 @@ function perm(n, r) { let result = 1; for (let i = 0; i < r; i++) result *= (n -
 // ============ INIT ============
 async function init() {
   currentUser = getUser();
-  if (!currentUser) {
-    // Allow playing without login but show prompt
-    CATEGORIES.forEach(c => { userProgress[c.id] = new Array(10).fill(false); });
-    showCategories();
-    return;
-  }
   CATEGORIES.forEach(c => { userProgress[c.id] = new Array(10).fill(false); });
   await loadProgress();
   showCategories();
