@@ -61,10 +61,10 @@
     settled_at TIMESTAMPTZ DEFAULT now(),
     first_user_id UUID,
     first_username TEXT,
-    first_coins INT DEFAULT 20,
+    first_coins INT DEFAULT 30,
     second_user_id UUID,
     second_username TEXT,
-    second_coins INT DEFAULT 15,
+    second_coins INT DEFAULT 20,
     third_user_id UUID,
     third_username TEXT,
     third_coins INT DEFAULT 10,
@@ -251,83 +251,115 @@ body {
 .rank-item.top1 .rank-pos { background: #ffd700; color: #fff; font-size: 1.2rem; }
 .rank-item.top2 .rank-pos { background: #c0c0c0; color: #fff; }
 .rank-item.top3 .rank-pos { background: #cd7f32; color: #fff; }
-.rank-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
-.rank-speed { font-weight: 800; color: #f5576c; font-size: 1.1rem; margin-right: 8px; }
-.rank-acc { font-size: 0.8rem; color: #888; }
+.rank-name { flex: 1; font-weight: 700; font-size: 1rem; }
+.rank-score { font-weight: 800; color: #f5576c; font-size: 1.1rem; }
 
-/* 规则说明 */
+/* 规则框 */
 .rules-box {
-  background: #fff3e0;
-  border-left: 4px solid #ff8c00;
-  padding: 14px 18px;
-  border-radius: 0 12px 12px 0;
-  margin: 16px 0;
-  font-size: 0.85rem;
-  color: #e65100;
-  line-height: 1.8;
-}
-
-/* 结算信息 */
-.settlement-box {
-  background: #f3e5f5;
-  border-left: 4px solid #9c27b0;
-  padding: 14px 18px;
-  border-radius: 0 12px 12px 0;
-  margin: 16px 0;
-  font-size: 0.85rem;
-  color: #6a1b9a;
-  line-height: 1.8;
-}
-
-/* 参赛状态 */
-.entry-info {
-  text-align: center;
-  padding: 16px;
   background: #f8f9ff;
   border-radius: 14px;
-  margin: 16px 0;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  color: #555;
 }
+.settlement-box {
+  background: #fff8e1;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-top: 16px;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: #666;
+}
+
+/* 按钮 */
+.btn-primary {
+  background: linear-gradient(135deg, #f5576c, #ff8c00);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 32px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(245,87,108,0.3);
+  transition: all 0.2s;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(245,87,108,0.4); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-secondary {
+  background: #f0f0f0;
+  color: #555;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 32px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: all 0.2s;
+}
+.btn-secondary:hover { background: #e0e0e0; }
+
+/* 入场信息 */
+.entry-info { text-align: center; padding: 16px; }
 .entry-info .cost { font-size: 1.1rem; color: #f5576c; font-weight: 700; }
 .entry-info .attempts { font-size: 0.9rem; color: #666; margin-top: 6px; }
 
 /* 打字区域 */
 .typing-area { display: none; text-align: center; }
-.text-display {
-  font-size: 1.5rem;
+
+/* 逐句显示区域 */
+.sentence-display-wrapper {
+  position: relative;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.poem-info {
+  font-size: 0.95rem;
+  color: #888;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+.sentence-display {
+  font-size: 2rem;
   line-height: 2.4;
-  padding: 24px 28px;
+  padding: 24px 20px;
   background: #f8f9ff;
   border-radius: 14px;
-  margin-bottom: 16px;
-  min-height: 120px;
+  min-height: 100px;
+  width: 100%;
   text-align: center;
+  word-break: break-all;
   user-select: none;
+  transition: all 0.3s ease;
+  letter-spacing: 4px;
 }
-.poem-title {
-  font-size: 0.95rem;
+.sentence-display .char { transition: color 0.1s; display: inline-block; }
+.sentence-display .char.correct { color: #4caf50; }
+.sentence-display .char.wrong { color: #f44336; background: #ffebee; border-radius: 3px; }
+.sentence-display .char.current { background: #e3f2fd; border-radius: 3px; border-bottom: 3px solid #2196f3; }
+.sentence-counter {
+  margin-top: 12px;
+  font-size: 0.85rem;
   color: #999;
-  margin-bottom: 16px;
-  font-weight: 400;
 }
-.poem-lines {
-  font-size: 1.6rem;
-  line-height: 2.2;
-  letter-spacing: 2px;
-}
-.text-display .char { transition: color 0.1s; }
-.text-display .char.correct { color: #4caf50; }
-.text-display .char.wrong { color: #f44336; background: #ffebee; border-radius: 3px; }
-.text-display .char.current { background: #e3f2fd; border-radius: 3px; border-bottom: 3px solid #2196f3; }
-.text-display .line-break { display: block; height: 8px; }
 
 #typingInput {
   width: 100%;
   padding: 16px 20px;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   border: 3px solid #e0e0e0;
   border-radius: 14px;
   outline: none;
   transition: border-color 0.2s;
+  letter-spacing: 2px;
 }
 #typingInput:focus { border-color: #f5576c; }
 
@@ -359,38 +391,8 @@ body {
 .result-panel { display: none; text-align: center; padding: 30px; }
 .result-panel .result-icon { font-size: 4rem; margin-bottom: 16px; }
 .result-panel .result-title { font-size: 1.8rem; font-weight: 800; margin-bottom: 8px; }
-.result-panel .result-detail { font-size: 1rem; color: #666; margin-bottom: 20px; line-height: 1.8; }
-.result-panel .rank-update { font-size: 1.1rem; color: #f5576c; font-weight: 700; margin: 12px 0; }
-
-/* 按钮 */
-.btn-primary {
-  background: linear-gradient(135deg, #f5576c, #ff8c00);
-  color: #fff;
-  border: none;
-  border-radius: 14px;
-  padding: 14px 32px;
-  font-size: 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(245,87,108,0.3);
-}
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(245,87,108,0.4); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-.btn-secondary {
-  background: #f0f0f0;
-  color: #555;
-  border: none;
-  border-radius: 14px;
-  padding: 12px 24px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin: 0 6px;
-}
-.btn-secondary:hover { background: #e0e0e0; }
+.result-panel .result-detail { font-size: 1rem; color: #555; line-height: 2; }
+.result-panel .rank-update { margin-top: 12px; color: #f5576c; font-weight: 700; }
 
 /* 空状态 */
 .empty-state {
@@ -415,33 +417,32 @@ body {
 
 /* 防作弊提示 */
 .cheat-warning {
-  display: none;
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: #f44336;
+  background: rgba(244,67,54,0.95);
   color: #fff;
   padding: 20px 30px;
-  border-radius: 14px;
-  font-size: 1.1rem;
+  border-radius: 16px;
+  font-size: 1.2rem;
   font-weight: 700;
   z-index: 9999;
-  box-shadow: 0 8px 32px rgba(244,67,54,0.4);
-  animation: shake 0.5s;
+  animation: fadeInOut 2s ease forwards;
+  pointer-events: none;
 }
-@keyframes shake {
-  0%,100% { transform: translate(-50%,-50%) rotate(0); }
-  25% { transform: translate(-50%,-50%) rotate(-2deg); }
-  75% { transform: translate(-50%,-50%) rotate(2deg); }
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* 响应式 */
 @media (max-width: 600px) {
   .container { padding: 12px; }
   .card { padding: 18px; border-radius: 16px; }
-  .text-display { font-size: 1.2rem; padding: 16px; line-height: 2; }
-  .poem-lines { font-size: 1.3rem; }
+  .sentence-display { font-size: 1.5rem; padding: 16px; line-height: 2.2; letter-spacing: 2px; }
   .stats-bar { flex-wrap: wrap; gap: 6px; padding: 10px; }
   .stat-item .stat-value { font-size: 1.2rem; }
   .top-bar .title { font-size: 1rem; }
@@ -503,7 +504,7 @@ body {
         📋 <b>排名赛规则：</b><br>
         • 每次参赛消耗 <b>2金币</b><br>
         • 每人每天最多参赛 <b>5次</b><br>
-        • 限时 <b>60秒</b>，取你的最佳成绩上榜<br>
+        • 限时 <b>60秒</b>，逐句打字，打完一句出下一句<br>
         • 每周六 20:00 结算，前三名获得金币奖励<br>
         • 新的一周排行榜重置，重新开始竞争！
       </div>
@@ -554,10 +555,16 @@ body {
       </div>
     </div>
 
-    <div class="text-display" id="textDisplay"></div>
+    <div class="sentence-display-wrapper">
+      <div class="poem-info" id="poemInfo"></div>
+      <div class="sentence-display" id="sentenceDisplay"></div>
+      <div class="sentence-counter" id="sentenceCounter">已完成 0 句</div>
+    </div>
 
     <div>
-      <input type="text" id="typingInput" placeholder="在这里开始打字..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" x-webkit-speech="false">
+      <input type="text" id="typingInput" placeholder="在这里开始打字..." 
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        x-webkit-speech="false">
     </div>
   </div>
 
@@ -573,9 +580,6 @@ body {
     </div>
   </div>
 </div>
-
-<!-- 防作弊提示 -->
-<div class="cheat-warning" id="cheatWarning">⚠️ 请用键盘打字哦！</div>
 
 <script>
 // ===== Supabase 初始化 =====
@@ -594,25 +598,323 @@ function initSupabase() {
 
 async function checkAuth() {
   initSupabase();
-  var sess = null;
   try {
-    var { data } = await sb.auth.getSession();
-    sess = data.session;
-  } catch(e) {}
-  if (!sess) {
-    alert('请先登录！');
+    var { data: { session } } = await sb.auth.getSession();
+    if (!session) { window.location.href = '/login.html'; return false; }
+    currentUser = session.user;
+    var { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+    currentProfile = profile || {};
+    document.getElementById('coinsDisplay').textContent = '🪙 ' + (currentProfile.coins || 0);
+    return true;
+  } catch(e) {
     window.location.href = '/login.html';
     return false;
   }
-  currentUser = sess.user;
-  try {
-    var { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
-    currentProfile = profile;
-    document.getElementById('coinsDisplay').textContent = '🪙 ' + (profile ? profile.coins : 0);
-  } catch(e) {
-    currentProfile = { coins: 0, username: 'player' };
+}
+
+// ===== 古诗词库（人教版三到六年级必背，含标点） =====
+var zhPoems = [
+  { title: "静夜思", author: "李白", lines: ["床前明月光，","疑是地上霜。","举头望明月，","低头思故乡。"] },
+  { title: "春晓", author: "孟浩然", lines: ["春眠不觉晓，","处处闻啼鸟。","夜来风雨声，","花落知多少。"] },
+  { title: "望庐山瀑布", author: "李白", lines: ["日照香炉生紫烟，","遥看瀑布挂前川。","飞流直下三千尺，","疑是银河落九天。"] },
+  { title: "绝句", author: "杜甫", lines: ["两个黄鹂鸣翠柳，","一行白鹭上青天。","窗含西岭千秋雪，","门泊东吴万里船。"] },
+  { title: "登鹳雀楼", author: "王之涣", lines: ["白日依山尽，","黄河入海流。","欲穷千里目，","更上一层楼。"] },
+  { title: "望天门山", author: "李白", lines: ["天门中断楚江开，","碧水东流至此回。","两岸青山相对出，","孤帆一片日边来。"] },
+  { title: "早发白帝城", author: "李白", lines: ["朝辞白帝彩云间，","千里江陵一日还。","两岸猿声啼不住，","轻舟已过万重山。"] },
+  { title: "江雪", author: "柳宗元", lines: ["千山鸟飞绝，","万径人踪灭。","孤舟蓑笠翁，","独钓寒江雪。"] },
+  { title: "悯农", author: "李绅", lines: ["锄禾日当午，","汗滴禾下土。","谁知盘中餐，","粒粒皆辛苦。"] },
+  { title: "咏柳", author: "贺知章", lines: ["碧玉妆成一树高，","万条垂下绿丝绦。","不知细叶谁裁出，","二月春风似剪刀。"] },
+  { title: "凉州词", author: "王翰", lines: ["葡萄美酒夜光杯，","欲饮琵琶马上催。","醉卧沙场君莫笑，","古来征战几人回？"] },
+  { title: "出塞", author: "王昌龄", lines: ["秦时明月汉时关，","万里长征人未还。","但使龙城飞将在，","不教胡马度阴山。"] },
+  { title: "芙蓉楼送辛渐", author: "王昌龄", lines: ["寒雨连江夜入吴，","平明送客楚山孤。","洛阳亲友如相问，","一片冰心在玉壶。"] },
+  { title: "鹿柴", author: "王维", lines: ["空山不见人，","但闻人语响。","返景入深林，","复照青苔上。"] },
+  { title: "送元二使安西", author: "王维", lines: ["渭城朝雨浥轻尘，","客舍青青柳色新。","劝君更尽一杯酒，","西出阳关无故人。"] },
+  { title: "九月九日忆山东兄弟", author: "王维", lines: ["独在异乡为异客，","每逢佳节倍思亲。","遥知兄弟登高处，","遍插茱萸少一人。"] },
+  { title: "别董大", author: "高适", lines: ["千里黄云白日曛，","北风吹雁雪纷纷。","莫愁前路无知己，","天下谁人不识君？"] },
+  { title: "枫桥夜泊", author: "张继", lines: ["月落乌啼霜满天，","江枫渔火对愁眠。","姑苏城外寒山寺，","夜半钟声到客船。"] },
+  { title: "游子吟", author: "孟郊", lines: ["慈母手中线，","游子身上衣。","临行密密缝，","意恐迟迟归。","谁言寸草心，","报得三春晖。"] },
+  { title: "江南春", author: "杜牧", lines: ["千里莺啼绿映红，","水村山郭酒旗风。","南朝四百八十寺，","多少楼台烟雨中。"] },
+  { title: "山行", author: "杜牧", lines: ["远上寒山石径斜，","白云生处有人家。","停车坐爱枫林晚，","霜叶红于二月花。"] },
+  { title: "清明", author: "杜牧", lines: ["清明时节雨纷纷，","路上行人欲断魂。","借问酒家何处有？","牧童遥指杏花村。"] },
+  { title: "泊船瓜洲", author: "王安石", lines: ["京口瓜洲一水间，","钟山只隔数重山。","春风又绿江南岸，","明月何时照我还？"] },
+  { title: "题西林壁", author: "苏轼", lines: ["横看成岭侧成峰，","远近高低各不同。","不识庐山真面目，","只缘身在此山中。"] },
+  { title: "饮湖上初晴后雨", author: "苏轼", lines: ["水光潋滟晴方好，","山色空蒙雨亦奇。","欲把西湖比西子，","淡妆浓抹总相宜。"] },
+  { title: "惠崇春江晚景", author: "苏轼", lines: ["竹外桃花三两枝，","春江水暖鸭先知。","蒌蒿满地芦芽短，","正是河豚欲上时。"] },
+  { title: "示儿", author: "陆游", lines: ["死去元知万事空，","但悲不见九州同。","王师北定中原日，","家祭无忘告乃翁。"] },
+  { title: "秋夜将晓出篱门迎凉有感", author: "陆游", lines: ["三万里河东入海，","五千仞岳上摩天。","遗民泪尽胡尘里，","南望王师又一年。"] },
+  { title: "小池", author: "杨万里", lines: ["泉眼无声惜细流，","树阴照水爱晴柔。","小荷才露尖尖角，","早有蜻蜓立上头。"] },
+  { title: "晓出净慈寺送林子方", author: "杨万里", lines: ["毕竟西湖六月中，","风光不与四时同。","接天莲叶无穷碧，","映日荷花别样红。"] },
+  { title: "春日", author: "朱熹", lines: ["胜日寻芳泗水滨，","无边光景一时新。","等闲识得东风面，","万紫千红总是春。"] },
+  { title: "乡村四月", author: "翁卷", lines: ["绿遍山原白满川，","子规声里雨如烟。","乡村四月闲人少，","才了蚕桑又插田。"] },
+  { title: "墨梅", author: "王冕", lines: ["吾家洗砚池头树，","朵朵花开淡墨痕。","不要人夸好颜色，","只留清气满乾坤。"] },
+  { title: "石灰吟", author: "于谦", lines: ["千锤万凿出深山，","烈火焚烧若等闲。","粉骨碎身浑不怕，","要留清白在人间。"] },
+  { title: "竹石", author: "郑燮", lines: ["咬定青山不放松，","立根原在破岩中。","千磨万击还坚劲，","任尔东西南北风。"] },
+  { title: "己亥杂诗", author: "龚自珍", lines: ["九州生气恃风雷，","万马齐喑究可哀。","我劝天公重抖擞，","不拘一格降人才。"] }
+];
+
+// ===== RAZ 分级阅读英文句子库（M-V level，含标点） =====
+var enSentences = [
+  // M Level - 基础句型
+  { title: "My Pet Cat", level: "M", lines: ["My cat likes to sleep on the sofa all day long.", "She wakes up when she hears the sound of food.", "Her favorite toy is a small red ball.", "I love playing with her after school every day."] },
+  { title: "The School Garden", level: "M", lines: ["Our school has a beautiful garden behind the library.", "We planted tomatoes, carrots, and sunflowers last spring.", "Every morning, we water the plants before class starts.", "The sunflowers grew taller than me by summer!"] },
+  { title: "A Rainy Day", level: "M", lines: ["It rained all day, so we stayed inside.", "My brother and I built a fort with blankets.", "Mom made us hot chocolate with marshmallows.", "We read books and played board games until dinner."] },
+  { title: "The Playground", level: "M", lines: ["The playground is my favorite place at school.", "I like the swings because I can go really high.", "My best friend always races me to the slide.", "We play together every day during recess."] },
+  // N Level
+  { title: "Ocean Animals", level: "N", lines: ["The ocean is home to millions of different animals.", "Dolphins are smart and can learn many tricks.", "Sea turtles travel thousands of miles every year.", "Some jellyfish can glow in the dark water at night."] },
+  { title: "The Solar System", level: "N", lines: ["There are eight planets in our solar system.", "Earth is the only planet with liquid water on its surface.", "Jupiter is the largest planet, bigger than all others combined.", "It takes light from the Sun eight minutes to reach Earth."] },
+  { title: "Helping at Home", level: "N", lines: ["Every Saturday, our family cleans the house together.", "I help my dad wash the dishes after dinner.", "My sister vacuums the living room and hallway.", "Working together makes everything faster and more fun."] },
+  // O Level
+  { title: "The Water Cycle", level: "O", lines: ["Water moves in a cycle that never stops.", "The sun heats the ocean, and water evaporates into the air.", "Clouds form when water vapor cools down high in the sky.", "Rain falls back to Earth, and the cycle begins again."] },
+  { title: "Amazing Birds", level: "O", lines: ["Birds are the only animals with feathers on their bodies.", "Some birds migrate thousands of miles when seasons change.", "The peregrine falcon is the fastest animal on Earth.", "Hummingbirds can fly backwards and even upside down!"] },
+  { title: "My Favorite Season", level: "O", lines: ["Autumn is my favorite season of the whole year.", "The leaves turn red, orange, and golden yellow.", "I love jumping into big piles of crunchy leaves.", "The air feels cool and smells like apples and cinnamon."] },
+  // P Level
+  { title: "Volcanoes", level: "P", lines: ["A volcano is an opening in the Earth's surface.", "Hot melted rock called magma rises from deep underground.", "When magma reaches the surface, it is called lava.", "Some volcanic eruptions can be seen from space!"] },
+  { title: "The Rainforest", level: "P", lines: ["Rainforests are home to more than half of all plant species.", "The canopy layer blocks most sunlight from reaching the ground.", "Many animals in the rainforest have never been discovered.", "These forests produce much of the oxygen we breathe every day."] },
+  { title: "Ancient Egypt", level: "P", lines: ["The ancient Egyptians built the pyramids over four thousand years ago.", "They used a writing system called hieroglyphics.", "The Nile River was essential for farming and transportation.", "Pharaohs were buried with treasures for the afterlife."] },
+  // Q Level
+  { title: "How Computers Work", level: "Q", lines: ["Computers process information using tiny electronic switches.", "These switches can be either on or off, representing ones and zeros.", "Millions of these switches work together to run programs.", "The speed of modern computers doubles approximately every two years."] },
+  { title: "Earthquakes", level: "Q", lines: ["The Earth's surface is made of large pieces called tectonic plates.", "Earthquakes happen when these plates suddenly move against each other.", "Scientists use seismographs to measure the strength of earthquakes.", "Most earthquakes occur along the edges of tectonic plates."] },
+  // R Level
+  { title: "The Human Body", level: "R", lines: ["Your heart beats about one hundred thousand times every single day.", "The human brain contains approximately one hundred billion nerve cells.", "Blood travels through sixty thousand miles of blood vessels in your body.", "Your bones are stronger than steel when compared by weight."] },
+  { title: "Space Exploration", level: "R", lines: ["The first person to walk on the Moon was Neil Armstrong in 1969.", "The International Space Station orbits Earth sixteen times per day.", "Mars is the most likely planet for humans to visit next.", "Light from the nearest star takes over four years to reach us."] },
+  // S Level
+  { title: "Climate Change", level: "S", lines: ["Earth's average temperature has risen significantly in the past century.", "Burning fossil fuels releases carbon dioxide into the atmosphere.", "Glaciers and ice caps are melting faster than scientists predicted.", "Renewable energy sources can help reduce greenhouse gas emissions."] },
+  { title: "The Deep Ocean", level: "S", lines: ["More than eighty percent of the ocean remains unexplored today.", "The deepest point in the ocean is the Mariana Trench.", "Strange creatures live in complete darkness at the ocean floor.", "Some deep-sea fish produce their own light through bioluminescence."] },
+  // T Level
+  { title: "Artificial Intelligence", level: "T", lines: ["Artificial intelligence allows computers to learn from experience.", "Machine learning algorithms improve their performance over time.", "AI can recognize faces, translate languages, and drive cars.", "Scientists debate whether machines will ever truly think like humans."] },
+  { title: "Ecosystems", level: "T", lines: ["An ecosystem includes all living and nonliving things in an area.", "Every organism plays an important role in its ecosystem.", "When one species disappears, it affects the entire food chain.", "Protecting biodiversity is essential for healthy ecosystems worldwide."] },
+  // U-V Level
+  { title: "The Universe", level: "U", lines: ["The universe began approximately fourteen billion years ago.", "Galaxies contain billions of stars, and there are billions of galaxies.", "Black holes have gravity so strong that even light cannot escape.", "Scientists believe the universe is still expanding in every direction."] },
+  { title: "Evolution", level: "V", lines: ["All living things on Earth share a common ancestor from billions of years ago.", "Natural selection favors organisms best adapted to their environment.", "Fossils provide evidence of how species have changed over millions of years.", "DNA analysis reveals the relationships between different species."] }
+];
+
+// ===== 游戏状态 =====
+var gameActive = false;
+var gameTimer = null;
+var timeLeft = 60;
+var startTime = 0;
+var cumulativeCorrect = 0;
+var cumulativeWrong = 0;
+var currentCorrect = 0;
+var currentWrong = 0;
+var sentencesCompleted = 0;
+
+// 逐句滚动状态
+var currentSentence = '';      // 当前要打的句子
+var sentenceQueue = [];        // 句子队列
+var currentPoemTitle = '';     // 当前诗名/文章名
+var currentPoemAuthor = '';    // 当前作者/级别
+var charElements = [];
+
+// ===== 准备句子队列 =====
+function prepareSentenceQueue() {
+  sentenceQueue = [];
+  if (playLang === 'zh') {
+    // 随机打乱诗的顺序
+    var shuffled = zhPoems.slice().sort(function() { return Math.random() - 0.5; });
+    for (var i = 0; i < shuffled.length; i++) {
+      var poem = shuffled[i];
+      for (var j = 0; j < poem.lines.length; j++) {
+        sentenceQueue.push({
+          text: poem.lines[j],
+          title: poem.title,
+          author: poem.author
+        });
+      }
+    }
+  } else {
+    // 英文：随机打乱文章顺序
+    var shuffled = enSentences.slice().sort(function() { return Math.random() - 0.5; });
+    for (var i = 0; i < shuffled.length; i++) {
+      var article = shuffled[i];
+      for (var j = 0; j < article.lines.length; j++) {
+        sentenceQueue.push({
+          text: article.lines[j],
+          title: article.title,
+          author: 'Level ' + article.level
+        });
+      }
+    }
   }
-  return true;
+}
+
+// ===== 加载下一句 =====
+function loadNextSentence() {
+  if (sentenceQueue.length === 0) {
+    prepareSentenceQueue(); // 循环
+  }
+  var item = sentenceQueue.shift();
+  currentSentence = item.text;
+  currentPoemTitle = item.title;
+  currentPoemAuthor = item.author;
+  renderSentence();
+}
+
+// ===== 渲染当前句子 =====
+function renderSentence() {
+  // 显示诗名/作者
+  var infoEl = document.getElementById('poemInfo');
+  if (playLang === 'zh') {
+    infoEl.textContent = '《' + currentPoemTitle + '》— ' + currentPoemAuthor;
+  } else {
+    infoEl.textContent = currentPoemTitle + ' (' + currentPoemAuthor + ')';
+  }
+  
+  // 渲染字符
+  var container = document.getElementById('sentenceDisplay');
+  var html = '';
+  for (var i = 0; i < currentSentence.length; i++) {
+    var cls = 'char';
+    if (i === 0) cls += ' current';
+    html += '<span class="' + cls + '">' + escapeHtml(currentSentence[i]) + '</span>';
+  }
+  container.innerHTML = html;
+  charElements = container.querySelectorAll('.char');
+  
+  // 更新计数
+  document.getElementById('sentenceCounter').textContent = '已完成 ' + sentencesCompleted + ' 句';
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/ /g, '&nbsp;');
+}
+
+// ===== 防作弊系统 =====
+function showCheatWarning(msg) {
+  var el = document.createElement('div');
+  el.className = 'cheat-warning';
+  el.textContent = msg || '请用键盘打字哦！🚫';
+  document.body.appendChild(el);
+  setTimeout(function() { el.remove(); }, 2000);
+}
+
+function setupAntiCheat(input) {
+  // 禁止粘贴
+  input.addEventListener('paste', function(e) {
+    e.preventDefault();
+    showCheatWarning('不能粘贴哦，请用键盘打字！');
+    return false;
+  });
+  
+  // 禁止拖放
+  input.addEventListener('drop', function(e) {
+    e.preventDefault();
+    showCheatWarning('请用键盘打字哦！');
+    return false;
+  });
+  
+  // 监听 inputType 检测语音输入
+  input.addEventListener('beforeinput', function(e) {
+    if (e.inputType === 'insertFromPaste' || 
+        e.inputType === 'insertFromDrop' ||
+        e.inputType === 'insertFromSpeech' ||
+        e.inputType === 'insertReplacementText') {
+      e.preventDefault();
+      showCheatWarning('请用键盘打字哦！🚫');
+      return false;
+    }
+  });
+}
+
+// ===== 输入处理 =====
+function setupChineseInput(input) {
+  var composing = false;
+  input.addEventListener('compositionstart', function() { composing = true; });
+  input.addEventListener('compositionend', function() {
+    composing = false;
+    processInput(input.value);
+  });
+  input.addEventListener('input', function(e) {
+    // 额外检测语音/粘贴
+    if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromSpeech' || e.inputType === 'insertReplacementText') {
+      input.value = '';
+      showCheatWarning('请用键盘打字哦！🚫');
+      return;
+    }
+    if (!composing) processInput(input.value);
+  });
+}
+
+function setupEnglishInput(input) {
+  input.addEventListener('input', function(e) {
+    if (!gameActive) return;
+    // 额外检测语音/粘贴
+    if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromSpeech' || e.inputType === 'insertReplacementText') {
+      input.value = '';
+      showCheatWarning('请用键盘打字哦！🚫');
+      return;
+    }
+    processInput(input.value);
+  });
+}
+
+function processInput(value) {
+  if (!gameActive) return;
+  
+  currentCorrect = 0;
+  currentWrong = 0;
+  
+  for (var i = 0; i < charElements.length; i++) {
+    charElements[i].className = 'char';
+    if (i < value.length) {
+      if (value[i] === currentSentence[i]) {
+        charElements[i].className = 'char correct';
+        currentCorrect++;
+      } else {
+        charElements[i].className = 'char wrong';
+        currentWrong++;
+      }
+    } else if (i === value.length) {
+      charElements[i].className = 'char current';
+    }
+  }
+  
+  updateStats();
+  
+  // 当前句子打完
+  if (value.length >= currentSentence.length) {
+    cumulativeCorrect += currentCorrect;
+    cumulativeWrong += currentWrong;
+    currentCorrect = 0;
+    currentWrong = 0;
+    sentencesCompleted++;
+    
+    // 清空输入框
+    var input = document.getElementById('typingInput');
+    input.value = '';
+    
+    // 加载下一句（带过渡动画）
+    var display = document.getElementById('sentenceDisplay');
+    display.style.opacity = '0';
+    display.style.transform = 'translateY(-10px)';
+    setTimeout(function() {
+      loadNextSentence();
+      display.style.opacity = '1';
+      display.style.transform = 'translateY(0)';
+    }, 150);
+  }
+}
+
+function updateStats() {
+  var elapsed = (Date.now() - startTime) / 1000 / 60;
+  if (elapsed < 0.01) elapsed = 0.01;
+  
+  var totalCorrectNow = cumulativeCorrect + currentCorrect;
+  var totalWrongNow = cumulativeWrong + currentWrong;
+  var totalAll = totalCorrectNow + totalWrongNow;
+  
+  var speed = 0;
+  if (playLang === 'zh') {
+    speed = Math.round(totalCorrectNow / elapsed);
+    document.getElementById('statCount').textContent = totalCorrectNow;
+  } else {
+    speed = Math.round((totalCorrectNow / 5) / elapsed);
+    document.getElementById('statCount').textContent = Math.round(totalCorrectNow / 5);
+  }
+  
+  var accuracy = totalAll > 0 ? Math.round((totalCorrectNow / totalAll) * 100) : 100;
+  document.getElementById('statSpeed').textContent = speed;
+  document.getElementById('statAccuracy').textContent = accuracy + '%';
 }
 
 // ===== 时间工具 =====
@@ -637,10 +939,16 @@ function getNextSettlement() {
   var bjNow = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
   var day = bjNow.getUTCDay();
   var daysUntilSat = (6 - day + 7) % 7;
-  if (daysUntilSat === 0 && bjNow.getUTCHours() >= 20) daysUntilSat = 7;
+  if (daysUntilSat === 0) {
+    if (bjNow.getUTCHours() >= 20) {
+      daysUntilSat = 7;
+    }
+  }
   var satDate = new Date(bjNow);
   satDate.setUTCDate(satDate.getUTCDate() + daysUntilSat);
-  return (satDate.getUTCMonth() + 1) + '月' + satDate.getUTCDate() + '日 周六 20:00';
+  var month = satDate.getUTCMonth() + 1;
+  var date = satDate.getUTCDate();
+  return month + '月' + date + '日 周六 20:00';
 }
 
 function getLastWeekStart() {
@@ -652,39 +960,6 @@ function getLastWeekStart() {
   monday.setUTCDate(monday.getUTCDate() - diff - 7);
   return monday.toISOString().split('T')[0];
 }
-
-// ===== 古诗词素材（排名赛用，随机选取） =====
-var zhPoems = [
-  { title: "静夜思", author: "李白", lines: ["床前明月光，", "疑是地上霜。", "举头望明月，", "低头思故乡。"] },
-  { title: "春晓", author: "孟浩然", lines: ["春眠不觉晓，", "处处闻啼鸟。", "夜来风雨声，", "花落知多少。"] },
-  { title: "望庐山瀑布", author: "李白", lines: ["日照香炉生紫烟，", "遥看瀑布挂前川。", "飞流直下三千尺，", "疑是银河落九天。"] },
-  { title: "绝句", author: "杜甫", lines: ["两个黄鹂鸣翠柳，", "一行白鹭上青天。", "窗含西岭千秋雪，", "门泊东吴万里船。"] },
-  { title: "黄鹤楼送孟浩然之广陵", author: "李白", lines: ["故人西辞黄鹤楼，", "烟花三月下扬州。", "孤帆远影碧空尽，", "唯见长江天际流。"] },
-  { title: "题西林壁", author: "苏轼", lines: ["横看成岭侧成峰，", "远近高低各不同。", "不识庐山真面目，", "只缘身在此山中。"] },
-  { title: "出塞", author: "王昌龄", lines: ["秦时明月汉时关，", "万里长征人未还。", "但使龙城飞将在，", "不教胡马度阴山。"] },
-  { title: "游子吟", author: "孟郊", lines: ["慈母手中线，", "游子身上衣。", "临行密密缝，", "意恐迟迟归。", "谁言寸草心，", "报得三春晖。"] },
-  { title: "饮湖上初晴后雨", author: "苏轼", lines: ["水光潋滟晴方好，", "山色空蒙雨亦奇。", "欲把西湖比西子，", "淡妆浓抹总相宜。"] },
-  { title: "江南春", author: "杜牧", lines: ["千里莺啼绿映红，", "水村山郭酒旗风。", "南朝四百八十寺，", "多少楼台烟雨中。"] },
-  { title: "清明", author: "杜牧", lines: ["清明时节雨纷纷，", "路上行人欲断魂。", "借问酒家何处有，", "牧童遥指杏花村。"] },
-  { title: "山行", author: "杜牧", lines: ["远上寒山石径斜，", "白云生处有人家。", "停车坐爱枫林晚，", "霜叶红于二月花。"] },
-  { title: "竹石", author: "郑燮", lines: ["咬定青山不放松，", "立根原在破岩中。", "千磨万击还坚劲，", "任尔东西南北风。"] },
-  { title: "石灰吟", author: "于谦", lines: ["千锤万凿出深山，", "烈火焚烧若等闲。", "粉骨碎身浑不怕，", "要留清白在人间。"] },
-  { title: "过零丁洋", author: "文天祥", lines: ["辛苦遭逢起一经，", "干戈寥落四周星。", "山河破碎风飘絮，", "身世浮沉雨打萍。", "惶恐滩头说惶恐，", "零丁洋里叹零丁。", "人生自古谁无死？", "留取丹心照汗青。"] }
-];
-
-// ===== 英文 RAZ 素材（排名赛用） =====
-var enArticles = [
-  { title: "My Pet Cat", lines: ["I have a cat named Sunny.", "She has soft, orange fur.", "Every morning, she sits by the window.", "She watches the birds outside.", "When I come home from school,", "she runs to the door.", "I love my cat very much."] },
-  { title: "The Beach", lines: ["Last summer, we went to the beach.", "The sand was warm under my feet.", "I built a sandcastle with my brother.", "We found shells along the shore.", "The waves splashed against our legs.", "We ate ice cream before going home.", "It was a perfect day."] },
-  { title: "The Butterfly", lines: ["A butterfly starts as a tiny egg.", "Then it becomes a caterpillar.", "The caterpillar eats leaves all day long.", "It grows bigger and bigger.", "Then it makes a cocoon around itself.", "Inside the cocoon, it changes completely.", "Finally, a beautiful butterfly comes out."] },
-  { title: "The Great Wall", lines: ["The Great Wall of China is over 2,000 years old.", "It stretches across mountains and valleys.", "Ancient emperors built it to protect their land.", "Millions of workers spent many years building it.", "Today, people from all over the world visit it.", "It is one of the greatest structures ever built."] },
-  { title: "Honeybees", lines: ["Honeybees are some of the hardest workers in nature.", "Each hive has one queen and many workers.", "Worker bees fly from flower to flower.", "They collect nectar and bring it back.", "Other bees turn the nectar into honey.", "Bees also help plants grow by spreading pollen.", "Without bees, many fruits would disappear."] },
-  { title: "The Ocean Floor", lines: ["The bottom of the ocean is a mysterious place.", "It is so deep that sunlight cannot reach it.", "Strange creatures live in the darkness.", "Some fish make their own light to see.", "There are mountains taller than any on land.", "Scientists send robots to explore these worlds.", "We know more about the moon than our ocean floor."] },
-  { title: "Climate Change", lines: ["Earth's climate has been changing for millions of years.", "But now it is changing faster than ever before.", "Burning coal, oil, and gas releases harmful gases.", "These gases trap heat in our atmosphere.", "This makes the planet warmer year after year.", "Everyone can help by using less energy.", "Planting trees and choosing clean transportation helps too."] },
-  { title: "The Wright Brothers", lines: ["Wilbur and Orville Wright dreamed of flying.", "They studied how birds moved through the air.", "They built and tested many different wing designs.", "On December 17, 1903, they made history.", "Their airplane flew for just 12 seconds.", "But that short flight changed the world forever.", "Today, millions of people fly every day."] },
-  { title: "Recycling", lines: ["Every day, people throw away tons of garbage.", "Much of this waste ends up in landfills.", "Recycling helps reduce the amount of trash.", "Paper, glass, plastic, and metal can be recycled.", "Old newspapers become new paper products.", "Plastic bottles can be turned into clothing.", "Small actions by everyone make a big difference."] },
-  { title: "The Human Heart", lines: ["Your heart is about the size of your fist.", "It beats around 100,000 times every day.", "Each beat pumps blood through your body.", "Blood carries oxygen to your muscles.", "The heart has four chambers that work together.", "Exercise makes your heart stronger.", "Your heart never takes a break, even when you sleep."] }
-];
 
 // ===== Tab 切换 =====
 var currentTab = 'rank';
@@ -722,7 +997,9 @@ function switchPlayLang(lang) {
 
 // ===== 排行榜 =====
 async function loadRankList() {
+  if (!currentUser) return;
   var weekStart = getWeekStart();
+  
   try {
     var { data, error } = await sb.from('typing_weekly_rank')
       .select('*')
@@ -731,90 +1008,58 @@ async function loadRankList() {
       .order('best_speed', { ascending: false })
       .limit(20);
     
-    if (error) throw error;
-    
-    var container = document.getElementById('rankListContainer');
-    if (!data || data.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-icon">🏆</div><div>本周还没有人参赛，快来争第一吧！</div></div>';
+    if (error || !data || data.length === 0) {
+      document.getElementById('rankListContainer').innerHTML = 
+        '<div class="empty-state"><div class="empty-icon">🏆</div><div>本周还没有人参赛，快来争第一吧！</div></div>';
+      document.getElementById('championBanner').innerHTML = '';
       return;
     }
     
     var unit = rankLang === 'zh' ? '字/分' : 'WPM';
     var html = '<ul class="rank-list">';
-    data.forEach(function(item, i) {
+    for (var i = 0; i < data.length; i++) {
+      var item = data[i];
       var posClass = '';
-      if (i === 0) posClass = ' top1';
-      else if (i === 1) posClass = ' top2';
-      else if (i === 2) posClass = ' top3';
-      var isMe = currentUser && item.user_id === currentUser.id;
-      if (isMe) posClass += ' me';
-      
+      if (i === 0) posClass = 'top1';
+      else if (i === 1) posClass = 'top2';
+      else if (i === 2) posClass = 'top3';
+      var meClass = item.user_id === currentUser.id ? ' me' : '';
       var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
       
-      html += '<li class="rank-item' + posClass + '">';
+      html += '<li class="rank-item ' + posClass + meClass + '">';
       html += '<div class="rank-pos">' + medal + '</div>';
-      html += '<div class="rank-name">' + escapeHtml(item.username) + (isMe ? ' (我)' : '') + '</div>';
-      html += '<div class="rank-speed">' + Math.round(item.best_speed) + ' ' + unit + '</div>';
-      html += '<div class="rank-acc">' + Math.round(item.accuracy) + '%</div>';
+      html += '<div class="rank-name">' + escapeHtml(item.username) + '</div>';
+      html += '<div class="rank-score">' + Math.round(item.best_speed) + ' ' + unit + '</div>';
       html += '</li>';
-    });
+    }
     html += '</ul>';
-    container.innerHTML = html;
+    document.getElementById('rankListContainer').innerHTML = html;
+    
+    // 上周冠军
+    checkLastWeekChampion();
   } catch(e) {
     console.log('加载排行榜失败:', e);
   }
-  checkAndSettle();
 }
 
-// ===== 结算逻辑 =====
-async function checkAndSettle() {
-  var lastWeekStart = getLastWeekStart();
+async function checkLastWeekChampion() {
   try {
-    var { data: existing } = await sb.from('typing_rank_settlements')
-      .select('id')
-      .eq('week_start', lastWeekStart)
+    var lastWeek = getLastWeekStart();
+    var { data } = await sb.from('typing_rank_settlements')
+      .select('*')
+      .eq('week_start', lastWeek)
       .eq('lang', rankLang)
       .maybeSingle();
     
-    if (existing) return;
-    
-    var { data: lastWeekData } = await sb.from('typing_weekly_rank')
-      .select('*')
-      .eq('lang', rankLang)
-      .eq('week_start', lastWeekStart)
-      .order('best_speed', { ascending: false })
-      .limit(3);
-    
-    if (!lastWeekData || lastWeekData.length === 0) return;
-    
-    var settlementData = { week_start: lastWeekStart, lang: rankLang };
-    var rewards = [30, 20, 10];
-    var fields = ['first', 'second', 'third'];
-    
-    for (var i = 0; i < Math.min(lastWeekData.length, 3); i++) {
-      var player = lastWeekData[i];
-      settlementData[fields[i] + '_user_id'] = player.user_id;
-      settlementData[fields[i] + '_username'] = player.username;
-      settlementData[fields[i] + '_coins'] = rewards[i];
-      try {
-        var { data: profile } = await sb.from('profiles').select('coins').eq('id', player.user_id).single();
-        if (profile) {
-          await sb.from('profiles').update({ coins: (profile.coins || 0) + rewards[i] }).eq('id', player.user_id);
-        }
-      } catch(e) {}
+    if (data && data.first_username) {
+      showChampion(data);
+    } else {
+      // 尝试自动结算
+      await tryAutoSettle(lastWeek);
     }
-    
-    await sb.from('typing_rank_settlements').insert(settlementData);
-    
-    if (currentUser) {
-      var { data: myProfile } = await sb.from('profiles').select('coins').eq('id', currentUser.id).single();
-      if (myProfile) {
-        currentProfile.coins = myProfile.coins;
-        document.getElementById('coinsDisplay').textContent = '🪙 ' + myProfile.coins;
-      }
-    }
-    showChampion(lastWeekData[0]);
-  } catch(e) {}
+  } catch(e) {
+    console.log('结算检查失败:', e);
+  }
 }
 
 function showChampion(champion) {
@@ -824,9 +1069,66 @@ function showChampion(champion) {
     '<div class="champion-banner">' +
     '<div class="crown">👑</div>' +
     '<div class="champ-text">上周冠军</div>' +
-    '<div class="champ-name">' + escapeHtml(champion.username) + '</div>' +
-    '<div class="champ-text">' + Math.round(champion.best_speed) + ' ' + unit + ' | 获得 30🪙</div>' +
+    '<div class="champ-name">' + escapeHtml(champion.first_username) + '</div>' +
+    '<div class="champ-text">获得 30🪙</div>' +
     '</div>';
+}
+
+async function tryAutoSettle(weekStart) {
+  try {
+    var { data: existing } = await sb.from('typing_rank_settlements')
+      .select('id')
+      .eq('week_start', weekStart)
+      .eq('lang', rankLang)
+      .maybeSingle();
+    
+    if (existing) return;
+    
+    var { data: topPlayers } = await sb.from('typing_weekly_rank')
+      .select('*')
+      .eq('lang', rankLang)
+      .eq('week_start', weekStart)
+      .order('best_speed', { ascending: false })
+      .limit(3);
+    
+    if (!topPlayers || topPlayers.length === 0) return;
+    
+    var settlement = {
+      week_start: weekStart,
+      lang: rankLang,
+      first_user_id: topPlayers[0] ? topPlayers[0].user_id : null,
+      first_username: topPlayers[0] ? topPlayers[0].username : null,
+      first_coins: 30,
+      second_user_id: topPlayers[1] ? topPlayers[1].user_id : null,
+      second_username: topPlayers[1] ? topPlayers[1].username : null,
+      second_coins: 20,
+      third_user_id: topPlayers[2] ? topPlayers[2].user_id : null,
+      third_username: topPlayers[2] ? topPlayers[2].username : null,
+      third_coins: 10
+    };
+    
+    await sb.from('typing_rank_settlements').insert(settlement);
+    
+    // 发放奖励
+    var rewards = [
+      { id: topPlayers[0] ? topPlayers[0].user_id : null, coins: 30 },
+      { id: topPlayers[1] ? topPlayers[1].user_id : null, coins: 20 },
+      { id: topPlayers[2] ? topPlayers[2].user_id : null, coins: 10 }
+    ];
+    
+    for (var i = 0; i < rewards.length; i++) {
+      if (rewards[i].id) {
+        var { data: p } = await sb.from('profiles').select('coins').eq('id', rewards[i].id).single();
+        if (p) {
+          await sb.from('profiles').update({ coins: (p.coins || 0) + rewards[i].coins }).eq('id', rewards[i].id);
+        }
+      }
+    }
+    
+    if (topPlayers[0]) showChampion(settlement);
+  } catch(e) {
+    console.log('自动结算失败:', e);
+  }
 }
 
 // ===== 参赛次数 =====
@@ -834,6 +1136,7 @@ async function loadAttempts() {
   if (!currentUser) return;
   var weekStart = getWeekStart();
   var today = getTodayBJ();
+  
   try {
     var { data } = await sb.from('typing_weekly_rank')
       .select('attempts_today, last_attempt_date')
@@ -869,130 +1172,87 @@ async function loadAttempts() {
 // ===== 历史结算 =====
 async function loadHistory() {
   try {
-    var { data } = await sb.from('typing_rank_settlements')
+    var { data, error } = await sb.from('typing_rank_settlements')
       .select('*')
       .order('settled_at', { ascending: false })
       .limit(10);
     
-    var container = document.getElementById('historyList');
-    if (!data || data.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-icon">📜</div><div>暂无历史结算记录</div></div>';
+    if (error || !data || data.length === 0) {
+      document.getElementById('historyList').innerHTML = 
+        '<div class="empty-state"><div class="empty-icon">📜</div><div>暂无历史结算记录</div></div>';
       return;
     }
     
     var html = '';
-    data.forEach(function(s) {
-      var langLabel = s.lang === 'zh' ? '🇨🇳中文' : '🇺🇸英文';
-      html += '<div style="background:#f9f9f9; border-radius:12px; padding:14px; margin-bottom:10px;">';
-      html += '<div style="font-weight:700; margin-bottom:8px;">' + langLabel + ' | 周起始：' + s.week_start + '</div>';
-      if (s.first_username) html += '<div>🥇 ' + escapeHtml(s.first_username) + ' +' + s.first_coins + '🪙</div>';
-      if (s.second_username) html += '<div>🥈 ' + escapeHtml(s.second_username) + ' +' + s.second_coins + '🪙</div>';
-      if (s.third_username) html += '<div>🥉 ' + escapeHtml(s.third_username) + ' +' + s.third_coins + '🪙</div>';
+    for (var i = 0; i < data.length; i++) {
+      var s = data[i];
+      var langLabel = s.lang === 'zh' ? '🇨🇳 中文' : '🇺🇸 英文';
+      html += '<div class="rank-item" style="flex-direction:column; align-items:flex-start; margin-bottom:12px;">';
+      html += '<div style="font-weight:700; margin-bottom:6px;">' + langLabel + ' | 周起始：' + s.week_start + '</div>';
+      if (s.first_username) html += '<div>🥇 ' + escapeHtml(s.first_username) + ' (+' + s.first_coins + '🪙)</div>';
+      if (s.second_username) html += '<div>🥈 ' + escapeHtml(s.second_username) + ' (+' + s.second_coins + '🪙)</div>';
+      if (s.third_username) html += '<div>🥉 ' + escapeHtml(s.third_username) + ' (+' + s.third_coins + '🪙)</div>';
       html += '</div>';
-    });
-    container.innerHTML = html;
-  } catch(e) {}
+    }
+    document.getElementById('historyList').innerHTML = html;
+  } catch(e) {
+    console.log('加载历史失败:', e);
+  }
 }
 
-// ===== 参赛逻辑 =====
+// ===== 参赛入口 =====
 async function enterRank() {
-  if (!currentUser) { alert('请先登录！'); return; }
-  if ((currentProfile.coins || 0) < 2) { alert('金币不足！参赛需要2金币。'); return; }
+  if (!currentUser) return;
   
+  // 检查金币
+  if ((currentProfile.coins || 0) < 2) {
+    alert('金币不足，需要2金币参赛！');
+    return;
+  }
+  
+  // 检查次数
   var weekStart = getWeekStart();
   var today = getTodayBJ();
-  try {
-    var { data: rankRecord } = await sb.from('typing_weekly_rank')
-      .select('attempts_today, last_attempt_date')
-      .eq('user_id', currentUser.id)
-      .eq('lang', playLang)
-      .eq('week_start', weekStart)
-      .maybeSingle();
-    
-    var attemptsUsed = 0;
-    if (rankRecord && rankRecord.last_attempt_date === today) {
-      attemptsUsed = rankRecord.attempts_today || 0;
-    }
-    if (attemptsUsed >= 5) { alert('今日参赛次数已用完（5/5），明天再来吧！'); return; }
-  } catch(e) {}
+  var { data } = await sb.from('typing_weekly_rank')
+    .select('attempts_today, last_attempt_date')
+    .eq('user_id', currentUser.id)
+    .eq('lang', playLang)
+    .eq('week_start', weekStart)
+    .maybeSingle();
   
-  // 扣除金币
-  var newCoins = (currentProfile.coins || 0) - 2;
-  await sb.from('profiles').update({ coins: newCoins }).eq('id', currentUser.id);
-  currentProfile.coins = newCoins;
-  document.getElementById('coinsDisplay').textContent = '🪙 ' + newCoins;
+  var attemptsUsed = 0;
+  if (data && data.last_attempt_date === today) {
+    attemptsUsed = data.attempts_today || 0;
+  }
+  if (attemptsUsed >= 5) {
+    alert('今日次数已用完，明天再来！');
+    return;
+  }
+  
+  // 扣金币
+  try {
+    var newCoins = (currentProfile.coins || 0) - 2;
+    await sb.from('profiles').update({ coins: newCoins }).eq('id', currentUser.id);
+    currentProfile.coins = newCoins;
+    document.getElementById('coinsDisplay').textContent = '🪙 ' + newCoins;
+  } catch(e) {
+    alert('扣费失败，请重试');
+    return;
+  }
   
   startRankGame();
 }
 
-// ===== 防作弊工具 =====
-function showCheatWarning() {
-  var w = document.getElementById('cheatWarning');
-  w.style.display = 'block';
-  setTimeout(function() { w.style.display = 'none'; }, 2000);
-}
-
-function setupAntiCheat(input) {
-  input.addEventListener('paste', function(e) {
-    e.preventDefault();
-    showCheatWarning();
-  });
-  input.addEventListener('drop', function(e) {
-    e.preventDefault();
-    showCheatWarning();
-  });
-  input.addEventListener('beforeinput', function(e) {
-    if (e.inputType === 'insertFromPaste' || 
-        e.inputType === 'insertFromDrop' ||
-        e.inputType === 'insertFromYank' ||
-        e.inputType === 'insertFromSpeech' ||
-        e.inputType === 'insertReplacementText') {
-      e.preventDefault();
-      showCheatWarning();
-    }
-  });
-}
-
-// ===== 游戏状态 =====
-var gameActive = false;
-var gameTimer = null;
-var timeLeft = 60;
-var startTime = 0;
-var displayText = '';
-var charElements = [];
-var cumulativeCorrect = 0;
-var cumulativeWrong = 0;
-var currentCorrect = 0;
-var currentWrong = 0;
-var currentPoem = null;
-
+// ===== 开始游戏 =====
 function startRankGame() {
-  // 选择诗/文章
-  if (playLang === 'zh') {
-    // 随机选2-3首诗拼接
-    var shuffled = zhPoems.slice().sort(function() { return Math.random() - 0.5; });
-    var selected = shuffled.slice(0, 3);
-    currentPoem = selected[0]; // 显示第一首的标题
-    displayText = '';
-    for (var i = 0; i < selected.length; i++) {
-      displayText += selected[i].lines.join('');
-    }
-  } else {
-    // 随机选2-3篇文章拼接
-    var shuffled = enArticles.slice().sort(function() { return Math.random() - 0.5; });
-    var selected = shuffled.slice(0, 3);
-    currentPoem = selected[0];
-    displayText = '';
-    for (var i = 0; i < selected.length; i++) {
-      if (i > 0) displayText += ' ';
-      displayText += selected[i].lines.join(' ');
-    }
-  }
+  // 准备句子队列
+  prepareSentenceQueue();
   
   cumulativeCorrect = 0;
   cumulativeWrong = 0;
   currentCorrect = 0;
   currentWrong = 0;
+  sentencesCompleted = 0;
   
   // 隐藏主面板，显示倒计时
   document.getElementById('mainPanel').style.display = 'none';
@@ -1020,12 +1280,15 @@ function beginRankTyping() {
   document.getElementById('statSpeedLabel').textContent = playLang === 'zh' ? '字/分钟' : 'WPM';
   document.getElementById('statCountLabel').textContent = playLang === 'zh' ? '已打字数' : '已打词数';
   
-  renderDisplayText();
+  // 加载第一句
+  loadNextSentence();
   
   var input = document.getElementById('typingInput');
+  // 移除旧事件
   var newInput = input.cloneNode(true);
   input.parentNode.replaceChild(newInput, input);
   newInput.value = '';
+  newInput.focus();
   
   // 设置防作弊
   setupAntiCheat(newInput);
@@ -1042,7 +1305,9 @@ function beginRankTyping() {
     timeLeft--;
     document.getElementById('statTime').textContent = timeLeft;
     updateStats();
-    if (timeLeft <= 0) endRankGame();
+    if (timeLeft <= 0) {
+      endRankGame();
+    }
   }, 1000);
   
   var typingInput = document.getElementById('typingInput');
@@ -1052,120 +1317,16 @@ function beginRankTyping() {
     setupEnglishInput(typingInput);
   }
   typingInput.focus();
-}
-
-function renderDisplayText() {
-  var container = document.getElementById('textDisplay');
-  var showLen = Math.min(displayText.length, 200);
-  var html = '';
   
-  // 显示标题
-  if (currentPoem) {
-    if (playLang === 'zh') {
-      html += '<div class="poem-title">📝 古诗词打字</div>';
-    } else {
-      html += '<div class="poem-title">📝 English Typing</div>';
+  // 持续保持焦点
+  typingInput.addEventListener('blur', function() {
+    if (gameActive) {
+      setTimeout(function() { typingInput.focus(); }, 100);
     }
-  }
-  
-  html += '<div class="poem-lines">';
-  for (var i = 0; i < showLen; i++) {
-    var cls = 'char';
-    if (i === 0) cls += ' current';
-    html += '<span class="' + cls + '">' + escapeHtml(displayText[i]) + '</span>';
-  }
-  html += '</div>';
-  container.innerHTML = html;
-  charElements = container.querySelectorAll('.char');
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/ /g, '&nbsp;');
-}
-
-// 中文输入
-function setupChineseInput(input) {
-  var composing = false;
-  input.addEventListener('compositionstart', function() { composing = true; });
-  input.addEventListener('compositionend', function() {
-    composing = false;
-    processInput(input.value);
-  });
-  input.addEventListener('input', function() {
-    if (!composing) processInput(input.value);
   });
 }
 
-// 英文输入
-function setupEnglishInput(input) {
-  input.addEventListener('input', function() {
-    if (!gameActive) return;
-    processInput(input.value);
-  });
-}
-
-function processInput(value) {
-  if (!gameActive) return;
-  
-  currentCorrect = 0;
-  currentWrong = 0;
-  
-  for (var i = 0; i < charElements.length; i++) {
-    charElements[i].className = 'char';
-    if (i < value.length) {
-      if (value[i] === displayText[i]) {
-        charElements[i].className = 'char correct';
-        currentCorrect++;
-      } else {
-        charElements[i].className = 'char wrong';
-        currentWrong++;
-      }
-    } else if (i === value.length) {
-      charElements[i].className = 'char current';
-    }
-  }
-  
-  updateStats();
-  
-  if (value.length >= charElements.length && charElements.length > 0) {
-    cumulativeCorrect += currentCorrect;
-    cumulativeWrong += currentWrong;
-    displayText = displayText.substring(value.length);
-    var input = document.getElementById('typingInput');
-    input.value = '';
-    currentCorrect = 0;
-    currentWrong = 0;
-    if (displayText.length > 0) {
-      renderDisplayText();
-    } else {
-      endRankGame();
-    }
-  }
-}
-
-function updateStats() {
-  var elapsed = (Date.now() - startTime) / 1000 / 60;
-  if (elapsed < 0.01) elapsed = 0.01;
-  
-  var totalCorrectNow = cumulativeCorrect + currentCorrect;
-  var totalWrongNow = cumulativeWrong + currentWrong;
-  var totalAll = totalCorrectNow + totalWrongNow;
-  
-  var speed = 0;
-  if (playLang === 'zh') {
-    speed = Math.round(totalCorrectNow / elapsed);
-    document.getElementById('statCount').textContent = totalCorrectNow;
-  } else {
-    speed = Math.round((totalCorrectNow / 5) / elapsed);
-    document.getElementById('statCount').textContent = Math.round(totalCorrectNow / 5);
-  }
-  
-  var accuracy = totalAll > 0 ? Math.round((totalCorrectNow / totalAll) * 100) : 100;
-  document.getElementById('statSpeed').textContent = speed;
-  document.getElementById('statAccuracy').textContent = accuracy + '%';
-}
-
+// ===== 结束游戏 =====
 async function endRankGame() {
   gameActive = false;
   clearInterval(gameTimer);
@@ -1174,7 +1335,8 @@ async function endRankGame() {
   cumulativeWrong += currentWrong;
   
   var totalCorrectFinal = cumulativeCorrect;
-  var totalAll = totalCorrectFinal + cumulativeWrong;
+  var totalWrongFinal = cumulativeWrong;
+  var totalAll = totalCorrectFinal + totalWrongFinal;
   
   var speed = 0;
   if (playLang === 'zh') {
@@ -1185,8 +1347,10 @@ async function endRankGame() {
   
   var accuracy = totalAll > 0 ? Math.round((totalCorrectFinal / totalAll) * 100) : 0;
   
+  // 更新排行榜
   await updateWeeklyRank(speed, accuracy);
   
+  // 保存流水记录
   try {
     await sb.from('typing_records').insert({
       user_id: currentUser.id,
@@ -1201,12 +1365,14 @@ async function endRankGame() {
     });
   } catch(e) {}
   
+  // 显示结果
   showRankResult(speed, accuracy);
 }
 
 async function updateWeeklyRank(speed, accuracy) {
   var weekStart = getWeekStart();
   var today = getTodayBJ();
+  
   try {
     var { data: existing } = await sb.from('typing_weekly_rank')
       .select('*')
@@ -1216,19 +1382,27 @@ async function updateWeeklyRank(speed, accuracy) {
       .maybeSingle();
     
     if (existing) {
-      var updateData = { updated_at: new Date().toISOString() };
+      var updateData = {
+        updated_at: new Date().toISOString()
+      };
+      
       if (speed > existing.best_speed) {
         updateData.best_speed = speed;
         updateData.accuracy = accuracy;
       }
+      
       if (existing.last_attempt_date === today) {
         updateData.attempts_today = (existing.attempts_today || 0) + 1;
       } else {
         updateData.attempts_today = 1;
         updateData.last_attempt_date = today;
       }
-      await sb.from('typing_weekly_rank').update(updateData)
-        .eq('user_id', currentUser.id).eq('lang', playLang).eq('week_start', weekStart);
+      
+      await sb.from('typing_weekly_rank')
+        .update(updateData)
+        .eq('user_id', currentUser.id)
+        .eq('lang', playLang)
+        .eq('week_start', weekStart);
     } else {
       await sb.from('typing_weekly_rank').insert({
         user_id: currentUser.id,
@@ -1252,14 +1426,14 @@ function showRankResult(speed, accuracy) {
   panel.style.display = 'block';
   
   var unit = playLang === 'zh' ? '字/分钟' : 'WPM';
+  
   document.getElementById('resultIcon').textContent = '🏅';
   document.getElementById('resultTitle').textContent = '比赛结束！';
   document.getElementById('resultDetail').innerHTML = 
     '本次成绩：<b>' + speed + ' ' + unit + '</b><br>' +
     '准确率：<b>' + accuracy + '%</b><br>' +
-    '消耗：2🪙';
-  document.getElementById('rankUpdate').textContent = '成绩已更新到本周排行榜！';
-  loadAttempts();
+    '完成句数：<b>' + sentencesCompleted + ' 句</b>';
+  document.getElementById('rankUpdate').textContent = '成绩已记录到本周排行榜！';
 }
 
 function backToMain() {
