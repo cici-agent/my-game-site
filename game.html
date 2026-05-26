@@ -263,7 +263,7 @@
           <span>🎮 -- 人玩过</span>
         </div>
         <p class="game-desc" id="gameDesc">游戏描述加载中...</p>
-        <div class="coin-tip">🪙 每玩 5 分钟消耗 1 金币</div>
+        <div class="coin-tip" data-coin-click>🪙 每玩 5 分钟消耗 1 金币（点击查看记录）</div>
       </div>
 
       <!-- 评论区 -->
@@ -299,6 +299,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="supabase.js"></script>
   <script src="auth.js"></script>
+  <script src="coin-history.js"></script>
   <script>
     // ===== 游戏详情页逻辑 =====
     var gameId = new URLSearchParams(window.location.search).get('id');
