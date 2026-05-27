@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>英语拼读 - Spelling Bee | 小菜鸟</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:linear-gradient(135deg,#fff5f7 0%,#fff0e6 100%); min-height:100vh; }
+nav { background:linear-gradient(135deg,#ff6b9d 0%,#ff8c5a 100%); padding:12px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:1000; box-shadow:0 4px 20px rgba(255,107,53,0.35); }
+nav a { text-decoration:none; }
+.nav-logo { display:flex; align-items:center; gap:10px; color:white; font-size:18px; font-weight:900; }
+.nav-logo img { width:36px; height:36px; border-radius:50%; border:2px solid rgba(255,255,255,0.6); object-fit:cover; }
+.nav-links { display:flex; gap:8px; }
+.nav-links a { background:rgba(255,255,255,0.2); color:white; padding:8px 16px; border-radius:20px; font-size:14px; font-weight:700; border:2px solid rgba(255,255,255,0.3); }
+.container { max-width:600px; margin:0 auto; padding:20px 16px 40px; }
+h1 { text-align:center; font-size:28px; color:#ff6b5a; margin:16px 0 8px; }
+.subtitle { text-align:center; color:#888; font-size:14px; margin-bottom:20px; }
+.coin-bar { display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:20px; background:white; padding:10px 20px; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,0.06); font-size:16px; font-weight:700; color:#ff8c5a; cursor:pointer; width:fit-content; margin-left:auto; margin-right:auto; }
+.coin-bar:hover { transform:scale(1.05); }
+
+/* Level Select */
+.level-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:16px; }
+.level-card { background:white; border-radius:16px; padding:20px 16px; text-align:center; box-shadow:0 4px 16px rgba(255,107,157,0.1); cursor:pointer; transition:all 0.2s; border:3px solid transparent; position:relative; }
+.level-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(255,107,157,0.2); }
+.level-card.locked { opacity:0.5; cursor:not-allowed; }
+.level-card.locked:hover { transform:none; }
+.level-card.completed { border-color:#4ecdc4; }
+.level-num { font-size:32px; font-weight:900; color:#ff6b9d; }
+.level-label { font-size:13px; color:#666; margin-top:4px; }
+.level-reward { font-size:12px; color:#ff8c5a; margin-top:6px; font-weight:700; }
+.level-badge { position:absolute; top:8px; right:8px; font-size:18px; }
+
+/* Game Screen */
+.game-screen { display:none; }
+.game-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.game-progress { font-size:14px; color:#666; font-weight:700; }
+.game-score { font-size:14px; color:#4ecdc4; font-weight:700; }
+.back-btn { background:none; border:none; font-size:24px; cursor:pointer; }
+.word-card { background:white; border-radius:20px; padding:28px 24px; box-shadow:0 6px 24px rgba(255,107,157,0.12); margin-bottom:20px; }
+.word-pos { display:inline-block; background:linear-gradient(135deg,#ff6b9d,#ff8c5a); color:white; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700; margin-bottom:12px; }
+.word-phonetic { font-size:16px; color:#999; margin-bottom:12px; font-style:italic; }
+.word-meaning { font-size:18px; color:#333; font-weight:700; margin-bottom:12px; line-height:1.5; }
+.word-example { font-size:14px; color:#666; line-height:1.6; background:#f8f8f8; padding:12px 16px; border-radius:12px; border-left:4px solid #ff8c5a; }
+.word-example em { color:#ff6b9d; font-style:normal; font-weight:700; }
+.listen-btn { display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg,#667eea,#764ba2); color:white; border:none; padding:10px 20px; border-radius:20px; font-size:14px; font-weight:700; cursor:pointer; margin-top:12px; transition:transform 0.2s; }
+.listen-btn:hover { transform:scale(1.05); }
+.listen-btn:active { transform:scale(0.95); }
+.input-area { margin-top:16px; }
+.spell-input { width:100%; padding:18px 20px; font-size:22px; border:3px solid #eee; border-radius:16px; text-align:center; font-weight:700; letter-spacing:3px; outline:none; transition:border-color 0.3s; -webkit-text-security:none; autocomplete:off; autocorrect:off; autocapitalize:off; spellcheck:false; }
+.spell-input:focus { border-color:#ff6b9d; }
+.spell-input.correct { border-color:#4ecdc4; background:#f0fff9; }
+.spell-input.wrong { border-color:#ff6b6b; background:#fff5f5; }
+.submit-btn { width:100%; padding:16px; margin-top:12px; background:linear-gradient(135deg,#ff6b9d,#ff8c5a); color:white; border:none; border-radius:16px; font-size:18px; font-weight:900; cursor:pointer; transition:transform 0.2s; }
+.submit-btn:hover { transform:scale(1.02); }
+.submit-btn:active { transform:scale(0.98); }
+.submit-btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+.feedback { text-align:center; margin-top:16px; padding:16px; border-radius:16px; font-size:16px; font-weight:700; display:none; }
+.feedback.show { display:block; animation:fadeIn 0.3s; }
+.feedback.correct { background:#e8fff5; color:#2ecc71; }
+.feedback.wrong { background:#fff0f0; color:#e74c3c; }
+.correct-answer { font-size:20px; letter-spacing:2px; margin-top:8px; }
+.next-btn { display:none; width:100%; padding:14px; margin-top:12px; background:linear-gradient(135deg,#4ecdc4,#44bd9e); color:white; border:none; border-radius:16px; font-size:16px; font-weight:700; cursor:pointer; }
+
+/* Result Screen */
+.result-screen { display:none; text-align:center; padding:40px 20px; }
+.result-icon { font-size:80px; margin-bottom:16px; }
+.result-title { font-size:28px; font-weight:900; color:#333; margin-bottom:8px; }
+.result-detail { font-size:16px; color:#666; margin-bottom:24px; line-height:1.8; }
+.result-btn { display:inline-block; padding:14px 32px; background:linear-gradient(135deg,#ff6b9d,#ff8c5a); color:white; border:none; border-radius:20px; font-size:16px; font-weight:700; cursor:pointer; margin:6px; text-decoration:none; }
+.result-btn.secondary { background:linear-gradient(135deg,#667eea,#764ba2); }
+
+/* Login Prompt */
+.login-prompt { background:white; border-radius:16px; padding:24px; text-align:center; margin-top:20px; box-shadow:0 4px 16px rgba(0,0,0,0.06); }
+.login-prompt p { color:#666; margin-bottom:12px; }
+.login-prompt a { color:#ff6b9d; font-weight:700; }
+
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+.shake { animation:shake 0.3s; }
+@keyframes bounce { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+.bounce { animation:bounce 0.4s; }
+
+@media(max-width:480px) {
+  .nav-links a { padding:6px 10px; font-size:12px; }
+  h1 { font-size:22px; }
+  .level-grid { grid-template-columns:repeat(2,1fr); gap:8px; }
+  .level-card { padding:14px 10px; }
+  .level-num { font-size:24px; }
+  .word-meaning { font-size:16px; }
+  .spell-input { font-size:18px; padding:14px 16px; }
+}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/index.html" class="nav-logo">
+    <img src="/assets/logo.jpg" alt="小菜鸟" onerror="this.style.display='none'">
+    <span>小菜鸟</span>
+  </a>
+  <div class="nav-links">
+    <a href="/learn.html">📚 学习</a>
+    <a href="/editor.html">🛠️ 做游戏</a>
+    <a href="/#games">🎮 玩游戏</a>
+  </div>
+</nav>
+
+<div class="container">
+  <!-- Level Select -->
+  <div id="levelSelect">
+    <h1>🐝 英语拼读 Spelling Bee</h1>
+    <p class="subtitle">听定义，拼单词 · 10级挑战</p>
+    <div class="coin-bar" id="coinBar" onclick="showCoinHistory()">🪙 <span id="coinDisplay">--</span></div>
+    <div class="level-grid" id="levelGrid"></div>
+    <div class="login-prompt" id="loginPrompt" style="display:none">
+      <p>登录后可保存进度和金币</p>
+      <a href="/profile.html">去登录 →</a>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div class="game-screen" id="gameScreen">
+    <div class="game-header">
+      <button class="back-btn" onclick="backToLevels()">←</button>
+      <span class="game-progress" id="gameProgress">1/10</span>
+      <span class="game-score" id="gameScore">✓ 0</span>
+    </div>
+    <div class="word-card">
+      <span class="word-pos" id="wordPos"></span>
+      <div class="word-phonetic" id="wordPhonetic"></div>
+      <div class="word-meaning" id="wordMeaning"></div>
+      <div class="word-example" id="wordExample"></div>
+      <button class="listen-btn" id="listenBtn" onclick="speakWord()">🔊 听发音</button>
+    </div>
+    <div class="input-area">
+      <input type="text" class="spell-input" id="spellInput" placeholder="输入单词拼写..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="submit-btn" id="submitBtn" onclick="checkAnswer()">确认 ✓</button>
+      <div class="feedback" id="feedback"></div>
+      <button class="next-btn" id="nextBtn" onclick="nextWord()">下一个 →</button>
+    </div>
+  </div>
+
+  <!-- Result Screen -->
+  <div class="result-screen" id="resultScreen">
+    <div class="result-icon" id="resultIcon"></div>
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-detail" id="resultDetail"></div>
+    <button class="result-btn" onclick="backToLevels()">返回选关</button>
+    <button class="result-btn secondary" id="retryBtn" onclick="retryLevel()">再试一次</button>
+  </div>
+</div>
+
+<script>
+// ===== WORD DATA: 10 levels, 10 words each =====
+const WORDS = [
+  // Level 1: Grade 3-4 commonly misspelled (easier)
+  [
+    {word:"because",pos:"conj.",phonetic:"/bɪˈkɒz/",meaning:"因为",example:"I stayed home <em>because</em> it was raining."},
+    {word:"beautiful",pos:"adj.",phonetic:"/ˈbjuːtɪfəl/",meaning:"美丽的",example:"The sunset was <em>beautiful</em> tonight."},
+    {word:"different",pos:"adj.",phonetic:"/ˈdɪfərənt/",meaning:"不同的",example:"These two cats look very <em>different</em>."},
+    {word:"February",pos:"n.",phonetic:"/ˈfebruəri/",meaning:"二月",example:"My birthday is in <em>February</em>."},
+    {word:"Wednesday",pos:"n.",phonetic:"/ˈwenzdeɪ/",meaning:"星期三",example:"We have art class on <em>Wednesday</em>."},
+    {word:"surprise",pos:"n.",phonetic:"/sərˈpraɪz/",meaning:"惊喜",example:"The party was a big <em>surprise</em> for her."},
+    {word:"library",pos:"n.",phonetic:"/ˈlaɪbrəri/",meaning:"图书馆",example:"I borrowed three books from the <em>library</em>."},
+    {word:"calendar",pos:"n.",phonetic:"/ˈkælɪndər/",meaning:"日历",example:"Mark the date on your <em>calendar</em>."},
+    {word:"separate",pos:"adj.",phonetic:"/ˈsepərət/",meaning:"分开的",example:"Put the red and blue blocks in <em>separate</em> boxes."},
+    {word:"elephant",pos:"n.",phonetic:"/ˈelɪfənt/",meaning:"大象",example:"The <em>elephant</em> sprayed water with its trunk."}
+  ],
+  // Level 2: Grade 3-4 tricky spelling
+  [
+    {word:"necessary",pos:"adj.",phonetic:"/ˈnesəseri/",meaning:"必要的",example:"Water is <em>necessary</em> for all living things."},
+    {word:"restaurant",pos:"n.",phonetic:"/ˈrestərɒnt/",meaning:"餐厅",example:"We ate dinner at a Chinese <em>restaurant</em>."},
+    {word:"temperature",pos:"n.",phonetic:"/ˈtemprətʃər/",meaning:"温度",example:"The <em>temperature</em> dropped below zero last night."},
+    {word:"chocolate",pos:"n.",phonetic:"/ˈtʃɒklət/",meaning:"巧克力",example:"She gave me a box of <em>chocolate</em> for my birthday."},
+    {word:"vegetable",pos:"n.",phonetic:"/ˈvedʒtəbəl/",meaning:"蔬菜",example:"Eat more <em>vegetable</em>s to stay healthy."},
+    {word:"tomorrow",pos:"n.",phonetic:"/təˈmɒrəʊ/",meaning:"明天",example:"We have a field trip <em>tomorrow</em>."},
+    {word:"knowledge",pos:"n.",phonetic:"/ˈnɒlɪdʒ/",meaning:"知识",example:"Reading gives us <em>knowledge</em> about the world."},
+    {word:"scissors",pos:"n.",phonetic:"/ˈsɪzərz/",meaning:"剪刀",example:"Use <em>scissors</em> to cut along the dotted line."},
+    {word:"daughter",pos:"n.",phonetic:"/ˈdɔːtər/",meaning:"女儿",example:"Their <em>daughter</em> is in third grade."},
+    {word:"although",pos:"conj.",phonetic:"/ɔːlˈðəʊ/",meaning:"虽然",example:"<em>Although</em> it was cold, we went outside to play."}
+  ],
+  // Level 3: Grade 4-5 medium
+  [
+    {word:"environment",pos:"n.",phonetic:"/ɪnˈvaɪrənmənt/",meaning:"环境",example:"We should protect the <em>environment</em>."},
+    {word:"government",pos:"n.",phonetic:"/ˈɡʌvərnmənt/",meaning:"政府",example:"The <em>government</em> built a new park for children."},
+    {word:"immediately",pos:"adv.",phonetic:"/ɪˈmiːdiətli/",meaning:"立即",example:"Please come here <em>immediately</em>."},
+    {word:"disappear",pos:"v.",phonetic:"/ˌdɪsəˈpɪər/",meaning:"消失",example:"The rabbit seemed to <em>disappear</em> into thin air."},
+    {word:"embarrass",pos:"v.",phonetic:"/ɪmˈbærəs/",meaning:"使尴尬",example:"Don't <em>embarrass</em> your sister in front of her friends."},
+    {word:"accomplish",pos:"v.",phonetic:"/əˈkɒmplɪʃ/",meaning:"完成；达成",example:"She worked hard to <em>accomplish</em> her goal."},
+    {word:"appreciate",pos:"v.",phonetic:"/əˈpriːʃieɪt/",meaning:"感激；欣赏",example:"I really <em>appreciate</em> your help."},
+    {word:"committee",pos:"n.",phonetic:"/kəˈmɪti/",meaning:"委员会",example:"The school <em>committee</em> planned the sports day."},
+    {word:"guarantee",pos:"n.",phonetic:"/ˌɡærənˈtiː/",meaning:"保证",example:"There is no <em>guarantee</em> of sunny weather."},
+    {word:"occurrence",pos:"n.",phonetic:"/əˈkʌrəns/",meaning:"发生；事件",example:"Earthquakes are a common <em>occurrence</em> in Japan."}
+  ],
+  // Level 4: Grade 4-5 harder
+  [
+    {word:"accommodate",pos:"v.",phonetic:"/əˈkɒmədeɪt/",meaning:"容纳；适应",example:"The hall can <em>accommodate</em> 500 people."},
+    {word:"conscience",pos:"n.",phonetic:"/ˈkɒnʃəns/",meaning:"良心",example:"His <em>conscience</em> told him to tell the truth."},
+    {word:"exaggerate",pos:"v.",phonetic:"/ɪɡˈzædʒəreɪt/",meaning:"夸张",example:"Don't <em>exaggerate</em> — it wasn't that scary!"},
+    {word:"mischievous",pos:"adj.",phonetic:"/ˈmɪstʃɪvəs/",meaning:"淘气的",example:"The <em>mischievous</em> puppy chewed up the shoes."},
+    {word:"privilege",pos:"n.",phonetic:"/ˈprɪvəlɪdʒ/",meaning:"特权",example:"It's a <em>privilege</em> to meet you."},
+    {word:"rhythm",pos:"n.",phonetic:"/ˈrɪðəm/",meaning:"节奏",example:"Clap your hands to the <em>rhythm</em> of the music."},
+    {word:"schedule",pos:"n.",phonetic:"/ˈʃedjuːl/",meaning:"时间表",example:"Check the bus <em>schedule</em> before we leave."},
+    {word:"thoroughly",pos:"adv.",phonetic:"/ˈθʌrəli/",meaning:"彻底地",example:"Wash your hands <em>thoroughly</em> before eating."},
+    {word:"vacuum",pos:"n.",phonetic:"/ˈvækjuːm/",meaning:"真空；吸尘器",example:"Please <em>vacuum</em> the living room carpet."},
+    {word:"questionnaire",pos:"n.",phonetic:"/ˌkwestʃəˈneər/",meaning:"问卷",example:"Please fill out this <em>questionnaire</em>."}
+  ],
+  // Level 5: Grade 5-6 challenging
+  [
+    {word:"acquisition",pos:"n.",phonetic:"/ˌækwɪˈzɪʃən/",meaning:"获得；收购",example:"Language <em>acquisition</em> begins at birth."},
+    {word:"bureaucracy",pos:"n.",phonetic:"/bjʊˈrɒkrəsi/",meaning:"官僚机构",example:"The <em>bureaucracy</em> made the process very slow."},
+    {word:"catastrophe",pos:"n.",phonetic:"/kəˈtæstrəfi/",meaning:"灾难",example:"The flood was a terrible <em>catastrophe</em>."},
+    {word:"conscientious",pos:"adj.",phonetic:"/ˌkɒnʃiˈenʃəs/",meaning:"认真的；尽责的",example:"She is a <em>conscientious</em> student who always does her homework."},
+    {word:"deteriorate",pos:"v.",phonetic:"/dɪˈtɪəriəreɪt/",meaning:"恶化",example:"The weather began to <em>deteriorate</em> rapidly."},
+    {word:"entrepreneur",pos:"n.",phonetic:"/ˌɒntrəprəˈnɜːr/",meaning:"企业家",example:"The young <em>entrepreneur</em> started her own company."},
+    {word:"fluorescent",pos:"adj.",phonetic:"/flʊəˈresənt/",meaning:"荧光的",example:"The room was lit by <em>fluorescent</em> lights."},
+    {word:"hemorrhage",pos:"n.",phonetic:"/ˈhemərɪdʒ/",meaning:"出血",example:"The doctor stopped the <em>hemorrhage</em> quickly."},
+    {word:"independent",pos:"adj.",phonetic:"/ˌɪndɪˈpendənt/",meaning:"独立的",example:"She is very <em>independent</em> and likes doing things herself."},
+    {word:"maintenance",pos:"n.",phonetic:"/ˈmeɪntənəns/",meaning:"维护；保养",example:"Regular <em>maintenance</em> keeps the car running well."}
+  ],
+  // Level 6: Grade 5-6 harder
+  [
+    {word:"Mediterranean",pos:"adj.",phonetic:"/ˌmedɪtəˈreɪniən/",meaning:"地中海的",example:"We sailed across the <em>Mediterranean</em> Sea."},
+    {word:"miscellaneous",pos:"adj.",phonetic:"/ˌmɪsəˈleɪniəs/",meaning:"各种各样的",example:"The drawer was full of <em>miscellaneous</em> items."},
+    {word:"occasionally",pos:"adv.",phonetic:"/əˈkeɪʒənəli/",meaning:"偶尔",example:"We <em>occasionally</em> go hiking on weekends."},
+    {word:"pharmaceutical",pos:"adj.",phonetic:"/ˌfɑːrməˈsuːtɪkəl/",meaning:"制药的",example:"She works for a <em>pharmaceutical</em> company."},
+    {word:"pronunciation",pos:"n.",phonetic:"/prəˌnʌnsiˈeɪʃən/",meaning:"发音",example:"Practice your <em>pronunciation</em> every day."},
+    {word:"reconnaissance",pos:"n.",phonetic:"/rɪˈkɒnɪsəns/",meaning:"侦察",example:"The soldiers went on a <em>reconnaissance</em> mission."},
+    {word:"superintendent",pos:"n.",phonetic:"/ˌsuːpərɪnˈtendənt/",meaning:"主管；监督人",example:"The <em>superintendent</em> inspected the building."},
+    {word:"surveillance",pos:"n.",phonetic:"/sɜːˈveɪləns/",meaning:"监视",example:"The store has <em>surveillance</em> cameras everywhere."},
+    {word:"temperamental",pos:"adj.",phonetic:"/ˌtemprəˈmentəl/",meaning:"喜怒无常的",example:"The cat is quite <em>temperamental</em> today."},
+    {word:"unprecedented",pos:"adj.",phonetic:"/ʌnˈpresɪdentɪd/",meaning:"史无前例的",example:"This is an <em>unprecedented</em> achievement."}
+  ],
+  // Level 7: Spelling Bee competition medium
+  [
+    {word:"onomatopoeia",pos:"n.",phonetic:"/ˌɒnəˌmætəˈpiːə/",meaning:"拟声词",example:"'Buzz' and 'hiss' are examples of <em>onomatopoeia</em>."},
+    {word:"pneumonia",pos:"n.",phonetic:"/njuːˈməʊniə/",meaning:"肺炎",example:"He was hospitalized with <em>pneumonia</em>."},
+    {word:"archaeology",pos:"n.",phonetic:"/ˌɑːrkiˈɒlədʒi/",meaning:"考古学",example:"She studied <em>archaeology</em> at university."},
+    {word:"chrysanthemum",pos:"n.",phonetic:"/krɪˈsænθəməm/",meaning:"菊花",example:"The garden was full of yellow <em>chrysanthemum</em>s."},
+    {word:"diarrhoea",pos:"n.",phonetic:"/ˌdaɪəˈrɪə/",meaning:"腹泻",example:"Contaminated water can cause <em>diarrhoea</em>."},
+    {word:"equilibrium",pos:"n.",phonetic:"/ˌiːkwɪˈlɪbriəm/",meaning:"平衡",example:"The gymnast maintained perfect <em>equilibrium</em>."},
+    {word:"hierarchy",pos:"n.",phonetic:"/ˈhaɪərɑːrki/",meaning:"等级制度",example:"Every company has a management <em>hierarchy</em>."},
+    {word:"lieutenant",pos:"n.",phonetic:"/lefˈtenənt/",meaning:"中尉；副手",example:"The <em>lieutenant</em> led the patrol."},
+    {word:"mnemonic",pos:"n.",phonetic:"/nɪˈmɒnɪk/",meaning:"助记法",example:"Use a <em>mnemonic</em> to remember the planets."},
+    {word:"sacrilegious",pos:"adj.",phonetic:"/ˌsækrɪˈlɪdʒəs/",meaning:"亵渎的",example:"Some considered the joke <em>sacrilegious</em>."}
+  ],
+  // Level 8: Spelling Bee competition medium-hard
+  [
+    {word:"acquiesce",pos:"v.",phonetic:"/ˌækwiˈes/",meaning:"默许；勉强同意",example:"She had to <em>acquiesce</em> to her parents' decision."},
+    {word:"bourgeoisie",pos:"n.",phonetic:"/ˌbʊərʒwɑːˈziː/",meaning:"资产阶级",example:"The <em>bourgeoisie</em> controlled most of the wealth."},
+    {word:"connoisseur",pos:"n.",phonetic:"/ˌkɒnəˈsɜːr/",meaning:"鉴赏家",example:"He is a <em>connoisseur</em> of fine wine."},
+    {word:"idiosyncrasy",pos:"n.",phonetic:"/ˌɪdiəˈsɪŋkrəsi/",meaning:"特质；癖好",example:"Everyone has their own little <em>idiosyncrasy</em>."},
+    {word:"kaleidoscope",pos:"n.",phonetic:"/kəˈlaɪdəskəʊp/",meaning:"万花筒",example:"The garden was a <em>kaleidoscope</em> of colors."},
+    {word:"labyrinth",pos:"n.",phonetic:"/ˈlæbərɪnθ/",meaning:"迷宫",example:"The ancient <em>labyrinth</em> had many twisting paths."},
+    {word:"metamorphosis",pos:"n.",phonetic:"/ˌmetəˈmɔːrfəsɪs/",meaning:"变态；蜕变",example:"A caterpillar undergoes <em>metamorphosis</em> to become a butterfly."},
+    {word:"nonchalant",pos:"adj.",phonetic:"/ˈnɒnʃələnt/",meaning:"漫不经心的",example:"He tried to appear <em>nonchalant</em> about the news."},
+    {word:"perspicacious",pos:"adj.",phonetic:"/ˌpɜːspɪˈkeɪʃəs/",meaning:"敏锐的；有洞察力的",example:"The <em>perspicacious</em> detective solved the mystery quickly."},
+    {word:"rendezvous",pos:"n.",phonetic:"/ˈrɒndɪvuː/",meaning:"约会地点；集合",example:"They agreed on a <em>rendezvous</em> at the café."}
+  ],
+  // Level 9: Spelling Bee competition hard
+  [
+    {word:"antediluvian",pos:"adj.",phonetic:"/ˌæntɪdɪˈluːviən/",meaning:"远古的；过时的",example:"His views on technology are positively <em>antediluvian</em>."},
+    {word:"bougainvillea",pos:"n.",phonetic:"/ˌbuːɡənˈvɪliə/",meaning:"三角梅",example:"The wall was covered in purple <em>bougainvillea</em>."},
+    {word:"chiaroscuro",pos:"n.",phonetic:"/kiˌɑːrəˈskjʊərəʊ/",meaning:"明暗对比法",example:"The painting used dramatic <em>chiaroscuro</em> effects."},
+    {word:"diphtheria",pos:"n.",phonetic:"/dɪfˈθɪəriə/",meaning:"白喉",example:"Vaccination has nearly eliminated <em>diphtheria</em>."},
+    {word:"effervescent",pos:"adj.",phonetic:"/ˌefəˈvesənt/",meaning:"冒泡的；活泼的",example:"She has an <em>effervescent</em> personality."},
+    {word:"gubernatorial",pos:"adj.",phonetic:"/ˌɡuːbərnəˈtɔːriəl/",meaning:"州长的",example:"The <em>gubernatorial</em> election was very close."},
+    {word:"heuristic",pos:"adj.",phonetic:"/hjʊˈrɪstɪk/",meaning:"启发式的",example:"Scientists use <em>heuristic</em> methods to solve complex problems."},
+    {word:"iridescent",pos:"adj.",phonetic:"/ˌɪrɪˈdesənt/",meaning:"彩虹色的",example:"The soap bubble had an <em>iridescent</em> surface."},
+    {word:"juxtaposition",pos:"n.",phonetic:"/ˌdʒʌkstəpəˈzɪʃən/",meaning:"并列；对比",example:"The <em>juxtaposition</em> of old and new buildings was striking."},
+    {word:"loquacious",pos:"adj.",phonetic:"/ləˈkweɪʃəs/",meaning:"话多的",example:"My <em>loquacious</em> neighbor talks for hours."}
+  ],
+  // Level 10: Spelling Bee competition very hard
+  [
+    {word:"appoggiatura",pos:"n.",phonetic:"/əˌpɒdʒəˈtjʊərə/",meaning:"倚音（音乐术语）",example:"The pianist added an <em>appoggiatura</em> before the main note."},
+    {word:"cymotrichous",pos:"adj.",phonetic:"/saɪˈmɒtrɪkəs/",meaning:"波浪发的",example:"People with <em>cymotrichous</em> hair have wavy locks."},
+    {word:"eleemosynary",pos:"adj.",phonetic:"/ˌelɪˈmɒsɪnəri/",meaning:"慈善的",example:"The <em>eleemosynary</em> organization helped many families."},
+    {word:"floccinaucinihilipilification",pos:"n.",phonetic:"/ˌflɒksɪˌnɔːsɪˌnɪhɪlɪˌpɪlɪfɪˈkeɪʃən/",meaning:"将事物视为无价值",example:"His <em>floccinaucinihilipilification</em> of the project upset everyone."},
+    {word:"guerrilla",pos:"n.",phonetic:"/ɡəˈrɪlə/",meaning:"游击队员",example:"The <em>guerrilla</em> fighters hid in the mountains."},
+    {word:"hemorrhagic",pos:"adj.",phonetic:"/ˌhemərˈædʒɪk/",meaning:"出血性的",example:"The disease causes <em>hemorrhagic</em> fever."},
+    {word:"knowledgeable",pos:"adj.",phonetic:"/ˈnɒlɪdʒəbəl/",meaning:"知识渊博的",example:"She is very <em>knowledgeable</em> about history."},
+    {word:"onychophagia",pos:"n.",phonetic:"/ˌɒnɪkəˈfeɪdʒiə/",meaning:"咬指甲癖",example:"<em>Onychophagia</em> is a common nervous habit."},
+    {word:"psephology",pos:"n.",phonetic:"/sɪˈfɒlədʒi/",meaning:"选举学",example:"<em>Psephology</em> helps predict election outcomes."},
+    {word:"syzygy",pos:"n.",phonetic:"/ˈsɪzɪdʒi/",meaning:"朔望（天文学）",example:"A solar eclipse occurs during a <em>syzygy</em> of the Sun, Moon, and Earth."}
+  ]
+];
+
+const LEVEL_NAMES = [
+  "入门拼写","易错陷阱","进阶挑战","高频难词","高级词汇",
+  "学术词汇","竞赛初级","竞赛中级","竞赛高级","终极挑战"
+];
+const REWARDS = [3,5,7,10,15,20,30,50,70,100];
+
+// ===== Supabase Config =====
+const SUPABASE_URL = 'https://aqxbpuetdypcbmqdncpl.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5ODg5MzksImV4cCI6MjA5NDU2NDkzOX0.YUwFQeJgbmhrtY32tGXbm9wz0jtou0Zxg1626EJl3r0';
+
+let currentUser = null;
+let userProgress = [];
+let userCoins = 0;
+let currentLevel = 0;
+let currentWordIndex = 0;
+let correctCount = 0;
+let answered = false;
+let shuffledWords = [];
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', async () => {
+  await checkAuth();
+  renderLevels();
+  setupInputProtection();
+});
+
+async function checkAuth() {
+  try {
+    const stored = localStorage.getItem('supabase_session');
+    if (stored) {
+      const session = JSON.parse(stored);
+      if (session && session.access_token) {
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY }
+        });
+        if (res.ok) {
+          currentUser = await res.json();
+          await loadProgress();
+          await loadCoins();
+          return;
+        }
+      }
+    }
+  } catch(e) { console.log('Auth check failed', e); }
+  document.getElementById('loginPrompt').style.display = 'block';
+}
+
+async function supaFetch(path, opts = {}) {
+  const session = JSON.parse(localStorage.getItem('supabase_session') || '{}');
+  const headers = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${session.access_token}`,
+    'Content-Type': 'application/json',
+    ...opts.headers
+  };
+  return fetch(`${SUPABASE_URL}${path}`, { ...opts, headers });
+}
+
+async function loadProgress() {
+  try {
+    const res = await supaFetch(`/rest/v1/spelling_progress?user_id=eq.${currentUser.id}&select=level,completed`);
+    if (res.ok) userProgress = await res.json();
+  } catch(e) { console.log('Load progress failed', e); }
+}
+
+async function loadCoins() {
+  try {
+    const res = await supaFetch(`/rest/v1/profiles?id=eq.${currentUser.id}&select=coins`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.length > 0) userCoins = data[0].coins || 0;
+    }
+  } catch(e) {}
+  document.getElementById('coinDisplay').textContent = userCoins;
+}
+
+async function saveProgress(level) {
+  if (!currentUser) return;
+  try {
+    await supaFetch('/rest/v1/spelling_progress', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ user_id: currentUser.id, level: level, completed: true })
+    });
+  } catch(e) { console.log('Save progress failed', e); }
+}
+
+async function addCoins(amount, reason) {
+  if (!currentUser || amount <= 0) return;
+  try {
+    await supaFetch('/rest/v1/rpc/add_coins', {
+      method: 'POST',
+      body: JSON.stringify({ p_user_id: currentUser.id, p_amount: amount })
+    });
+    // Record transaction
+    await supaFetch('/rest/v1/coin_transactions', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: currentUser.id, amount: amount, type: 'spelling_reward', description: reason })
+    });
+    userCoins += amount;
+    document.getElementById('coinDisplay').textContent = userCoins;
+  } catch(e) { console.log('Add coins failed', e); }
+}
+
+// ===== Render Levels =====
+function renderLevels() {
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 10; i++) {
+    const completed = userProgress.some(p => p.level === i + 1 && p.completed);
+    const unlocked = i === 0 || userProgress.some(p => p.level === i && p.completed);
+    const card = document.createElement('div');
+    card.className = `level-card ${completed ? 'completed' : ''} ${!unlocked ? 'locked' : ''}`;
+    card.innerHTML = `
+      <div class="level-badge">${completed ? '⭐' : (!unlocked ? '🔒' : '')}</div>
+      <div class="level-num">${i + 1}</div>
+      <div class="level-label">${LEVEL_NAMES[i]}</div>
+      <div class="level-reward">🪙 +${REWARDS[i]}</div>
+    `;
+    if (unlocked) card.onclick = () => startLevel(i);
+    grid.appendChild(card);
+  }
+}
+
+// ===== Game Logic =====
+function startLevel(level) {
+  currentLevel = level;
+  currentWordIndex = 0;
+  correctCount = 0;
+  answered = false;
+  // Shuffle words
+  shuffledWords = [...WORDS[level]].sort(() => Math.random() - 0.5);
+  document.getElementById('levelSelect').style.display = 'none';
+  document.getElementById('resultScreen').style.display = 'none';
+  document.getElementById('gameScreen').style.display = 'block';
+  showWord();
+}
+
+function showWord() {
+  const w = shuffledWords[currentWordIndex];
+  document.getElementById('gameProgress').textContent = `${currentWordIndex + 1}/10`;
+  document.getElementById('gameScore').textContent = `✓ ${correctCount}`;
+  document.getElementById('wordPos').textContent = w.pos;
+  document.getElementById('wordPhonetic').textContent = w.phonetic;
+  document.getElementById('wordMeaning').textContent = w.meaning;
+  document.getElementById('wordExample').innerHTML = w.example.replace(new RegExp(`<em>${w.word}</em>`, 'gi'), '<em>______</em>');
+  const input = document.getElementById('spellInput');
+  input.value = '';
+  input.className = 'spell-input';
+  input.disabled = false;
+  input.focus();
+  document.getElementById('submitBtn').style.display = 'block';
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('nextBtn').style.display = 'none';
+  document.getElementById('feedback').className = 'feedback';
+  document.getElementById('feedback').style.display = 'none';
+  answered = false;
+}
+
+function speakWord() {
+  const w = shuffledWords[currentWordIndex];
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(w.word);
+    utter.lang = 'en-US';
+    utter.rate = 0.8;
+    window.speechSynthesis.speak(utter);
+  }
+}
+
+function checkAnswer() {
+  if (answered) return;
+  const input = document.getElementById('spellInput');
+  const userAnswer = input.value.trim().toLowerCase();
+  const correctAnswer = shuffledWords[currentWordIndex].word.toLowerCase();
+  if (!userAnswer) { input.classList.add('shake'); setTimeout(()=>input.classList.remove('shake'),300); return; }
+  answered = true;
+  input.disabled = true;
+  document.getElementById('submitBtn').disabled = true;
+  const feedback = document.getElementById('feedback');
+  if (userAnswer === correctAnswer) {
+    correctCount++;
+    input.className = 'spell-input correct bounce';
+    feedback.className = 'feedback correct show';
+    feedback.innerHTML = '✅ 正确！太棒了！';
+    document.getElementById('gameScore').textContent = `✓ ${correctCount}`;
+  } else {
+    input.className = 'spell-input wrong shake';
+    feedback.className = 'feedback wrong show';
+    feedback.innerHTML = `❌ 正确拼写：<div class="correct-answer">${shuffledWords[currentWordIndex].word}</div>`;
+  }
+  document.getElementById('submitBtn').style.display = 'none';
+  document.getElementById('nextBtn').style.display = 'block';
+}
+
+function nextWord() {
+  currentWordIndex++;
+  if (currentWordIndex >= 10) {
+    showResult();
+  } else {
+    showWord();
+  }
+}
+
+function showResult() {
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('resultScreen').style.display = 'block';
+  const passed = correctCount >= 7;
+  document.getElementById('resultIcon').textContent = passed ? '🎉' : '😢';
+  document.getElementById('resultTitle').textContent = passed ? '恭喜通关！' : '再接再厉！';
+  let detail = `正确：${correctCount}/10\n`;
+  if (passed) {
+    detail += `获得 🪙 ${REWARDS[currentLevel]} 金币！`;
+    saveProgress(currentLevel + 1);
+    addCoins(REWARDS[currentLevel], `拼读第${currentLevel+1}关通关奖励`);
+    // Refresh progress
+    if (currentUser) {
+      const newP = { level: currentLevel + 1, completed: true };
+      if (!userProgress.some(p => p.level === newP.level)) userProgress.push(newP);
+    }
+  } else {
+    detail += `需要答对 7 个才能通关哦`;
+  }
+  document.getElementById('resultDetail').textContent = detail;
+  document.getElementById('retryBtn').style.display = passed ? 'none' : 'inline-block';
+}
+
+function backToLevels() {
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('resultScreen').style.display = 'none';
+  document.getElementById('levelSelect').style.display = 'block';
+  renderLevels();
+}
+
+function retryLevel() {
+  startLevel(currentLevel);
+}
+
+// ===== Input Protection =====
+function setupInputProtection() {
+  const input = document.getElementById('spellInput');
+  // Block paste
+  input.addEventListener('paste', e => e.preventDefault());
+  // Block drag/drop
+  input.addEventListener('drop', e => e.preventDefault());
+  // Block voice input (composition events)
+  let composing = false;
+  input.addEventListener('compositionstart', e => { composing = true; });
+  input.addEventListener('compositionend', e => {
+    composing = false;
+    // Only allow basic latin chars
+    input.value = input.value.replace(/[^a-zA-Z\-\s']/g, '');
+  });
+  input.addEventListener('input', e => {
+    if (!composing) {
+      input.value = input.value.replace(/[^a-zA-Z\-\s']/g, '');
+    }
+  });
+  // Enter to submit
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!answered) checkAnswer();
+      else nextWord();
+    }
+  });
+}
+
+// ===== Coin History (placeholder) =====
+function showCoinHistory() {
+  if (window.CoinHistory) window.CoinHistory.show();
+}
+</script>
+</body>
+</html>
