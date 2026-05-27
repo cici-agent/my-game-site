@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>英语语法词汇挑战 - 小菜鸟</title>
+<!--
+  Supabase 建表 SQL:
+  CREATE TABLE IF NOT EXISTS grammar_progress (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    level INT NOT NULL,
+    completed BOOLEAN DEFAULT FALSE,
+    completed_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, level)
+  );
+  ALTER TABLE grammar_progress ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY "Users can read own progress" ON grammar_progress FOR SELECT USING (auth.uid() = user_id);
+  CREATE POLICY "Users can insert own progress" ON grammar_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
+  CREATE POLICY "Users can update own progress" ON grammar_progress FOR UPDATE USING (auth.uid() = user_id);
+-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;color:#333}
+nav{background:linear-gradient(135deg,#ff6b9d 0%,#ff8c5a 100%);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1000;box-shadow:0 4px 20px rgba(255,107,53,0.35)}
+nav a{text-decoration:none}
+.nav-brand{display:flex;align-items:center;gap:10px;color:white;font-size:18px;font-weight:900}
+.nav-brand img{width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.6);object-fit:cover}
+.nav-links{display:flex;gap:8px}
+.nav-links a{background:rgba(255,255,255,0.2);color:white;padding:8px 16px;border-radius:20px;font-size:14px;font-weight:700;border:2px solid rgba(255,255,255,0.3)}
+.container{max-width:600px;margin:0 auto;padding:20px}
+.header{text-align:center;color:white;margin-bottom:20px}
+.header h1{font-size:28px;margin-bottom:6px;text-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.header p{font-size:14px;opacity:0.9}
+.coins-display{background:rgba(255,255,255,0.15);backdrop-filter:blur(10px);border-radius:20px;padding:8px 18px;display:inline-flex;align-items:center;gap:6px;color:white;font-weight:700;font-size:16px;cursor:pointer;border:1px solid rgba(255,255,255,0.3);margin-top:8px}
+.coins-display:hover{background:rgba(255,255,255,0.25)}
+
+/* Level Select */
+.level-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px}
+.level-card{background:white;border-radius:16px;padding:20px 16px;text-align:center;box-shadow:0 4px 15px rgba(0,0,0,0.1);cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden}
+.level-card:hover{transform:translateY(-3px);box-shadow:0 8px 25px rgba(0,0,0,0.15)}
+.level-card.locked{opacity:0.5;cursor:not-allowed;filter:grayscale(0.5)}
+.level-card.completed{border:3px solid #4CAF50}
+.level-card .level-num{font-size:32px;font-weight:900;background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.level-card .level-label{font-size:13px;color:#666;margin-top:4px}
+.level-card .level-reward{font-size:12px;color:#ff9800;font-weight:600;margin-top:6px}
+.level-card .check-mark{position:absolute;top:8px;right:8px;font-size:20px}
+
+/* Quiz Screen */
+.quiz-screen{display:none}
+.quiz-header{background:rgba(255,255,255,0.12);backdrop-filter:blur(10px);border-radius:16px;padding:16px;margin-bottom:16px;color:white;display:flex;justify-content:space-between;align-items:center}
+.quiz-progress{font-size:14px;font-weight:600}
+.quiz-score{font-size:14px;font-weight:600}
+.question-card{background:white;border-radius:20px;padding:24px 20px;box-shadow:0 8px 30px rgba(0,0,0,0.12);margin-bottom:16px;animation:fadeIn 0.4s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.question-type{font-size:12px;color:#764ba2;font-weight:700;text-transform:uppercase;margin-bottom:8px;letter-spacing:1px}
+.question-text{font-size:18px;font-weight:600;line-height:1.6;margin-bottom:20px;color:#222}
+.options{display:flex;flex-direction:column;gap:12px}
+.option-btn{width:100%;padding:16px 20px;border:2px solid #e0e0e0;border-radius:14px;background:white;font-size:16px;font-weight:500;text-align:left;cursor:pointer;transition:all 0.2s;color:#333;line-height:1.4}
+.option-btn:hover{border-color:#764ba2;background:#f8f4ff}
+.option-btn:active{transform:scale(0.98)}
+.option-btn.correct{border-color:#4CAF50;background:#e8f5e9;color:#2e7d32;animation:pulse-green 0.5s}
+.option-btn.wrong{border-color:#f44336;background:#ffebee;color:#c62828;animation:shake 0.4s}
+@keyframes pulse-green{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.explanation{margin-top:16px;padding:14px;background:#f3e5f5;border-radius:12px;font-size:14px;line-height:1.5;color:#4a148c;display:none}
+.explanation.show{display:block;animation:fadeIn 0.3s}
+
+/* Result Screen */
+.result-screen{display:none;text-align:center;color:white}
+.result-card{background:rgba(255,255,255,0.95);border-radius:24px;padding:32px 24px;color:#333;box-shadow:0 10px 40px rgba(0,0,0,0.15)}
+.result-emoji{font-size:64px;margin-bottom:12px}
+.result-title{font-size:24px;font-weight:800;margin-bottom:8px}
+.result-stats{font-size:16px;color:#666;margin-bottom:20px;line-height:1.8}
+.result-coins{font-size:20px;color:#ff9800;font-weight:700;margin-bottom:20px}
+.btn{padding:14px 32px;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;transition:all 0.2s}
+.btn:active{transform:scale(0.96)}
+.btn-primary{background:linear-gradient(135deg,#667eea,#764ba2);color:white;box-shadow:0 4px 15px rgba(102,126,234,0.4)}
+.btn-secondary{background:#f5f5f5;color:#333;margin-left:10px}
+.next-btn{display:none;margin-top:16px;width:100%;padding:16px;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#667eea,#764ba2);color:white;box-shadow:0 4px 15px rgba(102,126,234,0.3)}
+
+/* Login prompt */
+.login-prompt{background:rgba(255,255,255,0.95);border-radius:20px;padding:30px;text-align:center;margin-top:30px;box-shadow:0 8px 30px rgba(0,0,0,0.12)}
+.login-prompt h3{margin-bottom:12px;color:#333}
+.login-prompt p{color:#666;margin-bottom:20px;font-size:14px}
+.login-btn{display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border-radius:12px;font-weight:700;text-decoration:none;font-size:16px}
+
+@media(max-width:480px){
+  .container{padding:12px}
+  .header h1{font-size:22px}
+  .level-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .level-card{padding:16px 12px}
+  .level-card .level-num{font-size:26px}
+  .question-text{font-size:16px}
+  .option-btn{padding:14px 16px;font-size:15px}
+  .nav-links a{padding:6px 10px;font-size:12px}
+}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/index.html" class="nav-brand">
+    <img src="/assets/logo.jpg" alt="小菜鸟" onerror="this.style.display='none'">
+    <span>小菜鸟</span>
+  </a>
+  <div class="nav-links">
+    <a href="/learn.html">📚 学习</a>
+    <a href="/editor.html">🛠️ 做游戏</a>
+    <a href="/#games">🎮 玩游戏</a>
+  </div>
+</nav>
+
+<div class="container">
+  <!-- Level Select -->
+  <div id="levelSelect">
+    <div class="header">
+      <h1>📖 英语语法词汇挑战</h1>
+      <p>小托福难度 · 10级进阶 · 词汇+语法交替</p>
+      <div class="coins-display" onclick="showCoinHistory()">🪙 <span id="coinCount">--</span></div>
+    </div>
+    <div class="level-grid" id="levelGrid"></div>
+  </div>
+
+  <!-- Quiz Screen -->
+  <div class="quiz-screen" id="quizScreen">
+    <div class="quiz-header">
+      <div class="quiz-progress">第 <span id="qNum">1</span>/10 题</div>
+      <div class="quiz-score">✅ <span id="qCorrect">0</span> / ❌ <span id="qWrong">0</span></div>
+    </div>
+    <div class="question-card" id="questionCard">
+      <div class="question-type" id="qType"></div>
+      <div class="question-text" id="qText"></div>
+      <div class="options" id="optionsDiv"></div>
+      <div class="explanation" id="explanation"></div>
+    </div>
+    <button class="next-btn" id="nextBtn" onclick="nextQuestion()">下一题 →</button>
+  </div>
+
+  <!-- Result Screen -->
+  <div class="result-screen" id="resultScreen">
+    <div class="result-card">
+      <div class="result-emoji" id="resultEmoji"></div>
+      <div class="result-title" id="resultTitle"></div>
+      <div class="result-stats" id="resultStats"></div>
+      <div class="result-coins" id="resultCoins"></div>
+      <button class="btn btn-primary" onclick="backToLevels()">返回关卡</button>
+      <button class="btn btn-secondary" onclick="retryLevel()">再试一次</button>
+    </div>
+  </div>
+
+  <!-- Login Prompt -->
+  <div class="login-prompt" id="loginPrompt" style="display:none">
+    <h3>🔒 请先登录</h3>
+    <p>登录后可保存进度和获得金币奖励</p>
+    <a href="/profile.html" class="login-btn">去登录</a>
+  </div>
+</div>
+
+<script>
+// ===== Supabase Config =====
+const SUPABASE_URL='https://aqxbpuetdypcbmqdncpl.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5ODg5MzksImV4cCI6MjA5NDU2NDkzOX0.YUwFQeJgbmhrtY32tGXbm9wz0jtou0Zxg1626EJl3r0';
+let currentUser=null;
+let userProgress=[];
+
+// ===== Rewards per level =====
+const REWARDS=[3,5,7,10,15,20,30,50,70,100];
+const PASS_THRESHOLD=7;
+
+// ===== Question Bank: 10 levels, 10 questions each =====
+const QUESTIONS=[
+// Level 1: 基础词汇 + 现在时
+[
+{q:"The cat ___ on the sofa every afternoon.",opts:["sleep","sleeps","sleeping","slept"],ans:1,type:"语法",exp:"主语 The cat 是第三人称单数，一般现在时动词加 -s。"},
+{q:"Which word means 'happy'?",opts:["sad","glad","mad","bad"],ans:1,type:"词汇",exp:"glad 意为高兴的，和 happy 同义。"},
+{q:"She ___ her homework before dinner.",opts:["do","does","doing","done"],ans:1,type:"语法",exp:"She 是第三人称单数，一般现在时用 does。"},
+{q:"A place where you borrow books is a ___.",opts:["hospital","library","restaurant","museum"],ans:1,type:"词汇",exp:"library 是图书馆，可以借书的地方。"},
+{q:"They ___ to school by bus every day.",opts:["goes","going","go","went"],ans:2,type:"语法",exp:"They 是复数主语，一般现在时用动词原形 go。"},
+{q:"The opposite of 'hot' is ___.",opts:["warm","cool","cold","wet"],ans:2,type:"词汇",exp:"cold（冷）是 hot（热）的反义词。"},
+{q:"My brother ___ basketball very well.",opts:["play","plays","playing","played"],ans:1,type:"语法",exp:"My brother 第三人称单数，一般现在时加 -s。"},
+{q:"Which word means 'very big'?",opts:["tiny","huge","thin","short"],ans:1,type:"词汇",exp:"huge 意为巨大的，非常大。"},
+{q:"Water ___ at 100 degrees Celsius.",opts:["boil","boils","boiling","boiled"],ans:1,type:"语法",exp:"科学事实用一般现在时，Water 单数用 boils。"},
+{q:"A person who flies an airplane is a ___.",opts:["driver","pilot","sailor","captain"],ans:1,type:"词汇",exp:"pilot 是飞行员，驾驶飞机的人。"}
+],
+// Level 2: 基础词汇 + 现在时/be动词
+[
+{q:"There ___ many students in the classroom.",opts:["is","are","was","be"],ans:1,type:"语法",exp:"many students 是复数，用 are。"},
+{q:"Which word means 'to start'?",opts:["finish","begin","stop","end"],ans:1,type:"词汇",exp:"begin 意为开始，和 start 同义。"},
+{q:"The flowers ___ beautiful in spring.",opts:["is","am","are","be"],ans:2,type:"语法",exp:"The flowers 复数主语，用 are。"},
+{q:"Something you wear on your head is a ___.",opts:["scarf","hat","glove","belt"],ans:1,type:"词汇",exp:"hat 是帽子，戴在头上。"},
+{q:"He ___ not like vegetables.",opts:["do","does","is","are"],ans:1,type:"语法",exp:"He 第三人称单数否定用 does not。"},
+{q:"The opposite of 'easy' is ___.",opts:["simple","hard","soft","light"],ans:1,type:"词汇",exp:"hard（困难的）是 easy（容易的）的反义词。"},
+{q:"___ your mother a teacher?",opts:["Do","Does","Is","Are"],ans:2,type:"语法",exp:"your mother 单数，问句用 Is。"},
+{q:"Which word means 'not dirty'?",opts:["messy","clean","dusty","muddy"],ans:1,type:"词汇",exp:"clean 意为干净的，not dirty 的意思。"},
+{q:"I ___ a student at this school.",opts:["is","are","am","be"],ans:2,type:"语法",exp:"I 后面用 am。"},
+{q:"A baby cat is called a ___.",opts:["puppy","kitten","cub","chick"],ans:1,type:"词汇",exp:"kitten 是小猫，baby cat。"}
+],
+// Level 3: 常用词组 + 过去时
+[
+{q:"She ___ to the park yesterday.",opts:["go","goes","went","going"],ans:2,type:"语法",exp:"yesterday 表示过去，go 的过去式是 went。"},
+{q:"'Look after' means to ___.",opts:["search for","take care of","look at","give up"],ans:1,type:"词汇",exp:"look after = take care of，照顾。"},
+{q:"They ___ a great time at the party last night.",opts:["have","has","had","having"],ans:2,type:"语法",exp:"last night 过去时间，have 的过去式是 had。"},
+{q:"'Give up' means to ___.",opts:["continue","stop trying","start","hurry"],ans:1,type:"词汇",exp:"give up 意为放弃，停止尝试。"},
+{q:"The movie ___ at 8 o'clock last evening.",opts:["start","starts","started","starting"],ans:2,type:"语法",exp:"last evening 过去时间，用 started。"},
+{q:"'Run out of' means to ___.",opts:["have plenty","have none left","throw away","find more"],ans:1,type:"词汇",exp:"run out of 意为用完，没有剩余。"},
+{q:"I ___ my keys on the table this morning.",opts:["leave","leaves","left","leaving"],ans:2,type:"语法",exp:"this morning（已过去），leave 的过去式是 left。"},
+{q:"'Put off' means to ___.",opts:["cancel","delay","refuse","accept"],ans:1,type:"词汇",exp:"put off 意为推迟，延期。"},
+{q:"He ___ the window because it was cold.",opts:["close","closes","closed","closing"],ans:2,type:"语法",exp:"because it was cold 表示过去，用 closed。"},
+{q:"'Turn up' means to ___.",opts:["disappear","arrive","leave","decrease"],ans:1,type:"词汇",exp:"turn up 意为出现，到达。"}
+],
+// Level 4: 常用词组 + 过去时（不规则）
+[
+{q:"We ___ a wonderful song at the concert.",opts:["sing","sang","sung","singing"],ans:1,type:"语法",exp:"at the concert（过去事件），sing 的过去式是 sang。"},
+{q:"'Figure out' means to ___.",opts:["forget","understand","ignore","confuse"],ans:1,type:"词汇",exp:"figure out 意为弄明白，理解。"},
+{q:"The children ___ in the river last summer.",opts:["swim","swam","swum","swimming"],ans:1,type:"语法",exp:"last summer 过去时间，swim 的过去式是 swam。"},
+{q:"'Come across' means to ___.",opts:["avoid","find by chance","cross over","run away"],ans:1,type:"词汇",exp:"come across 意为偶然发现。"},
+{q:"She ___ a letter to her grandmother last week.",opts:["write","wrote","written","writes"],ans:1,type:"语法",exp:"last week 过去时间，write 的过去式是 wrote。"},
+{q:"'Break down' can mean to ___.",opts:["build up","stop working","speed up","fix"],ans:1,type:"词汇",exp:"break down 意为（机器）坏掉，停止运作。"},
+{q:"The bird ___ away when I got close.",opts:["fly","flew","flown","flies"],ans:1,type:"语法",exp:"when I got close 过去时间，fly 的过去式是 flew。"},
+{q:"'Look forward to' means to ___.",opts:["dread","expect happily","forget","regret"],ans:1,type:"词汇",exp:"look forward to 意为期待。"},
+{q:"He ___ his bike to school when he was young.",opts:["ride","rode","ridden","rides"],ans:1,type:"语法",exp:"when he was young 过去，ride 的过去式是 rode。"},
+{q:"'Make up' can mean to ___.",opts:["destroy","invent a story","give away","break"],ans:1,type:"词汇",exp:"make up 可以意为编造（故事）。"}
+],
+// Level 5: 同义词反义词 + 将来时/进行时
+[
+{q:"She ___ her project tomorrow.",opts:["finish","finishes","will finish","finished"],ans:2,type:"语法",exp:"tomorrow 将来时间，用 will finish。"},
+{q:"Which word is a synonym of 'brave'?",opts:["scared","courageous","weak","shy"],ans:1,type:"词汇",exp:"courageous 意为勇敢的，和 brave 同义。"},
+{q:"Look! The children ___ in the playground.",opts:["play","plays","are playing","played"],ans:2,type:"语法",exp:"Look! 提示正在发生，用现在进行时 are playing。"},
+{q:"The antonym of 'generous' is ___.",opts:["kind","selfish","brave","honest"],ans:1,type:"词汇",exp:"selfish（自私的）是 generous（慷慨的）的反义词。"},
+{q:"We ___ going to visit the museum next week.",opts:["is","am","are","was"],ans:2,type:"语法",exp:"We 用 are，be going to 表将来。"},
+{q:"Which word is a synonym of 'intelligent'?",opts:["foolish","smart","lazy","slow"],ans:1,type:"词汇",exp:"smart 意为聪明的，和 intelligent 同义。"},
+{q:"Be quiet! The baby ___.",opts:["sleeps","slept","is sleeping","will sleep"],ans:2,type:"语法",exp:"Be quiet! 提示此刻正在发生，用 is sleeping。"},
+{q:"The antonym of 'ancient' is ___.",opts:["old","modern","broken","classic"],ans:1,type:"词汇",exp:"modern（现代的）是 ancient（古老的）的反义词。"},
+{q:"I ___ call you when I arrive.",opts:["am","will","was","do"],ans:1,type:"语法",exp:"when I arrive 将来情境，主句用 will。"},
+{q:"Which word is a synonym of 'enormous'?",opts:["tiny","gigantic","narrow","thin"],ans:1,type:"词汇",exp:"gigantic 意为巨大的，和 enormous 同义。"}
+],
+// Level 6: 同义词反义词 + 进行时/将来时
+[
+{q:"This time next year, I ___ in high school.",opts:["study","studied","will be studying","am studying"],ans:2,type:"语法",exp:"This time next year 将来某时正在做，用将来进行时 will be studying。"},
+{q:"The antonym of 'permanent' is ___.",opts:["lasting","temporary","strong","final"],ans:1,type:"词汇",exp:"temporary（暂时的）是 permanent（永久的）的反义词。"},
+{q:"While she ___ dinner, the phone rang.",opts:["cooks","cooked","was cooking","has cooked"],ans:2,type:"语法",exp:"while 引导过去进行时，was cooking 表示当时正在做。"},
+{q:"Which word is a synonym of 'purchase'?",opts:["sell","buy","rent","borrow"],ans:1,type:"词汇",exp:"buy 意为购买，和 purchase 同义。"},
+{q:"They ___ not going to cancel the trip.",opts:["is","are","was","do"],ans:1,type:"语法",exp:"They 用 are，be going to 表将来计划。"},
+{q:"The antonym of 'expand' is ___.",opts:["grow","shrink","stretch","increase"],ans:1,type:"词汇",exp:"shrink（缩小）是 expand（扩大）的反义词。"},
+{q:"He ___ TV when his mother came home.",opts:["watches","watched","was watching","will watch"],ans:2,type:"语法",exp:"when his mother came home 过去某刻正在做，用 was watching。"},
+{q:"Which word is a synonym of 'frequently'?",opts:["rarely","often","never","once"],ans:1,type:"词汇",exp:"often 意为经常，和 frequently 同义。"},
+{q:"Don't worry. I ___ help you with that.",opts:["am","will","was","do"],ans:1,type:"语法",exp:"表示当场决定/承诺用 will。"},
+{q:"The antonym of 'transparent' is ___.",opts:["clear","opaque","visible","thin"],ans:1,type:"词汇",exp:"opaque（不透明的）是 transparent（透明的）的反义词。"}
+],
+// Level 7: 上下文词义 + 完成时/被动语态
+[
+{q:"She ___ already finished her homework.",opts:["have","has","had","is"],ans:1,type:"语法",exp:"She 第三人称单数，现在完成时用 has。"},
+{q:"In 'The bright student solved the puzzle quickly,' 'bright' means ___.",opts:["shiny","intelligent","colorful","loud"],ans:1,type:"词汇",exp:"此处 bright 形容学生，意为聪明的。"},
+{q:"The cake ___ made by my grandmother.",opts:["is","was","were","are"],ans:1,type:"语法",exp:"The cake 单数，被动语态过去时用 was made。"},
+{q:"In 'Please address the issue immediately,' 'address' means ___.",opts:["a location","deal with","write to","speak to"],ans:1,type:"词汇",exp:"此处 address 作动词，意为处理（问题）。"},
+{q:"We have ___ to that restaurant many times.",opts:["go","went","gone","going"],ans:2,type:"语法",exp:"have gone 现在完成时，go 的过去分词是 gone。"},
+{q:"In 'The novel was so engaging,' 'engaging' means ___.",opts:["boring","interesting","long","difficult"],ans:1,type:"词汇",exp:"engaging 意为引人入胜的，有趣的。"},
+{q:"English ___ spoken in many countries.",opts:["is","are","was","were"],ans:0,type:"语法",exp:"English 单数，一般现在时被动用 is spoken。"},
+{q:"In 'She tried to console her crying friend,' 'console' means ___.",opts:["scold","comfort","ignore","surprise"],ans:1,type:"词汇",exp:"console 意为安慰。"},
+{q:"They have ___ in this city since 2020.",opts:["live","lived","living","lives"],ans:1,type:"语法",exp:"have lived 现在完成时，since 2020 表示持续。"},
+{q:"In 'The company will launch a new product,' 'launch' means ___.",opts:["throw","introduce","cancel","hide"],ans:1,type:"词汇",exp:"launch 此处意为推出，发布。"}
+],
+// Level 8: 上下文词义 + 完成时/被动语态进阶
+[
+{q:"The letter ___ been sent before I arrived.",opts:["has","had","have","is"],ans:1,type:"语法",exp:"before I arrived 过去之前完成，用过去完成时 had been sent。"},
+{q:"In 'The teacher's approach was very effective,' 'approach' means ___.",opts:["arrival","method","distance","speed"],ans:1,type:"词汇",exp:"approach 此处意为方法，方式。"},
+{q:"By next month, she ___ completed the course.",opts:["will have","will has","would","has"],ans:0,type:"语法",exp:"By next month 将来完成时，用 will have completed。"},
+{q:"In 'He managed to overcome many obstacles,' 'obstacles' means ___.",opts:["helpers","difficulties","friends","tools"],ans:1,type:"词汇",exp:"obstacles 意为障碍，困难。"},
+{q:"The windows ___ cleaned every week.",opts:["is","are","was","has"],ans:1,type:"语法",exp:"The windows 复数，一般现在时被动用 are cleaned。"},
+{q:"In 'The evidence was compelling,' 'compelling' means ___.",opts:["weak","convincing","confusing","boring"],ans:1,type:"词汇",exp:"compelling 意为令人信服的。"},
+{q:"She had never ___ such a beautiful sunset before.",opts:["see","saw","seen","seeing"],ans:2,type:"语法",exp:"had never seen 过去完成时，see 的过去分词是 seen。"},
+{q:"In 'They need to collaborate on this project,' 'collaborate' means ___.",opts:["compete","work together","argue","separate"],ans:1,type:"词汇",exp:"collaborate 意为合作。"},
+{q:"The new bridge ___ being built right now.",opts:["is","are","was","were"],ans:0,type:"语法",exp:"The new bridge 单数，现在进行时被动用 is being built。"},
+{q:"In 'The deadline is approaching rapidly,' 'approaching' means ___.",opts:["leaving","getting closer","stopping","slowing"],ans:1,type:"词汇",exp:"approaching 意为接近，靠近。"}
+],
+// Level 9: 小托福Step2 从句/虚拟语气/高级词汇
+[
+{q:"If I ___ you, I would apologize immediately.",opts:["am","was","were","be"],ans:2,type:"语法",exp:"虚拟语气 If I were you 表示与现在事实相反的假设。"},
+{q:"'Meticulous' most nearly means ___.",opts:["careless","very careful","quick","lazy"],ans:1,type:"词汇",exp:"meticulous 意为一丝不苟的，非常仔细的。"},
+{q:"The book ___ she recommended was excellent.",opts:["who","which","what","where"],ans:1,type:"语法",exp:"先行词 The book 是物，用 which 引导定语从句（that 也可）。"},
+{q:"'Reluctant' most nearly means ___.",opts:["eager","unwilling","happy","excited"],ans:1,type:"词汇",exp:"reluctant 意为不情愿的。"},
+{q:"I wish I ___ more time to finish the test.",opts:["have","has","had","having"],ans:2,type:"语法",exp:"I wish + 过去时表示对现在的虚拟，用 had。"},
+{q:"'Abundant' most nearly means ___.",opts:["scarce","plentiful","empty","limited"],ans:1,type:"词汇",exp:"abundant 意为丰富的，大量的。"},
+{q:"The reason ___ he was late is unclear.",opts:["which","what","why","where"],ans:2,type:"语法",exp:"The reason why... 原因状语从句。"},
+{q:"'Inevitable' most nearly means ___.",opts:["avoidable","certain to happen","unlikely","optional"],ans:1,type:"词汇",exp:"inevitable 意为不可避免的。"},
+{q:"Had she studied harder, she ___ passed the exam.",opts:["will have","would have","has","had"],ans:1,type:"语法",exp:"Had she studied... 虚拟语气过去完成，主句用 would have + 过去分词。"},
+{q:"'Ambiguous' most nearly means ___.",opts:["clear","unclear","simple","obvious"],ans:1,type:"词汇",exp:"ambiguous 意为模棱两可的，不明确的。"}
+],
+// Level 10: 小托福Step2 高级语法+高级词汇
+[
+{q:"Not only ___ she smart, but she is also hardworking.",opts:["is","was","does","did"],ans:0,type:"语法",exp:"Not only 开头倒装，主语 she 现在时用 is。"},
+{q:"'Pragmatic' most nearly means ___.",opts:["idealistic","practical","emotional","theoretical"],ans:1,type:"词汇",exp:"pragmatic 意为务实的，注重实际的。"},
+{q:"It is essential that he ___ on time.",opts:["arrives","arrive","arrived","arriving"],ans:1,type:"语法",exp:"It is essential that + 主语 + 动词原形（虚拟语气）。"},
+{q:"'Ephemeral' most nearly means ___.",opts:["eternal","short-lived","important","heavy"],ans:1,type:"词汇",exp:"ephemeral 意为短暂的，转瞬即逝的。"},
+{q:"The project, ___ was started last year, is now complete.",opts:["that","which","who","whom"],ans:1,type:"语法",exp:"非限制性定语从句用 which（有逗号隔开）。"},
+{q:"'Benevolent' most nearly means ___.",opts:["cruel","kind and generous","strict","indifferent"],ans:1,type:"词汇",exp:"benevolent 意为仁慈的，善良的。"},
+{q:"Hardly had he arrived ___ it started to rain.",opts:["than","when","then","before"],ans:1,type:"语法",exp:"Hardly had... when... 固定搭配，表示一...就...。"},
+{q:"'Ubiquitous' most nearly means ___.",opts:["rare","found everywhere","invisible","unique"],ans:1,type:"词汇",exp:"ubiquitous 意为无处不在的。"},
+{q:"Were it not for your help, I ___ have succeeded.",opts:["would","would not","will","will not"],ans:1,type:"语法",exp:"Were it not for... 虚拟语气，没有你的帮助我不会成功，用 would not。"},
+{q:"'Resilient' most nearly means ___.",opts:["fragile","able to recover quickly","slow","rigid"],ans:1,type:"词汇",exp:"resilient 意为有韧性的，能快速恢复的。"}
+]
+];
+
+// ===== State =====
+let currentLevel=0;
+let currentQ=0;
+let correctCount=0;
+let wrongCount=0;
+let answered=false;
+let shuffledQuestions=[];
+
+// ===== Init =====
+async function init(){
+  const token=localStorage.getItem('supabase_token');
+  if(token){
+    try{
+      const res=await fetch(SUPABASE_URL+'/auth/v1/user',{headers:{'Authorization':'Bearer '+token,'apikey':SUPABASE_KEY}});
+      if(res.ok){currentUser=await res.json();await loadProgress();}
+    }catch(e){}
+  }
+  renderLevels();
+  updateCoins();
+}
+
+async function loadProgress(){
+  if(!currentUser)return;
+  try{
+    const res=await fetch(SUPABASE_URL+'/rest/v1/grammar_progress?user_id=eq.'+currentUser.id+'&select=level,completed',{headers:{'Authorization':'Bearer '+localStorage.getItem('supabase_token'),'apikey':SUPABASE_KEY}});
+    if(res.ok)userProgress=await res.json();
+  }catch(e){}
+}
+
+function renderLevels(){
+  const grid=document.getElementById('levelGrid');
+  grid.innerHTML='';
+  const labels=['基础词汇 I','基础词汇 II','常用词组 I','常用词组 II','同义反义 I','同义反义 II','上下文 I','上下文 II','高级语法 I','高级语法 II'];
+  for(let i=0;i<10;i++){
+    const completed=userProgress.find(p=>p.level===i+1&&p.completed);
+    const unlocked=i===0||userProgress.find(p=>p.level===i&&p.completed);
+    const card=document.createElement('div');
+    card.className='level-card'+(completed?' completed':'')+((!unlocked&&!completed)?' locked':'');
+    card.innerHTML=`
+      ${completed?'<div class="check-mark">✅</div>':''}
+      <div class="level-num">${i+1}</div>
+      <div class="level-label">${labels[i]}</div>
+      <div class="level-reward">🪙 +${REWARDS[i]}</div>
+    `;
+    if(unlocked||completed)card.onclick=()=>startLevel(i);
+    grid.appendChild(card);
+  }
+}
+
+function startLevel(level){
+  currentLevel=level;
+  currentQ=0;correctCount=0;wrongCount=0;answered=false;
+  shuffledQuestions=shuffleArray([...QUESTIONS[level]]);
+  document.getElementById('levelSelect').style.display='none';
+  document.getElementById('resultScreen').style.display='none';
+  document.getElementById('quizScreen').style.display='block';
+  showQuestion();
+}
+
+function showQuestion(){
+  answered=false;
+  const q=shuffledQuestions[currentQ];
+  document.getElementById('qNum').textContent=currentQ+1;
+  document.getElementById('qCorrect').textContent=correctCount;
+  document.getElementById('qWrong').textContent=wrongCount;
+  document.getElementById('qType').textContent=q.type==='语法'?'📝 语法题':'📚 词汇题';
+  document.getElementById('qText').textContent=q.q;
+  document.getElementById('explanation').className='explanation';
+  document.getElementById('explanation').textContent='';
+  document.getElementById('nextBtn').style.display='none';
+  const optDiv=document.getElementById('optionsDiv');
+  optDiv.innerHTML='';
+  q.opts.forEach((opt,idx)=>{
+    const btn=document.createElement('button');
+    btn.className='option-btn';
+    btn.textContent=String.fromCharCode(65+idx)+'. '+opt;
+    btn.onclick=()=>selectAnswer(idx);
+    optDiv.appendChild(btn);
+  });
+  document.getElementById('questionCard').style.animation='none';
+  setTimeout(()=>document.getElementById('questionCard').style.animation='fadeIn 0.4s',10);
+}
+
+function selectAnswer(idx){
+  if(answered)return;
+  answered=true;
+  const q=shuffledQuestions[currentQ];
+  const btns=document.querySelectorAll('.option-btn');
+  btns[q.ans].classList.add('correct');
+  if(idx===q.ans){
+    correctCount++;
+  }else{
+    wrongCount++;
+    btns[idx].classList.add('wrong');
+  }
+  document.getElementById('qCorrect').textContent=correctCount;
+  document.getElementById('qWrong').textContent=wrongCount;
+  document.getElementById('explanation').textContent='💡 '+q.exp;
+  document.getElementById('explanation').className='explanation show';
+  document.getElementById('nextBtn').style.display='block';
+  document.getElementById('nextBtn').textContent=currentQ<9?'下一题 →':'查看结果';
+}
+
+function nextQuestion(){
+  currentQ++;
+  if(currentQ>=10){showResult();return;}
+  showQuestion();
+}
+
+async function showResult(){
+  document.getElementById('quizScreen').style.display='none';
+  document.getElementById('resultScreen').style.display='block';
+  const passed=correctCount>=PASS_THRESHOLD;
+  document.getElementById('resultEmoji').textContent=passed?'🎉':'😅';
+  document.getElementById('resultTitle').textContent=passed?'恭喜通关！':'继续加油！';
+  document.getElementById('resultStats').innerHTML=`正确：${correctCount}/10<br>需要 ${PASS_THRESHOLD} 题通过`;
+  if(passed){
+    const reward=REWARDS[currentLevel];
+    document.getElementById('resultCoins').textContent='🪙 +'+reward+' 金币';
+    if(currentUser)await saveProgress(reward);
+  }else{
+    document.getElementById('resultCoins').textContent='未通关，再试一次吧！';
+  }
+}
+
+async function saveProgress(reward){
+  const token=localStorage.getItem('supabase_token');
+  if(!token||!currentUser)return;
+  const headers={'Authorization':'Bearer '+token,'apikey':SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'};
+  // Save progress
+  try{
+    await fetch(SUPABASE_URL+'/rest/v1/grammar_progress',{method:'POST',headers,body:JSON.stringify({user_id:currentUser.id,level:currentLevel+1,completed:true})});
+  }catch(e){}
+  // Add coins
+  try{
+    await fetch(SUPABASE_URL+'/rest/v1/rpc/add_coins',{method:'POST',headers:{'Authorization':'Bearer '+token,'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({uid:currentUser.id,amount:reward})});
+  }catch(e){}
+  // Record transaction
+  try{
+    await fetch(SUPABASE_URL+'/rest/v1/coin_transactions',{method:'POST',headers:{'Authorization':'Bearer '+token,'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({user_id:currentUser.id,amount:reward,type:'grammar_reward',description:'语法词汇挑战 第'+( currentLevel+1)+'关 通关奖励'})});
+  }catch(e){}
+  await loadProgress();
+  renderLevels();
+  updateCoins();
+}
+
+function backToLevels(){
+  document.getElementById('resultScreen').style.display='none';
+  document.getElementById('quizScreen').style.display='none';
+  document.getElementById('levelSelect').style.display='block';
+}
+
+function retryLevel(){
+  startLevel(currentLevel);
+}
+
+async function updateCoins(){
+  if(!currentUser)return;
+  try{
+    const res=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+currentUser.id+'&select=coins',{headers:{'Authorization':'Bearer '+localStorage.getItem('supabase_token'),'apikey':SUPABASE_KEY}});
+    if(res.ok){const d=await res.json();if(d[0])document.getElementById('coinCount').textContent=d[0].coins||0;}
+  }catch(e){}
+}
+
+function showCoinHistory(){
+  if(typeof window.showCoinHistoryModal==='function')window.showCoinHistoryModal();
+  else window.location.href='/profile.html';
+}
+
+function shuffleArray(arr){
+  for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+  return arr;
+}
+
+init();
+</script>
+</body>
+</html>
