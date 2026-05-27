@@ -75,7 +75,7 @@
       overflow: hidden;
     }
 
-    /* ===== 左侧对话区 (40%) ===== */
+    /* ===== 左侧对话区 ===== */
     .chat-panel {
       width: 40%;
       min-width: 340px;
@@ -86,59 +86,60 @@
       border-right: 2px solid #f0f0f0;
     }
 
-    /* ===== 五要素进度条 ===== */
-    .progress-tracker {
-      padding: 12px 18px;
-      background: linear-gradient(135deg, #fffbeb, #fef3c7);
-      border-bottom: 2px solid #fde68a;
+    /* ===== 内部状态小指示器（弱化显示） ===== */
+    .status-bar {
+      padding: 8px 18px;
+      background: #fafafa;
+      border-bottom: 1px solid #f0f0f0;
       display: flex;
       align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
+      gap: 8px;
     }
-    .progress-tracker .pt-label {
-      font-size: 12px;
-      font-weight: 700;
-      color: #92400e;
+    .status-bar .status-label {
+      font-size: 11px;
+      color: #bbb;
       margin-right: 4px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #e5e7eb;
+      transition: all 0.4s;
+      position: relative;
+    }
+    .status-dot.collected {
+      background: linear-gradient(135deg, #86efac, #34d399);
+      box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);
+    }
+    .status-dot.active {
+      background: linear-gradient(135deg, var(--primary), #ff8c5a);
+      box-shadow: 0 0 8px rgba(255, 107, 53, 0.4);
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.3); }
+    }
+    .status-dot[title]:hover::after {
+      content: attr(title);
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: white;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
       white-space: nowrap;
+      z-index: 10;
     }
-    .progress-step {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      background: white;
-      border: 1.5px solid #e5e7eb;
-      color: #9ca3af;
-      transition: all 0.3s;
-      white-space: nowrap;
-    }
-    .progress-step.active {
-      border-color: var(--primary);
-      color: var(--primary);
-      background: #fff7ed;
-      box-shadow: 0 2px 8px rgba(255, 107, 53, 0.15);
-    }
-    .progress-step.done {
-      border-color: #86efac;
-      color: #166534;
-      background: #f0fdf4;
-    }
-    .progress-step .step-icon {
-      font-size: 13px;
-    }
-    .progress-step .step-check {
-      display: none;
-    }
-    .progress-step.done .step-check {
-      display: inline;
-    }
-    .progress-step.done .step-icon {
-      display: none;
+    .status-phase {
+      margin-left: auto;
+      font-size: 11px;
+      color: #ccc;
+      font-weight: 500;
     }
 
     .chat-messages {
@@ -248,157 +249,106 @@
       gap: 8px;
       margin-bottom: 8px;
       font-size: 13px;
-      line-height: 1.6;
+      color: #333;
     }
-    .confirm-card .cc-item .cc-emoji {
+    .confirm-card .cc-icon {
+      font-size: 14px;
       flex-shrink: 0;
-      font-size: 16px;
     }
-    .confirm-card .cc-item .cc-label {
-      font-weight: 700;
-      color: #1e40af;
-      margin-right: 4px;
-    }
-    .confirm-card .cc-item .cc-value {
-      color: #374151;
-    }
-    .confirm-card .cc-footer {
-      margin-top: 12px;
-      padding-top: 10px;
-      border-top: 1px dashed #93c5fd;
-      font-size: 13px;
-      color: #6b7280;
-    }
-    .confirm-card .cc-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .confirm-card .cc-btn {
-      padding: 8px 16px;
-      border-radius: 14px;
-      border: none;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .cc-btn-confirm {
-      background: linear-gradient(135deg, #10b981, #34d399);
-      color: white;
-      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
-    }
-    .cc-btn-confirm:hover { transform: scale(1.05); }
-    .cc-btn-modify {
-      background: #f3f4f6;
-      color: #4b5563;
-    }
-    .cc-btn-modify:hover { background: #e5e7eb; }
 
-    /* Loading 动画 - 小鸟飞翔 */
-    .msg-loading .msg-body {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .bird-fly {
-      display: inline-block;
-      animation: bird-bounce 0.6s ease-in-out infinite alternate;
-      font-size: 20px;
-    }
-    @keyframes bird-bounce {
-      from { transform: translateY(0) rotate(-5deg); }
-      to { transform: translateY(-6px) rotate(5deg); }
-    }
+    /* Loading 动画 */
     .loading-text {
-      color: #888;
+      color: #999;
       font-size: 13px;
     }
     .loading-text::after {
       content: '';
-      animation: ldots 1.5s infinite;
+      animation: dots 1.5s steps(3, end) infinite;
     }
-    @keyframes ldots {
+    @keyframes dots {
       0% { content: ''; }
-      25% { content: '.'; }
-      50% { content: '..'; }
-      75% { content: '...'; }
+      33% { content: '.'; }
+      66% { content: '..'; }
+      100% { content: '...'; }
+    }
+    .bird-fly {
+      display: inline-block;
+      animation: bird-bounce 0.8s ease-in-out infinite;
+      margin-right: 6px;
+    }
+    @keyframes bird-bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
     }
 
-    /* ===== 输入区 ===== */
+    /* 输入区 */
     .chat-input-area {
       padding: 14px 16px;
-      border-top: 2px solid #f0f0f0;
       background: white;
+      border-top: 2px solid #f0f0f0;
       display: flex;
-      gap: 10px;
       align-items: flex-end;
+      gap: 10px;
     }
     .chat-input-wrap {
       flex: 1;
-      position: relative;
+      background: #f5f5f5;
+      border-radius: 20px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
     }
     .chat-input-wrap textarea {
-      width: 100%;
-      padding: 12px 16px;
-      border: 2.5px solid #e8e8e8;
-      border-radius: 20px;
+      flex: 1;
+      border: none;
+      background: transparent;
       font-size: 14px;
-      font-family: inherit;
       resize: none;
       outline: none;
-      min-height: 44px;
       max-height: 120px;
       line-height: 1.5;
-      transition: border-color 0.2s;
-      box-sizing: border-box;
-    }
-    .chat-input-wrap textarea:focus {
-      border-color: var(--primary);
-    }
-    .chat-input-wrap textarea::placeholder {
-      color: #bbb;
+      font-family: inherit;
     }
     .input-btn {
-      width: 42px;
-      height: 42px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       border: none;
+      font-size: 18px;
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
-      cursor: pointer;
       transition: all 0.2s;
       flex-shrink: 0;
     }
     .voice-btn {
-      background: linear-gradient(135deg, #a855f7, #c084fc);
-      color: white;
-      box-shadow: 0 3px 10px rgba(168, 85, 247, 0.3);
+      background: #f5f5f5;
+      color: #666;
     }
-    .voice-btn:hover { transform: scale(1.1); }
+    .voice-btn:hover { background: #eee; }
     .voice-btn.recording {
-      background: #ff4757;
-      animation: pulse-rec 1s infinite;
+      background: #fee2e2;
+      color: #dc2626;
+      animation: pulse-rec 1s ease-in-out infinite;
     }
     @keyframes pulse-rec {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.5); }
-      50% { box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); }
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
     }
     .send-btn {
-      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      background: linear-gradient(135deg, var(--primary), #ff8c5a);
       color: white;
-      box-shadow: 0 3px 10px var(--primary-glow);
+      box-shadow: 0 3px 10px rgba(255, 107, 53, 0.3);
     }
-    .send-btn:hover { transform: scale(1.1); }
+    .send-btn:hover { transform: scale(1.05); }
     .send-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
       transform: none;
     }
 
-    /* ===== 右侧预览区 (60%) ===== */
+    /* ===== 右侧预览区 ===== */
     .preview-panel {
       flex: 1;
       display: flex;
@@ -614,13 +564,8 @@
       .preview-topbar {
         padding: 10px 16px;
       }
-      .progress-tracker {
-        padding: 8px 12px;
-        gap: 4px;
-      }
-      .progress-step {
-        padding: 3px 7px;
-        font-size: 11px;
+      .status-bar {
+        padding: 6px 12px;
       }
     }
   </style>
@@ -642,54 +587,28 @@
   <div class="editor-main">
     <!-- 左侧对话 -->
     <div class="chat-panel">
-      <!-- 五要素进度条 -->
-      <div class="progress-tracker" id="progressTracker">
-        <span class="pt-label">🎮 设计进度：</span>
-        <span class="progress-step active" data-step="goal">
-          <span class="step-icon">🎯</span>
-          <span class="step-check">✅</span>
-          目标
-        </span>
-        <span class="progress-step" data-step="rule">
-          <span class="step-icon">📋</span>
-          <span class="step-check">✅</span>
-          规则
-        </span>
-        <span class="progress-step" data-step="challenge">
-          <span class="step-icon">⚡</span>
-          <span class="step-check">✅</span>
-          挑战
-        </span>
-        <span class="progress-step" data-step="reward">
-          <span class="step-icon">🏆</span>
-          <span class="step-check">✅</span>
-          奖励
-        </span>
-        <span class="progress-step" data-step="world">
-          <span class="step-icon">🌍</span>
-          <span class="step-check">✅</span>
-          世界
-        </span>
+      <!-- 内部状态指示器（弱化） -->
+      <div class="status-bar" id="statusBar">
+        <span class="status-label">💡</span>
+        <span class="status-dot" data-el="goal" title="目标"></span>
+        <span class="status-dot" data-el="rule" title="规则"></span>
+        <span class="status-dot" data-el="challenge" title="挑战"></span>
+        <span class="status-dot" data-el="reward" title="奖励"></span>
+        <span class="status-dot" data-el="world" title="世界观"></span>
+        <span class="status-phase" id="statusPhase">聊天中...</span>
       </div>
 
       <div class="chat-messages" id="chatMessages">
-        <!-- AI 初始引导 -->
+        <!-- AI 初始引导 - 自然开场 -->
         <div class="msg ai-msg">
           <div class="msg-avatar">🐤</div>
           <div class="msg-body">
-            嗨！欢迎来到 AI 游戏工坊！我是小菜鸟 🐤<br><br>
-            今天你来当<strong>游戏设计师</strong>！我会帮你一步步把脑子里的想法变成一个真正能玩的游戏 ✨<br><br>
-            做一个好游戏需要想清楚 <strong>5 个要素</strong>：<br>
-            🎯 目标 · 📋 规则 · ⚡ 挑战 · 🏆 奖励 · 🌍 世界<br><br>
-            我们一个一个来！先从第一个开始——<br><br>
-            <strong>🎯 在你的游戏里，玩家要做什么才算赢？</strong><br><br>
-            <span style="color:#888;font-size:13px">比如：<br>
-            · 跑到终点就赢了<br>
-            · 打败所有怪物<br>
-            · 收集够 100 个金币<br>
-            · 活到最后一个人<br><br>
-            当然你也可以说别的！</span><br><br>
-            <span style="color:#aaa;font-size:12px">💡 可以打字，也可以点麦克风用语音告诉我</span>
+            嘿！👋 欢迎来到游戏工坊！<br><br>
+            我是小菜鸟，你的<strong>游戏创意伙伴</strong> 🐤✨<br><br>
+            今天咱们一起做一个属于你的游戏！<br><br>
+            <strong>你想做什么游戏？脑子里有什么想法？</strong><br><br>
+            <span style="color:#999;font-size:13px">随便说！比如「我想做一个打怪兽的游戏」「我想做一个跑酷游戏」，或者只是一个模糊的感觉也行～</span><br><br>
+            <span style="color:#bbb;font-size:12px">💡 打字或者点🎤语音都行</span>
           </div>
         </div>
       </div>
@@ -711,13 +630,13 @@
         <span class="preview-game-tag" id="previewTag"></span>
         <div class="spacer"></div>
         <button class="btn-modify" id="btnModify">✏️ 继续修改</button>
-        <button class="btn-publish" id="btnPublish">🚀 满意，发布！</button>
+        <button class="btn-publish" id="btnPublish">🚀 发布给大家玩！</button>
       </div>
       <div class="preview-body">
         <div class="preview-empty" id="previewEmpty">
           <div class="big-icon">🎮</div>
-          <h3>你的游戏将在这里预览</h3>
-          <p>完成左边的 5 个设计要素<br>确认后就能生成你的专属游戏！</p>
+          <h3>你的游戏将在这里出现</h3>
+          <p>跟我聊聊你想做什么游戏<br>聊完我就帮你做出来！</p>
         </div>
         <iframe class="preview-iframe" id="previewIframe"></iframe>
       </div>
@@ -773,6 +692,7 @@
     var btnPublish = document.getElementById('btnPublish');
     var btnModify = document.getElementById('btnModify');
     var publishModal = document.getElementById('publishModal');
+    var statusPhase = document.getElementById('statusPhase');
 
     // ===== 状态 =====
     var conversationHistory = []; // 完整对话历史 [{role, content}, ...]
@@ -780,16 +700,16 @@
     var isGenerating = false;
     var currentUser = null;
 
-    // ===== 五要素状态 =====
-    var gameDesign = {
-      goal: '',       // 目标
-      rule: '',       // 规则
-      challenge: '',  // 挑战
-      reward: '',     // 奖励
-      world: ''       // 世界观
+    // ===== 内部要素追踪（对孩子不可见） =====
+    var elements = {
+      goal: false,
+      rule: false,
+      challenge: false,
+      reward: false,
+      world: false
     };
-    var designConfirmed = false; // 是否已确认设计
-    var gameGenerated = false;   // 是否已生成游戏
+    var designConfirmed = false;
+    var gameGenerated = false;
 
     var FUNC_URL = SUPABASE_URL + '/functions/v1/ai-game-generator';
 
@@ -798,46 +718,53 @@
       racing: '竞速', learning: '学习'
     };
 
-    // ===== System Prompt =====
-    var SYSTEM_PROMPT = '你是小菜鸟平台的「游戏设计导师」，帮助小朋友（小学生）一步步设计出自己的游戏。你的任务是引导孩子自己说出游戏的五个核心要素。\n\n' +
+    // ===== System Prompt - 自然对话式 =====
+    var SYSTEM_PROMPT = '你是「小菜鸟」——一个超级有趣的游戏创意伙伴 🐤。你在帮一个小学生把脑子里的想法变成真正能玩的游戏。\n\n' +
       '【你的性格】\n' +
-      '- 语气像一个超级好奇的朋友，热情、鼓励\n' +
-      '- 用小学生能听懂的简单语言，多用 emoji\n' +
-      '- 每次只问一个问题，等孩子回答后再问下一个\n' +
-      '- 对孩子的每个回答先表示肯定（"哇！""太酷了！""好有创意！"），再引导下一步\n' +
-      '- 如果孩子的回答很短或不确定，给 2-3 个选项启发，但鼓励孩子说出自己的想法\n\n' +
-      '【五要素引导流程（必须按顺序收集）】\n' +
-      '你必须按顺序引导孩子说出以下五个要素，每收集完一个才进入下一个：\n\n' +
-      '1️⃣ 目标 🎯：「在你的游戏里，玩家要做什么才算赢？」\n' +
-      '   - 启发：跑到终点？打败Boss？收集够东西？活到最后？\n\n' +
-      '2️⃣ 规则 📋：「玩家可以做哪些操作？有什么不能做的？」\n' +
-      '   - 启发：能跳？能射击？不能碰墙？有时间限制？\n\n' +
-      '3️⃣ 挑战 ⚡：「游戏里什么东西会让玩家觉得难、但又想继续挑战？」\n' +
-      '   - 启发：怪物越来越多？速度越来越快？迷宫越来越复杂？\n\n' +
-      '4️⃣ 奖励 🏆：「玩家做到了什么会得到奖励？奖励是什么？」\n' +
-      '   - 启发：得分？解锁新角色？获得超能力？\n\n' +
-      '5️⃣ 世界观 🌍：「你的游戏发生在什么地方？是什么风格？」\n' +
-      '   - 启发：太空？森林？古代？未来城市？海底？糖果世界？\n\n' +
-      '【确认环节（最重要！有仪式感）】\n' +
-      '当五个要素全部收集完毕后，你必须用以下格式复述，让孩子确认：\n\n' +
-      '「🎉 太棒了！你已经完成了所有设计！让我来复述一下你设计的游戏：\n\n' +
-      '🎯 目标：[孩子说的目标]\n' +
-      '📋 规则：[孩子说的规则]\n' +
-      '⚡ 挑战：[孩子说的挑战]\n' +
-      '🏆 奖励：[孩子说的奖励]\n' +
-      '🌍 世界：[孩子说的世界观]\n\n' +
-      '这就是你设计的游戏！确认没问题的话，我就开始帮你制作啦！\n' +
-      '如果想改哪个部分，直接告诉我就好～」\n\n' +
+      '- 你像一个特别好玩的朋友，不是老师，不是机器人\n' +
+      '- 说话简短、活泼，多用 emoji，偶尔开个小玩笑\n' +
+      '- 对孩子的每个想法都表示真心的兴奋（"哇塞！""这也太酷了吧！""我已经能想象出来了！"）\n' +
+      '- 用小学生能听懂的大白话，不用复杂词汇\n' +
+      '- 每次只聊一个话题，不要一次问太多\n\n' +
+      '【你的任务（孩子不需要知道）】\n' +
+      '你需要在自然聊天中悄悄收集游戏的五个核心要素：\n' +
+      '1. 目标（玩家要做什么才算赢）\n' +
+      '2. 规则（玩家能做什么操作、有什么限制）\n' +
+      '3. 挑战（什么让游戏变难、让人想继续玩）\n' +
+      '4. 奖励（做到了什么会得到什么好东西）\n' +
+      '5. 世界观（游戏发生在哪里、什么风格）\n\n' +
+      '【对话策略】\n' +
+      '- 开始：让孩子自由说想法，不要说"我们来收集五个要素"\n' +
+      '- 中间：根据孩子说的内容，自然地追问。比如孩子说"我想做打怪兽的游戏"，你可以说"打怪兽！太刺激了！那怪兽在哪里呢？是在太空还是森林还是...？"\n' +
+      '- 如果孩子一次说了很多信息，直接提取多个要素，不要重复问已经说过的\n' +
+      '- 如果孩子说得很少或不确定，给 2-3 个有趣的选项启发，但强调"你也可以想别的"\n' +
+      '- 不要说"第一步""第二步""现在我们来说规则"这种话！\n' +
+      '- 自然过渡，比如："这个主意太棒了！对了，玩家在游戏里能干啥呢？能跳？能飞？能发射什么？"\n\n' +
+      '【收集完毕后】\n' +
+      '当你判断五个要素都聊到了（不需要每个都很详细，有基本概念就行），用孩子的语言做一个轻松的总结：\n\n' +
+      '"好嘞！我来整理一下你的游戏创意哈 ✨\n\n' +
+      '你要做的是一个 [简短描述] 的游戏：\n' +
+      '🎯 玩家要 [目标]\n' +
+      '🎮 可以 [操作/规则]\n' +
+      '💪 难点是 [挑战]\n' +
+      '🎁 做到了能得到 [奖励]\n' +
+      '🌍 发生在 [世界/风格]\n\n' +
+      '是这样对吧？有没有想改的地方？没问题的话我就开始做啦！"\n\n' +
       '【重要规则】\n' +
-      '- 必须收集完全部五个要素才能复述确认，不能跳过任何一个\n' +
-      '- 孩子确认后（说"好""可以""没问题""开始吧"等肯定词），才输出生成JSON\n' +
-      '- 如果孩子说"改一下目标/规则/挑战/奖励/世界"，回到对应要素重新收集，然后重新复述确认\n' +
-      '- 如果孩子说"快点""直接做"，温柔地说"别急，好的游戏需要想清楚每一步哦～我们已经完成X个了，还差Y个！"\n' +
-      '- 每次回复末尾，用 [PROGRESS:goal=1,rule=0,challenge=0,reward=0,world=0] 标记当前各要素的完成状态（1=已收集，0=未收集）\n' +
-      '- 确认环节回复末尾标记 [CONFIRM_PENDING]\n' +
-      '- 孩子确认后标记 [CONFIRMED]\n\n' +
+      '- 绝对不要对孩子说"五要素""设计要素""第X步"这些词\n' +
+      '- 不要一次列出所有要素让孩子填，要在聊天中自然获取\n' +
+      '- 如果孩子说"快点做""直接做吧"，温柔地说"马上马上！让我再确认一个小细节～[自然地问还缺的要素]"\n' +
+      '- 孩子确认后（说"好""可以""没问题""开始吧""对"等），才输出生成JSON\n' +
+      '- 如果孩子说想改什么，愉快地说"没问题！"然后调整，重新总结确认\n\n' +
+      '【标记协议（前端解析用，孩子看不到）】\n' +
+      '每次回复末尾加上状态标记，格式：\n' +
+      '[STATE:goal=0/1,rule=0/1,challenge=0/1,reward=0/1,world=0/1,phase=chat/summary/confirmed]\n' +
+      '- 0=还没聊到，1=已经从对话中获取到了\n' +
+      '- phase=chat 表示还在聊天收集中\n' +
+      '- phase=summary 表示正在做总结等孩子确认\n' +
+      '- phase=confirmed 表示孩子确认了，下一步输出JSON\n\n' +
       '【生成阶段】\n' +
-      '只有在孩子确认复述正确后（你标记了[CONFIRMED]），才输出如下JSON（不要有任何其他文字，不要markdown代码块）：\n' +
+      '只有 phase=confirmed 后，才输出如下JSON（不要有任何其他文字，不要markdown代码块）：\n' +
       '{\n' +
       '  "action": "generate",\n' +
       '  "title": "游戏名称（2-8个字，吸引小学生）",\n' +
@@ -847,97 +774,75 @@
       '  "html": "完整单文件HTML5游戏代码"\n' +
       '}\n\n' +
       '【修改阶段（游戏生成后）】\n' +
-      '用户试玩后要求修改时，先问清楚想改什么，然后输出同样格式的JSON，html字段输出完整修改后的代码。\n\n' +
+      '游戏生成后，先说"做好啦！🎉 快去右边试玩一下！觉得怎么样？有没有想改的地方？"\n' +
+      '如果孩子要修改，问清楚想改什么，然后输出同样格式的JSON，html字段输出完整修改后的代码。\n' +
+      '如果孩子满意，说"太棒了！要不要发布让其他小朋友也能玩到你的游戏？点右边的发布按钮就行～ 🚀"\n\n' +
       '【游戏代码要求】\n' +
       '- 完整单文件HTML，包含所有CSS和JS，不依赖外部资源\n' +
       '- 必须包含：开始界面（显示游戏名和开始按钮）、游戏主体、结束界面（显示得分和重玩按钮）\n' +
-      '- 支持手机触摸操作\n' +
-      '- 画面色彩鲜艳好看，适合小学生审美\n' +
-      '- 游戏要有趣、完整、有挑战性\n' +
-      '- 只返回JSON，不要任何解释';
+      '- 适配手机和iPad（触屏操作为主，也支持键盘）\n' +
+      '- 画面美观，色彩丰富，适合小学生审美\n' +
+      '- 有音效反馈（用 AudioContext 生成简单音效）\n' +
+      '- 游戏体验完整流畅，有明确的胜负判定\n' +
+      '- 代码中不要有注释，尽量压缩';
 
-    // ===== 初始化 =====
-    async function init() {
-      document.body.style.opacity = '1';
-      if (typeof updateNavbar === 'function') {
-        try { updateNavbar(); } catch(e) {}
-      }
-
-      var user = await getCurrentUser();
-      if (!user) {
-        window.location.href = 'login.html?redirect=editor.html';
-        return;
-      }
-      currentUser = user;
-      chatInput.disabled = false;
-      sendBtn.disabled = false;
-      chatInput.focus();
-    }
-    init();
-
-    // ===== 更新进度条 =====
-    function updateProgress() {
-      var steps = document.querySelectorAll('.progress-step');
-      var keys = ['goal', 'rule', 'challenge', 'reward', 'world'];
-      var foundActive = false;
-
-      keys.forEach(function(key, i) {
-        var el = steps[i];
-        el.classList.remove('active', 'done');
-        if (gameDesign[key]) {
-          el.classList.add('done');
-        } else if (!foundActive) {
-          el.classList.add('active');
-          foundActive = true;
+    // ===== 更新状态指示器 =====
+    function updateStatusDots() {
+      var dots = document.querySelectorAll('.status-dot');
+      var allDone = true;
+      dots.forEach(function(dot) {
+        var el = dot.getAttribute('data-el');
+        if (elements[el]) {
+          dot.className = 'status-dot collected';
+        } else {
+          dot.className = 'status-dot';
+          allDone = false;
         }
       });
 
-      // 如果全部完成但未确认，最后一个高亮
-      if (!foundActive && allElementsDone()) {
-        // 全部完成，不需要额外高亮
+      // 更新阶段文字
+      if (gameGenerated) {
+        statusPhase.textContent = '试玩中 🎮';
+      } else if (designConfirmed) {
+        statusPhase.textContent = '生成中...';
+      } else if (allDone) {
+        statusPhase.textContent = '确认设计 ✨';
+      } else {
+        var count = Object.values(elements).filter(Boolean).length;
+        if (count === 0) {
+          statusPhase.textContent = '聊天中...';
+        } else {
+          statusPhase.textContent = '聊得不错 ' + '⭐'.repeat(count);
+        }
       }
     }
 
-    function allElementsDone() {
-      return gameDesign.goal && gameDesign.rule && gameDesign.challenge && gameDesign.reward && gameDesign.world;
-    }
-
-    // ===== 解析 AI 回复中的进度标记 =====
-    function parseProgressMarkers(content) {
-      // 解析 [PROGRESS:goal=1,rule=0,...] 标记
-      var progressMatch = content.match(/\[PROGRESS:([^\]]+)\]/);
-      if (progressMatch) {
-        var pairs = progressMatch[1].split(',');
+    // ===== 解析 AI 回复中的状态标记 =====
+    function parseStateMarkers(content) {
+      var stateMatch = content.match(/\[STATE:([^\]]+)\]/);
+      if (stateMatch) {
+        var pairs = stateMatch[1].split(',');
         pairs.forEach(function(pair) {
           var kv = pair.trim().split('=');
           if (kv.length === 2) {
             var key = kv[0].trim();
             var val = kv[1].trim();
-            if (key in gameDesign) {
-              if (val === '1' && !gameDesign[key]) {
-                gameDesign[key] = 'collected';
-              } else if (val === '0') {
-                gameDesign[key] = '';
+            if (key in elements) {
+              elements[key] = (val === '1');
+            }
+            if (key === 'phase') {
+              if (val === 'confirmed') {
+                designConfirmed = true;
               }
             }
           }
         });
-        updateProgress();
+        updateStatusDots();
       }
 
-      // 检测确认状态
-      if (content.indexOf('[CONFIRMED]') !== -1) {
-        designConfirmed = true;
-      }
-      if (content.indexOf('[CONFIRM_PENDING]') !== -1) {
-        // 确认等待中，不做特殊处理
-      }
-
-      // 清理标记，不显示给用户
+      // 清理标记
       return content
-        .replace(/\[PROGRESS:[^\]]+\]/g, '')
-        .replace(/\[CONFIRM_PENDING\]/g, '')
-        .replace(/\[CONFIRMED\]/g, '')
+        .replace(/\[STATE:[^\]]+\]/g, '')
         .trim();
     }
 
@@ -966,13 +871,13 @@
 
       // 显示 loading 气泡
       var loadingEl = appendBubble(
-        '<span class="bird-fly">🐤</span><span class="loading-text">小菜鸟正在思考</span>',
+        '<span class="bird-fly">🐤</span><span class="loading-text">小菜鸟正在想</span>',
         'ai-msg', true
       );
 
       try {
-        // 拼装 messages：system + 最近10条历史
-        var recentHistory = conversationHistory.slice(-10);
+        // 拼装 messages：system + 最近12条历史
+        var recentHistory = conversationHistory.slice(-12);
         var messages = [
           { role: 'system', content: SYSTEM_PROMPT }
         ].concat(recentHistory);
@@ -983,6 +888,7 @@
         var token = '';
         if (sessionResult && sessionResult.data && sessionResult.data.session) {
           token = sessionResult.data.session.access_token;
+          currentUser = sessionResult.data.session.user;
         }
 
         var resp = await fetch(FUNC_URL, {
@@ -1014,16 +920,17 @@
           // === 游戏生成成功 ===
           currentGameData = gameData;
           gameGenerated = true;
+          updateStatusDots();
 
           // 存原始 JSON 到历史
           conversationHistory.push({ role: 'assistant', content: content });
 
           // 显示友好气泡
-          var cardHtml = '🎉 游戏制作完成！<br><br>' +
+          var cardHtml = '🎉 做好啦！<br><br>' +
             '<div class="gc-title">' + escapeHtml(gameData.title) + '</div>' +
             '<div class="gc-desc">' + escapeHtml(gameData.description) + '</div>' +
             '<span class="gc-tag">' + (CATEGORY_MAP[gameData.category] || '休闲') + '</span>' +
-            '<br><br><span style="font-size:13px;color:#555">👉 右边可以试玩！觉得满意就点「发布」吧～<br>想改什么随时告诉我！</span>';
+            '<br><br><span style="font-size:13px;color:#555">👉 快去右边试玩一下！<br>觉得怎么样？有想改的地方随时告诉我～</span>';
           appendBubble(cardHtml, 'ai-msg', false, 'game-card-bubble');
 
           // 显示预览
@@ -1031,13 +938,9 @@
 
         } else {
           // === 普通对话 ===
-          // 解析进度标记
-          var cleanContent = parseProgressMarkers(content);
-
+          var cleanContent = parseStateMarkers(content);
           conversationHistory.push({ role: 'assistant', content: content });
-
-          // 显示 AI 回复
-          appendBubble(escapeHtml(cleanContent), 'ai-msg');
+          appendBubble(formatAIText(cleanContent), 'ai-msg');
         }
 
       } catch (err) {
@@ -1056,6 +959,9 @@
       if (!content) return null;
       var trimmed = content.trim();
 
+      // 清理可能的状态标记
+      trimmed = trimmed.replace(/\[STATE:[^\]]+\]/g, '').trim();
+
       // 直接尝试解析
       if (trimmed.startsWith('{')) {
         try {
@@ -1073,7 +979,22 @@
         } catch(e) {}
       }
 
+      // 尝试从内容中找到 JSON 对象
+      var jsonMatch = trimmed.match(/\{[\s\S]*"action"\s*:\s*"generate"[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          var d = JSON.parse(jsonMatch[0]);
+          if (d.html && d.title) return d;
+        } catch(e) {}
+      }
+
       return null;
+    }
+
+    // ===== 格式化 AI 文本 =====
+    function formatAIText(text) {
+      // 简单的换行处理和 emoji 保留
+      return escapeHtml(text).replace(/\n/g, '<br>');
     }
 
     // ===== 显示预览 =====
@@ -1093,11 +1014,11 @@
     // ===== 聊天气泡 =====
     function appendBubble(html, type, isLoading, extraClass) {
       var wrapper = document.createElement('div');
-      wrapper.className = 'msg ' + type + (isLoading ? ' msg-loading' : '');
+      wrapper.className = 'msg ' + type;
 
       var avatar = document.createElement('div');
       avatar.className = 'msg-avatar';
-      avatar.textContent = (type === 'ai-msg') ? '🐤' : '😊';
+      avatar.textContent = type === 'ai-msg' ? '🐤' : '😊';
 
       var body = document.createElement('div');
       body.className = 'msg-body' + (extraClass ? ' ' + extraClass : '');
@@ -1106,31 +1027,32 @@
       wrapper.appendChild(avatar);
       wrapper.appendChild(body);
       chatMessages.appendChild(wrapper);
+
+      // 滚动到底部
       chatMessages.scrollTop = chatMessages.scrollHeight;
+
       return wrapper;
     }
 
+    // ===== 工具函数 =====
     function escapeHtml(str) {
-      if (!str) return '';
       var div = document.createElement('div');
       div.textContent = str;
-      return div.innerHTML.replace(/\n/g, '<br>');
+      return div.innerHTML;
     }
 
-    // ===== 语音输入 (Web Speech API) =====
+    // ===== 语音输入 =====
     var recognition = null;
     var isRecording = false;
 
     function initSpeech() {
-      var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) {
-        voiceBtn.style.display = 'none';
-        return;
-      }
-      recognition = new SR();
+      var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+
+      recognition = new SpeechRecognition();
       recognition.lang = 'zh-CN';
-      recognition.continuous = false;
       recognition.interimResults = true;
+      recognition.continuous = false;
 
       recognition.onresult = function(e) {
         var transcript = '';
@@ -1147,7 +1069,7 @@
         voiceBtn.textContent = '🎤';
         chatInput.placeholder = '说说你的想法...';
         if (chatInput.value.trim()) {
-          chatInput.focus();
+          sendBtn.disabled = false;
         }
       };
 
@@ -1195,15 +1117,17 @@
     // ===== 继续修改 =====
     function focusChat() {
       chatInput.focus();
-      chatInput.placeholder = '告诉我要改什么，比如"加个排行榜"...';
+      chatInput.placeholder = '告诉我想改什么...';
     }
 
-    // ===== 发布流程 =====
+    // ===== 发布相关 =====
     function showPublishModal() {
       if (!currentGameData) return;
       document.getElementById('pubTitle').value = currentGameData.title || '';
       document.getElementById('pubDesc').value = currentGameData.description || '';
-      document.getElementById('pubCategory').value = currentGameData.category || 'casual';
+      if (currentGameData.category) {
+        document.getElementById('pubCategory').value = currentGameData.category;
+      }
       publishModal.classList.add('show');
     }
 
@@ -1212,54 +1136,62 @@
     }
 
     async function doPublish() {
-      var title = document.getElementById('pubTitle').value.trim();
-      var desc = document.getElementById('pubDesc').value.trim();
-      var category = document.getElementById('pubCategory').value;
-
-      if (!title) { alert('请填写游戏名称'); return; }
-      if (!currentGameData || !currentGameData.html) { alert('没有可发布的游戏'); return; }
-
       var btn = document.getElementById('pubConfirmBtn');
       btn.disabled = true;
       btn.textContent = '发布中...';
 
       try {
         var sb = getSupabase();
-        if (!currentUser) throw new Error('请先登录');
+        var sessionResult = await sb.auth.getSession();
+        if (!sessionResult.data.session) {
+          throw new Error('请先登录');
+        }
+        currentUser = sessionResult.data.session.user;
 
-        // 1. 上传 HTML 到 Supabase Storage (games bucket)
-        var fileName = 'ai_' + currentUser.id.substring(0, 8) + '_' + Date.now() + '.html';
+        var title = document.getElementById('pubTitle').value.trim() || currentGameData.title;
+        var desc = document.getElementById('pubDesc').value.trim() || currentGameData.description;
+        var category = document.getElementById('pubCategory').value;
+
+        // 上传 HTML 到 Storage
+        var fileName = 'game_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '.html';
         var filePath = currentUser.id + '/' + fileName;
-        var blob = new Blob([currentGameData.html], { type: 'text/html' });
 
-        var upRes = await sb.storage.from('games').upload(filePath, blob, {
+        var uploadRes = await sb.storage.from('games').upload(filePath, new Blob([currentGameData.html], { type: 'text/html' }), {
           contentType: 'text/html',
           upsert: false
         });
-        if (upRes.error) throw new Error('文件上传失败: ' + upRes.error.message);
+        if (uploadRes.error) throw uploadRes.error;
 
-        // 2. 获取公开 URL
+        // 获取公开 URL
         var urlRes = sb.storage.from('games').getPublicUrl(filePath);
-        var fileUrl = urlRes.data.publicUrl;
+        var publicUrl = urlRes.data.publicUrl;
 
-        // 3. 插入 games 表记录
-        var insRes = await sb.from('games').insert({
+        // 插入 games 表
+        var insertRes = await sb.from('games').insert({
           title: title,
           description: desc,
           category: category,
+          game_url: publicUrl,
           author_id: currentUser.id,
-          file_url: fileUrl,
-          file_path: filePath,
           status: 'pending',
-          play_count: 0,
-          coin_per_5min: 1
+          cover_prompt: currentGameData.cover_prompt || ''
         });
-        if (insRes.error) throw new Error('保存失败: ' + insRes.error.message);
+        if (insertRes.error) throw insertRes.error;
 
-        // 4. 发布奖励 +5 金币
+        // 奖励 5 金币
         var profRes = await sb.from('profiles').select('coins').eq('id', currentUser.id).single();
         var coins = (profRes.data && profRes.data.coins) || 0;
         await sb.from('profiles').update({ coins: coins + 5 }).eq('id', currentUser.id);
+
+        // 记录金币流水
+        try {
+          await sb.from('coin_transactions').insert({
+            user_id: currentUser.id,
+            amount: 5,
+            type: 'game_publish',
+            description: '发布游戏「' + title + '」奖励'
+          });
+        } catch(e) { /* 表可能不存在，忽略 */ }
 
         hidePublishModal();
         alert('🎉 发布成功！获得 +5 金币！\n管理员审核通过后即可上线');
@@ -1272,9 +1204,30 @@
       }
     }
 
+    // ===== 等待认证就绪 =====
+    function waitForAuth() {
+      chatInput.disabled = false;
+      sendBtn.disabled = false;
+      // 尝试获取用户信息
+      try {
+        var sb = getSupabase();
+        sb.auth.getSession().then(function(res) {
+          if (res.data && res.data.session) {
+            currentUser = res.data.session.user;
+          }
+        });
+      } catch(e) {}
+    }
+
+    // 延迟启用输入（等 auth.js 加载完）
+    setTimeout(waitForAuth, 500);
+
     // ===== 事件绑定 =====
     sendBtn.addEventListener('click', sendMessage);
-    chatInput.addEventListener('input', autoResize);
+    chatInput.addEventListener('input', function() {
+      autoResize();
+      sendBtn.disabled = !chatInput.value.trim();
+    });
     chatInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -1289,6 +1242,9 @@
     publishModal.addEventListener('click', function(e) {
       if (e.target === publishModal) hidePublishModal();
     });
+
+    // 初始化状态指示器
+    updateStatusDots();
 
   })();
   </script>
