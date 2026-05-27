@@ -1121,6 +1121,14 @@ async function tryAutoSettle(weekStart) {
         var { data: p } = await sb.from('profiles').select('coins').eq('id', rewards[i].id).single();
         if (p) {
           await sb.from('profiles').update({ coins: (p.coins || 0) + rewards[i].coins }).eq('id', rewards[i].id);
+          // 记录金币流水
+          var rankNames = ['第一名', '第二名', '第三名'];
+          sb.from('coin_transactions').insert({
+            user_id: rewards[i].id,
+            amount: rewards[i].coins,
+            source: 'typing_rank',
+            description: '打字排名赛' + rankNames[i] + '奖励'
+          }).then(function(){});
         }
       }
     }
@@ -1235,6 +1243,13 @@ async function enterRank() {
     await sb.from('profiles').update({ coins: newCoins }).eq('id', currentUser.id);
     currentProfile.coins = newCoins;
     document.getElementById('coinsDisplay').textContent = '🪙 ' + newCoins;
+    // 记录金币流水
+    sb.from('coin_transactions').insert({
+      user_id: currentUser.id,
+      amount: -2,
+      source: 'typing_rank',
+      description: '打字排名赛入场费'
+    }).then(function(){});
   } catch(e) {
     alert('扣费失败，请重试');
     return;
