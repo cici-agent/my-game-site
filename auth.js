@@ -28,6 +28,13 @@ async function signUpWithAvatar(username, password, avatarUrl) {
       profileData.avatar_url = avatarUrl;
     }
     await sb.from('profiles').insert(profileData);
+    // 记录注册奖励金币流水
+    sb.from('coin_transactions').insert({
+      user_id: userId,
+      amount: 50,
+      source: 'register',
+      description: '新用户注册奖励'
+    }).then(function(){});
   }
   return { data: result.data };
 }
