@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>英语听力挑战 - 小菜鸟</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:linear-gradient(135deg,#fff5f5 0%,#fff0e6 100%); min-height:100vh; }
+nav { background:linear-gradient(135deg,#ff6b9d 0%,#ff8c5a 100%); padding:12px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:1000; box-shadow:0 4px 20px rgba(255,107,53,0.35); }
+nav a { text-decoration:none; color:white; }
+.nav-logo { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:900; }
+.nav-logo img { width:36px; height:36px; border-radius:50%; border:2px solid rgba(255,255,255,0.6); object-fit:cover; }
+.nav-links { display:flex; gap:8px; }
+.nav-links a { background:rgba(255,255,255,0.2); padding:8px 16px; border-radius:20px; font-size:14px; font-weight:700; border:2px solid rgba(255,255,255,0.3); }
+.container { max-width:600px; margin:0 auto; padding:20px 16px 40px; }
+h1 { text-align:center; font-size:24px; color:#ff6b5a; margin-bottom:6px; }
+.subtitle { text-align:center; color:#888; font-size:14px; margin-bottom:20px; }
+.coins-bar { text-align:center; background:white; border-radius:12px; padding:10px; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); font-size:15px; color:#333; }
+.coins-bar span { color:#ff8c00; font-weight:700; }
+
+/* Level Select */
+.level-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:20px; }
+.level-btn { aspect-ratio:1; border:none; border-radius:14px; font-size:18px; font-weight:800; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; transition:all .2s; position:relative; }
+.level-btn .reward { font-size:10px; font-weight:600; opacity:0.8; }
+.level-btn.unlocked { background:linear-gradient(135deg,#ff6b9d,#ff8c5a); color:white; box-shadow:0 3px 12px rgba(255,107,53,0.3); }
+.level-btn.unlocked:active { transform:scale(0.95); }
+.level-btn.locked { background:#e8e8e8; color:#bbb; cursor:not-allowed; }
+.level-btn.completed { background:linear-gradient(135deg,#4ecdc4,#44bd60); color:white; box-shadow:0 3px 12px rgba(78,205,196,0.3); }
+.level-btn.completed::after { content:'✓'; position:absolute; top:4px; right:6px; font-size:12px; }
+
+/* Game Area */
+.game-area { display:none; }
+.progress-bar { background:#eee; border-radius:10px; height:8px; margin-bottom:16px; overflow:hidden; }
+.progress-fill { height:100%; background:linear-gradient(90deg,#ff6b9d,#ff8c5a); transition:width .3s; border-radius:10px; }
+.question-info { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-size:14px; color:#666; }
+.play-area { background:white; border-radius:16px; padding:24px; margin-bottom:16px; box-shadow:0 4px 16px rgba(0,0,0,0.06); text-align:center; }
+.play-btn { width:80px; height:80px; border-radius:50%; border:none; background:linear-gradient(135deg,#ff6b9d,#ff8c5a); color:white; font-size:32px; cursor:pointer; box-shadow:0 4px 16px rgba(255,107,53,0.3); transition:all .2s; margin-bottom:12px; }
+.play-btn:active { transform:scale(0.9); }
+.play-btn.playing { animation:pulse 1s infinite; }
+@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+.play-hint { color:#999; font-size:13px; margin-bottom:8px; }
+.toggle-text-btn { background:none; border:1px solid #ddd; border-radius:8px; padding:6px 14px; font-size:13px; color:#666; cursor:pointer; margin-top:8px; }
+.text-content { display:none; margin-top:12px; background:#f9f9f9; border-radius:10px; padding:14px; font-size:15px; line-height:1.8; color:#333; text-align:left; white-space:pre-wrap; }
+.text-content.show { display:block; }
+.question-text { font-size:17px; font-weight:700; color:#333; margin-bottom:16px; text-align:center; }
+.options { display:flex; flex-direction:column; gap:10px; }
+.opt-btn { width:100%; padding:16px 20px; border:2px solid #eee; border-radius:14px; background:white; font-size:16px; text-align:left; cursor:pointer; transition:all .2s; color:#333; font-weight:500; }
+.opt-btn:active { transform:scale(0.98); }
+.opt-btn.selected { border-color:#ff6b9d; background:#fff5f8; }
+.opt-btn.correct { border-color:#4ecdc4; background:#e8faf8; color:#2a9d8f; animation:correctPop .4s; }
+.opt-btn.wrong { border-color:#ff4757; background:#fff0f0; color:#ff4757; }
+@keyframes correctPop { 0%{transform:scale(1)} 50%{transform:scale(1.03)} 100%{transform:scale(1)} }
+.tip-box { margin-top:12px; padding:12px; background:#fff8e1; border-radius:10px; font-size:14px; color:#f57c00; display:none; }
+.tip-box.show { display:block; }
+.next-btn { display:none; width:100%; padding:16px; border:none; border-radius:14px; background:linear-gradient(135deg,#ff6b9d,#ff8c5a); color:white; font-size:17px; font-weight:700; cursor:pointer; margin-top:16px; box-shadow:0 4px 16px rgba(255,107,53,0.3); }
+.next-btn:active { transform:scale(0.97); }
+
+/* Result */
+.result-area { display:none; text-align:center; background:white; border-radius:16px; padding:30px 20px; box-shadow:0 4px 16px rgba(0,0,0,0.06); }
+.result-icon { font-size:60px; margin-bottom:12px; }
+.result-title { font-size:22px; font-weight:800; margin-bottom:8px; }
+.result-detail { font-size:15px; color:#666; margin-bottom:20px; line-height:1.6; }
+.result-btn { display:inline-block; padding:14px 32px; border:none; border-radius:14px; font-size:16px; font-weight:700; cursor:pointer; margin:6px; }
+.btn-retry { background:#eee; color:#666; }
+.btn-back { background:linear-gradient(135deg,#ff6b9d,#ff8c5a); color:white; box-shadow:0 4px 16px rgba(255,107,53,0.3); }
+
+/* Responsive */
+@media(max-width:400px) {
+  .level-grid { grid-template-columns:repeat(5,1fr); gap:8px; }
+  .level-btn { font-size:16px; }
+  .opt-btn { padding:14px 16px; font-size:15px; }
+}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/index.html" class="nav-logo">
+    <img src="/assets/logo.jpg" alt="小菜鸟" onerror="this.style.display='none'">
+    <span>小菜鸟</span>
+  </a>
+  <div class="nav-links">
+    <a href="/learn.html">📚 学习</a>
+    <a href="/editor.html">🛠️ 做游戏</a>
+    <a href="/#games">🎮 玩游戏</a>
+  </div>
+</nav>
+
+<div class="container">
+  <h1>🎧 英语听力挑战</h1>
+  <p class="subtitle">听英语，选答案，练耳朵！</p>
+  <div class="coins-bar" id="coinsBar">🪙 我的金币：<span id="coinCount">--</span></div>
+
+  <!-- Level Select -->
+  <div id="levelSelect">
+    <div class="level-grid" id="levelGrid"></div>
+  </div>
+
+  <!-- Game Area -->
+  <div class="game-area" id="gameArea">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="question-info">
+      <span id="qNum">第 1/10 题</span>
+      <span id="levelLabel">第 1 级</span>
+    </div>
+    <div class="play-area">
+      <button class="play-btn" id="playBtn" onclick="playAudio()">🔊</button>
+      <div class="play-hint" id="playHint">点击播放听力</div>
+      <button class="toggle-text-btn" id="toggleTextBtn" onclick="toggleText()">👁️ 显示文字</button>
+      <div class="text-content" id="textContent"></div>
+    </div>
+    <div class="question-text" id="questionText"></div>
+    <div class="options" id="optionsDiv"></div>
+    <div class="tip-box" id="tipBox"></div>
+    <button class="next-btn" id="nextBtn" onclick="nextQuestion()">下一题 →</button>
+  </div>
+
+  <!-- Result -->
+  <div class="result-area" id="resultArea">
+    <div class="result-icon" id="resultIcon"></div>
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-detail" id="resultDetail"></div>
+    <button class="result-btn btn-retry" onclick="retryLevel()">🔄 再试一次</button>
+    <button class="result-btn btn-back" onclick="backToLevels()">📋 返回关卡</button>
+  </div>
+</div>
+
+<!-- Supabase SQL for listening_progress table (run in Supabase SQL Editor):
+CREATE TABLE IF NOT EXISTS listening_progress (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  level INT NOT NULL,
+  completed BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE listening_progress ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own progress" ON listening_progress FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own progress" ON listening_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_listening_progress_user_level ON listening_progress(user_id, level);
+-->
+
+<script>
+const SUPABASE_URL = 'https://aqxbpuetdypcbmqdncpl.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5ODg5MzksImV4cCI6MjA5NDU2NDkzOX0.YUwFQeJgbmhrtY32tGXbm9wz0jtou0Zxg1626EJl3r0';
+
+const REWARDS = [3,5,7,10,15,20,30,50,70,100];
+const PASS_SCORE = 7; // 答对7题通关
+
+let currentLevel = 0;
+let currentQ = 0;
+let score = 0;
+let answered = false;
+let completedLevels = new Set();
+let userCoins = 0;
+let userId = null;
+let token = null;
+
+// ===== QUESTIONS DATA =====
+const LEVELS = [
+// === Level 1: Simple single sentences, basic comprehension ===
+[
+{text:"I like to eat apples for breakfast.", question:"What does the speaker like to eat?", opts:["Apples","Bananas","Oranges","Bread"], ans:0, tip:"关键词: apples"},
+{text:"The cat is sleeping on the sofa.", question:"Where is the cat?", opts:["On the bed","On the sofa","Under the table","In the garden"], ans:1, tip:"关键词: on the sofa"},
+{text:"My sister goes to school by bus every day.", question:"How does the sister go to school?", opts:["By car","By bike","By bus","On foot"], ans:2, tip:"关键词: by bus"},
+{text:"It is raining outside. Please take your umbrella.", question:"What should you take?", opts:["A hat","A coat","An umbrella","Sunglasses"], ans:2, tip:"关键词: umbrella"},
+{text:"Tom has three dogs and two cats at home.", question:"How many dogs does Tom have?", opts:["Two","Three","Four","Five"], ans:1, tip:"关键词: three dogs"},
+{text:"We will have a math test tomorrow morning.", question:"When is the math test?", opts:["This afternoon","Tomorrow morning","Next week","Today"], ans:1, tip:"关键词: tomorrow morning"},
+{text:"My favorite color is blue because it looks like the sky.", question:"What is the speaker's favorite color?", opts:["Red","Green","Blue","Yellow"], ans:2, tip:"关键词: blue"},
+{text:"Please close the window. It is very cold inside.", question:"Why should we close the window?", opts:["It is hot","It is cold","It is raining","It is noisy"], ans:1, tip:"关键词: very cold"},
+{text:"The library opens at eight o'clock in the morning.", question:"What time does the library open?", opts:["7:00","8:00","9:00","10:00"], ans:1, tip:"关键词: eight o'clock"},
+{text:"She is wearing a red dress today.", question:"What color is her dress?", opts:["Blue","White","Red","Pink"], ans:2, tip:"关键词: red dress"}
+],
+// === Level 2: Single sentences, slightly longer ===
+[
+{text:"My brother is ten years old. He is in the fourth grade.", question:"What grade is the brother in?", opts:["Third grade","Fourth grade","Fifth grade","Sixth grade"], ans:1, tip:"关键词: fourth grade"},
+{text:"We need to buy some milk and eggs from the supermarket.", question:"What do they need to buy?", opts:["Bread and juice","Milk and eggs","Fruit and vegetables","Rice and meat"], ans:1, tip:"关键词: milk and eggs"},
+{text:"The train to Beijing leaves at half past nine.", question:"When does the train leave?", opts:["9:00","9:15","9:30","10:00"], ans:2, tip:"关键词: half past nine"},
+{text:"Dad is cooking dinner in the kitchen. He is making soup.", question:"What is Dad making?", opts:["Rice","Noodles","Soup","Salad"], ans:2, tip:"关键词: making soup"},
+{text:"I cannot find my pencil. I think I left it in the classroom.", question:"Where did the speaker leave the pencil?", opts:["At home","In the classroom","In the bag","On the bus"], ans:1, tip:"关键词: in the classroom"},
+{text:"There are thirty students in our class. Fifteen are boys.", question:"How many girls are in the class?", opts:["Twelve","Thirteen","Fifteen","Thirty"], ans:2, tip:"30 - 15 = 15 girls"},
+{text:"The zoo is closed on Monday. We can go on Tuesday.", question:"When can they go to the zoo?", opts:["Monday","Tuesday","Wednesday","Sunday"], ans:1, tip:"关键词: go on Tuesday"},
+{text:"She plays the piano every evening after finishing her homework.", question:"When does she play the piano?", opts:["In the morning","After lunch","After homework","Before school"], ans:2, tip:"关键词: after finishing her homework"},
+{text:"The biggest animal in the ocean is the blue whale.", question:"What is the biggest ocean animal?", opts:["Shark","Dolphin","Blue whale","Octopus"], ans:2, tip:"关键词: blue whale"},
+{text:"I woke up late this morning, so I missed the school bus.", question:"Why did the speaker miss the bus?", opts:["The bus was early","Woke up late","Was sick","Forgot the time"], ans:1, tip:"关键词: woke up late"}
+],
+// === Level 3: Short dialogues (2-3 sentences), who/what/where ===
+[
+{text:"Mom: What do you want for lunch, Tom?\nTom: I want a hamburger and some juice, please.", question:"What does Tom want to drink?", opts:["Water","Milk","Juice","Tea"], ans:2, tip:"关键词: some juice"},
+{text:"Teacher: Who can answer this question?\nLily: I can! The answer is twenty-five.", question:"What is the answer?", opts:["Fifteen","Twenty","Twenty-five","Thirty"], ans:2, tip:"关键词: twenty-five"},
+{text:"Amy: Where is the bookstore?\nMan: Go straight and turn left. It is next to the bank.", question:"Where is the bookstore?", opts:["Next to the school","Next to the bank","Next to the park","Next to the hospital"], ans:1, tip:"关键词: next to the bank"},
+{text:"Boy: Can I borrow your eraser?\nGirl: Sure, here you go. Please return it after class.", question:"What does the boy want to borrow?", opts:["A pencil","A ruler","An eraser","A book"], ans:2, tip:"关键词: eraser"},
+{text:"Dad: How was your day at school?\nSon: Great! We had a science experiment today. We made a volcano!", question:"What did they do at school?", opts:["Played sports","Had a science experiment","Watched a movie","Went on a trip"], ans:1, tip:"关键词: science experiment"},
+{text:"Anna: What time is the movie?\nBen: It starts at three fifteen. Let's meet at three.", question:"What time does the movie start?", opts:["3:00","3:15","3:30","3:45"], ans:1, tip:"关键词: three fifteen"},
+{text:"Girl: I lost my water bottle. It is pink with a flower on it.\nBoy: I saw one in the lost and found box.", question:"What does the girl's water bottle look like?", opts:["Blue with stars","Pink with a flower","Green with a tree","Yellow with a sun"], ans:1, tip:"关键词: pink with a flower"},
+{text:"Mom: Put on your jacket. It is windy outside.\nChild: Okay, Mom. Can I also wear my hat?", question:"How is the weather?", opts:["Sunny","Rainy","Windy","Snowy"], ans:2, tip:"关键词: windy outside"},
+{text:"Clerk: Can I help you?\nWoman: Yes, I am looking for a birthday gift for my daughter. She likes drawing.", question:"Who is the gift for?", opts:["Her son","Her daughter","Her friend","Her mother"], ans:1, tip:"关键词: for my daughter"},
+{text:"Jack: Did you go to the park yesterday?\nMia: No, I went to my grandma's house. We baked cookies together.", question:"Where did Mia go yesterday?", opts:["To the park","To school","To grandma's house","To the store"], ans:2, tip:"关键词: grandma's house"}
+],
+// === Level 4: Short dialogues, more detail ===
+[
+{text:"Teacher: Please hand in your homework by Friday.\nStudent: But I have a piano lesson on Thursday. Can I give it to you on Saturday?\nTeacher: Okay, but no later than Saturday.", question:"When must the student hand in homework?", opts:["Thursday","Friday","Saturday","Sunday"], ans:2, tip:"关键词: no later than Saturday"},
+{text:"Lily: I want to join the art club. What about you?\nMark: I prefer the basketball club. I like sports more than drawing.", question:"Which club does Mark want to join?", opts:["Art club","Music club","Basketball club","Science club"], ans:2, tip:"关键词: basketball club"},
+{text:"Mom: We need to go shopping. The fridge is almost empty.\nDad: Let me make a list. We need rice, chicken, and vegetables.", question:"Why do they need to go shopping?", opts:["For a party","The fridge is empty","They are bored","It is the weekend"], ans:1, tip:"关键词: fridge is almost empty"},
+{text:"Boy: How do you get to school?\nGirl: I usually walk because my home is very close. It only takes five minutes.", question:"How long does it take the girl to get to school?", opts:["Two minutes","Five minutes","Ten minutes","Fifteen minutes"], ans:1, tip:"关键词: five minutes"},
+{text:"Sara: Can you come to my birthday party next Sunday?\nTom: I would love to! What time should I come?\nSara: Come at two o'clock. We will have cake and games.", question:"What day is the party?", opts:["Saturday","Sunday","Friday","Monday"], ans:1, tip:"关键词: next Sunday"},
+{text:"Waiter: Are you ready to order?\nMan: Yes, I will have the fish and chips, please.\nWaiter: And to drink?\nMan: Just water, thank you.", question:"What food does the man order?", opts:["Pizza","Pasta","Fish and chips","Steak"], ans:2, tip:"关键词: fish and chips"},
+{text:"Girl: I finished reading this book. It was so exciting!\nBoy: What is it about?\nGirl: It is about a girl who travels through time to save her village.", question:"What is the book about?", opts:["A boy and his dog","A girl who time travels","A space adventure","A cooking competition"], ans:1, tip:"关键词: travels through time"},
+{text:"Doctor: What is wrong?\nMother: My son has a headache and a sore throat since yesterday.\nDoctor: Let me check. He should rest and drink warm water.", question:"What is wrong with the son?", opts:["Stomachache","Headache and sore throat","Broken arm","Fever only"], ans:1, tip:"关键词: headache and sore throat"},
+{text:"Amy: Look at the sky! So many stars tonight.\nBen: Yes! I can see the Big Dipper. My dad taught me to find it.\nAmy: That is so cool!", question:"What can Ben see in the sky?", opts:["The moon","A plane","The Big Dipper","A shooting star"], ans:2, tip:"关键词: Big Dipper"},
+{text:"Coach: Good job, everyone! Practice is over. Remember, the game is on Wednesday at four.\nPlayer: Coach, can we practice one more time before the game?\nCoach: Yes, we will practice on Tuesday afternoon.", question:"When is the game?", opts:["Monday","Tuesday","Wednesday","Thursday"], ans:2, tip:"关键词: Wednesday at four"}
+],
+// === Level 5: Longer dialogues (3-4 sentences), when/why/how ===
+[
+{text:"Mom: Why are you still awake? It is already ten o'clock.\nSon: I cannot sleep. I am worried about the spelling test tomorrow.\nMom: You studied hard. I am sure you will do well. Now close your eyes and rest.", question:"Why can't the son sleep?", opts:["He is hungry","He is scared of the dark","He is worried about a test","He drank too much water"], ans:2, tip:"关键词: worried about the spelling test"},
+{text:"Girl: How was your summer vacation?\nBoy: It was amazing! My family went to the beach for a week. We swam every day and built sandcastles.\nGirl: That sounds fun! I stayed home and read books.", question:"How long did the boy stay at the beach?", opts:["Three days","Five days","A week","Two weeks"], ans:2, tip:"关键词: for a week"},
+{text:"Teacher: Today we will learn about recycling. Can anyone tell me why recycling is important?\nStudent: Because it helps protect the environment and saves resources.\nTeacher: Exactly! Recycling reduces waste and keeps our planet clean.", question:"Why is recycling important?", opts:["It saves money","It is fun","It protects the environment","It makes things look nice"], ans:2, tip:"关键词: protect the environment"},
+{text:"Dad: I heard your school is having a talent show next month.\nDaughter: Yes! I want to sing a song. But I am a little nervous.\nDad: Don't worry. Practice every day and you will be great.\nDaughter: Thanks, Dad. Will you come watch me?", question:"How does the daughter feel about the talent show?", opts:["Excited","Angry","Nervous","Bored"], ans:2, tip:"关键词: a little nervous"},
+{text:"Librarian: Your book is overdue. It was due last Monday.\nStudent: I am sorry. I forgot because I was sick last week.\nLibrarian: That is okay. Please return it by tomorrow. There is no fine this time.", question:"Why didn't the student return the book on time?", opts:["Lost the book","Was on vacation","Was sick","Forgot the date"], ans:2, tip:"关键词: was sick last week"},
+{text:"Boy: Let's ride our bikes to the park.\nGirl: I can't. My bike has a flat tire.\nBoy: Then let's walk. It is only ten minutes from here.\nGirl: Okay, let me get my hat. It is sunny today.", question:"How will they go to the park?", opts:["By bike","By bus","By car","On foot"], ans:3, tip:"关键词: let's walk"},
+{text:"Mom: What do you want to be when you grow up?\nSon: I want to be a vet because I love animals. I want to help sick dogs and cats.\nMom: That is a wonderful dream. You should study science and biology.", question:"Why does the son want to be a vet?", opts:["He likes money","He loves animals","His dad is a vet","He likes medicine"], ans:1, tip:"关键词: I love animals"},
+{text:"Guide: Welcome to the science museum! Today we will visit three floors. The first floor has dinosaur fossils. The second floor has space exhibits. The third floor has a hands-on lab.\nStudent: Can we start with the dinosaurs?", question:"What is on the second floor?", opts:["Dinosaur fossils","Space exhibits","A hands-on lab","A gift shop"], ans:1, tip:"关键词: second floor has space exhibits"},
+{text:"Girl: I made this card for Mother's Day. Look, I drew flowers and wrote a poem inside.\nBoy: Wow, that is beautiful! Your mom will love it.\nGirl: I hope so. I also bought her favorite chocolate.", question:"What did the girl make for her mom?", opts:["A cake","A card","A painting","A scarf"], ans:1, tip:"关键词: made this card"},
+{text:"Announcer: Attention, passengers. The train to Shanghai will depart from platform three in five minutes. Please have your tickets ready.\nWoman: Oh no, we are at platform five! Let's hurry!\nMan: Don't worry, we still have five minutes.", question:"Which platform is the train leaving from?", opts:["Platform one","Platform three","Platform five","Platform seven"], ans:1, tip:"关键词: platform three"}
+],
+// === Level 6: Dialogues with why/how/inference ===
+[
+{text:"Teacher: Class, tomorrow is our field trip to the farm. Please wear comfortable shoes and bring your own lunch. We will leave at eight thirty.\nStudent: Can we bring cameras?\nTeacher: Yes, but please be careful with them. No running with cameras!", question:"What should students bring for the trip?", opts:["Textbooks","Their own lunch","Umbrellas","Sleeping bags"], ans:1, tip:"关键词: bring your own lunch"},
+{text:"Boy: I got a ninety-five on my English test!\nGirl: That is great! How did you study?\nBoy: I listened to English songs and watched cartoons in English every day. It really helped my listening.\nGirl: Maybe I should try that too.", question:"How did the boy improve his English?", opts:["Read textbooks","Hired a tutor","Listened to songs and watched cartoons","Went to England"], ans:2, tip:"关键词: listened to English songs and watched cartoons"},
+{text:"Mom: Your room is so messy! Please clean it before dinner.\nSon: But I am doing my homework right now.\nMom: Finish your homework first, then clean your room. Dinner is at six thirty.\nSon: Okay, I will try to finish everything by then.", question:"What must the son do before dinner?", opts:["Only homework","Only clean the room","Homework and clean the room","Go shopping"], ans:2, tip:"先做作业再打扫，两件事都要在晚饭前完成"},
+{text:"Zookeeper: The baby panda was born last month. She weighs about five kilograms now.\nVisitor: She is so cute! What does she eat?\nZookeeper: Right now she only drinks her mother's milk. She will start eating bamboo when she is about six months old.", question:"When will the baby panda start eating bamboo?", opts:["Now","Next week","At six months old","At one year old"], ans:2, tip:"关键词: about six months old"},
+{text:"Girl: I want to learn to swim this summer.\nBoy: The community pool has classes every Tuesday and Thursday.\nGirl: How much does it cost?\nBoy: It is free for kids under twelve. You just need to sign up online.", question:"How can the girl sign up for swimming class?", opts:["Call the pool","Go to the pool","Sign up online","Ask her teacher"], ans:2, tip:"关键词: sign up online"},
+{text:"Dad: The car won't start. I think the battery is dead.\nMom: Oh no. How will we get to the airport?\nDad: Let me call a taxi. Our flight is at two, so we still have time.\nMom: Okay, but hurry. We need to be there by twelve thirty.", question:"Why won't the car start?", opts:["No gas","Flat tire","Dead battery","Broken engine"], ans:2, tip:"关键词: battery is dead"},
+{text:"Student: Excuse me, can I change my seat? I cannot see the board clearly from the back.\nTeacher: Of course. You can sit in the second row. Have you had your eyes checked recently?\nStudent: Not yet. My mom said she will take me to the eye doctor next week.", question:"Why does the student want to change seats?", opts:["Too noisy","Cannot see the board","Doesn't like the neighbor","Too cold"], ans:1, tip:"关键词: cannot see the board clearly"},
+{text:"Reporter: The weather this weekend will be very different from today. Today is warm and sunny, but Saturday will bring heavy rain and strong winds. Sunday will be cool but dry. Please plan your outdoor activities carefully.", question:"What will Sunday's weather be like?", opts:["Warm and sunny","Heavy rain","Cool but dry","Snowy"], ans:2, tip:"关键词: Sunday will be cool but dry"},
+{text:"Girl: My grandpa taught me to play chess. He was a champion when he was young.\nBoy: Wow! Are you good at it?\nGirl: I am getting better. I practice with my grandpa every weekend. Last month I won my first school competition.", question:"Who taught the girl to play chess?", opts:["Her dad","Her teacher","Her grandpa","Her friend"], ans:2, tip:"关键词: My grandpa taught me"},
+{text:"Nurse: The doctor will see you in about ten minutes. Please fill out this form with your name, age, and what is bothering you.\nPatient: Okay. I have had a cough for three days and a slight fever.\nNurse: I see. The doctor will check you soon. Please have a seat.", question:"How long has the patient had a cough?", opts:["One day","Two days","Three days","A week"], ans:2, tip:"关键词: for three days"}
+],
+// === Level 7: Short monologues with inference ===
+[
+{text:"Hello, everyone. My name is Mr. Chen, and I will be your new science teacher this year. I know some of you might think science is difficult, but I promise to make it fun. We will do lots of experiments and even grow our own plants. I hope you will enjoy my class.", question:"What can we infer about Mr. Chen?", opts:["He is strict","He wants to make science enjoyable","He doesn't like experiments","He teaches math"], ans:1, tip:"他说 make it fun 和 lots of experiments"},
+{text:"Last weekend, I went camping with my family for the first time. At first, I was scared because it was very dark and quiet at night. But then my dad showed me the stars, and I heard an owl. By morning, I did not want to leave. I cannot wait to go again!", question:"How did the speaker feel about camping in the end?", opts:["Still scared","Bored","Loved it and wants to go again","Angry"], ans:2, tip:"关键词: cannot wait to go again"},
+{text:"Today I want to tell you about dolphins. Dolphins are very smart animals. They live in groups called pods. They talk to each other using clicks and whistles. Some scientists believe dolphins can even recognize themselves in a mirror, which shows they are self-aware.", question:"How do dolphins communicate?", opts:["By changing color","Using clicks and whistles","By waving fins","Through smell"], ans:1, tip:"关键词: clicks and whistles"},
+{text:"Attention, shoppers! For the next thirty minutes, all fruits and vegetables are twenty percent off. This special offer is only available in the fresh food section on the first floor. Don't miss this chance to save money on healthy food!", question:"Where is the special offer?", opts:["Second floor","Online only","First floor fresh food section","At the checkout"], ans:2, tip:"关键词: first floor fresh food section"},
+{text:"I have been collecting stamps since I was seven years old. Now I have over five hundred stamps from thirty different countries. My favorite one is from Japan. It has a picture of Mount Fuji with cherry blossoms. My grandma gave it to me for my birthday.", question:"How many countries are the stamps from?", opts:["Seven","Twenty","Thirty","Five hundred"], ans:2, tip:"关键词: thirty different countries"},
+{text:"The school basketball team won the championship last night! The final score was fifty-two to forty-eight. It was a very close game. In the last ten seconds, our captain made an amazing three-point shot to win. The whole school is celebrating today.", question:"What happened in the last ten seconds?", opts:["The other team scored","The captain made a three-point shot","The game was paused","A player got injured"], ans:1, tip:"关键词: captain made an amazing three-point shot"},
+{text:"Good morning, students. I have an important announcement. The school sports day has been moved from next Friday to next Monday because of the weather forecast. It will rain on Friday, but Monday should be sunny. Please tell your parents about the change.", question:"Why was sports day moved?", opts:["Teacher is sick","Not enough students","Rain expected on Friday","The field is broken"], ans:2, tip:"关键词: It will rain on Friday"},
+{text:"My older sister just started university. She studies in another city, so she lives in a dormitory. She calls us every Sunday. She says the food in the cafeteria is not as good as Mom's cooking, but she has made many new friends and really enjoys her classes.", question:"What does the sister NOT like about university?", opts:["Her classes","Her friends","The cafeteria food","Her dormitory"], ans:2, tip:"关键词: food is not as good as Mom's cooking"},
+{text:"If you want to make a paper airplane, first fold the paper in half lengthwise. Then fold the top corners down to the center line. Next, fold the wings down. Finally, throw it gently and watch it fly! The key is to make your folds very straight and even.", question:"What is the key to a good paper airplane?", opts:["Using thick paper","Throwing it hard","Making straight and even folds","Adding tape"], ans:2, tip:"关键词: folds very straight and even"},
+{text:"The Amazon rainforest is called the lungs of the Earth because it produces about twenty percent of the world's oxygen. It is home to millions of species of plants and animals. However, every year, large areas of the forest are cut down. This is a serious problem for our planet.", question:"Why is the Amazon called the lungs of the Earth?", opts:["It is very large","It has many animals","It produces much of the world's oxygen","It rains a lot there"], ans:2, tip:"关键词: produces about twenty percent of the world's oxygen"}
+],
+// === Level 8: Monologues with inference and detail ===
+[
+{text:"When I was little, I was afraid of dogs. One day, my neighbor's small dog ran up to me and licked my hand. It was so gentle and friendly that I started laughing. After that day, I was never afraid again. Now I volunteer at an animal shelter every Saturday.", question:"What can we infer about the speaker now?", opts:["Still afraid of dogs","Likes dogs and helps them","Has a pet cat","Works at a pet store"], ans:1, tip:"现在在动物收容所做志愿者，说明喜欢狗"},
+{text:"The ancient Egyptians built the pyramids over four thousand years ago. The largest one, the Great Pyramid of Giza, took about twenty years to build. Scientists believe that thousands of workers moved huge stone blocks using ramps and rollers. Even today, people are amazed by how they did it without modern machines.", question:"How long did it take to build the Great Pyramid?", opts:["Ten years","Twenty years","Forty years","One hundred years"], ans:1, tip:"关键词: about twenty years"},
+{text:"Welcome to the City Library reading program! This summer, children who read at least ten books can earn a free pizza coupon. To join, pick up a reading log at the front desk. Write down each book you finish. Bring your completed log back before August thirty-first.", question:"What do children get for reading ten books?", opts:["A new book","A free pizza coupon","A library card","A trophy"], ans:1, tip:"关键词: free pizza coupon"},
+{text:"My family has a special tradition. Every Chinese New Year, we make dumplings together. Grandma teaches us how to fold them perfectly. Sometimes she hides a coin inside one dumpling. Whoever finds it is supposed to have good luck for the whole year. Last year, my little brother found it!", question:"What does finding the coin mean?", opts:["You win a prize","You cook next year","You have good luck","You get extra dumplings"], ans:2, tip:"关键词: good luck for the whole year"},
+{text:"Scientists have discovered that plants can communicate with each other. When a plant is attacked by insects, it releases chemicals into the air. Nearby plants detect these chemicals and start producing their own defenses. It is like the first plant is warning its neighbors about danger.", question:"What happens when nearby plants detect the chemicals?", opts:["They die","They grow faster","They produce defenses","They attract more insects"], ans:2, tip:"关键词: start producing their own defenses"},
+{text:"I used to think I was bad at math. Every test made me nervous, and I often made careless mistakes. Then my teacher suggested I try solving problems step by step and checking my work at the end. I followed her advice, and my scores improved a lot. Now math is actually one of my best subjects.", question:"What helped the speaker improve in math?", opts:["A new textbook","Solving problems step by step","Extra classes","A calculator"], ans:1, tip:"关键词: solving problems step by step"},
+{text:"The school is planning to build a new garden behind the library. Students can help by donating seeds or volunteering to plant on weekends. The garden will grow vegetables and flowers. The vegetables will be used in the school cafeteria, and the flowers will make the school more beautiful.", question:"What will happen to the vegetables from the garden?", opts:["Sold at a market","Given to students","Used in the school cafeteria","Sent to a farm"], ans:2, tip:"关键词: used in the school cafeteria"},
+{text:"Have you ever wondered why the sky is blue? Sunlight is made up of many colors. When sunlight enters the atmosphere, blue light is scattered more than other colors because it travels in shorter waves. That is why we see blue when we look up. At sunset, the sky turns red because the light travels through more atmosphere.", question:"Why does the sky look blue?", opts:["The ocean reflects up","Blue light scatters more","Clouds are blue","The sun is blue"], ans:1, tip:"关键词: blue light is scattered more"},
+{text:"Our class pet is a hamster named Snowball. We take turns feeding him and cleaning his cage. Snowball loves running on his wheel at night. He sleeps during the day, which means he is nocturnal. Everyone in our class loves him, especially when he stuffs food in his cheeks!", question:"When is Snowball most active?", opts:["Morning","Afternoon","Night","All day"], ans:2, tip:"关键词: running on his wheel at night, nocturnal"},
+{text:"Last month, our town had a big storm. Many trees fell down and some roads were blocked. The power went out for two days. Our neighbors helped each other clean up the fallen branches. It was hard work, but it brought our community closer together.", question:"What positive thing came from the storm?", opts:["New trees grew","School was cancelled","The community became closer","They got new roads"], ans:2, tip:"关键词: brought our community closer together"}
+],
+// === Level 9: TOEFL Primary Step 2 level, detail + inference + main idea ===
+[
+{text:"Good afternoon, class. Today we are going to talk about food chains. A food chain shows how energy moves from one living thing to another. For example, grass gets energy from the sun. A rabbit eats the grass. Then a fox eats the rabbit. Each living thing depends on the one before it. If one part of the chain disappears, it affects all the others.", question:"What is the main idea of this talk?", opts:["Foxes are dangerous","Rabbits eat grass","Food chains show how energy moves between living things","The sun is important"], ans:2, tip:"主旨是食物链如何传递能量"},
+{text:"Emily wanted to surprise her mom on her birthday. She woke up early and made breakfast — scrambled eggs and toast. She also picked flowers from the garden and put them in a vase. When her mom came downstairs, she was so happy that she almost cried. Emily felt proud that she could make her mom smile.", question:"Why did Emily's mom almost cry?", opts:["She was sad","She was surprised and touched","The food was bad","She hurt herself"], ans:1, tip:"妈妈是因为感动而差点哭"},
+{text:"The Arctic is one of the coldest places on Earth. In winter, temperatures can drop below minus forty degrees. Despite this, many animals live there, including polar bears, Arctic foxes, and seals. These animals have thick fur or blubber to keep warm. However, climate change is melting the ice, making it harder for these animals to survive.", question:"What is threatening Arctic animals?", opts:["Hunters","Other animals","Climate change melting ice","Lack of food only"], ans:2, tip:"关键词: climate change is melting the ice"},
+{text:"Attention all students. The school talent show will be held on December fifteenth in the auditorium. If you would like to perform, please sign up in the main office by December first. You may sing, dance, play an instrument, do magic tricks, or perform a comedy act. Each performance should be no longer than five minutes. Good luck to everyone!", question:"What is the deadline to sign up?", opts:["December 1st","December 5th","December 10th","December 15th"], ans:0, tip:"关键词: sign up by December first"},
+{text:"Thomas Edison is famous for inventing the light bulb, but did you know he failed thousands of times before he succeeded? When a reporter asked him how it felt to fail so many times, Edison said he had not failed — he had just found thousands of ways that did not work. His story teaches us that persistence is the key to success.", question:"What lesson does Edison's story teach?", opts:["Failure means you should give up","Only smart people succeed","Persistence leads to success","Inventing is easy"], ans:2, tip:"关键词: persistence is the key to success"},
+{text:"Maria moved to a new school last month. At first, she felt lonely because she did not know anyone. She was too shy to talk to other students. Then one day, a girl named Sophie invited her to eat lunch together. They discovered they both loved reading fantasy books. Now they are best friends and have started a book club.", question:"What can we infer about Maria?", opts:["She is still lonely","She found a friend through a shared interest","She doesn't like her new school","She is very outgoing"], ans:1, tip:"通过共同爱好交到了朋友"},
+{text:"Water covers about seventy percent of the Earth's surface, but only three percent of it is fresh water. Most of that fresh water is frozen in glaciers and ice caps. Less than one percent of all water on Earth is available for people to drink. That is why it is so important to save water and not waste it.", question:"How much of Earth's water can people actually drink?", opts:["Seventy percent","Three percent","Less than one percent","About ten percent"], ans:2, tip:"关键词: less than one percent"},
+{text:"The school bus will follow a new route starting next Monday. Instead of going down Oak Street first, it will now start on Maple Avenue. This means students on Maple Avenue will be picked up ten minutes earlier than before. Students on Oak Street will be picked up at the same time. Please check the new schedule on the school website.", question:"What change will happen for Maple Avenue students?", opts:["Later pickup","Same time","Ten minutes earlier pickup","No bus service"], ans:2, tip:"关键词: ten minutes earlier than before"},
+{text:"Bees are extremely important for our food supply. They pollinate about one-third of the food we eat, including fruits, vegetables, and nuts. Without bees, many plants could not produce food. Unfortunately, bee populations are declining due to pesticides and habitat loss. Scientists are working hard to find ways to protect them.", question:"Why are bee populations declining?", opts:["Too many flowers","Climate is too hot","Pesticides and habitat loss","People catching them"], ans:2, tip:"关键词: pesticides and habitat loss"},
+{text:"Yesterday, our class visited a recycling center. We learned that paper, plastic, glass, and metal can all be recycled into new products. The guide told us that recycling one aluminum can saves enough energy to run a TV for three hours. I was amazed! Now I always make sure to put my trash in the right bin.", question:"How much energy does recycling one can save?", opts:["Enough to run a TV for one hour","Enough to run a TV for three hours","Enough to charge a phone","Enough to light a room for a day"], ans:1, tip:"关键词: run a TV for three hours"}
+],
+// === Level 10: TOEFL Primary Step 2 advanced, complex inference + main idea ===
+[
+{text:"Many people think that goldfish have a memory of only three seconds, but this is actually a myth. Scientists have proven that goldfish can remember things for months. In one experiment, goldfish learned to push a lever to get food. Even after a month without practice, they still remembered how to do it. So next time someone says goldfish are forgetful, you can tell them the truth!", question:"What is the speaker's main purpose?", opts:["To teach how to train fish","To explain why goldfish are popular pets","To correct a common misunderstanding about goldfish","To compare goldfish with other animals"], ans:2, tip:"主旨是纠正人们对金鱼记忆力的误解"},
+{text:"The Wright brothers, Orville and Wilbur, built and flew the first successful airplane in 1903. Their first flight lasted only twelve seconds and covered about thirty-seven meters. Many people laughed at them and said humans would never truly fly. But the brothers kept improving their design. Within just sixty-six years of that first flight, humans landed on the moon.", question:"What can we infer from this passage?", opts:["The Wright brothers went to the moon","Flying is dangerous","Great achievements start from small beginnings","Airplanes are better than rockets"], ans:2, tip:"从12秒飞行到登月，说明伟大成就始于小小开始"},
+{text:"Good morning, everyone. I am Dr. Lee from the City Health Department. Today I want to talk about the importance of sleep for young people. Research shows that children aged six to twelve need nine to twelve hours of sleep each night. Not getting enough sleep can affect your memory, your mood, and even your height. Here are three tips: go to bed at the same time every night, avoid screens one hour before bed, and keep your room dark and quiet.", question:"According to Dr. Lee, what can lack of sleep affect?", opts:["Only mood","Only memory","Memory, mood, and height","Only height"], ans:2, tip:"关键词: memory, mood, and even height"},
+{text:"The Great Wall of China is over two thousand years old and stretches more than twenty thousand kilometers. It was built to protect China from invaders. Millions of workers, including soldiers, peasants, and prisoners, helped build it over many centuries. Today, it is one of the most visited tourist attractions in the world and a symbol of Chinese history and strength.", question:"Who helped build the Great Wall?", opts:["Only soldiers","Only prisoners","Soldiers, peasants, and prisoners","Foreign workers"], ans:2, tip:"关键词: soldiers, peasants, and prisoners"},
+{text:"Have you ever noticed that you feel happier on sunny days? Scientists have found that sunlight helps our brains produce a chemical called serotonin, which makes us feel good. On cloudy or rainy days, our serotonin levels drop, which can make us feel tired or sad. This is why some people feel down during long winters. Getting outside, even on cloudy days, can help improve your mood.", question:"What causes people to feel down in winter?", opts:["Cold temperature","Less sunlight reducing serotonin","Too much homework","Staying indoors"], ans:1, tip:"关键词: sunlight helps produce serotonin, cloudy days levels drop"},
+{text:"The city council has decided to turn the empty lot on Park Street into a community garden. Residents can apply for a small plot to grow their own vegetables and flowers. The garden will also have a playground for children and benches for elderly people to rest. The project will begin in March and should be finished by June. Everyone in the neighborhood is excited about this new space.", question:"What will the empty lot become?", opts:["A parking lot","A shopping center","A community garden with playground","A school"], ans:2, tip:"关键词: community garden, playground, benches"},
+{text:"Amelia Earhart was the first woman to fly alone across the Atlantic Ocean in 1932. She was brave and determined, inspiring many women to follow their dreams. In 1937, she attempted to fly around the world, but her plane disappeared over the Pacific Ocean. Despite many searches, neither she nor her plane was ever found. Her story remains one of aviation's greatest mysteries.", question:"Why is Amelia Earhart's story considered a mystery?", opts:["She flew very fast","She was the first woman pilot","Her plane was never found","She crossed the Atlantic"], ans:2, tip:"关键词: neither she nor her plane was ever found"},
+{text:"Our school is starting a buddy program next semester. Older students in fifth and sixth grade will be paired with younger students in first and second grade. The older students will help the younger ones with reading, homework, and making friends. This program helps younger students feel safe and supported, while older students develop leadership and responsibility skills.", question:"What benefit do older students get from the program?", opts:["Better grades","Free time","Leadership and responsibility skills","Extra homework help"], ans:2, tip:"关键词: develop leadership and responsibility skills"},
+{text:"Imagine you are an astronaut floating in space. You look down and see Earth — a beautiful blue and green ball surrounded by thin white clouds. From up there, you cannot see any borders between countries. Many astronauts say that seeing Earth from space changed how they think. They realized how small and precious our planet is, and how important it is for everyone to take care of it together.", question:"What do many astronauts realize when they see Earth from space?", opts:["Earth is very large","Countries should have more borders","Earth is small and precious and needs protection","Space is boring"], ans:2, tip:"关键词: small and precious, take care of it together"},
+{text:"A recent study found that students who eat breakfast perform better in school than those who skip it. Breakfast gives your brain the energy it needs to concentrate and solve problems. The best breakfast includes protein, whole grains, and fruit. However, sugary cereals and pastries can actually make you feel tired later in the morning. So choose your breakfast wisely!", question:"According to the passage, what kind of breakfast should you avoid?", opts:["Eggs and toast","Fruit and yogurt","Sugary cereals and pastries","Whole grain bread"], ans:2, tip:"关键词: sugary cereals and pastries can make you feel tired"}
+]
+];
+
+// Auth
+function getAuth() {
+  try {
+    const raw = localStorage.getItem('sb-aqxbpuetdypcbmqdncpl-auth-token');
+    if (raw) {
+      const d = JSON.parse(raw);
+      userId = d.user?.id;
+      token = d.access_token;
+    }
+  } catch(e){}
+}
+
+async function sbFetch(path, method='GET', body=null) {
+  const headers = { 'apikey': SUPABASE_KEY, 'Content-Type':'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
+}
+
+async function loadProgress() {
+  if (!userId) return;
+  try {
+    const r = await sbFetch('listening_progress?user_id=eq.' + userId + '&completed=eq.true&select=level');
+    if (r.ok) {
+      const data = await r.json();
+      data.forEach(d => completedLevels.add(d.level));
+    }
+  } catch(e){}
+}
+
+async function loadCoins() {
+  if (!userId) { document.getElementById('coinCount').textContent = '未登录'; return; }
+  try {
+    const r = await sbFetch('profiles?id=eq.' + userId + '&select=coins');
+    if (r.ok) {
+      const data = await r.json();
+      if (data[0]) { userCoins = data[0].coins || 0; }
+    }
+  } catch(e){}
+  document.getElementById('coinCount').textContent = userCoins;
+}
+
+async function addCoins(amount) {
+  if (!userId) return;
+  userCoins += amount;
+  document.getElementById('coinCount').textContent = userCoins;
+  try {
+    await sbFetch('rpc/add_coins', 'POST', { p_user_id: userId, p_amount: amount });
+    // Also log transaction
+    await sbFetch('coin_transactions', 'POST', {
+      user_id: userId, amount: amount, type: 'listening_reward',
+      description: '英语听力挑战 第' + (currentLevel+1) + '级通关奖励'
+    });
+  } catch(e){}
+}
+
+async function saveProgress(level) {
+  if (!userId) return;
+  try {
+    await sbFetch('listening_progress', 'POST', {
+      user_id: userId, level: level, completed: true
+    });
+  } catch(e){}
+}
+
+function renderLevels() {
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 10; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'level-btn';
+    const isCompleted = completedLevels.has(i+1);
+    const isUnlocked = i === 0 || completedLevels.has(i);
+    if (isCompleted) btn.classList.add('completed');
+    else if (isUnlocked) btn.classList.add('unlocked');
+    else btn.classList.add('locked');
+    btn.innerHTML = `${i+1}<span class="reward">+${REWARDS[i]}🪙</span>`;
+    if (isUnlocked || isCompleted) {
+      btn.onclick = () => startLevel(i);
+    }
+    grid.appendChild(btn);
+  }
+}
+
+function startLevel(idx) {
+  currentLevel = idx;
+  currentQ = 0;
+  score = 0;
+  answered = false;
+  document.getElementById('levelSelect').style.display = 'none';
+  document.getElementById('gameArea').style.display = 'block';
+  document.getElementById('resultArea').style.display = 'none';
+  document.getElementById('levelLabel').textContent = '第 ' + (idx+1) + ' 级';
+  showQuestion();
+}
+
+function showQuestion() {
+  const q = LEVELS[currentLevel][currentQ];
+  answered = false;
+  document.getElementById('qNum').textContent = `第 ${currentQ+1}/10 题`;
+  document.getElementById('progressFill').style.width = ((currentQ)/10*100) + '%';
+  document.getElementById('textContent').textContent = q.text;
+  document.getElementById('textContent').classList.remove('show');
+  document.getElementById('toggleTextBtn').textContent = '👁️ 显示文字';
+  document.getElementById('questionText').textContent = q.question;
+  document.getElementById('tipBox').classList.remove('show');
+  document.getElementById('tipBox').textContent = '';
+  document.getElementById('nextBtn').style.display = 'none';
+  document.getElementById('playHint').textContent = '点击播放听力';
+  document.getElementById('playBtn').classList.remove('playing');
+
+  const optDiv = document.getElementById('optionsDiv');
+  optDiv.innerHTML = '';
+  q.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'opt-btn';
+    btn.textContent = String.fromCharCode(65+i) + '. ' + opt;
+    btn.onclick = () => selectAnswer(i, btn);
+    optDiv.appendChild(btn);
+  });
+}
+
+function playAudio() {
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    document.getElementById('playBtn').classList.remove('playing');
+    return;
+  }
+  const q = LEVELS[currentLevel][currentQ];
+  const utter = new SpeechSynthesisUtterance(q.text);
+  utter.lang = 'en-US';
+  utter.rate = 0.85;
+  utter.onstart = () => document.getElementById('playBtn').classList.add('playing');
+  utter.onend = () => {
+    document.getElementById('playBtn').classList.remove('playing');
+    document.getElementById('playHint').textContent = '再听一遍';
+  };
+  utter.onerror = () => document.getElementById('playBtn').classList.remove('playing');
+  window.speechSynthesis.speak(utter);
+}
+
+function toggleText() {
+  const el = document.getElementById('textContent');
+  const btn = document.getElementById('toggleTextBtn');
+  if (el.classList.contains('show')) {
+    el.classList.remove('show');
+    btn.textContent = '👁️ 显示文字';
+  } else {
+    el.classList.add('show');
+    btn.textContent = '🙈 隐藏文字';
+  }
+}
+
+function selectAnswer(idx, btn) {
+  if (answered) return;
+  answered = true;
+  const q = LEVELS[currentLevel][currentQ];
+  const allBtns = document.querySelectorAll('.opt-btn');
+  
+  if (idx === q.ans) {
+    btn.classList.add('correct');
+    score++;
+  } else {
+    btn.classList.add('wrong');
+    allBtns[q.ans].classList.add('correct');
+    document.getElementById('tipBox').textContent = '💡 提示：' + q.tip;
+    document.getElementById('tipBox').classList.add('show');
+  }
+  
+  document.getElementById('nextBtn').style.display = 'block';
+  document.getElementById('progressFill').style.width = ((currentQ+1)/10*100) + '%';
+}
+
+function nextQuestion() {
+  currentQ++;
+  if (currentQ >= 10) {
+    showResult();
+  } else {
+    showQuestion();
+  }
+}
+
+async function showResult() {
+  document.getElementById('gameArea').style.display = 'none';
+  document.getElementById('resultArea').style.display = 'block';
+  const passed = score >= PASS_SCORE;
+  document.getElementById('resultIcon').textContent = passed ? '🎉' : '😅';
+  document.getElementById('resultTitle').textContent = passed ? '恭喜通关！' : '继续加油！';
+  let detail = `答对 ${score}/10 题`;
+  if (passed) {
+    const reward = REWARDS[currentLevel];
+    detail += `\n🪙 获得 ${reward} 金币奖励！`;
+    if (!completedLevels.has(currentLevel+1)) {
+      completedLevels.add(currentLevel+1);
+      await saveProgress(currentLevel+1);
+      await addCoins(reward);
+    }
+  } else {
+    detail += `\n需要答对 ${PASS_SCORE} 题才能通关哦`;
+  }
+  document.getElementById('resultDetail').textContent = detail;
+  renderLevels();
+}
+
+function retryLevel() {
+  document.getElementById('resultArea').style.display = 'none';
+  startLevel(currentLevel);
+}
+
+function backToLevels() {
+  document.getElementById('gameArea').style.display = 'none';
+  document.getElementById('resultArea').style.display = 'none';
+  document.getElementById('levelSelect').style.display = 'block';
+}
+
+// Init
+async function init() {
+  getAuth();
+  await loadCoins();
+  await loadProgress();
+  renderLevels();
+}
+init();
+</script>
+</body>
+</html>
