@@ -506,7 +506,11 @@ function initUI(){
   });
 }
 function selectMap(el){el.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');selectedMap=+el.dataset.val;}
-function selectChar(el,idx){el.parentElement.querySelectorAll('.char-option').forEach(c=>c.classList.remove('selected'));el.classList.add('selected');myCharIdx=idx;}
+function selectChar(el,idx){
+  if(el.classList.contains('taken'))return; // 已被占用，不可选
+  el.parentElement.querySelectorAll('.char-option').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');myCharIdx=idx;
+}
 function toggleRoomType(el){el.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');roomType=el.dataset.val;}
 
 // ===== ROOM MANAGEMENT =====
@@ -580,7 +584,48 @@ function broadcastPresence(){
 function onPresence(p){
   lobbyPlayers[p.id]={nick:p.nick,charIdx:p.charIdx,isHost:p.isHost};
   if(p.isHost){roomName=p.roomName||roomName;selectedMap=p.mapIdx??selectedMap;}
+  // 如果别人抢了我的头像，自动换一个空闲的
+  if(p.id!==myId){
+    const takenIdxs=Object.entries(lobbyPlayers).filter(([id])=>id!==myId).map(([,v])=>v.charIdx);
+    if(takenIdxs.includes(myCharIdx)){
+      const free=CHARS.findIndex((_,i)=>!takenIdxs.includes(i));
+      if(free>=0){
+        myCharIdx=free;
+        // 更新选择界面
+        ['create-chars','join-chars'].forEach(gid=>{
+          const g=document.getElementById(gid);
+          if(!g)return;
+          g.querySelectorAll('.char-option').forEach(c=>c.classList.remove('selected'));
+          const opt=g.querySelector('[data-idx="'+free+'"]');
+          if(opt)opt.classList.add('selected');
+        });
+        broadcastPresence();
+      }
+    }
+  }
   renderLobby();
+  updateTakenChars();
+}
+function updateTakenChars(){
+  const takenIdxs=Object.entries(lobbyPlayers).filter(([id])=>id!==myId).map(([,v])=>v.charIdx);
+  ['create-chars','join-chars'].forEach(gid=>{
+    const g=document.getElementById(gid);
+    if(!g)return;
+    g.querySelectorAll('.char-option').forEach(c=>{
+      const idx=+c.dataset.idx;
+      if(takenIdxs.includes(idx)){
+        c.classList.add('taken');
+        c.style.opacity='0.3';
+        c.style.cursor='not-allowed';
+        c.title='已被其他玩家选择';
+      } else {
+        c.classList.remove('taken');
+        c.style.opacity='1';
+        c.style.cursor='pointer';
+        c.title='';
+      }
+    });
+  });
 }
 function renderLobby(){
   const el=document.getElementById('lobby-players');
