@@ -711,6 +711,11 @@
     var designConfirmed = false;
     var gameGenerated = false;
 
+    // ===== 迭代模式状态 =====
+    var iterationMode = false;       // 是否处于迭代已发布游戏模式
+    var iterationGameId = null;      // 正在迭代的游戏 id
+    var userGamesCache = null;       // 缓存用户游戏列表
+
     var FUNC_URL = SUPABASE_URL + '/functions/v1/ai-game-generator';
 
     var CATEGORY_MAP = {
@@ -777,6 +782,23 @@
       '游戏生成后，先说"做好啦！🎉 快去右边试玩一下！觉得怎么样？有没有想改的地方？"\n' +
       '如果孩子要修改，问清楚想改什么，然后输出同样格式的JSON，html字段输出完整修改后的代码。\n' +
       '如果孩子满意，说"太棒了！要不要发布让其他小朋友也能玩到你的游戏？点右边的发布按钮就行～ 🚀"\n\n' +
+      '【迭代已发布游戏】\n' +
+      '当孩子说"改一下我的XXX游戏""更新我的游戏""让我的游戏变成XXX""我想修改我之前做的游戏"等意图时，\n' +
+      '前端会自动查询孩子已发布的游戏列表，并以系统消息形式注入到对话中，格式如下：\n' +
+      '[GAMES_LIST:{"games":[{"id":"...","title":"...","html":"..."},...]}]\n' +
+      '你收到这个注入后：\n' +
+      '- 如果只有一个游戏，直接说"好的！我来帮你改《游戏名》！你想改什么地方？"\n' +
+      '- 如果有多个游戏，列出游戏名让孩子选："你有好几个游戏，想改哪一个？\\n1. 游戏A\\n2. 游戏B"\n' +
+      '- 如果没有游戏（列表为空），说"我还没找到你发布过的游戏哦～要不要重新做一个？"\n' +
+      '孩子确认要改哪个游戏后，读取对应的html内容，根据孩子的要求修改，然后输出如下JSON（不要有任何其他文字）：\n' +
+      '{\n' +
+      '  "action": "update",\n' +
+      '  "game_id": "游戏的id",\n' +
+      '  "title": "游戏名称（可以不变）",\n' +
+      '  "description": "游戏简介",\n' +
+      '  "html": "完整修改后的HTML5游戏代码"\n' +
+      '}\n' +
+      '修改完成后前端会自动更新游戏，你再说"改好啦！🎉 快去右边看看效果！还有什么想调整的吗？"\n\n' +
       '【游戏代码要求】\n' +
       '- 完整单文件HTML，包含所有CSS和JS，不依赖外部资源\n' +
       '- 必须包含：开始界面（显示游戏名和开始按钮）、游戏主体、结束界面（显示得分和重玩按钮）\n' +
@@ -846,8 +868,100 @@
         .trim();
     }
 
+    // ===== 检测迭代意图 =====
+    function detectIterationIntent(text) {
+      var patterns = [
+        /改.{0,4}(我的|我做的|我之前做的).{0,10}游戏/,
+        /更新.{0,4}(我的|我做的).{0,10}游戏/,
+        /修改.{0,4}(我的|我做的|我之前做的).{0,10}游戏/,
+        /让.{0,4}(我的|我做的).{0,10}游戏.{0,10}变/,
+        /我想改.{0,10}游戏/,
+        /帮我改.{0,10}游戏/,
+        /我之前做的游戏/,
+        /我发布的游戏/,
+        /我的游戏.{0,6}(改|修改|更新|升级|变)/
+      ];
+      return patterns.some(function(p) { return p.test(text); });
+    }
+
+    // ===== 获取用户已发布游戏 =====
+    async function fetchUserGames() {
+      if (!currentUser) return [];
+      try {
+        var sb = getSupabase();
+        var res = await sb.from('games')
+          .select('id,title,file_url,description')
+          .eq('author_id', currentUser.id)
+          .order('created_at', { ascending: false });
+        if (res.error) return [];
+        return res.data || [];
+      } catch(e) { return []; }
+    }
+
+    // ===== 获取游戏 HTML 内容 =====
+    async function fetchGameHtml(fileUrl) {
+      if (!fileUrl) return '';
+      try {
+        var resp = await fetch(fileUrl + '?t=' + Date.now());
+        if (!resp.ok) return '';
+        return await resp.text();
+      } catch(e) { return ''; }
+    }
+
+    // ===== 更新已发布游戏 =====
+    async function doUpdateGame(gameId, newHtml, newTitle, newDesc) {
+      var sb = getSupabase();
+      var sessionResult = await sb.auth.getSession();
+      if (!sessionResult.data.session) throw new Error('请先登录');
+      currentUser = sessionResult.data.session.user;
+
+      // 找到原游戏记录
+      var gameRes = await sb.from('games').select('id,file_url,title').eq('id', gameId).eq('author_id', currentUser.id).single();
+      if (gameRes.error || !gameRes.data) throw new Error('找不到这个游戏，或者你没有权限修改它');
+
+      var oldFileUrl = gameRes.data.file_url;
+      // 从 file_url 提取 storage 路径
+      // file_url 格式: https://xxx.supabase.co/storage/v1/object/public/games/userId/filename.html
+      var storagePathMatch = oldFileUrl && oldFileUrl.match(/\/storage\/v1\/object\/public\/games\/(.+)$/);
+      var storagePath;
+
+      if (storagePathMatch) {
+        storagePath = storagePathMatch[1];
+        // 用 upsert 覆盖原文件
+        var uploadRes = await sb.storage.from('games').upload(storagePath, new Blob([newHtml], { type: 'text/html' }), {
+          contentType: 'text/html',
+          upsert: true
+        });
+        if (uploadRes.error) throw uploadRes.error;
+      } else {
+        // 原路径无法解析，上传新文件
+        storagePath = currentUser.id + '/game_' + Date.now() + '_' + Math.random().toString(36).slice(2,8) + '.html';
+        var uploadRes2 = await sb.storage.from('games').upload(storagePath, new Blob([newHtml], { type: 'text/html' }), {
+          contentType: 'text/html',
+          upsert: false
+        });
+        if (uploadRes2.error) throw uploadRes2.error;
+      }
+
+      // 获取新的公开 URL（加时间戳防缓存）
+      var urlRes = sb.storage.from('games').getPublicUrl(storagePath);
+      var newFileUrl = urlRes.data.publicUrl;
+
+      // 更新 games 表
+      var updateData = { file_url: newFileUrl };
+      if (newTitle) updateData.title = newTitle;
+      if (newDesc) updateData.description = newDesc;
+      var updateRes = await sb.from('games').update(updateData).eq('id', gameId).eq('author_id', currentUser.id);
+      if (updateRes.error) throw updateRes.error;
+
+      // 清除缓存
+      userGamesCache = null;
+
+      return { gameId: gameId, fileUrl: newFileUrl, title: newTitle || gameRes.data.title };
+    }
+
     // ===== 发送消息 =====
-    function sendMessage() {
+    async function sendMessage() {
       var text = chatInput.value.trim();
       if (!text || isGenerating) return;
 
@@ -858,6 +972,45 @@
 
       // 存入历史
       conversationHistory.push({ role: 'user', content: text });
+
+      // 检测迭代意图（未进入迭代模式时）
+      if (!iterationMode && detectIterationIntent(text)) {
+        iterationMode = true;
+        isGenerating = true;
+        sendBtn.disabled = true;
+        chatInput.disabled = true;
+        var loadingEl = appendBubble('<span class="bird-fly">🐤</span><span class="loading-text">正在查找你的游戏...</span>', 'ai-msg', true);
+        try {
+          // 确保已获取用户信息
+          if (!currentUser) {
+            var sb0 = getSupabase();
+            var s0 = await sb0.auth.getSession();
+            if (s0.data && s0.data.session) currentUser = s0.data.session.user;
+          }
+          var games = await fetchUserGames();
+          userGamesCache = games;
+
+          // 为每个游戏加载 HTML
+          var gamesWithHtml = [];
+          for (var i = 0; i < games.length; i++) {
+            var g = games[i];
+            var html = await fetchGameHtml(g.file_url);
+            gamesWithHtml.push({ id: g.id, title: g.title, description: g.description, html: html });
+          }
+
+          // 注入游戏列表到对话历史（作为 system 消息）
+          var injection = '[GAMES_LIST:' + JSON.stringify({ games: gamesWithHtml }) + ']';
+          conversationHistory.push({ role: 'system', content: injection });
+
+          if (loadingEl && loadingEl.parentNode) loadingEl.remove();
+        } catch(e) {
+          if (loadingEl && loadingEl.parentNode) loadingEl.remove();
+          iterationMode = false;
+        }
+        isGenerating = false;
+        sendBtn.disabled = false;
+        chatInput.disabled = false;
+      }
 
       // 调用 AI
       callAI();
@@ -936,6 +1089,36 @@
           // 显示预览
           showPreview(gameData);
 
+        } else if (gameData && gameData.action === 'update' && gameData.html && gameData.game_id) {
+          // === 迭代更新已发布游戏 ===
+          conversationHistory.push({ role: 'assistant', content: content });
+
+          // 显示更新中提示
+          var updatingEl = appendBubble('<span class="bird-fly">🐤</span><span class="loading-text">正在更新你的游戏...</span>', 'ai-msg', true);
+
+          try {
+            var updateResult = await doUpdateGame(gameData.game_id, gameData.html, gameData.title, gameData.description);
+            if (updatingEl && updatingEl.parentNode) updatingEl.remove();
+
+            iterationGameId = gameData.game_id;
+            currentGameData = { title: gameData.title, description: gameData.description, html: gameData.html, category: gameData.category || 'casual' };
+            gameGenerated = true;
+            updateStatusDots();
+
+            var updateCardHtml = '✅ 改好啦！🎉<br><br>' +
+              '<div class="gc-title">' + escapeHtml(gameData.title || '你的游戏') + '</div>' +
+              '<div class="gc-desc">' + escapeHtml(gameData.description || '') + '</div>' +
+              '<br><span style="font-size:13px;color:#555">👉 快去右边看看效果！<br>还有什么想调整的吗？</span>';
+            appendBubble(updateCardHtml, 'ai-msg', false, 'game-card-bubble');
+
+            // 在预览区显示更新后的游戏
+            showPreview(currentGameData);
+
+          } catch(updateErr) {
+            if (updatingEl && updatingEl.parentNode) updatingEl.remove();
+            appendBubble('😅 更新游戏时出了点问题：' + escapeHtml(updateErr.message), 'ai-msg');
+          }
+
         } else {
           // === 普通对话 ===
           var cleanContent = parseStateMarkers(content);
@@ -979,8 +1162,8 @@
         } catch(e) {}
       }
 
-      // 尝试从内容中找到 JSON 对象
-      var jsonMatch = trimmed.match(/\{[\s\S]*"action"\s*:\s*"generate"[\s\S]*\}/);
+      // 尝试从内容中找到 JSON 对象（generate 或 update）
+      var jsonMatch = trimmed.match(/\{[\s\S]*"action"\s*:\s*"(?:generate|update)"[\s\S]*\}/);
       if (jsonMatch) {
         try {
           var d = JSON.parse(jsonMatch[0]);
