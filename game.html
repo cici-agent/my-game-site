@@ -508,6 +508,14 @@
         alert('扣费失败，请重试');
         return;
       }
+      // 记录金币流水
+      var _gameName1 = (gameData && (gameData.name || gameData.title)) || '游戏';
+      sb2.from('coin_transactions').insert({
+        user_id: user.id,
+        amount: -1,
+        source: 'game_play',
+        description: '进入游戏「' + _gameName1 + '」'
+      }).then(function(){});
       // 记录游戏开始时间到localStorage，供返回后继续扣费
       localStorage.setItem('activeGame', JSON.stringify({
         gameId: gameId,
@@ -545,6 +553,13 @@
                 if (cost > 0) {
                   await sb.from('profiles').update({ coins: coins - cost }).eq('id', user.id);
                   showToast('🪙 扣除 ' + cost + ' 金币（游戏时长）');
+                  // 记录金币流水
+                  sb.from('coin_transactions').insert({
+                    user_id: user.id,
+                    amount: -cost,
+                    source: 'game_play',
+                    description: '游戏时长扣费（' + cost + '分钟）'
+                  }).then(function(){});
                 }
                 if (coins - cost <= 0) {
                   showToast('⚠️ 金币已耗尽！');
@@ -606,6 +621,14 @@
           // 扣金币
           var newCoins = currentCoins - COIN_COST;
           await sb.from('profiles').update({ coins: newCoins }).eq('id', userId);
+          // 记录金币流水（玩家扣费）
+          var _gName = (gameData && (gameData.name || gameData.title)) || '游戏';
+          sb.from('coin_transactions').insert({
+            user_id: userId,
+            amount: -COIN_COST,
+            source: 'game_play',
+            description: '游玩「' + _gName + '」计时扣费'
+          }).then(function(){});
 
           // 给游戏作者 +0.5 金币（非自己玩自己的游戏）
           if (gameData && gameData.author_id && gameData.author_id !== userId) {
@@ -614,6 +637,13 @@
             // 用整数存储，0.5金币累计，每2次+1（用小数×10存储避免浮点）
             // 简化方案：直接存浮点，每次+0.5
             await sb.from('profiles').update({ coins: authorCoins + 0.1 }).eq('id', gameData.author_id);
+            // 记录金币流水（作者收益）
+            sb.from('coin_transactions').insert({
+              user_id: gameData.author_id,
+              amount: 0.1,
+              source: 'author_reward',
+              description: '游戏「' + _gName + '」被玩家游玩收益'
+            }).then(function(){});
           }
 
           if (newCoins <= 2) {
