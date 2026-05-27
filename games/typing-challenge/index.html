@@ -1108,6 +1108,13 @@ async function showResult(speed, accuracy, passed, requirement) {
       await sb.from('profiles').update({ coins: newCoins }).eq('id', currentUser.id);
       currentProfile.coins = newCoins;
       document.getElementById('coinsDisplay').textContent = '🪙 ' + newCoins;
+      // 记录金币流水
+      sb.from('coin_transactions').insert({
+        user_id: currentUser.id,
+        amount: reward,
+        source: 'typing_challenge',
+        description: '打字挑战赛第' + currentLevel + '级通关奖励'
+      }).then(function(){});
       
       // 保存通关记录
       var insertData = {
