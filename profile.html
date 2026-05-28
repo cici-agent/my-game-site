@@ -292,6 +292,43 @@
       font-size: 12px;
       font-weight: 600;
     }
+    .status-draft {
+      color: #6366f1;
+      font-size: 12px;
+      font-weight: 600;
+      background: #eef2ff;
+      padding: 2px 8px;
+      border-radius: 10px;
+      display: inline-block;
+    }
+    .card-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 6px;
+    }
+    .btn-card-action {
+      padding: 5px 10px;
+      border-radius: 12px;
+      border: none;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-continue-draft {
+      background: #eef2ff;
+      color: #4f46e5;
+    }
+    .btn-continue-draft:hover {
+      background: #e0e7ff;
+    }
+    .btn-unpublish {
+      background: #fef3c7;
+      color: #d97706;
+    }
+    .btn-unpublish:hover {
+      background: #fde68a;
+    }
     .empty-tip {
       text-align: center;
       padding: 48px 16px;
@@ -617,28 +654,73 @@
     }
     var res = await sb.from('games').select('*').eq('author_id', userId).order('created_at', { ascending: false });
     if (!res.data || res.data.length === 0) {
-      container.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">还没有发布游戏，<a href="upload.html">去上传一个吧！</a></div>';
+      container.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">还没有发布游戏，<a href="editor.html">去做一个吧！</a></div>';
       return;
     }
     container.innerHTML = res.data.map(function(g) {
       var title = g.name || g.title || '未命名游戏';
       var desc = g.description || '';
       var category = g.category || '';
-      var statusHtml = g.status === 'online'
-        ? '<span class="status-online">● 已上线</span>'
-        : '<span class="status-pending">● 待审核</span>';
+      var isDraft = (g.status === 'draft');
+      var isOnline = (g.status === 'online');
+      var isPending = (g.status === 'pending');
+
+      // 状态标签
+      var statusHtml = '';
+      if (isDraft) {
+        statusHtml = '<span class="status-draft">📝 草稿</span>';
+      } else if (isOnline) {
+        statusHtml = '<span class="status-online">● 已上线</span>';
+      } else if (isPending) {
+        statusHtml = '<span class="status-pending">● 待审核</span>';
+      }
+
+      // 操作按钮
+      var actionsHtml = '';
+      if (isDraft) {
+        actionsHtml = '<div class="card-actions">' +
+          '<button class="btn-card-action btn-continue-draft" onclick="event.stopPropagation();location.href=\'editor.html?game_id=' + g.id + '\'">✏️ 继续编辑</button>' +
+          '</div>';
+      } else if (isOnline) {
+        actionsHtml = '<div class="card-actions">' +
+          '<button class="btn-card-action btn-unpublish" onclick="event.stopPropagation();unpublishGame(\'' + g.id + '\')">⬇️ 下架修改</button>' +
+          '</div>';
+      }
+
       var coverHtml = g.cover_url
         ? '<img class="cover" src="' + g.cover_url + '" alt="封面" onerror="this.outerHTML=\'<div class=&quot;cover-placeholder&quot;>🎮</div>\'">'
         : '<div class="cover-placeholder">🎮</div>';
-      return '<div class="game-card" onclick="location.href=\'game.html?id=' + g.id + '\'">' +
+
+      var cardClick = isDraft
+        ? 'onclick="location.href=\'editor.html?game_id=' + g.id + '\'"'
+        : 'onclick="location.href=\'game.html?id=' + g.id + '\'"';
+
+      return '<div class="game-card" ' + cardClick + '>' +
         coverHtml +
         '<div class="card-body">' +
           '<div class="card-title">' + escHtml(title) + '</div>' +
           '<div class="card-category">' + escHtml(category) + '</div>' +
           '<div class="card-desc">' + escHtml(desc.slice(0, 50)) + (desc.length > 50 ? '...' : '') + '</div>' +
           statusHtml +
+          actionsHtml +
         '</div></div>';
     }).join('');
+  }
+
+  // ============================================================
+  // 下架游戏（改为草稿）
+  // ============================================================
+  async function unpublishGame(gameId) {
+    if (!confirm('确定要下架这个游戏吗？下架后其他玩家将看不到它，你可以修改后重新发布。')) return;
+    var sb = initSB();
+    if (!sb || !_userId) return;
+    var res = await sb.from('games').update({ status: 'draft' }).eq('id', gameId).eq('author_id', _userId);
+    if (res.error) {
+      alert('❌ 下架失败：' + res.error.message);
+      return;
+    }
+    // 跳转到编辑器
+    window.location.href = 'editor.html?game_id=' + gameId;
   }
 
   // ============================================================
