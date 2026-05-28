@@ -67,6 +67,13 @@
       color: #666;
     }
     .nav-btn-back:hover { background: #eee; }
+    .nav-btn-draft {
+      background: #e8f5e9 !important;
+      color: #2e7d32 !important;
+      border: 1.5px solid #a5d6a7;
+    }
+    .nav-btn-draft:hover { background: #c8e6c9 !important; }
+    .nav-btn-draft:disabled { opacity: 0.6; cursor: not-allowed; }
 
     /* ===== 主体布局 ===== */
     .editor-main {
@@ -579,6 +586,7 @@
     </a>
     <span class="nav-title">🎮 AI 游戏工坊</span>
     <div class="nav-right">
+      <button class="nav-btn nav-btn-draft" id="btnSaveDraft" onclick="saveDraft()" style="background:#e8f5e9;color:#2e7d32;display:none;">💾 暂存草稿</button>
       <button class="nav-btn nav-btn-back" onclick="location.href='index.html'">← 返回首页</button>
     </div>
   </nav>
@@ -717,6 +725,10 @@
     var iterationGameTitle = null;   // 正在迭代的游戏标题
     var userGamesCache = null;       // 缓存用户游戏列表
 
+    // ===== 草稿模式状态 =====
+    var draftGameId = null;          // 当前正在编辑的草稿 id（如果有）
+    var btnSaveDraft = document.getElementById('btnSaveDraft');
+
     var FUNC_URL = SUPABASE_URL + '/functions/v1/ai-game-generator';
 
     var CATEGORY_MAP = {
@@ -829,7 +841,7 @@
 
       // 迭代模式下隐藏五要素指示器
       if (iterationMode) {
-        statusPhase.textContent = '修改模式 ✏️';
+        statusPhase.textContent = draftGameId ? '草稿编辑 📝' : '修改模式 ✏️';
         return;
       }
 
@@ -918,14 +930,15 @@
       return null;
     }
 
-    // ===== 获取用户已发布游戏 =====
+    // ===== 获取用户已发布游戏（不含草稿） =====
     async function fetchUserGames() {
       if (!currentUser) return [];
       try {
         var sb = getSupabase();
         var res = await sb.from('games')
-          .select('id,title,game_url,description')
+          .select('id,title,game_url,description,status')
           .eq('author_id', currentUser.id)
+          .neq('status', 'draft')
           .order('created_at', { ascending: false });
         if (res.error) return [];
         return res.data || [];
@@ -1026,6 +1039,32 @@
 
       // 存入历史
       conversationHistory.push({ role: 'user', content: text });
+
+      // 检测是否想继续草稿
+      if (!iterationMode && window._pendingDrafts) {
+        var selectedDraft = detectDraftContinue(text);
+        if (selectedDraft) {
+          window._pendingDrafts = null;
+          isGenerating = true;
+          sendBtn.disabled = true;
+          chatInput.disabled = true;
+          var loadingEl = appendBubble('<span class="bird-fly">🐤</span><span class="loading-text">正在加载草稿...</span>', 'ai-msg', true);
+          try {
+            await loadDraftGame(selectedDraft.id);
+            if (loadingEl && loadingEl.parentNode) loadingEl.remove();
+          } catch(e) {
+            if (loadingEl && loadingEl.parentNode) loadingEl.remove();
+          }
+          isGenerating = false;
+          sendBtn.disabled = false;
+          chatInput.disabled = false;
+          return;
+        }
+        // 用户不想继续草稿，清除提示
+        if (/不|新|全新|重新|算了|不用/.test(text)) {
+          window._pendingDrafts = null;
+        }
+      }
 
       // 检测迭代意图（未进入迭代模式时）
       if (!iterationMode && detectIterationIntent(text)) {
@@ -1410,13 +1449,14 @@
     function showPublishModal() {
       if (!currentGameData) return;
 
-      // 迭代模式下直接执行更新，不弹窗
-      if (iterationMode && iterationGameId) {
+      // 迭代模式下（已发布游戏的更新）直接执行更新，不弹窗
+      if (iterationMode && iterationGameId && !draftGameId) {
         doIterationUpdate();
         return;
       }
 
-      document.getElementById('pubModalTitle').textContent = '🚀 发布游戏到小菜鸟';
+      // 草稿发布或新游戏发布 - 弹窗确认
+      document.getElementById('pubModalTitle').textContent = draftGameId ? '🚀 发布草稿到小菜鸟' : '🚀 发布游戏到小菜鸟';
       document.getElementById('pubConfirmBtn').textContent = '确认发布';
       document.getElementById('pubTitle').value = currentGameData.title || '';
       document.getElementById('pubDesc').value = currentGameData.description || '';
@@ -1488,17 +1528,32 @@
         var urlRes = sb.storage.from('games').getPublicUrl(filePath);
         var publicUrl = urlRes.data.publicUrl;
 
-        // 插入 games 表
-        var insertRes = await sb.from('games').insert({
-          title: title,
-          description: desc,
-          category: category,
-          game_url: publicUrl,
-          author_id: currentUser.id,
-          status: 'pending',
-          cover_prompt: currentGameData.cover_prompt || ''
-        });
-        if (insertRes.error) throw insertRes.error;
+        // 如果是从草稿发布（draftGameId 存在），更新已有记录
+        if (draftGameId) {
+          var updateRes = await sb.from('games').update({
+            title: title,
+            description: desc,
+            category: category,
+            game_url: publicUrl,
+            status: 'pending',
+            draft_code: null,
+            draft_conversation: null,
+            cover_prompt: currentGameData.cover_prompt || ''
+          }).eq('id', draftGameId).eq('author_id', currentUser.id);
+          if (updateRes.error) throw updateRes.error;
+        } else {
+          // 插入 games 表（全新游戏）
+          var insertRes = await sb.from('games').insert({
+            title: title,
+            description: desc,
+            category: category,
+            game_url: publicUrl,
+            author_id: currentUser.id,
+            status: 'pending',
+            cover_prompt: currentGameData.cover_prompt || ''
+          });
+          if (insertRes.error) throw insertRes.error;
+        }
 
         // 写入金币流水
         try {
@@ -1510,6 +1565,10 @@
           });
         } catch(e) {}
 
+        // 清除草稿状态
+        draftGameId = null;
+        localStorage.removeItem('xiaocainiao_draft_conv_' + currentUser.id);
+
         hidePublishModal();
         showSuccessModal();
 
@@ -1518,6 +1577,177 @@
         btn.disabled = false;
         btn.textContent = '确认发布';
       }
+    }
+
+    // ===== 暂存草稿 =====
+    async function saveDraft() {
+      if (!currentUser) {
+        alert('请先登录');
+        return;
+      }
+      btnSaveDraft.disabled = true;
+      btnSaveDraft.textContent = '⏳ 保存中...';
+
+      try {
+        var sb = getSupabase();
+        var title = (currentGameData && currentGameData.title) || '未命名草稿';
+        var desc = (currentGameData && currentGameData.description) || '';
+        var category = (currentGameData && currentGameData.category) || 'casual';
+        var htmlCode = (currentGameData && currentGameData.html) || '';
+        var convJson = JSON.stringify(conversationHistory);
+
+        if (draftGameId) {
+          // 更新已有草稿
+          var updateData = {
+            title: title,
+            description: desc,
+            category: category,
+            draft_code: htmlCode,
+            draft_conversation: convJson,
+            status: 'draft'
+          };
+          var res = await sb.from('games').update(updateData).eq('id', draftGameId).eq('author_id', currentUser.id);
+          if (res.error) throw res.error;
+        } else {
+          // 新建草稿
+          var insertData = {
+            title: title,
+            description: desc,
+            category: category,
+            draft_code: htmlCode,
+            draft_conversation: convJson,
+            author_id: currentUser.id,
+            status: 'draft'
+          };
+          var res = await sb.from('games').insert(insertData).select('id').single();
+          if (res.error) throw res.error;
+          draftGameId = res.data.id;
+        }
+
+        // 同时存 localStorage 备份
+        localStorage.setItem('xiaocainiao_draft_conv_' + currentUser.id, convJson);
+
+        btnSaveDraft.textContent = '✅ 已保存';
+        setTimeout(function() {
+          btnSaveDraft.textContent = '💾 暂存草稿';
+          btnSaveDraft.disabled = false;
+        }, 1500);
+
+      } catch(err) {
+        alert('❌ 保存草稿失败：' + (err.message || '未知错误'));
+        btnSaveDraft.textContent = '💾 暂存草稿';
+        btnSaveDraft.disabled = false;
+      }
+    }
+    // 暴露到全局供 onclick 调用
+    window.saveDraft = saveDraft;
+
+    // ===== 加载草稿进入编辑 =====
+    async function loadDraftGame(gameId) {
+      if (!currentUser) return;
+      var sb = getSupabase();
+      var res = await sb.from('games').select('*').eq('id', gameId).eq('author_id', currentUser.id).single();
+      if (res.error || !res.data) return;
+      var game = res.data;
+
+      draftGameId = game.id;
+      iterationMode = true;
+      iterationGameId = game.id;
+      iterationGameTitle = game.title;
+
+      // 恢复对话历史
+      if (game.draft_conversation) {
+        try {
+          conversationHistory = JSON.parse(game.draft_conversation);
+        } catch(e) {}
+      }
+
+      // 恢复游戏代码预览
+      var htmlCode = game.draft_code || '';
+      if (!htmlCode && game.game_url) {
+        htmlCode = await fetchGameHtml(game.game_url);
+      }
+      if (htmlCode) {
+        currentGameData = { title: game.title, description: game.description || '', html: htmlCode, category: game.category || 'casual' };
+        showPreview(currentGameData);
+        gameGenerated = true;
+      }
+
+      // 更新 UI
+      var wasPublished = (game.status === 'draft' && game.game_url);
+      btnPublish.textContent = wasPublished ? '🚀 重新发布' : '🚀 发布游戏';
+      btnPublish.classList.add('show');
+      btnModify.classList.add('show');
+      btnSaveDraft.style.display = 'inline-block';
+      updateStatusDots();
+
+      // 注入系统消息让 AI 知道上下文
+      var injection = '[ITERATION_SELECTED:' + JSON.stringify({ game_id: game.id, title: game.title, html: htmlCode }) + ']';
+      if (!conversationHistory.some(function(m) { return m.content && m.content.indexOf('ITERATION_SELECTED') !== -1; })) {
+        conversationHistory.push({ role: 'system', content: injection });
+      }
+
+      // 显示恢复提示气泡
+      appendBubble('欢迎回来！👋 我看到你之前在做《' + escapeHtml(game.title || '未命名') + '》<br><br>你想继续修改它，还是有什么新想法？', 'ai-msg');
+    }
+
+    // ===== 检查是否有未完成草稿 =====
+    async function checkForDrafts() {
+      if (!currentUser) return;
+      var sb = getSupabase();
+      var res = await sb.from('games').select('id,title,status,draft_code').eq('author_id', currentUser.id).eq('status', 'draft').order('created_at', { ascending: false }).limit(3);
+      if (res.error || !res.data || res.data.length === 0) return;
+
+      // 有草稿，显示暂存按钮
+      btnSaveDraft.style.display = 'inline-block';
+
+      // 如果不是从 URL 参数进来的，提示用户有草稿
+      var urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('game_id')) return; // URL 参数已处理
+
+      var drafts = res.data;
+      if (drafts.length === 1) {
+        var d = drafts[0];
+        appendBubble('嘿！👋 我发现你有一个未完成的草稿《' + escapeHtml(d.title || '未命名') + '》<br><br>想继续做吗？直接说"继续"就行，或者你也可以开始做一个全新的游戏！', 'ai-msg');
+        // 存到缓存方便后续检测
+        window._pendingDrafts = drafts;
+      } else {
+        var listHtml = '嘿！👋 我发现你有 ' + drafts.length + ' 个未完成的草稿：<br><br>';
+        drafts.forEach(function(d, i) {
+          listHtml += (i + 1) + '. 《' + escapeHtml(d.title || '未命名') + '》<br>';
+        });
+        listHtml += '<br>想继续哪一个？说序号或名字就行，或者开始做全新的游戏！';
+        appendBubble(listHtml, 'ai-msg');
+        window._pendingDrafts = drafts;
+      }
+    }
+
+    // ===== 检测用户是否想继续草稿 =====
+    function detectDraftContinue(text) {
+      if (!window._pendingDrafts || window._pendingDrafts.length === 0) return null;
+      var drafts = window._pendingDrafts;
+      // "继续" 且只有一个草稿
+      if (drafts.length === 1 && /继续|好的|好|可以|是|对|嗯|行/.test(text)) {
+        return drafts[0];
+      }
+      // 数字选择
+      var numMatch = text.match(/^(\d+)$/);
+      if (numMatch) {
+        var idx = parseInt(numMatch[1]) - 1;
+        if (idx >= 0 && idx < drafts.length) return drafts[idx];
+      }
+      // 名字匹配
+      for (var i = 0; i < drafts.length; i++) {
+        if (drafts[i].title && text.indexOf(drafts[i].title) !== -1) return drafts[i];
+      }
+      // 第X个
+      var ordMatch = text.match(/第\s*([一二三四五六七八九十\d]+)\s*个/);
+      if (ordMatch) {
+        var ordMap = {'一':1,'二':2,'三':3};
+        var ordIdx = ordMap[ordMatch[1]] || parseInt(ordMatch[1]);
+        if (ordIdx && ordIdx > 0 && ordIdx <= drafts.length) return drafts[ordIdx - 1];
+      }
+      return null;
     }
 
     // ===== 等待认证就绪 =====
@@ -1530,6 +1760,17 @@
         sb.auth.getSession().then(function(res) {
           if (res.data && res.data.session) {
             currentUser = res.data.session.user;
+            // 显示暂存按钮
+            btnSaveDraft.style.display = 'inline-block';
+            // 检查 URL 参数
+            var urlParams = new URLSearchParams(window.location.search);
+            var gameIdParam = urlParams.get('game_id');
+            if (gameIdParam) {
+              loadDraftGame(gameIdParam);
+            } else {
+              // 检查是否有未完成草稿
+              checkForDrafts();
+            }
           }
         });
       } catch(e) {}
