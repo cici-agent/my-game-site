@@ -536,6 +536,12 @@
       if (!active) return;
       try {
         var info = JSON.parse(active);
+        // 如果 startTime 距今超过2小时，直接清除不结算（防止忘记关页面大量扣费）
+        var MAX_SESSION_MS = 2 * 60 * 60 * 1000; // 2小时
+        if (!info.startTime || (Date.now() - info.startTime) > MAX_SESSION_MS) {
+          localStorage.removeItem('activeGame');
+          return;
+        }
         // 如果回到的是同一个游戏页面，继续扣费
         if (info.gameId === new URLSearchParams(window.location.search).get('id')) {
           var elapsed = Math.floor((Date.now() - info.lastDeduct) / (60 * 1000));
@@ -588,13 +594,47 @@
     var COIN_INTERVAL = 1 * 60 * 1000; // 1分钟
     var COIN_COST = 1;
     var warnedOnce = false;
+    // visibilitychange 支持：记录页面隐藏时的时间戳，用于暂停计时
+    var _coinTimerPausedAt = null;
+    var _coinTimerElapsedBeforePause = 0;
+    var _coinTimerUserId = null;
 
     function startCoinTimer(userId) {
       if (coinTimer) clearInterval(coinTimer);
       warnedOnce = false;
       var elapsed = 0;
+      _coinTimerUserId = userId;
+      _coinTimerPausedAt = null;
+      _coinTimerElapsedBeforePause = 0;
 
-      coinTimer = setInterval(async function() {
+      // ---- visibilitychange：页面隐藏时暂停，重新可见时恢复 ----
+      // 先移除旧监听（防止重复绑定）
+      if (window._coinTimerVisHandler) {
+        document.removeEventListener('visibilitychange', window._coinTimerVisHandler);
+      }
+      window._coinTimerVisHandler = function() {
+        if (document.hidden) {
+          // 页面隐藏：暂停计时器，记录已累计时间
+          if (coinTimer) {
+            clearInterval(coinTimer);
+            coinTimer = null;
+          }
+          _coinTimerPausedAt = Date.now();
+          _coinTimerElapsedBeforePause = elapsed;
+        } else {
+          // 页面重新可见：恢复计时器，elapsed 从暂停前的值继续
+          if (!coinTimer && _coinTimerUserId) {
+            elapsed = _coinTimerElapsedBeforePause;
+            _coinTimerPausedAt = null;
+            // 重新启动 interval
+            coinTimer = setInterval(tickFn, 30000);
+          }
+        }
+      };
+      document.addEventListener('visibilitychange', window._coinTimerVisHandler);
+
+      // ---- 计时器主逻辑（抽成函数供重启复用） ----
+      async function tickFn() {
         elapsed += 30000;
         var sb = getSupabase();
         var profileResult = await sb.from('profiles').select('coins').eq('id', userId).single();
@@ -612,6 +652,7 @@
           if (currentCoins < COIN_COST) {
             // 金币耗尽，暂停
             clearInterval(coinTimer);
+            coinTimer = null;
             showToast('🪙 金币耗尽，游戏已暂停！请联系管理员充值', 8000);
             if (isIframeMode) {
               document.getElementById('gameIframe').src = 'about:blank';
@@ -630,12 +671,10 @@
             description: '游玩「' + _gName + '」计时扣费'
           }).then(function(){});
 
-          // 给游戏作者 +0.5 金币（非自己玩自己的游戏）
+          // 给游戏作者 +0.1 金币（非自己玩自己的游戏）
           if (gameData && gameData.author_id && gameData.author_id !== userId) {
             var authorRes = await sb.from('profiles').select('coins').eq('id', gameData.author_id).single();
             var authorCoins = (authorRes.data && authorRes.data.coins) || 0;
-            // 用整数存储，0.5金币累计，每2次+1（用小数×10存储避免浮点）
-            // 简化方案：直接存浮点，每次+0.5
             await sb.from('profiles').update({ coins: authorCoins + 0.1 }).eq('id', gameData.author_id);
             // 记录金币流水（作者收益）
             sb.from('coin_transactions').insert({
@@ -652,7 +691,9 @@
             showToast('🪙 扣除 1 金币，剩余 ' + newCoins + ' 枚', 3000);
           }
         }
-      }, 30000);
+      }
+
+      coinTimer = setInterval(tickFn, 30000);
     }
 
     // ===== 全屏切换 =====
