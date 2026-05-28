@@ -370,7 +370,7 @@
       if (gameData.author_id) {
         var profileResult = await sb.from('profiles').select('username, deleted_at').eq('id', gameData.author_id).single();
         if (profileResult.data) {
-          authorName = profileResult.data.deleted_at ? '已注销用户' : profileResult.data.username;
+          authorName = profileResult.data.username || '已注销用户';
         }
       }
 
@@ -835,7 +835,7 @@
       list.innerHTML = result.data.map(function(r) {
         var stars = '';
         for (var i = 1; i <= 5; i++) stars += (i <= r.rating ? '★' : '☆');
-        var username = (r.profiles && r.profiles.deleted_at) ? '已注销用户' : ((r.profiles && r.profiles.username) ? r.profiles.username : '匿名');
+        var username = (r.profiles && r.profiles.username) ? r.profiles.username : '匿名';
         return '<li><span class="comment-author">' + username + '</span>' +
                '<span class="comment-stars">' + stars + '</span>' +
                '<span>' + (r.content || '') + '</span></li>';
