@@ -198,8 +198,14 @@
       'register': '🎉 注册奖励',
       'typing_challenge': '⌨️ 打字挑战赛',
       'typing_rank': '🏅 打字排名赛',
-      'game_play': '🎮 游戏消耗',
+      'game_play': '🎮 游戏',
       'ai_publish': '🤖 发布AI游戏奖励',
+      'publish_reward': '🎁 游戏发布奖励',
+      'author_reward': '💰 游戏收益',
+      'listening_challenge': '🎧 英语听力挑战',
+      'spelling_challenge': '📝 英语拼读挑战',
+      'grammar_challenge': '📚 英语语法挑战',
+      'math_challenge': '🔢 数学闯关',
       'admin': '👑 管理员操作'
     };
     return map[source] || source || '金币变动';
