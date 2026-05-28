@@ -586,6 +586,39 @@
       var existing = await sb.from('game_plays').select('id').eq('game_id', gameId).eq('user_id', userId).maybeSingle();
       if (!existing.data) {
         await sb.from('game_plays').insert({ game_id: gameId, user_id: userId });
+
+        // 检查是否恰好达到 3 位不重复玩家，若是则给作者发放发布奖励
+        try {
+          var countRes = await sb.from('game_plays').select('id', { count: 'exact', head: true }).eq('game_id', gameId);
+          var playCount = countRes.count || 0;
+          if (playCount >= 3) {
+            // 检查是否已发过发布奖励（每个游戏只奖励一次）
+            var rewardCheck = await sb.from('coin_transactions')
+              .select('id')
+              .eq('source', 'publish_reward')
+              .eq('description', 'publish_reward:' + gameId)
+              .maybeSingle();
+            if (!rewardCheck.data) {
+              // 获取游戏信息（标题 + 作者）
+              var gameRes = await sb.from('games').select('title, author_id').eq('id', gameId).single();
+              if (gameRes.data && gameRes.data.author_id) {
+                var authorId = gameRes.data.author_id;
+                var gameTitle = gameRes.data.title || '未命名游戏';
+                // 更新作者金币
+                var profRes = await sb.from('profiles').select('coins').eq('id', authorId).single();
+                var coins = (profRes.data && profRes.data.coins) || 0;
+                sb.from('profiles').update({ coins: coins + 5 }).eq('id', authorId).then(function(){});
+                // 写金币流水
+                sb.from('coin_transactions').insert({
+                  user_id: authorId,
+                  amount: 5,
+                  source: 'publish_reward',
+                  description: 'publish_reward:' + gameId + ' 游戏「' + gameTitle + '」达到3位玩家，获得发布奖励'
+                }).then(function(){});
+              }
+            }
+          }
+        } catch(e) { /* fire-and-forget，奖励检查失败不影响游戏体验 */ }
       }
     }
 
