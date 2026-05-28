@@ -1362,8 +1362,7 @@
         if (insertRes.error) throw insertRes.error;
 
         hidePublishModal();
-        alert('🎉 发布成功！\n管理员审核通过后即可上线，累计 3 位小朋友进入游戏后自动获得 +5 金币奖励！');
-        window.location.href = 'profile.html';
+        showSuccessModal();
 
       } catch (err) {
         alert('❌ ' + (err.message || '发布失败'));
@@ -1415,6 +1414,97 @@
     updateStatusDots();
 
   })();
+  </script>
+
+  <!-- 🎉 发布成功弹窗 -->
+  <div id="successModal" style="
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.55);
+    z-index:9999;
+    align-items:center;
+    justify-content:center;
+  ">
+    <div style="
+      background:linear-gradient(135deg,#fff9e6 0%,#fff0f9 100%);
+      border-radius:24px;
+      padding:36px 32px 28px;
+      max-width:380px;
+      width:90%;
+      text-align:center;
+      box-shadow:0 8px 40px rgba(255,140,0,0.25);
+      animation:successPop .35s cubic-bezier(.34,1.56,.64,1) both;
+      position:relative;
+    ">
+      <!-- 彩带装饰 -->
+      <div style="font-size:2.4rem;margin-bottom:4px;">🎉🎊🎉</div>
+      <h2 style="
+        font-size:1.5rem;
+        font-weight:800;
+        color:#ff6b00;
+        margin:0 0 6px;
+        letter-spacing:.5px;
+      ">游戏发布成功！</h2>
+      <p style="color:#888;font-size:.85rem;margin:0 0 20px;">管理员审核通过后即可上线 ✅</p>
+
+      <!-- 赚金币规则卡片 -->
+      <div style="
+        background:#fffbe6;
+        border:2px dashed #ffc107;
+        border-radius:16px;
+        padding:16px 18px;
+        margin-bottom:22px;
+        text-align:left;
+      ">
+        <div style="font-size:1rem;font-weight:700;color:#e67e00;margin-bottom:10px;">💰 怎么赚金币？</div>
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;">
+          <span style="font-size:1.4rem;line-height:1;">👥</span>
+          <div>
+            <div style="font-weight:700;color:#333;font-size:.95rem;">累计 3 位不同小朋友进入游戏</div>
+            <div style="color:#ff6b00;font-weight:800;font-size:1rem;">自动获得 <span style="font-size:1.2rem;">+5</span> 金币 🪙</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <span style="font-size:1.4rem;line-height:1;">⏱️</span>
+          <div>
+            <div style="font-weight:700;color:#333;font-size:.95rem;">每有玩家玩满 1 分钟</div>
+            <div style="color:#ff6b00;font-weight:800;font-size:1rem;">自动获得 <span style="font-size:1.2rem;">+0.1</span> 金币 🪙</div>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="window.location.href='profile.html'" style="
+        background:linear-gradient(135deg,#ff9500,#ff6b00);
+        color:#fff;
+        border:none;
+        border-radius:50px;
+        padding:13px 40px;
+        font-size:1.05rem;
+        font-weight:800;
+        cursor:pointer;
+        box-shadow:0 4px 16px rgba(255,107,0,.35);
+        transition:transform .15s,box-shadow .15s;
+        letter-spacing:.5px;
+      "
+      onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 6px 20px rgba(255,107,0,.45)'"
+      onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 16px rgba(255,107,0,.35)'"
+      >太棒了，去看看！🚀</button>
+    </div>
+  </div>
+
+  <style>
+    @keyframes successPop {
+      from { opacity:0; transform:scale(.7); }
+      to   { opacity:1; transform:scale(1); }
+    }
+  </style>
+
+  <script>
+    function showSuccessModal() {
+      var m = document.getElementById('successModal');
+      m.style.display = 'flex';
+    }
   </script>
 </body>
 </html>
