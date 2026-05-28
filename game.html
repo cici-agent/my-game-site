@@ -503,19 +503,6 @@
 
       // 站内游戏：扣1金币后跳转，并用localStorage记录开始时间，回来时继续扣
       var sb2 = getSupabase();
-      var deductResult = await sb2.from('profiles').update({ coins: coins - 1 }).eq('id', user.id);
-      if (deductResult.error) {
-        alert('扣费失败，请重试');
-        return;
-      }
-      // 记录金币流水
-      var _gameName1 = (gameData && (gameData.name || gameData.title)) || '游戏';
-      sb2.from('coin_transactions').insert({
-        user_id: user.id,
-        amount: -1,
-        source: 'game_play',
-        description: '进入游戏「' + _gameName1 + '」'
-      }).then(function(){});
       // 记录游戏开始时间到localStorage，供返回后继续扣费
       localStorage.setItem('activeGame', JSON.stringify({
         gameId: gameId,
@@ -564,7 +551,7 @@
                     user_id: user.id,
                     amount: -cost,
                     source: 'game_play',
-                    description: '游戏时长扣费（' + cost + '分钟）'
+                    description: ((gameData && (gameData.name || gameData.title)) || '游戏') + '（' + cost + '分钟）'
                   }).then(function(){});
                 }
                 if (coins - cost <= 0) {
@@ -701,7 +688,7 @@
             user_id: userId,
             amount: -COIN_COST,
             source: 'game_play',
-            description: '游玩「' + _gName + '」计时扣费'
+            description: _gName + '（' + COIN_COST + '分钟）'
           }).then(function(){});
 
           // 给游戏作者 +0.1 金币（非自己玩自己的游戏）
