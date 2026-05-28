@@ -1361,21 +1361,8 @@
         });
         if (insertRes.error) throw insertRes.error;
 
-        // 奖励 5 金币
-        var profRes = await sb.from('profiles').select('coins').eq('id', currentUser.id).single();
-        var coins = (profRes.data && profRes.data.coins) || 0;
-        await sb.from('profiles').update({ coins: coins + 5 }).eq('id', currentUser.id);
-
-        // 记录金币流水
-        sb.from('coin_transactions').insert({
-          user_id: currentUser.id,
-          amount: 5,
-          source: 'ai_publish',
-          description: '发布AI游戏「' + title + '」奖励'
-        }).then(function(){});
-
         hidePublishModal();
-        alert('🎉 发布成功！获得 +5 金币！\n管理员审核通过后即可上线');
+        alert('🎉 发布成功！\n管理员审核通过后即可上线，累计 3 位小朋友进入游戏后自动获得 +5 金币奖励！');
         window.location.href = 'profile.html';
 
       } catch (err) {
