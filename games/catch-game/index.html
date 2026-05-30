@@ -299,7 +299,7 @@ const TERRAIN={
 // ===== MAPS - Redesigned with irregular shapes, rivers, bridges, chests, gates =====
 const MAPS=[
   // === MAP 0: 草地 (Meadow) ===
-  {name:'草地',bg:'#7CB342',wallColor:'#4E7A27',
+  {name:'草地',bg:'#7CB342',wallColor:'#4E7A27',barrierType:'river',
   // Irregular polygon walls (stored as arrays of points for rendering, plus bounding rect for collision)
   walls:[
     // Large rock cluster top-left (irregular)
@@ -327,8 +327,8 @@ const MAPS=[
     path:[{x:0,y:675},{x:225,y:645},{x:450,y:690},{x:675,y:660},{x:900,y:705},{x:1125,y:675},{x:1350,y:720},{x:1575,y:690},{x:1800,y:705}],
     // Bridges where players can cross
     bridges:[
-      {x:435,y:652,w:90,h:105,built:true}, // permanent bridge
-      {x:1080,y:638,w:90,h:105,built:true}  // permanent bridge
+      {x:430,y:640,w:100,h:130,built:true}, // permanent bridge
+      {x:1075,y:628,w:100,h:130,built:true}  // permanent bridge
     ]
   },
   // Chests (2-3 per map)
@@ -341,7 +341,8 @@ const MAPS=[
   gates:[
     {id:'g1',x:975,y:525,w:22,h:120,open:false,switchPos:{x:525,y:450},color:'#8B0000'},
     {id:'g2',x:1500,y:600,w:120,h:22,open:false,switchPos:{x:1575,y:825},color:'#00008B'},
-    {id:'b1',x:600,y:750,w:90,h:90,open:false,switchPos:{x:450,y:700},color:'#556B2F',type:'barrier',duration:900}
+    {id:'b1',x:600,y:750,w:90,h:90,open:false,switchPos:{x:450,y:700},color:'#556B2F',type:'barrier',duration:900},
+    {id:'bb1',x:0,y:0,w:0,h:0,open:false,switchPos:{x:375,y:690},color:'#B71C1C',type:'bridge-block',bridgeIdx:0}
   ],
   // Tunnels (each requires a key each time)
   tunnels:[
@@ -365,7 +366,7 @@ const MAPS=[
   ]},
 
   // === MAP 1: 城镇 (Town) ===
-  {name:'城镇',bg:'#D4C5A9',wallColor:'#6D4C41',
+  {name:'城镇',bg:'#D4C5A9',wallColor:'#6D4C41',barrierType:'wall',
   walls:[
     // Building top-left
     {x:90,y:90,w:240,h:180,shape:'poly',pts:[{x:90,y:120},{x:120,y:90},{x:300,y:90},{x:330,y:120},{x:330,y:270},{x:90,y:270}]},
@@ -391,8 +392,8 @@ const MAPS=[
     width:102,
     path:[{x:900,y:0},{x:885,y:150},{x:915,y:300},{x:892,y:450},{x:870,y:600},{x:885,y:750},{x:900,y:900},{x:915,y:1050},{x:908,y:1200},{x:900,y:1350}],
     bridges:[
-      {x:855,y:375,w:105,h:82,built:true},
-      {x:848,y:825,w:105,h:82,built:true}
+      {x:845,y:370,w:120,h:90,built:true},
+      {x:838,y:820,w:120,h:90,built:true}
     ]
   },
   chests:[
@@ -403,7 +404,8 @@ const MAPS=[
   gates:[
     {id:'g1',x:600,y:600,w:22,h:105,open:false,switchPos:{x:450,y:750},color:'#8B0000'},
     {id:'g2',x:1050,y:450,w:105,h:22,open:false,switchPos:{x:1200,y:375},color:'#00008B'},
-    {id:'b1',x:750,y:900,w:90,h:90,open:false,switchPos:{x:900,y:850},color:'#8B4513',type:'barrier',duration:900}
+    {id:'b1',x:750,y:900,w:90,h:90,open:false,switchPos:{x:900,y:850},color:'#8B4513',type:'barrier',duration:900},
+    {id:'bb1',x:0,y:0,w:0,h:0,open:false,switchPos:{x:800,y:400},color:'#B71C1C',type:'bridge-block',bridgeIdx:0}
   ],
   tunnels:[
     {id:'t1',entry:{x:270,y:720,w:75,h:75},exit:{x:1350,y:825,w:75,h:75},keySpawn:{x:750,y:750}}
@@ -422,8 +424,8 @@ const MAPS=[
     {type:'barrel',x:150,y:300},{type:'barrel',x:1275,y:750},{type:'barrel',x:600,y:750}
   ]},
 
-  // === MAP 2: 迷宫 (Maze) ===
-  {name:'迷宫',bg:'#78909C',wallColor:'#37474F',
+  // === MAP 2: 城堡 (Castle) ===
+  {name:'城堡',bg:'#78909C',wallColor:'#37474F',barrierType:'lava',
   walls:[
     // Maze walls - irregular shapes
     {x:150,y:120,w:300,h:45,shape:'poly',pts:[{x:150,y:128},{x:165,y:120},{x:435,y:120},{x:450,y:135},{x:442,y:165},{x:158,y:162}]},
@@ -457,9 +459,9 @@ const MAPS=[
     width:90,
     path:[{x:675,y:0},{x:690,y:150},{x:660,y:300},{x:682,y:525},{x:675,y:675},{x:660,y:825},{x:682,y:1050},{x:675,y:1200},{x:668,y:1350}],
     bridges:[
-      {x:638,y:195,w:90,h:75,built:true},
-      {x:630,y:705,w:90,h:75,built:true},
-      {x:638,y:1125,w:90,h:75,built:true}
+      {x:628,y:190,w:110,h:85,built:true},
+      {x:620,y:700,w:110,h:85,built:true},
+      {x:628,y:1120,w:110,h:85,built:true}
     ]
   },
   chests:[
@@ -470,7 +472,8 @@ const MAPS=[
     {id:'g1',x:375,y:525,w:22,h:90,open:false,switchPos:{x:270,y:900},color:'#8B0000'},
     {id:'g2',x:1050,y:668,w:90,h:22,open:false,switchPos:{x:975,y:975},color:'#00008B'},
     {id:'g3',x:1575,y:592,w:45,h:90,open:false,switchPos:{x:1650,y:900},color:'#006400'},
-    {id:'b1',x:450,y:600,w:90,h:90,open:false,switchPos:{x:300,y:550},color:'#4A0000',type:'barrier',duration:900}
+    {id:'b1',x:450,y:600,w:90,h:90,open:false,switchPos:{x:300,y:550},color:'#4A0000',type:'barrier',duration:900},
+    {id:'bb1',x:0,y:0,w:0,h:0,open:false,switchPos:{x:620,y:740},color:'#B71C1C',type:'bridge-block',bridgeIdx:1}
   ],
   tunnels:[
     {id:'t1',entry:{x:75,y:1230,w:75,h:75},exit:{x:1650,y:75,w:75,h:75},keySpawn:{x:750,y:450}}
@@ -909,8 +912,20 @@ function isInRiver(px,py,map){
 }
 function isOnBridge(px,py,map){
   if(!map.river||!map.river.bridges)return false;
+  const tol=10; // tolerance for player circle radius overlap
   for(const br of map.river.bridges){
-    if(px>br.x&&px<br.x+br.w&&py>br.y&&py<br.y+br.h)return true;
+    // Check if bridge is blocked by a bridge-block gate
+    let blocked=false;
+    if(map.gates){
+      for(const g of map.gates){
+        if(g.type==='bridge-block'&&g.bridgeIdx!==undefined){
+          const targetBr=map.river.bridges[g.bridgeIdx];
+          if(targetBr===br&&gateStates[g.id])blocked=true;
+        }
+      }
+    }
+    if(blocked)continue;
+    if(px>br.x-tol&&px<br.x+br.w+tol&&py>br.y-tol&&py<br.y+br.h+tol)return true;
   }
   return false;
 }
@@ -1078,6 +1093,13 @@ function toggleGate(g){
     channel.send({type:'broadcast',event:'gate-toggle',payload:{gateId:g.id,open:true,isBarrier:true,duration:g.duration||900}});
     showTunnelMsg('🧱 障碍物已激活！(15秒)');
     setTimeout(hideTunnelMsg,1200);
+  } else if(g.type==='bridge-block'){
+    // Bridge block: toggle bridge passability
+    const newState=!gateStates[g.id];
+    gateStates[g.id]=newState;
+    channel.send({type:'broadcast',event:'gate-toggle',payload:{gateId:g.id,open:newState}});
+    showTunnelMsg(newState?'🚫 桥梁已封锁！':'🌉 桥梁已解除封锁！');
+    setTimeout(hideTunnelMsg,1200);
   } else {
     const newState=!gateStates[g.id];
     gateStates[g.id]=newState;
@@ -1152,6 +1174,7 @@ function resolveCol(ox,oy,nx,ny,r,map){
   // Add closed gates as walls (normal gates block when closed, barriers block when active)
   if(map.gates){
     map.gates.forEach(g=>{
+      if(g.type==='bridge-block')return; // bridge-block has no physical gate body
       if(g.type==='barrier'){
         if(gateStates[g.id])allWalls.push({x:g.x,y:g.y,w:g.w,h:g.h});
       } else {
@@ -2102,9 +2125,8 @@ function drawRiver(ctx,map){
   if(!map.river)return;
   const r=map.river;
   const hw=r.width/2;
+  const bType=map.barrierType||'river';
 
-  // Draw water body
-  ctx.beginPath();
   // Build path along river with width
   const pts=r.path;
   if(pts.length<2)return;
@@ -2123,50 +2145,143 @@ function drawRiver(ctx,map){
 
   ctx.beginPath();
   ctx.moveTo(leftBank[0].x,leftBank[0].y);
-  for(let i=1;i<leftBank.length;i++){
-    ctx.lineTo(leftBank[i].x,leftBank[i].y);
-  }
-  for(let i=rightBank.length-1;i>=0;i--){
-    ctx.lineTo(rightBank[i].x,rightBank[i].y);
-  }
+  for(let i=1;i<leftBank.length;i++){ctx.lineTo(leftBank[i].x,leftBank[i].y);}
+  for(let i=rightBank.length-1;i>=0;i--){ctx.lineTo(rightBank[i].x,rightBank[i].y);}
   ctx.closePath();
-  ctx.fillStyle=r.color;ctx.globalAlpha=0.7;ctx.fill();ctx.globalAlpha=1;
 
-  // Water ripple animation
-  ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1.5;
-  for(let i=0;i<pts.length-1;i++){
-    const mx=(pts[i].x+pts[i+1].x)/2;
-    const my=(pts[i].y+pts[i+1].y)/2;
-    const offset=Math.sin(riverAnimOffset*0.05+i*2)*5;
-    ctx.beginPath();
-    ctx.moveTo(mx-10+offset,my);ctx.lineTo(mx+10+offset,my);
-    ctx.stroke();
-  }
-  // More ripples
-  for(let i=0;i<pts.length-1;i++){
-    const mx=(pts[i].x+pts[i+1].x)/2;
-    const my=(pts[i].y+pts[i+1].y)/2;
-    const offset=Math.cos(riverAnimOffset*0.04+i*3)*7;
-    ctx.beginPath();
-    ctx.arc(mx+offset,my+8,3,0,Math.PI*2);
-    ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.stroke();
+  if(bType==='wall'){
+    // 城墙/护城河 - dark gray stone wall texture
+    ctx.fillStyle='#4A4A4A';ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
+    // Stone brick pattern
+    ctx.strokeStyle='rgba(30,30,30,0.5)';ctx.lineWidth=1.5;
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i],b=pts[i+1];
+      const steps=Math.floor(Math.hypot(b.x-a.x,b.y-a.y)/25);
+      for(let s=0;s<steps;s++){
+        const t=s/steps;
+        const cx=a.x+t*(b.x-a.x),cy=a.y+t*(b.y-a.y);
+        // Draw brick lines
+        ctx.beginPath();
+        ctx.rect(cx-hw*0.6+((s%2)*12),cy-8,hw*1.0,14);
+        ctx.stroke();
+      }
+    }
+    // Top edge crenellations
+    ctx.fillStyle='#3A3A3A';
+    for(let i=0;i<leftBank.length-1;i++){
+      const lx=leftBank[i].x,ly=leftBank[i].y;
+      if(i%2===0){ctx.fillRect(lx-5,ly-5,10,10);}
+    }
+  } else if(bType==='lava'){
+    // 燕尾池/燕尾沟 - orange-red lava
+    ctx.fillStyle='#D84315';ctx.globalAlpha=0.8;ctx.fill();ctx.globalAlpha=1;
+    // Lava glow effect
+    ctx.strokeStyle='rgba(255,152,0,0.6)';ctx.lineWidth=3;ctx.stroke();
+    // Bubbling animation
+    ctx.fillStyle='rgba(255,87,34,0.7)';
+    for(let i=0;i<pts.length-1;i++){
+      const mx=(pts[i].x+pts[i+1].x)/2;
+      const my=(pts[i].y+pts[i+1].y)/2;
+      const offset=Math.sin(riverAnimOffset*0.06+i*2.5)*6;
+      const r2=3+Math.sin(riverAnimOffset*0.08+i)*2;
+      ctx.beginPath();ctx.arc(mx+offset,my+offset*0.5,r2,0,Math.PI*2);ctx.fill();
+    }
+    // Bright streaks
+    ctx.strokeStyle='rgba(255,235,59,0.4)';ctx.lineWidth=1.5;
+    for(let i=0;i<pts.length-1;i++){
+      const mx=(pts[i].x+pts[i+1].x)/2;
+      const my=(pts[i].y+pts[i+1].y)/2;
+      const offset=Math.cos(riverAnimOffset*0.04+i*3)*8;
+      ctx.beginPath();ctx.moveTo(mx-8+offset,my);ctx.lineTo(mx+8+offset,my);ctx.stroke();
+    }
+  } else {
+    // Default river - blue water
+    ctx.fillStyle=r.color;ctx.globalAlpha=0.7;ctx.fill();ctx.globalAlpha=1;
+    // Water ripple animation
+    ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1.5;
+    for(let i=0;i<pts.length-1;i++){
+      const mx=(pts[i].x+pts[i+1].x)/2;
+      const my=(pts[i].y+pts[i+1].y)/2;
+      const offset=Math.sin(riverAnimOffset*0.05+i*2)*5;
+      ctx.beginPath();ctx.moveTo(mx-10+offset,my);ctx.lineTo(mx+10+offset,my);ctx.stroke();
+    }
+    // More ripples
+    for(let i=0;i<pts.length-1;i++){
+      const mx=(pts[i].x+pts[i+1].x)/2;
+      const my=(pts[i].y+pts[i+1].y)/2;
+      const offset=Math.cos(riverAnimOffset*0.04+i*3)*7;
+      ctx.beginPath();ctx.arc(mx+offset,my+8,3,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.stroke();
+    }
   }
 
   // Draw bridges
   if(r.bridges){
-    r.bridges.forEach(br=>{
-      // Wooden bridge
-      ctx.fillStyle='#8D6E63';
-      ctx.fillRect(br.x,br.y,br.w,br.h);
-      // Planks
-      ctx.strokeStyle='#5D4037';ctx.lineWidth=1;
-      for(let i=0;i<br.w;i+=8){
-        ctx.beginPath();ctx.moveTo(br.x+i,br.y);ctx.lineTo(br.x+i,br.y+br.h);ctx.stroke();
+    r.bridges.forEach((br,brIdx)=>{
+      // Check if bridge is blocked
+      let bridgeBlocked=false;
+      if(map.gates){
+        for(const g of map.gates){
+          if(g.type==='bridge-block'&&g.bridgeIdx===brIdx&&gateStates[g.id]){
+            bridgeBlocked=true;break;
+          }
+        }
       }
-      // Rails
-      ctx.fillStyle='#4E342E';
-      ctx.fillRect(br.x,br.y,br.w,3);
-      ctx.fillRect(br.x,br.y+br.h-3,br.w,3);
+
+      if(bType==='wall'){
+        // City gate style bridge
+        ctx.fillStyle='#8D6E63';
+        ctx.fillRect(br.x,br.y,br.w,br.h);
+        // Gate arch pattern
+        ctx.strokeStyle='#5D4037';ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.arc(br.x+br.w/2,br.y+br.h*0.3,br.w*0.35,Math.PI,0);
+        ctx.stroke();
+        // Portcullis lines
+        ctx.strokeStyle='#4E342E';ctx.lineWidth=1;
+        for(let i=br.x+10;i<br.x+br.w;i+=12){
+          ctx.beginPath();ctx.moveTo(i,br.y);ctx.lineTo(i,br.y+br.h);ctx.stroke();
+        }
+        ctx.fillStyle='#6D4C41';
+        ctx.fillRect(br.x,br.y,br.w,4);
+        ctx.fillRect(br.x,br.y+br.h-4,br.w,4);
+      } else if(bType==='lava'){
+        // Stone bridge over lava
+        ctx.fillStyle='#757575';
+        ctx.fillRect(br.x,br.y,br.w,br.h);
+        // Stone texture
+        ctx.strokeStyle='#424242';ctx.lineWidth=1.5;
+        for(let i=br.x+12;i<br.x+br.w;i+=15){
+          ctx.beginPath();ctx.moveTo(i,br.y);ctx.lineTo(i,br.y+br.h);ctx.stroke();
+        }
+        // Edge stones
+        ctx.fillStyle='#616161';
+        ctx.fillRect(br.x,br.y,br.w,5);
+        ctx.fillRect(br.x,br.y+br.h-5,br.w,5);
+      } else {
+        // Wooden bridge (default)
+        ctx.fillStyle='#8D6E63';
+        ctx.fillRect(br.x,br.y,br.w,br.h);
+        // Planks
+        ctx.strokeStyle='#5D4037';ctx.lineWidth=1;
+        for(let i=0;i<br.w;i+=8){
+          ctx.beginPath();ctx.moveTo(br.x+i,br.y);ctx.lineTo(br.x+i,br.y+br.h);ctx.stroke();
+        }
+        // Rails
+        ctx.fillStyle='#4E342E';
+        ctx.fillRect(br.x,br.y,br.w,3);
+        ctx.fillRect(br.x,br.y+br.h-3,br.w,3);
+      }
+
+      // If bridge is blocked, draw red overlay
+      if(bridgeBlocked){
+        ctx.fillStyle='rgba(183,28,28,0.5)';
+        ctx.fillRect(br.x,br.y,br.w,br.h);
+        // X mark
+        ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=3;
+        ctx.beginPath();ctx.moveTo(br.x+5,br.y+5);ctx.lineTo(br.x+br.w-5,br.y+br.h-5);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(br.x+br.w-5,br.y+5);ctx.lineTo(br.x+5,br.y+br.h-5);ctx.stroke();
+      }
     });
   }
 }
@@ -2219,6 +2334,8 @@ function drawGates(ctx,map){
         ctx.fillText('🧱',g.x+g.w/2,g.y+g.h/2);
         ctx.globalAlpha=1;
       }
+    } else if(g.type==='bridge-block'){
+      // Bridge-block: no gate body to render (effect shown on bridge itself)
     } else {
       // Normal gate
       if(!active){
@@ -2249,10 +2366,17 @@ function drawGateSwitches(ctx,map){
     const sx=g.switchPos.x,sy=g.switchPos.y;
     // Pressure plate
     ctx.beginPath();ctx.arc(sx,sy,14,0,Math.PI*2);
-    ctx.fillStyle=open?'rgba(0,200,0,0.5)':'rgba(200,0,0,0.4)';ctx.fill();
-    ctx.strokeStyle=g.color||'#333';ctx.lineWidth=2;ctx.stroke();
-    ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(open?'🟢':'🔴',sx,sy);
+    if(g.type==='bridge-block'){
+      ctx.fillStyle=open?'rgba(183,28,28,0.6)':'rgba(100,100,200,0.4)';ctx.fill();
+      ctx.strokeStyle='#B71C1C';ctx.lineWidth=2;ctx.stroke();
+      ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(open?'🚫':'🌉',sx,sy);
+    } else {
+      ctx.fillStyle=open?'rgba(0,200,0,0.5)':'rgba(200,0,0,0.4)';ctx.fill();
+      ctx.strokeStyle=g.color||'#333';ctx.lineWidth=2;ctx.stroke();
+      ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(open?'🟢':'🔴',sx,sy);
+    }
   });
 }
 
