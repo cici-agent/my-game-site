@@ -91,6 +91,7 @@
       flex-direction: column;
       background: white;
       border-right: 2px solid #f0f0f0;
+      overflow: hidden; /* Bug3修复：防止内容撑开导致输入框被推出 */
     }
 
     /* ===== 内部状态小指示器（弱化显示） ===== */
@@ -151,6 +152,7 @@
 
     .chat-messages {
       flex: 1;
+      min-height: 0; /* Bug3修复：flex子元素必须设置min-height:0才能正确收缩 */
       overflow-y: auto;
       padding: 20px 18px;
       display: flex;
@@ -1377,7 +1379,7 @@
       recognition = new SpeechRecognition();
       recognition.lang = 'zh-CN';
       recognition.interimResults = true;
-      recognition.continuous = false;
+      recognition.continuous = true; /* Bug2修复：continuous=true避免说完一句就停 */
 
       recognition.onresult = function(e) {
         var transcript = '';
@@ -1421,6 +1423,7 @@
         isRecording = true;
         voiceBtn.classList.add('recording');
         voiceBtn.textContent = '⏹';
+        chatInput.disabled = false; /* Bug2修复：语音开始时解锁输入框 */
         chatInput.value = '';
         chatInput.placeholder = '正在听你说...';
         try {
