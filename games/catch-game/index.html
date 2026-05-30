@@ -1047,7 +1047,7 @@ function depositToChest(bagSlotIdx){
   }
   const item=myItems[bagSlotIdx];
   if(!item)return;
-  if(item==='key'){document.getElementById('chest-hint').textContent='❌ 钥匙不能存入！';return;}
+
   myItems[bagSlotIdx]=null;
   state.items.push(item);
   updateItemBarUI();
