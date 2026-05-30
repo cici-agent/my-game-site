@@ -209,6 +209,7 @@ body {
     <div class="hud-item"><div id="stamina-bar"><div id="stamina-fill" style="width:100%"></div></div></div>
     <div class="hud-item" id="hud-time">⏱ 0:00</div>
     <div class="hud-item" id="hud-caught">🏃 0/0</div>
+    <div class="hud-item" style="cursor:pointer;padding:2px 8px;background:rgba(255,80,80,0.7);border-radius:8px;font-size:0.85em" onclick="quitGame()">🚪退出</div>
   </div>
   <div id="item-bar">
     <div class="item-slot empty" onclick="useItem(0)"><span class="slot-key">1</span></div>
@@ -686,6 +687,7 @@ function joinChannel(){
   channel.on('broadcast',{event:'chest-remove'},({payload})=>onChestRemove(payload));
   channel.on('broadcast',{event:'map-random-init'},({payload})=>onMapRandomInit(payload));
   channel.on('broadcast',{event:'map-change'},({payload})=>{selectedMap=payload.mapIdx;});
+  channel.on('broadcast',{event:'player-quit'},({payload})=>onPlayerQuit(payload));
 
   channel.subscribe((status)=>{
     if(status==='SUBSCRIBED'){
@@ -1276,9 +1278,8 @@ function tick(){
   document.getElementById('hud-caught').textContent=`🏃 ${caughtCount}/${runnerCount}`;
 
   // Check game end
-  if(isHost&&(remain<=0||caughtCount>=runnerCount)){
-    endGame(caughtCount>=runnerCount?'catcher':'runners');return;
-  }
+  if(isHost&&remain<=0){endGame('runner');return;}
+  if(isHost)checkAllRunnersCaught();
 
   if(!me.caught&&frozenTimer<=0){
     // Movement
@@ -1886,6 +1887,32 @@ function tickBarriers(){
 }
 
 // ===== GAME END =====
+function quitGame(){
+  if(gameState!=='playing')return;
+  // Broadcast that this player quit
+  channel.send({type:'broadcast',event:'player-quit',payload:{id:myId,isCatcher:players[myId]?.isCatcher}});
+  // Leave cleanly
+  leaveRoom();
+}
+function onPlayerQuit({id,isCatcher}){
+  if(!players[id])return;
+  if(isCatcher){
+    // Catcher left → runners win
+    if(gameState==='playing'){endGame('runner');}
+    return;
+  }
+  // Mark runner as quit (treat same as caught)
+  players[id].quit=true;
+  players[id].caught=true;
+  // Check if all runners are gone
+  checkAllRunnersCaught();
+}
+function checkAllRunnersCaught(){
+  const runners=Object.values(players).filter(p=>!p.isCatcher);
+  if(runners.length>0&&runners.every(p=>p.caught||p.quit)){
+    if(gameState==='playing')endGame('catcher');
+  }
+}
 function endGame(winner){
   gameState='ended';
   channel.send({type:'broadcast',event:'game-end',payload:{winner}});
