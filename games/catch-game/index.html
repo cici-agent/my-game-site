@@ -342,7 +342,8 @@ const MAPS=[
     {id:'g1',x:975,y:525,w:22,h:120,open:false,switchPos:{x:525,y:450},color:'#8B0000'},
     {id:'g2',x:1500,y:600,w:120,h:22,open:false,switchPos:{x:1575,y:825},color:'#00008B'},
     {id:'b1',x:600,y:750,w:90,h:90,open:false,switchPos:{x:450,y:700},color:'#556B2F',type:'barrier',duration:900},
-    {id:'bb1',x:0,y:0,w:0,h:0,open:false,switchPos:{x:480,y:705},color:'#B71C1C',type:'bridge-block',bridgeIdx:0,blockWall:{x:430,y:640,w:100,h:20}}
+    {id:'bb1',x:0,y:0,w:0,h:0,open:false,switchPos:{x:480,y:705},color:'#B71C1C',type:'bridge-block',bridgeIdx:0,blockWall:{x:430,y:640,w:100,h:20}},
+    {id:'bb2',x:0,y:0,w:0,h:0,open:false,switchPos:{x:1125,y:693},color:'#B71C1C',type:'bridge-block',bridgeIdx:1,blockWall:{x:1075,y:738,w:100,h:20}}
   ],
   // Tunnels (each requires a key each time)
   tunnels:[
@@ -405,7 +406,8 @@ const MAPS=[
     {id:'g1',x:600,y:600,w:22,h:105,open:false,switchPos:{x:450,y:750},color:'#8B0000'},
     {id:'g2',x:1050,y:450,w:105,h:22,open:false,switchPos:{x:1200,y:375},color:'#00008B'},
     {id:'b1',x:750,y:900,w:90,h:90,open:false,switchPos:{x:900,y:850},color:'#8B4513',type:'barrier',duration:900},
-    {id:'bb1',x:0,y:0,w:0,h:0,open:false,switchPos:{x:905,y:415},color:'#B71C1C',type:'bridge-block',bridgeIdx:0,blockWall:{x:845,y:370,w:20,h:90}}
+    {id:'bb1',x:0,y:0,w:0,h:0,open:false,switchPos:{x:905,y:415},color:'#B71C1C',type:'bridge-block',bridgeIdx:0,blockWall:{x:845,y:370,w:20,h:90}},
+    {id:'bb2',x:0,y:0,w:0,h:0,open:false,switchPos:{x:898,y:865},color:'#B71C1C',type:'bridge-block',bridgeIdx:1,blockWall:{x:938,y:820,w:20,h:90}}
   ],
   tunnels:[
     {id:'t1',entry:{x:270,y:720,w:75,h:75},exit:{x:1350,y:825,w:75,h:75},keySpawn:{x:750,y:750}}
@@ -473,7 +475,9 @@ const MAPS=[
     {id:'g2',x:1050,y:668,w:90,h:22,open:false,switchPos:{x:975,y:975},color:'#00008B'},
     {id:'g3',x:1575,y:592,w:45,h:90,open:false,switchPos:{x:1650,y:900},color:'#006400'},
     {id:'b1',x:450,y:600,w:90,h:90,open:false,switchPos:{x:300,y:550},color:'#4A0000',type:'barrier',duration:900},
-    {id:'bb1',x:0,y:0,w:0,h:0,open:false,switchPos:{x:675,y:742},color:'#B71C1C',type:'bridge-block',bridgeIdx:1,blockWall:{x:620,y:700,w:20,h:85}}
+    {id:'bb1',x:0,y:0,w:0,h:0,open:false,switchPos:{x:683,y:232},color:'#B71C1C',type:'bridge-block',bridgeIdx:0,blockWall:{x:628,y:190,w:20,h:85}},
+    {id:'bb2',x:0,y:0,w:0,h:0,open:false,switchPos:{x:675,y:742},color:'#B71C1C',type:'bridge-block',bridgeIdx:1,blockWall:{x:710,y:700,w:20,h:85}},
+    {id:'bb3',x:0,y:0,w:0,h:0,open:false,switchPos:{x:683,y:1162},color:'#B71C1C',type:'bridge-block',bridgeIdx:2,blockWall:{x:628,y:1120,w:20,h:85}}
   ],
   tunnels:[
     {id:'t1',entry:{x:75,y:1230,w:75,h:75},exit:{x:1650,y:75,w:75,h:75},keySpawn:{x:750,y:450}}
@@ -915,16 +919,8 @@ function isOnBridge(px,py,map){
   if(!map.river||!map.river.bridges)return false;
   const tol=20; // increased tolerance for player circle radius overlap
   for(const br of map.river.bridges){
-    let blocked=false;
-    if(map.gates){
-      for(const g of map.gates){
-        if(g.type==='bridge-block'&&g.bridgeIdx!==undefined){
-          const targetBr=map.river.bridges[g.bridgeIdx];
-          if(targetBr===br&&gateStates[g.id])blocked=true;
-        }
-      }
-    }
-    if(blocked)continue;
+    // Bridge is always walkable even when blocked (blockWall handles the physical barrier at one end)
+    // This prevents players from falling into the river when the bridge is partially sealed
     if(px>br.x-tol&&px<br.x+br.w+tol&&py>br.y-tol&&py<br.y+br.h+tol)return true;
   }
   return false;
