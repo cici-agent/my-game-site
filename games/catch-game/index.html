@@ -877,7 +877,7 @@ function onGameStart({catcherId,positions,ids,mapIdx}){
   document.getElementById('interact-hint').addEventListener('click',()=>interactNearby());
   document.getElementById('interact-hint').addEventListener('touchend',e=>{e.preventDefault();interactNearby();},{passive:false});
   // Tap on canvas near interactable objects (mobile)
-  const cvs=document.getElementById('gameCanvas');
+  const cvs=document.getElementById('game-canvas');
   cvs.addEventListener('click',handleCanvasTap);
   cvs.addEventListener('touchend',e=>{if(e.changedTouches.length===1){handleCanvasTap({clientX:e.changedTouches[0].clientX,clientY:e.changedTouches[0].clientY});}},{passive:true});
   // Randomize map elements (host generates, broadcasts)
@@ -975,7 +975,7 @@ function initJoystick(){
 function handleCanvasTap(e){
   if(gameState!=='playing')return;
   const me=players[myId];if(!me||me.caught)return;
-  const cvs=document.getElementById('gameCanvas');
+  const cvs=document.getElementById('game-canvas');
   const rect=cvs.getBoundingClientRect();
   const scaleX=cvs.width/rect.width, scaleY=cvs.height/rect.height;
   // Convert screen tap to world coords
