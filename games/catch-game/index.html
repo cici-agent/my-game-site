@@ -83,17 +83,27 @@ body {
   display: none; pointer-events: none;
 }
 #tunnel-msg.active { display: block; }
-/* Chest popup */
+/* Chest popup (storage system) */
 #chest-popup {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
-  background: rgba(0,0,0,0.85); border-radius: 20px; padding: 24px;
+  background: rgba(0,0,0,0.9); border-radius: 20px; padding: 24px;
   z-index: 500; display: none; flex-direction: column; align-items: center;
-  color: #fff; min-width: 220px;
+  color: #fff; min-width: 300px; max-width: 90vw;
 }
 #chest-popup.active { display: flex; }
 #chest-popup .chest-title { font-size: 1.3em; margin-bottom: 12px; }
-#chest-popup .chest-item { font-size: 2.5em; margin: 10px 0; animation: chestBounce 0.5s ease; }
-@keyframes chestBounce { 0%{transform:scale(0)} 60%{transform:scale(1.3)} 100%{transform:scale(1)} }
+#chest-popup .chest-sections { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+#chest-popup .chest-section { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 10px; }
+#chest-popup .chest-section-label { font-size: 0.85em; color: #aaa; margin-bottom: 6px; }
+#chest-popup .chest-slots { display: flex; gap: 8px; justify-content: center; min-height: 50px; }
+#chest-popup .chest-slot {
+  width: 50px; height: 50px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.3);
+  display: flex; align-items: center; justify-content: center; font-size: 1.8em;
+  cursor: pointer; transition: transform 0.15s, border-color 0.15s; background: rgba(255,255,255,0.05);
+}
+#chest-popup .chest-slot:hover { transform: scale(1.1); border-color: #4ECDC4; }
+#chest-popup .chest-slot.empty { opacity: 0.4; cursor: default; }
+#chest-popup .chest-hint { font-size: 0.8em; color: #888; margin-top: 8px; }
 #chest-popup .chest-btn { margin-top: 12px; padding: 8px 24px; border-radius: 20px; border: none; background: #4ECDC4; color: #fff; font-size: 1em; font-weight: bold; cursor: pointer; }
 /* Interact hint */
 #interact-hint {
@@ -207,12 +217,21 @@ body {
 <div id="tunnel-msg"></div>
 <!-- Interact hint -->
 <div id="interact-hint"></div>
-<!-- Chest popup -->
+<!-- Chest popup (storage system) -->
 <div id="chest-popup">
-  <div class="chest-title">🎁 宝箱</div>
-  <div class="chest-item"></div>
-  <div class="chest-desc"></div>
-  <button class="chest-btn" onclick="takeChestItem()">拿取</button>
+  <div class="chest-title">🎁 保险箱</div>
+  <div class="chest-sections">
+    <div class="chest-section">
+      <div class="chest-section-label">📦 箱内物品</div>
+      <div class="chest-slots" id="chest-box-slots"></div>
+    </div>
+    <div class="chest-section">
+      <div class="chest-section-label">🎒 我的背包</div>
+      <div class="chest-slots" id="chest-bag-slots"></div>
+    </div>
+  </div>
+  <div class="chest-hint" id="chest-hint">点击物品可在箱子和背包之间转移</div>
+  <button class="chest-btn" onclick="closeChestPopup()">关闭</button>
 </div>
 <!-- Vote modal -->
 <div id="vote-modal">
@@ -238,7 +257,7 @@ const SUPABASE_URL='https://aqxbpuetdypcbmqdncpl.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5ODg5MzksImV4cCI6MjA5NDU2NDkzOX0.YUwFQeJgbmhrtY32tGXbm9wz0jtou0Zxg1626EJl3r0';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const MAP_W=1200, MAP_H=900;
+const MAP_W=1800, MAP_H=1350;
 const PLAYER_R=16, FOOD_R=8;
 const STAMINA_MAX=100, STAMINA_DRAIN=0.12, STAMINA_REGEN=0.25, FOOD_STAMINA=20;
 const BASE_SPEED=3, CATCHER_SPEED=3;
@@ -261,7 +280,8 @@ const ITEM_TYPES={
   hp:{id:'hp',emoji:'💊',name:'体力药水',desc:'恢复50体力'},
   spd:{id:'spd',emoji:'⚡',name:'速度药水',desc:'加速5秒'},
   block:{id:'block',emoji:'🪨',name:'障碍物',desc:'放置路障'},
-  key:{id:'key',emoji:'🔑',name:'钥匙',desc:'进入暗道'}
+  key:{id:'key',emoji:'🔑',name:'钥匙',desc:'进入暗道'},
+  invis:{id:'invis',emoji:'👻',name:'隐身斗篷',desc:'隐身10秒，对方看不到你'}
 };
 
 // ===== TERRAIN TYPES (no TELEPORT) =====
@@ -283,187 +303,190 @@ const MAPS=[
   // Irregular polygon walls (stored as arrays of points for rendering, plus bounding rect for collision)
   walls:[
     // Large rock cluster top-left (irregular)
-    {x:140,y:130,w:90,h:70,shape:'poly',pts:[{x:140,y:170},{x:155,y:130},{x:210,y:135},{x:230,y:165},{x:220,y:200},{x:160,y:200}]},
+    {x:210,y:195,w:135,h:105,shape:'poly',pts:[{x:210,y:255},{x:232,y:195},{x:315,y:202},{x:345,y:248},{x:330,y:300},{x:240,y:300}]},
     // Tree cluster mid
-    {x:480,y:120,w:70,h:90,shape:'poly',pts:[{x:500,y:120},{x:550,y:140},{x:545,y:200},{x:490,y:210},{x:480,y:160}]},
+    {x:720,y:180,w:105,h:135,shape:'poly',pts:[{x:750,y:180},{x:825,y:210},{x:818,y:300},{x:735,y:315},{x:720,y:240}]},
     // Big boulder right
-    {x:880,y:160,w:100,h:80,shape:'poly',pts:[{x:900,y:160},{x:970,y:175},{x:980,y:220},{x:940,y:240},{x:880,y:225},{x:875,y:185}]},
+    {x:1320,y:240,w:150,h:120,shape:'poly',pts:[{x:1350,y:240},{x:1455,y:262},{x:1470,y:330},{x:1410,y:360},{x:1320,y:338},{x:1312,y:278}]},
     // Hedge bottom-left
-    {x:100,y:580,w:120,h:50,shape:'poly',pts:[{x:100,y:600},{x:130,y:580},{x:200,y:585},{x:220,y:610},{x:210,y:630},{x:110,y:625}]},
+    {x:150,y:870,w:180,h:75,shape:'poly',pts:[{x:150,y:900},{x:195,y:870},{x:300,y:878},{x:330,y:915},{x:315,y:945},{x:165,y:938}]},
     // Stone wall mid
-    {x:380,y:380,w:110,h:60,shape:'poly',pts:[{x:380,y:400},{x:400,y:380},{x:480,y:385},{x:490,y:420},{x:470,y:440},{x:390,y:435}]},
+    {x:570,y:570,w:165,h:90,shape:'poly',pts:[{x:570,y:600},{x:600,y:570},{x:720,y:578},{x:735,y:630},{x:705,y:660},{x:585,y:652}]},
     // Bush cluster right-mid
-    {x:750,y:400,w:80,h:90,shape:'poly',pts:[{x:770,y:400},{x:830,y:420},{x:825,y:480},{x:780,y:490},{x:750,y:460}]},
+    {x:1125,y:600,w:120,h:135,shape:'poly',pts:[{x:1155,y:600},{x:1245,y:630},{x:1238,y:720},{x:1170,y:735},{x:1125,y:690}]},
     // Fallen tree bottom-right
-    {x:950,y:650,w:130,h:45,shape:'poly',pts:[{x:950,y:660},{x:980,y:650},{x:1080,y:660},{x:1075,y:695},{x:960,y:690}]},
+    {x:1425,y:975,w:195,h:68,shape:'poly',pts:[{x:1425,y:990},{x:1470,y:975},{x:1620,y:990},{x:1612,y:1042},{x:1440,y:1035}]},
     // Rock bottom-mid
-    {x:550,y:700,w:80,h:70,shape:'poly',pts:[{x:570,y:700},{x:620,y:710},{x:630,y:760},{x:580,y:770},{x:550,y:740}]}
+    {x:825,y:1050,w:120,h:105,shape:'poly',pts:[{x:855,y:1050},{x:930,y:1065},{x:945,y:1140},{x:870,y:1155},{x:825,y:1110}]}
   ],
   // River: continuous path across map (array of segments)
   river:{
     color:'#2196F3',
-    width:50,
+    width:112,
     // River path points (will be drawn as continuous flowing water)
-    path:[{x:0,y:450},{x:150,y:430},{x:300,y:460},{x:450,y:440},{x:600,y:470},{x:750,y:450},{x:900,y:480},{x:1050,y:460},{x:1200,y:470}],
+    path:[{x:0,y:675},{x:225,y:645},{x:450,y:690},{x:675,y:660},{x:900,y:705},{x:1125,y:675},{x:1350,y:720},{x:1575,y:690},{x:1800,y:705}],
     // Bridges where players can cross
     bridges:[
-      {x:290,y:435,w:60,h:70,built:true}, // permanent bridge
-      {x:720,y:425,w:60,h:70,built:true}  // permanent bridge
+      {x:435,y:652,w:90,h:105,built:true}, // permanent bridge
+      {x:1080,y:638,w:90,h:105,built:true}  // permanent bridge
     ]
   },
   // Chests (2-3 per map)
   chests:[
-    {id:'c1',x:250,y:280,items:['hp','spd','key']},
-    {id:'c2',x:850,y:600,items:['spd','block','hp']},
-    {id:'c3',x:600,y:150,items:['key','hp','block']}
+    {id:'c1',x:375,y:420,items:['hp','spd','invis']},
+    {id:'c2',x:1275,y:900,items:['spd','block','hp']},
+    {id:'c3',x:900,y:225,items:['key','hp','block']}
   ],
   // Gates (mechanism doors)
   gates:[
-    {id:'g1',x:650,y:350,w:15,h:80,open:false,switchPos:{x:350,y:300},color:'#8B0000'},
-    {id:'g2',x:1000,y:400,w:80,h:15,open:false,switchPos:{x:1050,y:550},color:'#00008B'}
+    {id:'g1',x:975,y:525,w:22,h:120,open:false,switchPos:{x:525,y:450},color:'#8B0000'},
+    {id:'g2',x:1500,y:600,w:120,h:22,open:false,switchPos:{x:1575,y:825},color:'#00008B'},
+    {id:'b1',x:600,y:750,w:90,h:90,open:false,switchPos:{x:450,y:700},color:'#556B2F',type:'barrier',duration:900}
   ],
   // Tunnels (each requires a key each time)
   tunnels:[
-    {id:'t1',entry:{x:80,y:80,w:50,h:50},exit:{x:1100,y:800,w:50,h:50},keySpawn:{x:600,y:450}}
+    {id:'t1',entry:{x:120,y:120,w:75,h:75},exit:{x:1650,y:1200,w:75,h:75},keySpawn:{x:900,y:675}}
   ],
   // Terrains
   terrains:[
-    {type:'SWAMP',x:100,y:320,w:130,h:90},
-    {type:'THORNS',x:820,y:280,w:80,h:70},
-    {type:'BOOST',x:400,y:550,w:160,h:35,dir:'right'},
-    {type:'ICE',x:650,y:600,w:100,h:100},
-    {type:'SPRING',x:1050,y:250,w:55,h:55}
+    {type:'SWAMP',x:150,y:480,w:195,h:135},
+    {type:'THORNS',x:1230,y:420,w:120,h:105},
+    {type:'BOOST',x:600,y:825,w:240,h:52,dir:'right'},
+    {type:'ICE',x:975,y:900,w:150,h:150},
+    {type:'SPRING',x:1575,y:375,w:82,h:82}
   ],
   // Decorations (visual only, no collision)
   decorations:[
-    {type:'tree',x:60,y:250},{type:'tree',x:320,y:100},{type:'tree',x:700,y:150},
-    {type:'tree',x:1100,y:300},{type:'tree',x:200,y:700},{type:'tree',x:900,y:800},
-    {type:'bush',x:400,y:200},{type:'bush',x:650,y:300},{type:'bush',x:850,y:750},
-    {type:'flower',x:150,y:450},{type:'flower',x:500,y:350},{type:'flower',x:750,y:700},
-    {type:'rock',x:1000,y:150},{type:'rock',x:300,y:600},{type:'rock',x:700,y:800}
+    {type:'tree',x:90,y:375},{type:'tree',x:480,y:150},{type:'tree',x:1050,y:225},
+    {type:'tree',x:1650,y:450},{type:'tree',x:300,y:1050},{type:'tree',x:1350,y:1200},
+    {type:'bush',x:600,y:300},{type:'bush',x:975,y:450},{type:'bush',x:1275,y:1125},
+    {type:'flower',x:225,y:675},{type:'flower',x:750,y:525},{type:'flower',x:1125,y:1050},
+    {type:'rock',x:1500,y:225},{type:'rock',x:450,y:900},{type:'rock',x:1050,y:1200}
   ]},
 
   // === MAP 1: 城镇 (Town) ===
   {name:'城镇',bg:'#D4C5A9',wallColor:'#6D4C41',
   walls:[
     // Building top-left
-    {x:60,y:60,w:160,h:120,shape:'poly',pts:[{x:60,y:80},{x:80,y:60},{x:200,y:60},{x:220,y:80},{x:220,y:180},{x:60,y:180}]},
+    {x:90,y:90,w:240,h:180,shape:'poly',pts:[{x:90,y:120},{x:120,y:90},{x:300,y:90},{x:330,y:120},{x:330,y:270},{x:90,y:270}]},
     // Building top-right
-    {x:800,y:50,w:180,h:130,shape:'poly',pts:[{x:800,y:70},{x:820,y:50},{x:960,y:50},{x:980,y:70},{x:980,y:180},{x:800,y:180}]},
+    {x:1200,y:75,w:270,h:195,shape:'poly',pts:[{x:1200,y:105},{x:1230,y:75},{x:1440,y:75},{x:1470,y:105},{x:1470,y:270},{x:1200,y:270}]},
     // Market stalls mid
-    {x:350,y:200,w:100,h:60,shape:'poly',pts:[{x:350,y:220},{x:370,y:200},{x:440,y:205},{x:450,y:240},{x:440,y:260},{x:360,y:255}]},
+    {x:525,y:300,w:150,h:90,shape:'poly',pts:[{x:525,y:330},{x:555,y:300},{x:660,y:308},{x:675,y:360},{x:660,y:390},{x:540,y:382}]},
     // Fountain center (round-ish)
-    {x:540,y:380,w:100,h:100,shape:'poly',pts:[{x:570,y:380},{x:620,y:385},{x:640,y:410},{x:640,y:450},{x:620,y:475},{x:570,y:480},{x:545,y:455},{x:540,y:415},{x:545,y:390}]},
+    {x:810,y:570,w:150,h:150,shape:'poly',pts:[{x:855,y:570},{x:930,y:578},{x:960,y:615},{x:960,y:675},{x:930,y:712},{x:855,y:720},{x:818,y:682},{x:810,y:622},{x:818,y:585}]},
     // House bottom-left
-    {x:80,y:600,w:150,h:120,shape:'poly',pts:[{x:80,y:620},{x:100,y:600},{x:210,y:600},{x:230,y:620},{x:230,y:720},{x:80,y:720}]},
+    {x:120,y:900,w:225,h:180,shape:'poly',pts:[{x:120,y:930},{x:150,y:900},{x:315,y:900},{x:345,y:930},{x:345,y:1080},{x:120,y:1080}]},
     // Wall segment mid-left
-    {x:250,y:420,w:120,h:25,shape:'poly',pts:[{x:250,y:425},{x:260,y:420},{x:360,y:420},{x:370,y:430},{x:370,y:445},{x:250,y:445}]},
+    {x:375,y:630,w:180,h:38,shape:'poly',pts:[{x:375,y:638},{x:390,y:630},{x:540,y:630},{x:555,y:645},{x:555,y:668},{x:375,y:668}]},
     // Tower right
-    {x:950,y:350,w:80,h:120,shape:'poly',pts:[{x:960,y:350},{x:1020,y:350},{x:1030,y:370},{x:1030,y:460},{x:960,y:470},{x:950,y:450},{x:950,y:370}]},
+    {x:1425,y:525,w:120,h:180,shape:'poly',pts:[{x:1440,y:525},{x:1530,y:525},{x:1545,y:555},{x:1545,y:690},{x:1440,y:705},{x:1425,y:675},{x:1425,y:555}]},
     // Shed bottom-right
-    {x:900,y:700,w:130,h:90,shape:'poly',pts:[{x:900,y:720},{x:920,y:700},{x:1010,y:700},{x:1030,y:720},{x:1030,y:790},{x:900,y:790}]},
+    {x:1350,y:1050,w:195,h:135,shape:'poly',pts:[{x:1350,y:1080},{x:1380,y:1050},{x:1515,y:1050},{x:1545,y:1080},{x:1545,y:1185},{x:1350,y:1185}]},
     // Barrel cluster
-    {x:500,y:600,w:70,h:60,shape:'poly',pts:[{x:510,y:600},{x:560,y:605},{x:570,y:640},{x:555,y:660},{x:510,y:655},{x:500,y:630}]}
+    {x:750,y:900,w:105,h:90,shape:'poly',pts:[{x:765,y:900},{x:840,y:908},{x:855,y:960},{x:832,y:990},{x:765,y:982},{x:750,y:945}]}
   ],
   river:{
     color:'#1E88E5',
-    width:45,
-    path:[{x:600,y:0},{x:590,y:100},{x:610,y:200},{x:595,y:300},{x:580,y:400},{x:590,y:500},{x:600,y:600},{x:610,y:700},{x:605,y:800},{x:600,y:900}],
+    width:102,
+    path:[{x:900,y:0},{x:885,y:150},{x:915,y:300},{x:892,y:450},{x:870,y:600},{x:885,y:750},{x:900,y:900},{x:915,y:1050},{x:908,y:1200},{x:900,y:1350}],
     bridges:[
-      {x:570,y:250,w:70,h:55,built:true},
-      {x:565,y:550,w:70,h:55,built:true}
+      {x:855,y:375,w:105,h:82,built:true},
+      {x:848,y:825,w:105,h:82,built:true}
     ]
   },
   chests:[
-    {id:'c1',x:150,y:350,items:['key','spd','hp']},
-    {id:'c2',x:750,y:250,items:['hp','block','spd']},
-    {id:'c3',x:450,y:750,items:['spd','key','block']}
+    {id:'c1',x:225,y:525,items:['key','spd','invis']},
+    {id:'c2',x:1125,y:375,items:['hp','block','spd']},
+    {id:'c3',x:675,y:1125,items:['spd','key','block']}
   ],
   gates:[
-    {id:'g1',x:400,y:400,w:15,h:70,open:false,switchPos:{x:300,y:500},color:'#8B0000'},
-    {id:'g2',x:700,y:300,w:70,h:15,open:false,switchPos:{x:800,y:250},color:'#00008B'}
+    {id:'g1',x:600,y:600,w:22,h:105,open:false,switchPos:{x:450,y:750},color:'#8B0000'},
+    {id:'g2',x:1050,y:450,w:105,h:22,open:false,switchPos:{x:1200,y:375},color:'#00008B'},
+    {id:'b1',x:750,y:900,w:90,h:90,open:false,switchPos:{x:900,y:850},color:'#8B4513',type:'barrier',duration:900}
   ],
   tunnels:[
-    {id:'t1',entry:{x:180,y:480,w:50,h:50},exit:{x:900,y:550,w:50,h:50},keySpawn:{x:500,y:500}}
+    {id:'t1',entry:{x:270,y:720,w:75,h:75},exit:{x:1350,y:825,w:75,h:75},keySpawn:{x:750,y:750}}
   ],
   terrains:[
-    {type:'ICE',x:700,y:400,w:110,h:90},
-    {type:'BOOST',x:300,y:650,w:40,h:140,dir:'up'},
-    {type:'SLOPE_UP',x:850,y:200,w:90,h:80},
-    {type:'SPRING',x:450,y:100,w:55,h:55},
-    {type:'SWAMP',x:100,y:450,w:100,h:80}
+    {type:'ICE',x:1050,y:600,w:165,h:135},
+    {type:'BOOST',x:450,y:975,w:60,h:210,dir:'up'},
+    {type:'SLOPE_UP',x:1275,y:300,w:135,h:120},
+    {type:'SPRING',x:675,y:150,w:82,h:82},
+    {type:'SWAMP',x:150,y:675,w:150,h:120}
   ],
   decorations:[
-    {type:'tree',x:300,y:50},{type:'tree',x:700,y:50},{type:'tree',x:50,y:400},
-    {type:'tree',x:1100,y:200},{type:'tree',x:1100,y:600},{type:'tree',x:400,y:850},
-    {type:'lamp',x:250,y:300},{type:'lamp',x:650,y:200},{type:'lamp',x:750,y:600},
-    {type:'barrel',x:100,y:200},{type:'barrel',x:850,y:500},{type:'barrel',x:400,y:500}
+    {type:'tree',x:450,y:75},{type:'tree',x:1050,y:75},{type:'tree',x:75,y:600},
+    {type:'tree',x:1650,y:300},{type:'tree',x:1650,y:900},{type:'tree',x:600,y:1275},
+    {type:'lamp',x:375,y:450},{type:'lamp',x:975,y:300},{type:'lamp',x:1125,y:900},
+    {type:'barrel',x:150,y:300},{type:'barrel',x:1275,y:750},{type:'barrel',x:600,y:750}
   ]},
 
   // === MAP 2: 迷宫 (Maze) ===
   {name:'迷宫',bg:'#78909C',wallColor:'#37474F',
   walls:[
     // Maze walls - irregular shapes
-    {x:100,y:80,w:200,h:30,shape:'poly',pts:[{x:100,y:85},{x:110,y:80},{x:290,y:80},{x:300,y:90},{x:295,y:110},{x:105,y:108}]},
-    {x:100,y:80,w:30,h:250,shape:'poly',pts:[{x:100,y:85},{x:130,y:88},{x:128,y:320},{x:100,y:325}]},
-    {x:250,y:180,w:30,h:180,shape:'poly',pts:[{x:250,y:180},{x:280,y:183},{x:278,y:355},{x:252,y:360}]},
-    {x:350,y:80,w:30,h:150,shape:'poly',pts:[{x:350,y:80},{x:380,y:83},{x:378,y:225},{x:352,y:228}]},
-    {x:400,y:200,w:180,h:30,shape:'poly',pts:[{x:400,y:200},{x:575,y:203},{x:580,y:228},{x:402,y:230}]},
-    {x:550,y:80,w:30,h:150,shape:'poly',pts:[{x:550,y:80},{x:580,y:82},{x:578,y:225},{x:552,y:228}]},
-    {x:650,y:150,w:200,h:30,shape:'poly',pts:[{x:650,y:150},{x:845,y:153},{x:848,y:178},{x:652,y:180}]},
-    {x:700,y:250,w:30,h:200,shape:'poly',pts:[{x:700,y:250},{x:730,y:252},{x:728,y:445},{x:702,y:448}]},
-    {x:850,y:80,w:30,h:200,shape:'poly',pts:[{x:850,y:80},{x:880,y:82},{x:878,y:275},{x:852,y:278}]},
-    {x:950,y:200,w:30,h:250,shape:'poly',pts:[{x:950,y:200},{x:980,y:202},{x:978,y:445},{x:952,y:448}]},
+    {x:150,y:120,w:300,h:45,shape:'poly',pts:[{x:150,y:128},{x:165,y:120},{x:435,y:120},{x:450,y:135},{x:442,y:165},{x:158,y:162}]},
+    {x:150,y:120,w:45,h:375,shape:'poly',pts:[{x:150,y:128},{x:195,y:132},{x:192,y:480},{x:150,y:488}]},
+    {x:375,y:270,w:45,h:270,shape:'poly',pts:[{x:375,y:270},{x:420,y:274},{x:417,y:532},{x:378,y:540}]},
+    {x:525,y:120,w:45,h:225,shape:'poly',pts:[{x:525,y:120},{x:570,y:124},{x:567,y:338},{x:528,y:342}]},
+    {x:600,y:300,w:270,h:45,shape:'poly',pts:[{x:600,y:300},{x:862,y:304},{x:870,y:342},{x:603,y:345}]},
+    {x:825,y:120,w:45,h:225,shape:'poly',pts:[{x:825,y:120},{x:870,y:123},{x:867,y:338},{x:828,y:342}]},
+    {x:975,y:225,w:300,h:45,shape:'poly',pts:[{x:975,y:225},{x:1268,y:230},{x:1272,y:267},{x:978,y:270}]},
+    {x:1050,y:375,w:45,h:300,shape:'poly',pts:[{x:1050,y:375},{x:1095,y:378},{x:1092,y:668},{x:1053,y:672}]},
+    {x:1275,y:120,w:45,h:300,shape:'poly',pts:[{x:1275,y:120},{x:1320,y:123},{x:1317,y:412},{x:1278,y:417}]},
+    {x:1425,y:300,w:45,h:375,shape:'poly',pts:[{x:1425,y:300},{x:1470,y:303},{x:1467,y:668},{x:1428,y:672}]},
     // Bottom half
-    {x:100,y:450,w:200,h:30,shape:'poly',pts:[{x:100,y:450},{x:295,y:452},{x:298,y:478},{x:102,y:480}]},
-    {x:200,y:500,w:30,h:180,shape:'poly',pts:[{x:200,y:500},{x:230,y:502},{x:228,y:675},{x:202,y:678}]},
-    {x:350,y:400,w:30,h:200,shape:'poly',pts:[{x:350,y:400},{x:380,y:402},{x:378,y:595},{x:352,y:598}]},
-    {x:400,y:550,w:180,h:30,shape:'poly',pts:[{x:400,y:550},{x:575,y:552},{x:578,y:578},{x:402,y:580}]},
-    {x:500,y:400,w:150,h:30,shape:'poly',pts:[{x:500,y:400},{x:645,y:402},{x:648,y:428},{x:502,y:430}]},
-    {x:600,y:500,w:30,h:200,shape:'poly',pts:[{x:600,y:500},{x:630,y:502},{x:628,y:695},{x:602,y:698}]},
-    {x:700,y:550,w:200,h:30,shape:'poly',pts:[{x:700,y:550},{x:895,y:552},{x:898,y:578},{x:702,y:580}]},
-    {x:800,y:400,w:30,h:180,shape:'poly',pts:[{x:800,y:400},{x:830,y:402},{x:828,y:575},{x:802,y:578}]},
-    {x:950,y:500,w:30,h:200,shape:'poly',pts:[{x:950,y:500},{x:980,y:502},{x:978,y:695},{x:952,y:698}]},
-    {x:100,y:700,w:150,h:30,shape:'poly',pts:[{x:100,y:700},{x:245,y:702},{x:248,y:728},{x:102,y:730}]},
-    {x:350,y:700,w:200,h:30,shape:'poly',pts:[{x:350,y:700},{x:545,y:702},{x:548,y:728},{x:352,y:730}]},
-    {x:700,y:700,w:200,h:30,shape:'poly',pts:[{x:700,y:700},{x:895,y:702},{x:898,y:728},{x:702,y:730}]},
-    {x:1050,y:100,w:30,h:300,shape:'poly',pts:[{x:1050,y:100},{x:1080,y:102},{x:1078,y:395},{x:1052,y:398}]},
-    {x:1050,y:500,w:30,h:250,shape:'poly',pts:[{x:1050,y:500},{x:1080,y:502},{x:1078,y:745},{x:1052,y:748}]}
+    {x:150,y:675,w:300,h:45,shape:'poly',pts:[{x:150,y:675},{x:442,y:678},{x:447,y:717},{x:153,y:720}]},
+    {x:300,y:750,w:45,h:270,shape:'poly',pts:[{x:300,y:750},{x:345,y:753},{x:342,y:1012},{x:303,y:1017}]},
+    {x:525,y:600,w:45,h:300,shape:'poly',pts:[{x:525,y:600},{x:570,y:603},{x:567,y:892},{x:528,y:897}]},
+    {x:600,y:825,w:270,h:45,shape:'poly',pts:[{x:600,y:825},{x:862,y:828},{x:867,y:867},{x:603,y:870}]},
+    {x:750,y:600,w:225,h:45,shape:'poly',pts:[{x:750,y:600},{x:968,y:603},{x:972,y:642},{x:753,y:645}]},
+    {x:900,y:750,w:45,h:300,shape:'poly',pts:[{x:900,y:750},{x:945,y:753},{x:942,y:1042},{x:903,y:1047}]},
+    {x:1050,y:825,w:300,h:45,shape:'poly',pts:[{x:1050,y:825},{x:1342,y:828},{x:1347,y:867},{x:1053,y:870}]},
+    {x:1200,y:600,w:45,h:270,shape:'poly',pts:[{x:1200,y:600},{x:1245,y:603},{x:1242,y:862},{x:1203,y:867}]},
+    {x:1425,y:750,w:45,h:300,shape:'poly',pts:[{x:1425,y:750},{x:1470,y:753},{x:1467,y:1042},{x:1428,y:1047}]},
+    {x:150,y:1050,w:225,h:45,shape:'poly',pts:[{x:150,y:1050},{x:368,y:1053},{x:372,y:1092},{x:153,y:1095}]},
+    {x:525,y:1050,w:300,h:45,shape:'poly',pts:[{x:525,y:1050},{x:818,y:1053},{x:822,y:1092},{x:528,y:1095}]},
+    {x:1050,y:1050,w:300,h:45,shape:'poly',pts:[{x:1050,y:1050},{x:1342,y:1053},{x:1347,y:1092},{x:1053,y:1095}]},
+    {x:1575,y:150,w:45,h:450,shape:'poly',pts:[{x:1575,y:150},{x:1620,y:153},{x:1617,y:592},{x:1578,y:597}]},
+    {x:1575,y:750,w:45,h:375,shape:'poly',pts:[{x:1575,y:750},{x:1620,y:753},{x:1617,y:1118},{x:1578,y:1122}]}
   ],
   river:{
     color:'#0D47A1',
-    width:40,
-    path:[{x:450,y:0},{x:460,y:100},{x:440,y:200},{x:455,y:350},{x:450,y:450},{x:440,y:550},{x:455,y:700},{x:450,y:800},{x:445,y:900}],
+    width:90,
+    path:[{x:675,y:0},{x:690,y:150},{x:660,y:300},{x:682,y:525},{x:675,y:675},{x:660,y:825},{x:682,y:1050},{x:675,y:1200},{x:668,y:1350}],
     bridges:[
-      {x:425,y:130,w:60,h:50,built:true},
-      {x:420,y:470,w:60,h:50,built:true},
-      {x:425,y:750,w:60,h:50,built:true}
+      {x:638,y:195,w:90,h:75,built:true},
+      {x:630,y:705,w:90,h:75,built:true},
+      {x:638,y:1125,w:90,h:75,built:true}
     ]
   },
   chests:[
-    {id:'c1',x:170,y:200,items:['key','hp','spd']},
-    {id:'c2',x:900,y:350,items:['spd','block','key']}
+    {id:'c1',x:255,y:300,items:['key','hp','invis']},
+    {id:'c2',x:1350,y:525,items:['spd','block','key']}
   ],
   gates:[
-    {id:'g1',x:250,y:350,w:15,h:60,open:false,switchPos:{x:180,y:600},color:'#8B0000'},
-    {id:'g2',x:700,y:445,w:60,h:15,open:false,switchPos:{x:650,y:650},color:'#00008B'},
-    {id:'g3',x:1050,y:395,w:30,h:60,open:false,switchPos:{x:1100,y:600},color:'#006400'}
+    {id:'g1',x:375,y:525,w:22,h:90,open:false,switchPos:{x:270,y:900},color:'#8B0000'},
+    {id:'g2',x:1050,y:668,w:90,h:22,open:false,switchPos:{x:975,y:975},color:'#00008B'},
+    {id:'g3',x:1575,y:592,w:45,h:90,open:false,switchPos:{x:1650,y:900},color:'#006400'},
+    {id:'b1',x:450,y:600,w:90,h:90,open:false,switchPos:{x:300,y:550},color:'#4A0000',type:'barrier',duration:900}
   ],
   tunnels:[
-    {id:'t1',entry:{x:50,y:820,w:50,h:50},exit:{x:1100,y:50,w:50,h:50},keySpawn:{x:500,y:300}}
+    {id:'t1',entry:{x:75,y:1230,w:75,h:75},exit:{x:1650,y:75,w:75,h:75},keySpawn:{x:750,y:450}}
   ],
   terrains:[
-    {type:'ICE',x:400,y:300,w:80,h:80},
-    {type:'SWAMP',x:650,y:600,w:100,h:80},
-    {type:'BOOST',x:850,y:650,w:40,h:120,dir:'up'},
-    {type:'THORNS',x:150,y:380,w:70,h:60},
-    {type:'SPRING',x:1100,y:450,w:50,h:50}
+    {type:'ICE',x:600,y:450,w:120,h:120},
+    {type:'SWAMP',x:975,y:900,w:150,h:120},
+    {type:'BOOST',x:1275,y:975,w:60,h:180,dir:'up'},
+    {type:'THORNS',x:225,y:570,w:105,h:90},
+    {type:'SPRING',x:1650,y:675,w:75,h:75}
   ],
   decorations:[
-    {type:'torch',x:100,y:150},{type:'torch',x:300,y:80},{type:'torch',x:550,y:150},
-    {type:'torch',x:850,y:80},{type:'torch',x:1050,y:200},{type:'torch',x:200,y:450},
-    {type:'skull',x:400,y:350},{type:'skull',x:750,y:500},{type:'skull',x:900,y:700},
-    {type:'moss',x:150,y:300},{type:'moss',x:600,y:400},{type:'moss',x:800,y:300}
+    {type:'torch',x:150,y:225},{type:'torch',x:450,y:120},{type:'torch',x:825,y:225},
+    {type:'torch',x:1275,y:120},{type:'torch',x:1575,y:300},{type:'torch',x:300,y:675},
+    {type:'skull',x:600,y:525},{type:'skull',x:1125,y:750},{type:'skull',x:1350,y:1050},
+    {type:'moss',x:225,y:450},{type:'moss',x:900,y:600},{type:'moss',x:1200,y:450}
   ]}
 ];
 
@@ -483,10 +506,24 @@ let currentVote=null;
 let springLaunch={active:false,dx:0,dy:0,frames:0};
 let iceVX=0,iceVY=0;
 // New systems
-let chestStates={}; // {chestId: true} = opened
+let chestStates={}; // {chestId: {items:[...]}} - chest contents
 let gateStates={}; // {gateId: true} = open
-let currentChest=null; // chest being opened
+let barrierTimers={}; // {gateId: framesRemaining}
+let currentChest=null; // chest being interacted with
 let riverAnimOffset=0; // for water animation
+// Invisibility
+let invisTimer=0; // frames remaining for my invisibility
+// NPC system
+let npcs=[]; // [{id,x,y,type:'beast'|'soldier',targetId:null,state:'roam'|'chase',roamAngle:0,roamTimer:0}]
+let npcBroadcastTimer=0;
+let frozenTimer=0; // frames I'm frozen by NPC
+// Portal system (3 portals, random teleport)
+let portals=[]; // [{id,x,y}] - 3 portals
+let portalCooldown=0;
+let portalRelocateTimer=0; // frames until next relocation (45s = 2700 frames)
+// Chest respawn system
+let chestEmptyTimers={}; // {chestId: timestamp when became empty}
+let activeChests=[]; // current chest positions [{id,x,y}]
 
 // ===== UTILITY =====
 function genId(){return 'p_'+Math.random().toString(36).substr(2,8);}
@@ -621,8 +658,15 @@ function joinChannel(){
   channel.on('broadcast',{event:'key-pickup'},({payload})=>{const k=tunnelKeys.find(x=>x.id===payload.keyId);if(k)k.active=false;});
   channel.on('broadcast',{event:'tunnel-used'},({payload})=>onTunnelUsed(payload));
   // New events
-  channel.on('broadcast',{event:'chest-open'},({payload})=>onChestOpen(payload));
+  channel.on('broadcast',{event:'chest-sync'},({payload})=>onChestSync(payload));
   channel.on('broadcast',{event:'gate-toggle'},({payload})=>onGateToggle(payload));
+  channel.on('broadcast',{event:'npc-sync'},({payload})=>onNpcSync(payload));
+  channel.on('broadcast',{event:'npc-freeze'},({payload})=>onNpcFreeze(payload));
+  channel.on('broadcast',{event:'portal-sync'},({payload})=>onPortalSync(payload));
+  channel.on('broadcast',{event:'portal-used'},({payload})=>onPortalUsed(payload));
+  channel.on('broadcast',{event:'chest-respawn'},({payload})=>onChestRespawn(payload));
+  channel.on('broadcast',{event:'chest-remove'},({payload})=>onChestRemove(payload));
+  channel.on('broadcast',{event:'map-random-init'},({payload})=>onMapRandomInit(payload));
 
   channel.subscribe((status)=>{
     if(status==='SUBSCRIBED'){
@@ -783,22 +827,19 @@ function startGame(){
     }while(!ok&&tries<50);
     return {x,y};
   });
-  // Spawn initial keys
-  const keySpawns=[];
-  map.tunnels.forEach(t=>{
-    if(t.keySpawn)keySpawns.push({id:'key_'+t.id+'_0',x:t.keySpawn.x,y:t.keySpawn.y,active:true});
-  });
-
   channel.send({type:'broadcast',event:'game-start',payload:{
-    catcherId:ids[catcherIdx],positions:startPositions,ids,mapIdx:selectedMap,keySpawns
+    catcherId:ids[catcherIdx],positions:startPositions,ids,mapIdx:selectedMap
   }});
 }
-function onGameStart({catcherId,positions,ids,mapIdx,keySpawns}){
+function onGameStart({catcherId,positions,ids,mapIdx}){
   selectedMap=mapIdx;
   gameState='playing';frameCount=0;gameStartTime=Date.now();
-  foods=[];obstacles=[];itemPickups=[];tunnelKeys=keySpawns||[];
+  foods=[];obstacles=[];itemPickups=[];tunnelKeys=[];
   myItems=[null,null,null];
-  chestStates={};gateStates={};
+  chestStates={};gateStates={};barrierTimers={};
+  invisTimer=0;frozenTimer=0;npcs=[];npcBroadcastTimer=0;
+  portals=[];portalCooldown=0;portalRelocateTimer=0;
+  chestEmptyTimers={};activeChests=[];
   coinSpawnTimer=0;itemSpawnTimer=0;
   inTunnel=false;tunnelCooldown=0;
   springLaunch={active:false,dx:0,dy:0,frames:0};
@@ -822,6 +863,27 @@ function onGameStart({catcherId,positions,ids,mapIdx,keySpawns}){
   document.getElementById('hud-role').style.background=me.isCatcher?'#FF6B6B':'#4ECDC4';
   resizeCanvas();
   if(isMobile())initJoystick();
+  // Randomize map elements (host generates, broadcasts)
+  if(isHost){
+    const map=MAPS[selectedMap];
+    randomizeRiver(map);
+    // Generate random chests
+    const randomChests=generateRandomChests(map);
+    activeChests=randomChests;
+    randomChests.forEach(ch=>{chestStates[ch.id]={items:[...ch.items]};});
+    // Generate portals
+    generatePortals(map);
+    // Spawn NPCs
+    spawnNPCs();
+    // Broadcast initial state to all
+    setTimeout(()=>{
+      channel.send({type:'broadcast',event:'portal-sync',payload:{portals,relocated:false}});
+      channel.send({type:'broadcast',event:'map-random-init',payload:{
+        chests:activeChests.map(c=>({id:c.id,x:c.x,y:c.y,items:c.items})),
+        portals
+      }});
+    },500);
+  }
   requestAnimationFrame(tick);
 }
 
@@ -893,10 +955,9 @@ function interactNearby(){
   if(gameState!=='playing')return;
   const me=players[myId];if(!me||me.caught)return;
   const map=MAPS[selectedMap];
-  // Check chests
-  if(map.chests){
-    for(const ch of map.chests){
-      if(chestStates[ch.id])continue; // already opened
+  // Check chests (always interactable - storage system)
+  if(activeChests&&activeChests.length>0){
+    for(const ch of activeChests){
       const dist=Math.hypot(me.x-ch.x,me.y-ch.y);
       if(dist<45){
         openChest(ch);return;
@@ -914,48 +975,119 @@ function interactNearby(){
   }
 }
 
-// ===== CHEST SYSTEM =====
-function openChest(ch){
-  chestStates[ch.id]=true;
-  // Random item from chest's item pool
-  const itemType=ch.items[Math.floor(Math.random()*ch.items.length)];
-  currentChest={chestId:ch.id,itemType};
-  // Show popup
-  const popup=document.getElementById('chest-popup');
-  popup.querySelector('.chest-item').textContent=ITEM_TYPES[itemType].emoji;
-  popup.querySelector('.chest-desc').textContent=ITEM_TYPES[itemType].name+' - '+ITEM_TYPES[itemType].desc;
-  popup.classList.add('active');
-  // Broadcast to others
-  channel.send({type:'broadcast',event:'chest-open',payload:{chestId:ch.id,playerId:myId}});
+// ===== CHEST SYSTEM (Storage: deposit & withdraw) =====
+function initChestStates(){
+  // Now handled by randomization system
+  // activeChests are set by host broadcast or local generation
 }
-function takeChestItem(){
+function openChest(ch){
+  if(!chestStates[ch.id])chestStates[ch.id]={items:[...ch.items]};
+  currentChest=ch.id;
+  renderChestPopup();
+  document.getElementById('chest-popup').classList.add('active');
+}
+function renderChestPopup(){
   if(!currentChest)return;
-  const slot=myItems.indexOf(null);
-  if(slot!==-1){
-    myItems[slot]=currentChest.itemType;
-    updateItemBarUI();
-    showTunnelMsg('获得 '+ITEM_TYPES[currentChest.itemType].name+'！');
-    setTimeout(hideTunnelMsg,1200);
-  } else {
-    showTunnelMsg('物品栏已满！');setTimeout(hideTunnelMsg,1200);
+  const state=chestStates[currentChest]||{items:[]};
+  // Render box slots (max 3)
+  const boxEl=document.getElementById('chest-box-slots');
+  boxEl.innerHTML='';
+  for(let i=0;i<3;i++){
+    const item=state.items[i]||null;
+    const div=document.createElement('div');
+    div.className='chest-slot'+(item?'':' empty');
+    if(item&&ITEM_TYPES[item]){
+      div.textContent=ITEM_TYPES[item].emoji;
+      div.title=ITEM_TYPES[item].name;
+      div.onclick=()=>takeFromChest(i);
+    }
+    boxEl.appendChild(div);
   }
+  // Render bag slots (max 3)
+  const bagEl=document.getElementById('chest-bag-slots');
+  bagEl.innerHTML='';
+  for(let i=0;i<3;i++){
+    const item=myItems[i]||null;
+    const div=document.createElement('div');
+    div.className='chest-slot'+(item?'':' empty');
+    if(item&&ITEM_TYPES[item]){
+      div.textContent=ITEM_TYPES[item].emoji;
+      div.title=ITEM_TYPES[item].name;
+      div.onclick=()=>depositToChest(i);
+    }
+    bagEl.appendChild(div);
+  }
+  // Hint
+  const hint=document.getElementById('chest-hint');
+  hint.textContent='点击物品可在箱子和背包之间转移';
+}
+function takeFromChest(slotIdx){
+  if(!currentChest)return;
+  const state=chestStates[currentChest];
+  if(!state||!state.items[slotIdx])return;
+  const bagSlot=myItems.indexOf(null);
+  if(bagSlot===-1){
+    document.getElementById('chest-hint').textContent='❌ 背包已满！';return;
+  }
+  const item=state.items[slotIdx];
+  state.items.splice(slotIdx,1);
+  myItems[bagSlot]=item;
+  updateItemBarUI();
+  broadcastChestState(currentChest);
+  renderChestPopup();
+  showTunnelMsg('拿取 '+ITEM_TYPES[item].name);setTimeout(hideTunnelMsg,800);
+}
+function depositToChest(bagSlotIdx){
+  if(!currentChest)return;
+  const state=chestStates[currentChest];
+  if(!state)return;
+  if(state.items.length>=3){
+    document.getElementById('chest-hint').textContent='❌ 箱子已满！';return;
+  }
+  const item=myItems[bagSlotIdx];
+  if(!item)return;
+  if(item==='key'){document.getElementById('chest-hint').textContent='❌ 钥匙不能存入！';return;}
+  myItems[bagSlotIdx]=null;
+  state.items.push(item);
+  updateItemBarUI();
+  broadcastChestState(currentChest);
+  renderChestPopup();
+  showTunnelMsg('存入 '+ITEM_TYPES[item].name);setTimeout(hideTunnelMsg,800);
+}
+function closeChestPopup(){
   currentChest=null;
   document.getElementById('chest-popup').classList.remove('active');
 }
-function onChestOpen({chestId}){
-  chestStates[chestId]=true;
+function broadcastChestState(chestId){
+  const state=chestStates[chestId];
+  channel.send({type:'broadcast',event:'chest-sync',payload:{chestId,items:state?state.items:[]}});
+}
+function onChestSync({chestId,items}){
+  chestStates[chestId]={items:items||[]};
+  if(currentChest===chestId)renderChestPopup();
 }
 
 // ===== GATE SYSTEM =====
 function toggleGate(g){
-  const newState=!gateStates[g.id];
-  gateStates[g.id]=newState;
-  channel.send({type:'broadcast',event:'gate-toggle',payload:{gateId:g.id,open:newState}});
-  showTunnelMsg(newState?'🚪 机关门已开启！':'🚪 机关门已关闭！');
-  setTimeout(hideTunnelMsg,1200);
+  if(g.type==='barrier'){
+    // Barrier: activate for duration frames
+    if(gateStates[g.id])return; // already active
+    gateStates[g.id]=true;
+    barrierTimers[g.id]=g.duration||900;
+    channel.send({type:'broadcast',event:'gate-toggle',payload:{gateId:g.id,open:true,isBarrier:true,duration:g.duration||900}});
+    showTunnelMsg('🧱 障碍物已激活！(15秒)');
+    setTimeout(hideTunnelMsg,1200);
+  } else {
+    const newState=!gateStates[g.id];
+    gateStates[g.id]=newState;
+    channel.send({type:'broadcast',event:'gate-toggle',payload:{gateId:g.id,open:newState}});
+    showTunnelMsg(newState?'🚪 机关门已开启！':'🚪 机关门已关闭！');
+    setTimeout(hideTunnelMsg,1200);
+  }
 }
-function onGateToggle({gateId,open}){
+function onGateToggle({gateId,open,isBarrier,duration}){
   gateStates[gateId]=open;
+  if(isBarrier&&open)barrierTimers[gateId]=duration||900;
 }
 
 // ===== ITEM BAR =====
@@ -991,6 +1123,9 @@ function useItem(slot){
     obstacles.push(obs);
     channel.send({type:'broadcast',event:'obstacle-place',payload:obs});
     showTunnelMsg('🪨 放置路障！');setTimeout(hideTunnelMsg,800);
+  } else if(item==='invis'){
+    invisTimer=600; // 10 seconds at 60fps
+    showTunnelMsg('👻 隐身10秒！');setTimeout(hideTunnelMsg,1000);
   }
   channel.send({type:'broadcast',event:'item-use',payload:{playerId:myId,item,slot}});
 }
@@ -998,6 +1133,7 @@ function onItemUse({playerId,item}){
   if(playerId===myId)return;
   const p=players[playerId];if(!p)return;
   if(item==='spd')p._speedBoost=300;
+  if(item==='invis')p._invisible=600;
 }
 
 // ===== TUNNEL MSG =====
@@ -1012,10 +1148,14 @@ function hideInteractHint(){document.getElementById('interact-hint').classList.r
 function resolveCol(ox,oy,nx,ny,r,map){
   let fx=nx,fy=ny;
   const allWalls=[...map.walls];
-  // Add closed gates as walls
+  // Add closed gates as walls (normal gates block when closed, barriers block when active)
   if(map.gates){
     map.gates.forEach(g=>{
-      if(!gateStates[g.id])allWalls.push({x:g.x,y:g.y,w:g.w,h:g.h});
+      if(g.type==='barrier'){
+        if(gateStates[g.id])allWalls.push({x:g.x,y:g.y,w:g.w,h:g.h});
+      } else {
+        if(!gateStates[g.id])allWalls.push({x:g.x,y:g.y,w:g.w,h:g.h});
+      }
     });
   }
   // Add obstacles
@@ -1068,7 +1208,7 @@ function tick(){
     endGame(caughtCount>=runnerCount?'catcher':'runners');return;
   }
 
-  if(!me.caught){
+  if(!me.caught&&frozenTimer<=0){
     // Movement
     let dx=0,dy=0;
     if(joystickActive){dx=joystickDX;dy=joystickDY;}
@@ -1146,40 +1286,20 @@ function tick(){
     me.speed=Math.sqrt((me.x-ox)*(me.x-ox)+(me.y-oy)*(me.y-oy));
 
     // Tunnel cooldown
-    if(tunnelCooldown>0)tunnelCooldown--;
+    if(portalCooldown>0)portalCooldown--;
 
-    // Check tunnel entry (instant teleport, costs 1 key each time)
-    if(!inTunnel&&tunnelCooldown<=0&&map.tunnels){
-      for(const t of map.tunnels){
-        const entry=t.entry,exit=t.exit;
-        // Check entry side
-        if(me.x>entry.x&&me.x<entry.x+entry.w&&me.y>entry.y&&me.y<entry.y+entry.h){
-          const keySlot=myItems.indexOf('key');
-          if(keySlot!==-1){
-            myItems[keySlot]=null;updateItemBarUI();
-            me.x=exit.x+exit.w/2;me.y=exit.y+exit.h/2;
-            tunnelCooldown=120; // 2 second cooldown at 60fps
-            showTunnelMsg('🔑 暗道传送！');setTimeout(hideTunnelMsg,1000);
-            channel.send({type:'broadcast',event:'tunnel-used',payload:{playerId:myId,tunnelId:t.id,dir:'entry'}});
-          } else {
-            showTunnelMsg('🔒 需要钥匙！');setTimeout(hideTunnelMsg,800);
-            tunnelCooldown=60; // prevent spam
-          }
-          break;
-        }
-        // Check exit side (can also enter from exit)
-        if(me.x>exit.x&&me.x<exit.x+exit.w&&me.y>exit.y&&me.y<exit.y+exit.h){
-          const keySlot=myItems.indexOf('key');
-          if(keySlot!==-1){
-            myItems[keySlot]=null;updateItemBarUI();
-            me.x=entry.x+entry.w/2;me.y=entry.y+entry.h/2;
-            tunnelCooldown=120;
-            showTunnelMsg('🔑 暗道传送！');setTimeout(hideTunnelMsg,1000);
-            channel.send({type:'broadcast',event:'tunnel-used',payload:{playerId:myId,tunnelId:t.id,dir:'exit'}});
-          } else {
-            showTunnelMsg('🔒 需要钥匙！');setTimeout(hideTunnelMsg,800);
-            tunnelCooldown=60;
-          }
+    // Check portal entry (3 portals, teleport to random other)
+    if(portalCooldown<=0&&portals.length>=2){
+      for(let pi=0;pi<portals.length;pi++){
+        const p=portals[pi];
+        if(Math.hypot(me.x-p.x,me.y-p.y)<35){
+          // Teleport to random other portal
+          const others=portals.filter((_,idx)=>idx!==pi);
+          const dest=others[Math.floor(Math.random()*others.length)];
+          me.x=dest.x;me.y=dest.y;
+          portalCooldown=120; // 2 second cooldown
+          showTunnelMsg('🌀 传送！');setTimeout(hideTunnelMsg,800);
+          channel.send({type:'broadcast',event:'portal-used',payload:{playerId:myId,fromIdx:pi}});
           break;
         }
       }
@@ -1235,22 +1355,44 @@ function tick(){
       });
     }
 
+    // Invisibility timer
+    if(invisTimer>0)invisTimer--;
+
     // Broadcast position
     if(frameCount%2===0){
       channel.send({type:'broadcast',event:'player-update',payload:{
-        id:myId,x:me.x,y:me.y,dir:me.dir,speed:me.speed,caught:me.caught,stamina:me.stamina
+        id:myId,x:me.x,y:me.y,dir:me.dir,speed:me.speed,caught:me.caught,stamina:me.stamina,
+        invisible:invisTimer>0,frozen:frozenTimer>0
       }});
+    }
+  }
+
+  // Frozen by NPC timer (outside movement block so it always decrements)
+  if(frozenTimer>0){frozenTimer--;me.speed=0;}
+
+  // Invisible player bumps into NPC - self check (all clients)
+  if(invisTimer>0&&frozenTimer<=0&&npcs.length>0&&!me.caught){
+    for(const npc of npcs){
+      if(Math.hypot(me.x-npc.x,me.y-npc.y)<20){
+        frozenTimer=180;
+        showTunnelMsg('❄️ 被NPC冻住了！');setTimeout(hideTunnelMsg,1500);
+        break;
+      }
     }
   }
 
   // Interact hint
   checkInteractHint();
 
-  // Host spawns
+  // Host spawns & NPC logic
   if(isHost){
     tickCoinSpawn();
     tickItemSpawn();
     tickKeyRespawn();
+    tickNPCs();
+    tickBarriers();
+    tickPortalRelocate();
+    tickChestRespawn();
   }
 
   // Remove expired obstacles
@@ -1263,9 +1405,9 @@ function tick(){
   requestAnimationFrame(tick);
 }
 
-function onPlayerUpdate({id,x,y,dir,speed,caught,stamina}){
+function onPlayerUpdate({id,x,y,dir,speed,caught,stamina,invisible,frozen}){
   if(id===myId)return;
-  if(players[id]){players[id].x=x;players[id].y=y;players[id].dir=dir;players[id].speed=speed;players[id].caught=caught;players[id].stamina=stamina;}
+  if(players[id]){players[id].x=x;players[id].y=y;players[id].dir=dir;players[id].speed=speed;players[id].caught=caught;players[id].stamina=stamina;players[id]._invisible=invisible?1:0;players[id]._frozen=frozen;}
 }
 function onCaught({catcherId,runnerId}){
   if(players[runnerId])players[runnerId].caught=true;
@@ -1286,12 +1428,19 @@ function checkInteractHint(){
   const me=players[myId];if(!me||me.caught)return;
   const map=MAPS[selectedMap];
   let hint='';
-  // Check chests
-  if(map.chests){
-    for(const ch of map.chests){
-      if(chestStates[ch.id])continue;
+  // Check chests (storage)
+  if(activeChests&&activeChests.length>0){
+    for(const ch of activeChests){
       if(Math.hypot(me.x-ch.x,me.y-ch.y)<45){
-        hint='按 E 打开宝箱';break;
+        hint='按 E 打开保险箱';break;
+      }
+    }
+  }
+  // Check portals
+  if(!hint&&portals&&portals.length>0){
+    for(const p of portals){
+      if(Math.hypot(me.x-p.x,me.y-p.y)<35){
+        hint='🌀 进入传送门';break;
       }
     }
   }
@@ -1299,7 +1448,12 @@ function checkInteractHint(){
   if(!hint&&map.gates){
     for(const g of map.gates){
       if(Math.hypot(me.x-g.switchPos.x,me.y-g.switchPos.y)<35){
-        hint='按 E '+(gateStates[g.id]?'关闭':'开启')+'机关门';break;
+        if(g.type==='barrier'){
+          hint=gateStates[g.id]?'🧱 障碍已激活':'按 E 激活障碍物';
+        } else {
+          hint='按 E '+(gateStates[g.id]?'关闭':'开启')+'机关门';
+        }
+        break;
       }
     }
   }
@@ -1365,6 +1519,260 @@ function tickKeyRespawn(){
       }
     });
   }
+}
+
+// ===== NPC SYSTEM =====
+function spawnNPCs(){
+  npcs=[];
+  const map=MAPS[selectedMap];
+  const npcType=selectedMap===2?'soldier':'beast';
+  const count=3;
+  for(let i=0;i<count;i++){
+    let x,y,ok,tries=0;
+    do{x=100+Math.random()*(MAP_W-200);y=100+Math.random()*(MAP_H-200);ok=true;
+      for(const w of map.walls){if(x>w.x-20&&x<w.x+w.w+20&&y>w.y-20&&y<w.y+w.h+20){ok=false;break;}}
+      if(ok&&isInRiver(x,y,map))ok=false;
+      tries++;
+    }while(!ok&&tries<50);
+    npcs.push({id:'npc_'+i,x,y,type:npcType,targetId:null,state:'roam',roamAngle:Math.random()*Math.PI*2,roamTimer:0});
+  }
+}
+function tickNPCs(){
+  if(npcs.length===0)return;
+  const map=MAPS[selectedMap];
+  npcs.forEach(npc=>{
+    // Detect nearby non-invisible players
+    let closestDist=Infinity,closestId=null;
+    Object.entries(players).forEach(([id,p])=>{
+      if(p.caught)return;
+      // Check if player is invisible
+      const isInvis=(id===myId&&invisTimer>0)||(id!==myId&&p._invisible);
+      if(isInvis)return;
+      const dist=Math.hypot(npc.x-p.x,npc.y-p.y);
+      if(dist<200&&dist<closestDist){closestDist=dist;closestId=id;}
+    });
+
+    if(closestId&&closestDist<200){
+      // Chase mode
+      npc.state='chase';npc.targetId=closestId;
+      const target=players[closestId];
+      if(target){
+        const dx=target.x-npc.x,dy=target.y-npc.y;
+        const len=Math.hypot(dx,dy);
+        if(len>0){
+          const speed=2.5;
+          let nx=npc.x+dx/len*speed,ny=npc.y+dy/len*speed;
+          // Simple wall collision for NPC
+          let blocked=false;
+          for(const w of map.walls){
+            if(nx>w.x-18&&nx<w.x+w.w+18&&ny>w.y-18&&ny<w.y+w.h+18){blocked=true;break;}
+          }
+          if(!blocked&&!(isInRiver(nx,ny,map)&&!isOnBridge(nx,ny,map))){
+            npc.x=nx;npc.y=ny;
+          }
+        }
+        // Check collision with target (freeze)
+        if(len<20){
+          // Freeze the player
+          channel.send({type:'broadcast',event:'npc-freeze',payload:{playerId:closestId,npcId:npc.id}});
+          npc.state='roam';npc.targetId=null;npc.roamTimer=120;
+          // Push NPC away
+          npc.x-=dx/len*50;npc.y-=dy/len*50;
+        }
+      }
+    } else {
+      // Roam mode
+      npc.state='roam';npc.targetId=null;
+      npc.roamTimer--;
+      if(npc.roamTimer<=0){
+        npc.roamAngle+=((Math.random()-0.5)*1.2);
+        npc.roamTimer=60+Math.floor(Math.random()*120);
+      }
+      const speed=1.0;
+      let nx=npc.x+Math.cos(npc.roamAngle)*speed;
+      let ny=npc.y+Math.sin(npc.roamAngle)*speed;
+      // Bounds
+      nx=Math.max(30,Math.min(MAP_W-30,nx));
+      ny=Math.max(30,Math.min(MAP_H-30,ny));
+      // Wall check
+      let blocked=false;
+      for(const w of map.walls){
+        if(nx>w.x-18&&nx<w.x+w.w+18&&ny>w.y-18&&ny<w.y+w.h+18){blocked=true;break;}
+      }
+      if(blocked||( isInRiver(nx,ny,map)&&!isOnBridge(nx,ny,map))){
+        npc.roamAngle+=Math.PI*0.5+Math.random()*0.5;
+        npc.roamTimer=0;
+      } else {
+        npc.x=nx;npc.y=ny;
+      }
+    }
+  });
+
+  // Broadcast NPC state every 500ms (30 frames)
+  npcBroadcastTimer++;
+  if(npcBroadcastTimer>=30){
+    npcBroadcastTimer=0;
+    channel.send({type:'broadcast',event:'npc-sync',payload:{npcs:npcs.map(n=>({id:n.id,x:n.x,y:n.y,type:n.type,state:n.state}))}});
+  }
+}
+function onNpcSync({npcs:npcData}){
+  if(isHost)return; // host controls NPCs
+  npcs=npcData||[];
+}
+function onNpcFreeze({playerId,npcId}){
+  if(playerId===myId){
+    frozenTimer=180; // 3 seconds at 60fps
+    showTunnelMsg('❄️ 被NPC冻住了！');setTimeout(hideTunnelMsg,1500);
+  }
+  const p=players[playerId];
+  if(p)p._frozen=true;
+  setTimeout(()=>{if(p)p._frozen=false;},3000);
+}
+
+// ===== MAP RANDOM INIT (non-host receives) =====
+function onMapRandomInit({chests,portals:portalData}){
+  if(isHost)return;
+  // Set up chests
+  activeChests=chests||[];
+  chestStates={};
+  activeChests.forEach(ch=>{chestStates[ch.id]={items:[...ch.items]};});
+  // Set up portals
+  portals=portalData||[];
+}
+
+// ===== PORTAL SYSTEM =====
+function generatePortals(map){
+  portals=[];
+  const count=3;
+  for(let i=0;i<count;i++){
+    let x,y,ok,tries=0;
+    do{
+      x=100+Math.random()*(MAP_W-200);
+      y=100+Math.random()*(MAP_H-200);
+      ok=true;
+      // Avoid walls
+      for(const w of map.walls){if(x>w.x-30&&x<w.x+w.w+30&&y>w.y-30&&y<w.y+w.h+30){ok=false;break;}}
+      // Avoid river
+      if(ok&&isInRiver(x,y,map))ok=false;
+      // Min distance from other portals (300px)
+      for(const p of portals){if(Math.hypot(x-p.x,y-p.y)<300){ok=false;break;}}
+      tries++;
+    }while(!ok&&tries<100);
+    portals.push({id:'portal_'+i,x,y});
+  }
+  return portals;
+}
+function tickPortalRelocate(){
+  if(!isHost)return;
+  portalRelocateTimer++;
+  if(portalRelocateTimer<2700)return; // 45 seconds at 60fps
+  portalRelocateTimer=0;
+  const map=MAPS[selectedMap];
+  generatePortals(map);
+  channel.send({type:'broadcast',event:'portal-sync',payload:{portals,relocated:true}});
+}
+function onPortalSync({portals:newPortals,relocated}){
+  portals=newPortals||[];
+  if(relocated){
+    showTunnelMsg('🌀 传送门移动了！');setTimeout(hideTunnelMsg,1500);
+  }
+}
+function onPortalUsed({playerId,fromIdx}){
+  // Visual effect could be added here
+}
+
+// ===== CHEST RESPAWN SYSTEM =====
+function generateRandomChests(map,count){
+  if(!count)count=2+Math.floor(Math.random()*2); // 2-3
+  const itemPool=['hp','spd','block','invis'];
+  const chests=[];
+  for(let i=0;i<count;i++){
+    let x,y,ok,tries=0;
+    do{
+      x=80+Math.random()*(MAP_W-160);
+      y=80+Math.random()*(MAP_H-160);
+      ok=true;
+      for(const w of map.walls){if(x>w.x-30&&x<w.x+w.w+30&&y>w.y-30&&y<w.y+w.h+30){ok=false;break;}}
+      if(ok&&isInRiver(x,y,map))ok=false;
+      // Min distance from other chests (200px)
+      for(const c of chests){if(Math.hypot(x-c.x,y-c.y)<200){ok=false;break;}}
+      for(const c of activeChests){if(Math.hypot(x-c.x,y-c.y)<200){ok=false;break;}}
+      tries++;
+    }while(!ok&&tries<80);
+    const numItems=1+Math.floor(Math.random()*2); // 1-2 items
+    const items=[];
+    for(let j=0;j<numItems;j++){items.push(itemPool[Math.floor(Math.random()*itemPool.length)]);}
+    chests.push({id:'c_'+Date.now()+'_'+i,x,y,items});
+  }
+  return chests;
+}
+function tickChestRespawn(){
+  if(!isHost)return;
+  const now=Date.now();
+  // Check for empty chests
+  for(const ch of activeChests){
+    const state=chestStates[ch.id];
+    if(state&&state.items&&state.items.length===0){
+      if(!chestEmptyTimers[ch.id]){
+        chestEmptyTimers[ch.id]=now;
+      } else if(now-chestEmptyTimers[ch.id]>30000){
+        // Remove this chest and spawn a new one
+        delete chestStates[ch.id];
+        delete chestEmptyTimers[ch.id];
+        const idx=activeChests.findIndex(c=>c.id===ch.id);
+        if(idx!==-1)activeChests.splice(idx,1);
+        channel.send({type:'broadcast',event:'chest-remove',payload:{chestId:ch.id}});
+        // Spawn new chest
+        const map=MAPS[selectedMap];
+        const newChests=generateRandomChests(map,1);
+        if(newChests.length>0){
+          const nc=newChests[0];
+          activeChests.push(nc);
+          chestStates[nc.id]={items:[...nc.items]};
+          channel.send({type:'broadcast',event:'chest-respawn',payload:{chest:nc,items:nc.items}});
+        }
+        break; // one per tick
+      }
+    } else {
+      delete chestEmptyTimers[ch.id];
+    }
+  }
+}
+function onChestRespawn({chest,items}){
+  if(!chest)return;
+  activeChests.push(chest);
+  chestStates[chest.id]={items:items||[]};
+}
+function onChestRemove({chestId}){
+  const idx=activeChests.findIndex(c=>c.id===chestId);
+  if(idx!==-1)activeChests.splice(idx,1);
+  delete chestStates[chestId];
+  delete chestEmptyTimers[chestId];
+}
+
+// ===== RANDOMIZE RIVER =====
+function randomizeRiver(map){
+  if(!map.river||!map.river.path)return;
+  map.river.path.forEach(pt=>{
+    pt.x+=Math.round((Math.random()-0.5)*100); // ±50px
+    pt.y+=Math.round((Math.random()-0.5)*20); // slight y variation
+  });
+}
+
+// ===== BARRIER TIMER =====
+function tickBarriers(){
+  const map=MAPS[selectedMap];
+  if(!map.gates)return;
+  map.gates.forEach(g=>{
+    if(g.type==='barrier'&&gateStates[g.id]&&barrierTimers[g.id]!==undefined){
+      barrierTimers[g.id]--;
+      if(barrierTimers[g.id]<=0){
+        gateStates[g.id]=false;
+        delete barrierTimers[g.id];
+        channel.send({type:'broadcast',event:'gate-toggle',payload:{gateId:g.id,open:false}});
+      }
+    }
+  });
 }
 
 // ===== GAME END =====
@@ -1449,9 +1857,9 @@ function draw(){
   const ctx=canvas.getContext('2d');
   const me=players[myId];if(!me)return;
 
-  // Camera
-  const camX=me.x-canvas.width/2;
-  const camY=me.y-canvas.height/2;
+  // Camera (clamped to map bounds)
+  const camX=Math.max(0,Math.min(MAP_W-canvas.width,me.x-canvas.width/2));
+  const camY=Math.max(0,Math.min(MAP_H-canvas.height,me.y-canvas.height/2));
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.save();
   ctx.translate(-camX,-camY);
@@ -1476,8 +1884,8 @@ function draw(){
   // Gates
   drawGates(ctx,map);
 
-  // Tunnels
-  drawTunnels(ctx,map);
+  // Portals
+  drawPortals(ctx);
 
   // Chests
   drawChests(ctx,map);
@@ -1526,15 +1934,35 @@ function draw(){
 
   // Players
   Object.entries(players).forEach(([id,p])=>{
+    // Other players who are invisible: skip rendering
+    if(id!==myId&&p._invisible&&!p.caught)return;
     if(p.caught&&!p.isCatcher){
       // Ghost
       ctx.globalAlpha=0.4;
       drawPlayer(ctx,p,id===myId);
       ctx.globalAlpha=1;
+    } else if(id===myId&&invisTimer>0){
+      // Self invisible: dashed outline, transparent
+      ctx.globalAlpha=0.4;
+      ctx.setLineDash([6,4]);
+      drawPlayer(ctx,p,true);
+      ctx.setLineDash([]);
+      ctx.globalAlpha=1;
+    } else if(p._frozen){
+      // Frozen by NPC
+      ctx.globalAlpha=0.6;
+      drawPlayer(ctx,p,id===myId);
+      // Ice effect
+      ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+6,0,Math.PI*2);
+      ctx.strokeStyle='rgba(100,200,255,0.7)';ctx.lineWidth=3;ctx.stroke();
+      ctx.globalAlpha=1;
     } else {
       drawPlayer(ctx,p,id===myId);
     }
   });
+
+  // NPCs
+  drawNPCs(ctx);
 
   ctx.restore();
 
@@ -1566,6 +1994,29 @@ function drawPlayer(ctx,p,isMe){
     ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+4,0,Math.PI*2);
     ctx.strokeStyle='rgba(255,200,0,0.6)';ctx.lineWidth=2;ctx.stroke();
   }
+}
+
+// ===== DRAW NPCs =====
+function drawNPCs(ctx){
+  npcs.forEach(npc=>{
+    const emoji=npc.type==='beast'?'🐺':'⚔️';
+    const color=npc.type==='beast'?'#8B4513':'#4A4A4A';
+    // Shadow
+    ctx.beginPath();ctx.ellipse(npc.x,npc.y+18,14,5,0,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,0.2)';ctx.fill();
+    // Body
+    ctx.beginPath();ctx.arc(npc.x,npc.y,18,0,Math.PI*2);
+    ctx.fillStyle=color;ctx.fill();
+    ctx.strokeStyle=npc.state==='chase'?'#FF0000':'#555';
+    ctx.lineWidth=npc.state==='chase'?3:2;ctx.stroke();
+    // Emoji
+    ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(emoji,npc.x,npc.y);
+    // Chase indicator
+    if(npc.state==='chase'){
+      ctx.font='12px sans-serif';ctx.fillText('❗',npc.x,npc.y-24);
+    }
+  });
 }
 
 // ===== DRAW BACKGROUND =====
@@ -1727,26 +2178,39 @@ function drawWalls(ctx,map){
 function drawGates(ctx,map){
   if(!map.gates)return;
   map.gates.forEach(g=>{
-    const open=gateStates[g.id];
-    if(!open){
-      // Draw closed gate
-      ctx.fillStyle=g.color||'#8B0000';
-      ctx.fillRect(g.x,g.y,g.w,g.h);
-      // Bars
-      ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;
-      if(g.w>g.h){
-        for(let i=g.x+8;i<g.x+g.w;i+=10){ctx.beginPath();ctx.moveTo(i,g.y);ctx.lineTo(i,g.y+g.h);ctx.stroke();}
-      } else {
-        for(let i=g.y+8;i<g.y+g.h;i+=10){ctx.beginPath();ctx.moveTo(g.x,i);ctx.lineTo(g.x+g.w,i);ctx.stroke();}
+    const active=gateStates[g.id];
+    if(g.type==='barrier'){
+      // Barrier: visible only when active
+      if(active){
+        ctx.fillStyle=g.color||'#556B2F';
+        ctx.globalAlpha=0.85;
+        ctx.fillRect(g.x,g.y,g.w,g.h);
+        // Stone texture
+        ctx.strokeStyle='rgba(0,0,0,0.4)';ctx.lineWidth=2;
+        for(let i=g.x+15;i<g.x+g.w;i+=20){ctx.beginPath();ctx.moveTo(i,g.y);ctx.lineTo(i,g.y+g.h);ctx.stroke();}
+        for(let i=g.y+15;i<g.y+g.h;i+=20){ctx.beginPath();ctx.moveTo(g.x,i);ctx.lineTo(g.x+g.w,i);ctx.stroke();}
+        ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('🧱',g.x+g.w/2,g.y+g.h/2);
+        ctx.globalAlpha=1;
       }
-      // Lock icon
-      ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('🚧',g.x+g.w/2,g.y+g.h/2);
     } else {
-      // Open gate - just outline
-      ctx.strokeStyle='rgba(100,100,100,0.3)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
-      ctx.strokeRect(g.x,g.y,g.w,g.h);
-      ctx.setLineDash([]);
+      // Normal gate
+      if(!active){
+        ctx.fillStyle=g.color||'#8B0000';
+        ctx.fillRect(g.x,g.y,g.w,g.h);
+        ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;
+        if(g.w>g.h){
+          for(let i=g.x+8;i<g.x+g.w;i+=10){ctx.beginPath();ctx.moveTo(i,g.y);ctx.lineTo(i,g.y+g.h);ctx.stroke();}
+        } else {
+          for(let i=g.y+8;i<g.y+g.h;i+=10){ctx.beginPath();ctx.moveTo(g.x,i);ctx.lineTo(g.x+g.w,i);ctx.stroke();}
+        }
+        ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('🚧',g.x+g.w/2,g.y+g.h/2);
+      } else {
+        ctx.strokeStyle='rgba(100,100,100,0.3)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+        ctx.strokeRect(g.x,g.y,g.w,g.h);
+        ctx.setLineDash([]);
+      }
     }
   });
 }
@@ -1766,38 +2230,40 @@ function drawGateSwitches(ctx,map){
   });
 }
 
-// ===== DRAW TUNNELS =====
-function drawTunnels(ctx,map){
-  if(!map.tunnels)return;
-  map.tunnels.forEach(t=>{
-    // Both ends show locked icon (🔒)
-    [t.entry,t.exit].forEach(portal=>{
-      ctx.fillStyle='rgba(80,0,120,0.4)';
-      ctx.fillRect(portal.x,portal.y,portal.w,portal.h);
-      ctx.strokeStyle='#6A0DAD';ctx.lineWidth=2;
-      ctx.strokeRect(portal.x,portal.y,portal.w,portal.h);
-      // Swirl effect
-      ctx.beginPath();
-      const cx=portal.x+portal.w/2,cy=portal.y+portal.h/2;
-      for(let a=0;a<Math.PI*4;a+=0.3){
-        const r2=3+a*2;
-        const px=cx+Math.cos(a+frameCount*0.05)*r2;
-        const py=cy+Math.sin(a+frameCount*0.05)*r2;
-        if(a===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
-      }
-      ctx.strokeStyle='rgba(180,100,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
-      // Lock icon on both sides
-      ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('🔒',cx,cy);
-    });
+// ===== DRAW PORTALS =====
+function drawPortals(ctx){
+  if(!portals||portals.length===0)return;
+  const colors=['#9C27B0','#00BCD4','#FF9800'];
+  portals.forEach((p,i)=>{
+    const cx=p.x,cy=p.y;
+    // Outer glow
+    const grad=ctx.createRadialGradient(cx,cy,5,cx,cy,30);
+    grad.addColorStop(0,colors[i%3]);
+    grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad;
+    ctx.beginPath();ctx.arc(cx,cy,30,0,Math.PI*2);ctx.fill();
+    // Swirl effect
+    ctx.beginPath();
+    for(let a=0;a<Math.PI*4;a+=0.2){
+      const r2=5+a*3;
+      const px=cx+Math.cos(a+frameCount*0.06)*r2;
+      const py=cy+Math.sin(a+frameCount*0.06)*r2;
+      if(a===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+    }
+    ctx.strokeStyle=colors[i%3];ctx.lineWidth=2;ctx.globalAlpha=0.7;ctx.stroke();
+    ctx.globalAlpha=1;
+    // Center icon
+    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🌀',cx,cy);
   });
 }
 
 // ===== DRAW CHESTS =====
 function drawChests(ctx,map){
-  if(!map.chests)return;
-  map.chests.forEach(ch=>{
-    const opened=chestStates[ch.id];
+  if(!activeChests||activeChests.length===0)return;
+  activeChests.forEach(ch=>{
+    const state=chestStates[ch.id];
+    const opened=state&&state.items&&state.items.length===0;
     const cx=ch.x,cy=ch.y;
     if(!opened){
       // Closed chest - wooden box
