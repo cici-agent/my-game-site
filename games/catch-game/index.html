@@ -32,7 +32,7 @@ body {
 .input { width:100%; padding:10px 14px; border:2px solid #eee; border-radius:12px; font-size:1em; margin:6px 0; outline:none; transition:border 0.2s; }
 .input:focus { border-color:#4ECDC4; }
 .char-grid { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:10px 0; }
-.char-option { width:52px; height:60px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; border:3px solid transparent; transition:transform 0.2s,border 0.2s; }
+.char-option { width:60px; height:72px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; border:3px solid transparent; transition:transform 0.2s,border 0.2s; }
 .char-option:hover { transform:scale(1.15); }
 .char-option.selected { border-color:#FF6B6B; transform:scale(1.2); }
 .toggle-group { display:flex; gap:6px; margin:8px 0; }
@@ -542,7 +542,7 @@ function drawPixelChar(ctx, key, cx, cy, size) {
 }
 
 // 生成角色头像 canvas dataURL（用于选择界面）
-function charAvatarURL(key, size=44) {
+function charAvatarURL(key, size=64) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
@@ -987,7 +987,7 @@ function joinChannel(){
         lg.dataset.init='1';
         CHARS.forEach((c,i)=>{
           const url=charAvatarURL(c.pixel);
-          lg.innerHTML+=`<div class="char-option${i===myCharIdx?' selected':''}" style="background:${c.color};padding:2px" data-idx="${i}" onclick="selectChar(this,${i})" title="${c.name}"><img src="${url}" style="width:36px;height:36px;image-rendering:pixelated"><div style="font-size:9px;color:#fff;text-align:center;margin-top:1px;text-shadow:0 1px 2px #000">${c.name}</div></div>`;
+        lg.innerHTML+=`<div class="char-option${i===myCharIdx?' selected':''}" style="background:${c.color};padding:3px" data-idx="${i}" onclick="selectChar(this,${i})" title="${c.name}"><img src="${url}" style="width:44px;height:44px;image-rendering:pixelated"><div style="font-size:9px;color:#fff;text-align:center;margin-top:2px;text-shadow:0 1px 2px #000;font-weight:bold">${c.name}</div></div>`;
         });
       }
       broadcastPresence();
