@@ -32,7 +32,7 @@ body {
 .input { width:100%; padding:10px 14px; border:2px solid #eee; border-radius:12px; font-size:1em; margin:6px 0; outline:none; transition:border 0.2s; }
 .input:focus { border-color:#4ECDC4; }
 .char-grid { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:10px 0; }
-.char-option { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.4em; cursor:pointer; border:3px solid transparent; transition:transform 0.2s,border 0.2s; }
+.char-option { width:52px; height:60px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; border:3px solid transparent; transition:transform 0.2s,border 0.2s; }
 .char-option:hover { transform:scale(1.15); }
 .char-option.selected { border-color:#FF6B6B; transform:scale(1.2); }
 .toggle-group { display:flex; gap:6px; margin:8px 0; }
@@ -278,15 +278,277 @@ const MAX_ITEMS_ON_MAP=3; // reduced from 8
 
 // ===== CHARACTERS =====
 const CHARS=[
-  {name:'小猫',color:'#FFB347',emoji:'🐱'},{name:'小狗',color:'#87CEEB',emoji:'🐶'},
-  {name:'小兔',color:'#FFB6C1',emoji:'🐰'},{name:'小熊',color:'#DEB887',emoji:'🐻'},
-  {name:'小鸡',color:'#FFEB3B',emoji:'🐥'},{name:'小猪',color:'#F8BBD0',emoji:'🐷'},
-  {name:'小鹿',color:'#C4A882',emoji:'🦌'},{name:'小狐',color:'#FF8C42',emoji:'🦊'},
-  {name:'小企鹅',color:'#5B7FFF',emoji:'🐧'},{name:'小青蛙',color:'#77DD77',emoji:'🐸'}
+  {name:'Mario',    color:'#E52521', pixel:'mario'},
+  {name:'Luigi',    color:'#4CAF50', pixel:'luigi'},
+  {name:'Peach',    color:'#F48FB1', pixel:'peach'},
+  {name:'Yoshi',    color:'#66BB6A', pixel:'yoshi'},
+  {name:'Bowser',   color:'#FF8F00', pixel:'bowser'},
+  {name:'Wario',    color:'#FDD835', pixel:'wario'},
+  {name:'Waluigi',  color:'#7B1FA2', pixel:'waluigi'},
+  {name:'Daisy',    color:'#FFA000', pixel:'daisy'},
+  {name:'DK',       color:'#795548', pixel:'dk'},
+  {name:'Rosalina', color:'#26C6DA', pixel:'rosalina'},
+  {name:'Bowser Jr',color:'#EF6C00', pixel:'bowserjr'},
+  {name:'Toadette', color:'#EC407A', pixel:'toadette'},
 ];
 // Player colors: runners get distinct colors, catchers get red
 const RUNNER_COLORS=['#4FC3F7','#81C784','#FFD54F','#CE93D8','#80DEEA','#FFAB91','#F48FB1','#BCAAA4','#80CBC4','#DCE775'];
 const CATCHER_COLORS=['#FF1744','#FF6D00'];
+
+// ===== 像素风头像绘制 =====
+// 每个角色用 16x16 像素数据定义，颜色用简写
+const PX={
+  // 颜色表
+  _:{
+    r:'#E52521',R:'#C0392B',b:'#1565C0',B:'#0D47A1',y:'#FDD835',Y:'#F9A825',
+    s:'#F5CBA7',S:'#E59866',g:'#4CAF50',G:'#2E7D32',w:'#FFFFFF',k:'#000000',
+    p:'#F48FB1',P:'#E91E63',o:'#FF8F00',O:'#E65100',u:'#7B1FA2',U:'#4A148C',
+    c:'#26C6DA',C:'#00838F',t:'#795548',T:'#4E342E',n:'#FFA000',N:'#E65100',
+    e:'#EC407A',q:'#66BB6A',Q:'#2E7D32',d:'#9E9E9E',D:'#616161',_:null
+  },
+  // 16x16 像素图，每行16字符，_ 表示透明
+  mario:[
+    '____rrrrrr______',
+    '___rrrrrrrrrrr__',
+    '___sssbbbs______',
+    '__sBsBsBsBs_____',
+    '__ssssssssss____',
+    '___bbbwbbb______',
+    '__bbbbbbbbb_____',
+    '_rrbbbbbbbbrr___',
+    'rrrbbwwwwbbrrrr_',
+    'rrrrbwwwwbrrrrr_',
+    'rrrrwwwwwwrrrr__',
+    '___bbbbbbbb_____',
+    '__bbb____bbb____',
+    '_bbb______bbb___',
+    'yyy________yyy__',
+    'YYY________YYY__',
+  ],
+  luigi:[
+    '____gggggg______',
+    '___ggggggggggg__',
+    '___sssbbbs______',
+    '__sBsBsBsBs_____',
+    '__ssssssssss____',
+    '___bbbwbbb______',
+    '__ggggggggg_____',
+    '_rrggggggggrr___',
+    'rrrggwwwwggrrrr_',
+    'rrrrGwwwwGrrrrr_',
+    'rrrrwwwwwwrrrr__',
+    '___bbbbbbbb_____',
+    '__bbb____bbb____',
+    '_bbb______bbb___',
+    'yyy________yyy__',
+    'YYY________YYY__',
+  ],
+  peach:[
+    '___pppppppp_____',
+    '__pppppppppp____',
+    '__psssssssp_____',
+    '_psssssssssp____',
+    '_psssssssssp____',
+    '__ssswwwsss_____',
+    '___wwwwwww______',
+    '__ppppppppp_____',
+    '_pppppppppppp___',
+    'pppppppppppppp__',
+    'pppppppppppppp__',
+    '_pppppppppppp___',
+    '__pppp__pppp____',
+    '_pppp____pppp___',
+    'yyy________yyy__',
+    'YYY________YYY__',
+  ],
+  yoshi:[
+    '____qqqqqq______',
+    '___qqqqqqqqqq___',
+    '__qqwwqqwwqqq___',
+    '__qwkwqqwkwqq___',
+    '__qqwwqqwwqqq___',
+    '__qqqqqqqqqqq___',
+    '__qqqppppqqq____',
+    '_qqqqppppqqqq___',
+    'qqqqqqqqqqqqqqq_',
+    'qQqqqqqqqqqQqq__',
+    '_QQqqqqqqqqQQ___',
+    '__qqqqqqqqqqq___',
+    '__qqq____qqq____',
+    '_qqq______qqq___',
+    'qqq________qqq__',
+    'QQQ________QQQ__',
+  ],
+  bowser:[
+    '___oooooooo_____',
+    '__oooooooooo____',
+    '_ooyyyooyyyoo___',
+    '_oykyoooykyoo___',
+    '_ooyyyooyyyoo___',
+    '__oooooooooo____',
+    '_ooooooooooo____',
+    'oooooooooooooo__',
+    'ooooooooooooooo_',
+    'ooooooooooooooo_',
+    '_oooooooooooo___',
+    '__oooooooooo____',
+    '__ooo____ooo____',
+    '_ooo______ooo___',
+    'ooo________ooo__',
+    'OOO________OOO__',
+  ],
+  wario:[
+    '____yyyy________',
+    '___yyyyyyyyyy___',
+    '___sssbbbs______',
+    '__sBsBsBsBs_____',
+    '__ssssssssss____',
+    '___bbbwbbb______',
+    '__yyyyyyyyyyy___',
+    '_rryyyyyyyyyrr__',
+    'rrryywwwwyyrrrr_',
+    'rrrryYwwYyrrrrrr',
+    'rrrrwwwwwwrrrr__',
+    '___bbbbbbbb_____',
+    '__bbb____bbb____',
+    '_bbb______bbb___',
+    'yyy________yyy__',
+    'YYY________YYY__',
+  ],
+  waluigi:[
+    '____uuuuuu______',
+    '___uuuuuuuuuuu__',
+    '___sssbbbs______',
+    '__sBsBsBsBs_____',
+    '__ssssssssss____',
+    '___bbbwbbb______',
+    '__uuuuuuuuu_____',
+    '_rruuuuuuuurr___',
+    'rrrUUwwwwUUrrrr_',
+    'rrrruUwwUurrrrr_',
+    'rrrrwwwwwwrrrr__',
+    '___bbbbbbbb_____',
+    '__bbb____bbb____',
+    '_bbb______bbb___',
+    'uuu________uuu__',
+    'UUU________UUU__',
+  ],
+  daisy:[
+    '___nnnnnnnn_____',
+    '__nnnnnnnnnn____',
+    '__nsssssssnp____',
+    '_nsssssssssp____',
+    '_nsssssssssp____',
+    '__ssswwwsss_____',
+    '___wwwwwww______',
+    '__nnnnnnnnn_____',
+    '_nnnnnnnnnnnn___',
+    'nnnnnnnnnnnnnn__',
+    'nnnnnnnnnnnnnn__',
+    '_nnnnnnnnnnnn___',
+    '__nnnn__nnnn____',
+    '_nnnn____nnnn___',
+    'yyy________yyy__',
+    'YYY________YYY__',
+  ],
+  dk:[
+    '___tttttttt_____',
+    '__tttttttttt____',
+    '_ttssssssstt____',
+    '_tssssssssst____',
+    '_tsskksskst_____',
+    '_tssssssssst____',
+    '__ttttttttt_____',
+    '_ttttttttttt____',
+    'tttttttttttttt__',
+    'tttttttttttttt__',
+    '_tttttttttttt___',
+    '__tttttttttt____',
+    '__ttt____ttt____',
+    '_ttt______ttt___',
+    'ttt________ttt__',
+    'TTT________TTT__',
+  ],
+  rosalina:[
+    '___cccccccc_____',
+    '__cccccccccc____',
+    '__csssssssc_____',
+    '_cssssssssssc___',
+    '_cssssssssssc___',
+    '__sssswwssss____',
+    '___wwwwwwww_____',
+    '__cccccccccc____',
+    '_cccccccccccc___',
+    'cccccccccccccc__',
+    'cccccccccccccc__',
+    '_cccccccccccc___',
+    '__cccc__cccc____',
+    '_cccc____cccc___',
+    'ccc________ccc__',
+    'CCC________CCC__',
+  ],
+  bowserjr:[
+    '____oooooo______',
+    '___oooooooooo___',
+    '__ooyyyooyyyoo__',
+    '__oykyoooykyoo__',
+    '__ooyyyooyyyoo__',
+    '___oooooooooo___',
+    '___ooooooooo____',
+    '__oooooooooo____',
+    '_ooooooooooooo__',
+    '_ooooooooooooo__',
+    '__ooooooooooo___',
+    '___ooooooooo____',
+    '___ooo___ooo____',
+    '__ooo_____ooo___',
+    '_ooo_______ooo__',
+    'OOO_________OOO_',
+  ],
+  toadette:[
+    '___eeeeeeee_____',
+    '__eeeeeeeeee____',
+    '_eepppppppee____',
+    '_epppppppppe____',
+    '_epppppppppe____',
+    '__esssssssse____',
+    '___ssswwsss_____',
+    '__eeeeeeeee_____',
+    '_eeeeeeeeeee____',
+    'eeeeeeeeeeeee___',
+    'eeeeeeeeeeeee___',
+    '_eeeeeeeeeee____',
+    '__eee____eee____',
+    '_eee______eee___',
+    'eee________eee__',
+    'EEE________EEE__',
+  ],
+};
+
+function drawPixelChar(ctx, key, cx, cy, size) {
+  const rows = PX[key];
+  if (!rows) { ctx.fillStyle='#ccc'; ctx.fillRect(cx-size/2,cy-size/2,size,size); return; }
+  const px = size / 16;
+  rows.forEach((row, ry) => {
+    for (let rx = 0; rx < 16; rx++) {
+      const c = row[rx];
+      if (!c || c === '_') return;
+      const col = PX._[c];
+      if (!col) return;
+      ctx.fillStyle = col;
+      ctx.fillRect(cx - size/2 + rx*px, cy - size/2 + ry*px, px, px);
+    }
+  });
+}
+
+// 生成角色头像 canvas dataURL（用于选择界面）
+function charAvatarURL(key, size=44) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  drawPixelChar(ctx, key, size/2, size/2, size);
+  return c.toDataURL();
+}
 
 // ===== ITEM TYPES =====
 const ITEM_TYPES={
@@ -723,7 +985,10 @@ function joinChannel(){
       const lg=document.getElementById('lobby-chars');
       if(lg&&!lg.dataset.init){
         lg.dataset.init='1';
-        CHARS.forEach((c,i)=>{lg.innerHTML+=`<div class="char-option${i===myCharIdx?' selected':''}" style="background:${c.color}" data-idx="${i}" onclick="selectChar(this,${i})">${c.emoji}</div>`;});
+        CHARS.forEach((c,i)=>{
+          const url=charAvatarURL(c.pixel);
+          lg.innerHTML+=`<div class="char-option${i===myCharIdx?' selected':''}" style="background:${c.color};padding:2px" data-idx="${i}" onclick="selectChar(this,${i})" title="${c.name}"><img src="${url}" style="width:36px;height:36px;image-rendering:pixelated"><div style="font-size:9px;color:#fff;text-align:center;margin-top:1px;text-shadow:0 1px 2px #000">${c.name}</div></div>`;
+        });
       }
       broadcastPresence();
       // 延迟再广播一次，确保后加入的人能看到先加入的人
@@ -799,7 +1064,11 @@ function updateTakenChars(){
 }
 function renderLobby(){
   const el=document.getElementById('lobby-players');
-  el.innerHTML=Object.entries(lobbyPlayers).map(([id,p])=>`<span class="player-tag${p.isHost?' host':''}">${CHARS[p.charIdx].emoji} ${escH(p.nick)}${p.isHost?' 👑':''}</span>`).join('');
+  el.innerHTML=Object.entries(lobbyPlayers).map(([id,p])=>{
+    const ch=CHARS[p.charIdx]||CHARS[0];
+    const url=charAvatarURL(ch.pixel,28);
+    return `<span class="player-tag${p.isHost?' host':''}"><img src="${url}" style="width:20px;height:20px;image-rendering:pixelated;vertical-align:middle;margin-right:3px">${escH(p.nick)}${p.isHost?' 👑':''}</span>`;
+  }).join('');
 }
 
 // ===== VOTING =====
@@ -1944,7 +2213,7 @@ function showResult(winner){
   const mapBtns=MAPS.map((m,i)=>`<button class="btn ${i===selectedMap?'btn-orange':'btn-gray'}" style="font-size:0.85em;padding:6px 12px" onclick="selectResultMap(${i},this)">${m.name}</button>`).join('');
   el.innerHTML=`
     <h2>${winner==='catcher'?'🏷️ 抓人者胜利！':'🏃 逃跑者胜利！'}</h2>
-    <p style="margin:12px 0;color:#666">抓人者: ${catcher?CHARS[catcher.charIdx].emoji+' '+escH(catcher.nick):''}</p>
+    <p style="margin:12px 0;color:#666">抓人者: ${catcher?`<img src="${charAvatarURL(CHARS[catcher.charIdx].pixel,20)}" style="width:16px;height:16px;image-rendering:pixelated;vertical-align:middle"> ${escH(catcher.nick)}`:''}</p>
     ${isHost?`<div style="margin:12px 0"><p style="font-size:0.85em;color:#888;margin-bottom:6px">选择下一局地图：</p><div style="display:flex;gap:6px;justify-content:center">${mapBtns}</div></div>`:'<p style="font-size:0.85em;color:#888">等待房主选择地图...</p>'}
     <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
       <button class="btn btn-green" onclick="returnToLobby()">🔄 再来一局</button>
@@ -2152,34 +2421,34 @@ function draw(){
 function drawPlayer(ctx,p,isMe){
   const ch=CHARS[p.charIdx];
   const pColor=p.playerColor||(p.isCatcher?CATCHER_COLORS[0]:RUNNER_COLORS[0]);
+  const size=PLAYER_R*2;
   // Shadow
   ctx.beginPath();ctx.ellipse(p.x,p.y+PLAYER_R,PLAYER_R*0.8,PLAYER_R*0.3,0,0,Math.PI*2);
-  ctx.fillStyle='rgba(0,0,0,0.15)';ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.18)';ctx.fill();
   // Catcher glow
   if(p.isCatcher){
-    ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+5,0,Math.PI*2);
+    ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+6,0,Math.PI*2);
     ctx.shadowBlur=18;ctx.shadowColor='#FF1744';
-    ctx.strokeStyle='rgba(255,23,68,0.7)';ctx.lineWidth=3;ctx.stroke();
+    ctx.strokeStyle='rgba(255,23,68,0.8)';ctx.lineWidth=3;ctx.stroke();
     ctx.shadowBlur=0;
   }
-  // Body
+  // Circle background
   ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R,0,Math.PI*2);
   ctx.fillStyle=pColor;ctx.fill();
-  ctx.strokeStyle=p.isCatcher?'#FF1744':'rgba(0,0,0,0.3)';ctx.lineWidth=p.isCatcher?3:2;ctx.stroke();
-  // Emoji
-  ctx.font='16px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText(ch.emoji,p.x,p.y);
-  // Name tag with player color background
+  ctx.strokeStyle=p.isCatcher?'#FF1744':'rgba(0,0,0,0.25)';ctx.lineWidth=p.isCatcher?3:2;ctx.stroke();
+  // Pixel character
+  drawPixelChar(ctx,ch.pixel,p.x,p.y,size*0.85);
+  // Name tag
   const nameW=ctx.measureText(p.nick).width+10;
   ctx.fillStyle=pColor;
   ctx.beginPath();ctx.roundRect(p.x-nameW/2,p.y-PLAYER_R-20,nameW,14,4);ctx.fill();
-  ctx.font='bold 9px sans-serif';ctx.fillStyle='#fff';ctx.textAlign='center';
+  ctx.font='bold 9px sans-serif';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText(p.nick,p.x,p.y-PLAYER_R-13);
   // Catcher indicator
   if(p.isCatcher){
     ctx.font='12px sans-serif';ctx.fillText('🏷️',p.x,p.y-PLAYER_R-30);
   }
-  // Speed boost indicator
+  // Speed boost
   if(p._speedBoost&&p._speedBoost>0){
     ctx.beginPath();ctx.arc(p.x,p.y,PLAYER_R+4,0,Math.PI*2);
     ctx.strokeStyle='rgba(255,200,0,0.6)';ctx.lineWidth=2;ctx.stroke();
@@ -2753,6 +3022,7 @@ window.addEventListener('load',async()=>{
 </script>
 </body>
 </html>
+
 
 
 
