@@ -153,7 +153,6 @@ body {
     <h3>🎮 创建房间</h3>
     <input class="input" id="create-name" placeholder="房间名称" maxlength="12">
     <input class="input" id="create-nick" placeholder="你的昵称" maxlength="8">
-    <div><b>地图：</b><div class="toggle-group" id="map-toggle"></div></div>
     <div><b>类型：</b><div class="toggle-group"><span class="toggle-btn active" data-val="public" onclick="toggleRoomType(this)">公开</span><span class="toggle-btn" data-val="private" onclick="toggleRoomType(this)">私密</span></div></div>
     <button class="btn btn-orange" onclick="createRoom()">创建</button>
     <button class="btn btn-gray" onclick="showScreen('menu-screen')">返回</button>
@@ -188,6 +187,10 @@ body {
     <div style="margin:8px 0">
       <p style="font-size:0.85em;color:#888;margin-bottom:6px">选择你的头像：</p>
       <div class="char-grid" id="lobby-chars"></div>
+    </div>
+    <div id="lobby-map-select" style="margin:8px 0;display:none">
+      <p style="font-size:0.85em;color:#888;margin-bottom:6px">选择地图：</p>
+      <div class="toggle-group" id="map-toggle"></div>
     </div>
     <div class="player-list" id="lobby-players"></div>
     <p id="lobby-wait-msg" style="color:#666;margin:8px 0;font-size:0.9em"></p>
@@ -555,7 +558,14 @@ function initUI(){
   const mt=document.getElementById('map-toggle');
   MAPS.forEach((m,i)=>{mt.innerHTML+=`<span class="toggle-btn${i===0?' active':''}" data-val="${i}" onclick="selectMap(this)">${m.name}</span>`;});
 }
-function selectMap(el){el.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');selectedMap=+el.dataset.val;}
+function selectMap(el){
+  el.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');selectedMap=+el.dataset.val;
+  if(gameState==='lobby'&&channel){
+    channel.send({type:'broadcast',event:'map-change',payload:{mapIdx:selectedMap}});
+    broadcastPresence();
+  }
+}
 function selectChar(el,idx){
   if(el.classList.contains('taken'))return; // 已被占用，不可选
   el.parentElement.querySelectorAll('.char-option').forEach(c=>c.classList.remove('selected'));
@@ -689,7 +699,10 @@ function joinChannel(){
       gameState='lobby';showScreen('lobby-screen');
       document.getElementById('lobby-room-name').textContent=roomName;
       document.getElementById('lobby-room-code').textContent='#'+roomCode;
-      if(isHost)document.getElementById('force-start-btn').style.display='inline-block';
+      if(isHost){
+        document.getElementById('force-start-btn').style.display='inline-block';
+        document.getElementById('lobby-map-select').style.display='block';
+      }
       // Init lobby char selector
       const lg=document.getElementById('lobby-chars');
       if(lg&&!lg.dataset.init){
