@@ -2690,21 +2690,22 @@ window.addEventListener('load',async()=>{
   myId=genId();
   initUI();
   initAgoraClient();
-  // 预填网站注册用户名
-  try{
-    const {data:{user}}=await sb.auth.getUser();
-    if(user){
-      const {data:profile}=await sb.from('profiles').select('username').eq('id',user.id).single();
-      const uname=profile?.username||user.email?.split('@')[0]||'';
-      if(uname){
-        const cn=document.getElementById('create-nick');
-        const jn=document.getElementById('join-nick');
-        if(cn&&!cn.value)cn.value=uname;
-        if(jn&&!jn.value)jn.value=uname;
-        myNick=uname;
-      }
+  // 预填网站注册用户名（监听 auth 状态，session 恢复后立即填入）
+  sb.auth.onAuthStateChange(async(event, session)=>{
+    if(session?.user){
+      try{
+        const {data:profile}=await sb.from('profiles').select('username').eq('id',session.user.id).single();
+        const uname=profile?.username||session.user.email?.split('@')[0]||'';
+        if(uname){
+          const cn=document.getElementById('create-nick');
+          const jn=document.getElementById('join-nick');
+          if(cn&&!cn.value)cn.value=uname;
+          if(jn&&!jn.value)jn.value=uname;
+          myNick=uname;
+        }
+      }catch(e){console.warn('prefill nick error',e);}
     }
-  }catch(e){console.warn('prefill nick error',e);}
+  });
 });
 </script>
 </body>
