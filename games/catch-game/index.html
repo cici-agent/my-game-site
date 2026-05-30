@@ -1288,11 +1288,21 @@ function tick(){
     // Tunnel cooldown
     if(portalCooldown>0)portalCooldown--;
 
-    // Check portal entry (3 portals, teleport to random other)
+    // Check portal entry (3 portals, teleport to random other) - requires key
     if(portalCooldown<=0&&portals.length>=2){
       for(let pi=0;pi<portals.length;pi++){
         const p=portals[pi];
         if(Math.hypot(me.x-p.x,me.y-p.y)<35){
+          // Check if player has a key
+          const keySlot=myItems.indexOf('key');
+          if(keySlot===-1){
+            showTunnelMsg('🔑 需要钥匙才能使用传送门');setTimeout(hideTunnelMsg,1500);
+            portalCooldown=60; // short cooldown to avoid spam
+            break;
+          }
+          // Consume the key
+          myItems[keySlot]=null;
+          updateItemBarUI();
           // Teleport to random other portal
           const others=portals.filter((_,idx)=>idx!==pi);
           const dest=others[Math.floor(Math.random()*others.length)];
@@ -1440,7 +1450,7 @@ function checkInteractHint(){
   if(!hint&&portals&&portals.length>0){
     for(const p of portals){
       if(Math.hypot(me.x-p.x,me.y-p.y)<35){
-        hint='🌀 进入传送门';break;
+        hint=myItems.indexOf('key')>=0?'🌀 进入传送门（消耗🔑钥匙）':'🌀 传送门（需要🔑钥匙）';break;
       }
     }
   }
@@ -1534,20 +1544,28 @@ function spawnNPCs(){
       if(ok&&isInRiver(x,y,map))ok=false;
       tries++;
     }while(!ok&&tries<50);
-    npcs.push({id:'npc_'+i,x,y,type:npcType,targetId:null,state:'roam',roamAngle:Math.random()*Math.PI*2,roamTimer:0});
+    npcs.push({id:'npc_'+i,x,y,type:npcType,targetId:null,state:'roam',roamAngle:Math.random()*Math.PI*2,roamTimer:0,perPlayerCooldown:{}});
   }
 }
 function tickNPCs(){
   if(npcs.length===0)return;
   const map=MAPS[selectedMap];
   npcs.forEach(npc=>{
-    // Detect nearby non-invisible players
+    if(!npc.perPlayerCooldown)npc.perPlayerCooldown={};
+    // Decrement per-player cooldowns
+    Object.keys(npc.perPlayerCooldown).forEach(id=>{
+      if(npc.perPlayerCooldown[id]>0)npc.perPlayerCooldown[id]--;
+    });
+    // Detect nearby non-invisible, non-frozen, non-cooldown players
     let closestDist=Infinity,closestId=null;
     Object.entries(players).forEach(([id,p])=>{
       if(p.caught)return;
-      // Check if player is invisible
+      // Check if player is invisible or frozen (frozen players are ignored by NPC)
       const isInvis=(id===myId&&invisTimer>0)||(id!==myId&&p._invisible);
-      if(isInvis)return;
+      const isFrozen=(id===myId&&frozenTimer>0)||(id!==myId&&p._frozen);
+      if(isInvis||isFrozen)return;
+      // Check per-player cooldown (after recent freeze)
+      if((npc.perPlayerCooldown[id]||0)>0)return;
       const dist=Math.hypot(npc.x-p.x,npc.y-p.y);
       if(dist<200&&dist<closestDist){closestDist=dist;closestId=id;}
     });
@@ -1576,8 +1594,10 @@ function tickNPCs(){
           // Freeze the player
           channel.send({type:'broadcast',event:'npc-freeze',payload:{playerId:closestId,npcId:npc.id}});
           npc.state='roam';npc.targetId=null;npc.roamTimer=120;
-          // Push NPC away
-          npc.x-=dx/len*50;npc.y-=dy/len*50;
+          // Set per-player cooldown (5 seconds = 300 frames) to prevent freeze loop
+          npc.perPlayerCooldown[closestId]=300;
+          // Push NPC away (80px to ensure separation)
+          npc.x-=dx/len*80;npc.y-=dy/len*80;
         }
       }
     } else {
