@@ -517,6 +517,7 @@ let invisTimer=0; // frames remaining for my invisibility
 let npcs=[]; // [{id,x,y,type:'beast'|'soldier',targetId:null,state:'roam'|'chase',roamAngle:0,roamTimer:0}]
 let npcBroadcastTimer=0;
 let frozenTimer=0; // frames I'm frozen by NPC
+let npcProtectTimer=0; // frames of post-freeze protection (NPC won't chase me)
 // Portal system (3 portals, random teleport)
 let portals=[]; // [{id,x,y}] - 3 portals
 let portalCooldown=0;
@@ -837,7 +838,7 @@ function onGameStart({catcherId,positions,ids,mapIdx}){
   foods=[];obstacles=[];itemPickups=[];tunnelKeys=[];
   myItems=[null,null,null];
   chestStates={};gateStates={};barrierTimers={};
-  invisTimer=0;frozenTimer=0;npcs=[];npcBroadcastTimer=0;
+  invisTimer=0;frozenTimer=0;npcProtectTimer=0;npcs=[];npcBroadcastTimer=0;
   portals=[];portalCooldown=0;portalRelocateTimer=0;
   chestEmptyTimers={};activeChests=[];
   coinSpawnTimer=0;itemSpawnTimer=0;
@@ -1378,7 +1379,12 @@ function tick(){
   }
 
   // Frozen by NPC timer (outside movement block so it always decrements)
-  if(frozenTimer>0){frozenTimer--;me.speed=0;}
+  if(frozenTimer>0){
+    frozenTimer--;
+    me.speed=0;
+    if(frozenTimer===0){npcProtectTimer=300;} // 5s protection after unfreeze
+  }
+  if(npcProtectTimer>0)npcProtectTimer--;
 
   // Invisible player bumps into NPC - self check (all clients)
   if(invisTimer>0&&frozenTimer<=0&&npcs.length>0&&!me.caught){
@@ -1562,7 +1568,7 @@ function tickNPCs(){
       if(p.caught)return;
       // Check if player is invisible or frozen (frozen players are ignored by NPC)
       const isInvis=(id===myId&&invisTimer>0)||(id!==myId&&p._invisible);
-      const isFrozen=(id===myId&&frozenTimer>0)||(id!==myId&&p._frozen);
+      const isFrozen=(id===myId&&(frozenTimer>0||npcProtectTimer>0))||(id!==myId&&p._frozen);
       if(isInvis||isFrozen)return;
       // Check per-player cooldown (after recent freeze)
       if((npc.perPlayerCooldown[id]||0)>0)return;
@@ -2455,4 +2461,5 @@ window.addEventListener('load',()=>{
 </script>
 </body>
 </html>
+
 
