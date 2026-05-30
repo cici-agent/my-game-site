@@ -259,7 +259,9 @@ body {
 // ===== CONFIG =====
 const SUPABASE_URL='https://aqxbpuetdypcbmqdncpl.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxeGJwdWV0ZHlwY2JtcWRuY3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5ODg5MzksImV4cCI6MjA5NDU2NDkzOX0.YUwFQeJgbmhrtY32tGXbm9wz0jtou0Zxg1626EJl3r0';
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
+  auth:{persistSession:true,storageKey:'xiaocainiao_session',storage:window.localStorage,autoRefreshToken:true,detectSessionInUrl:false}
+});
 
 const MAP_W=1800, MAP_H=1350;
 let camX=0, camY=0; // global camera position for tap detection
