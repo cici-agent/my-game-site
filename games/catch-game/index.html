@@ -695,7 +695,7 @@ function startRoomHeartbeat(){
     try{
       await sb.from('catch_rooms').update({last_active:new Date().toISOString()}).eq('room_code',roomCode);
     }catch(e){}
-  },15000);
+  },10000);
 }
 function stopRoomHeartbeat(){
   if(roomHeartbeat){clearInterval(roomHeartbeat);roomHeartbeat=null;}
@@ -1865,11 +1865,12 @@ async function loadRooms(){
   const listEl=document.getElementById('room-list');
   listEl.innerHTML='<p style="color:#999;text-align:center">加载中...</p>';
   try{
-    const thirtySecsAgo=new Date(Date.now()-30000).toISOString();
+    const twentySecsAgo=new Date(Date.now()-20000).toISOString();
     const {data,error}=await sb.from('catch_rooms')
       .select('*')
       .eq('is_public',true)
-      .gt('last_active',thirtySecsAgo)
+      .gt('last_active',twentySecsAgo)
+      .gt('player_count',0)
       .order('last_active',{ascending:false});
     if(error)throw error;
     if(!data||data.length===0){
@@ -2585,5 +2586,6 @@ window.addEventListener('load',()=>{
 </script>
 </body>
 </html>
+
 
 
