@@ -518,24 +518,84 @@ function createRoom(){
   roomName=document.getElementById('create-name').value.trim()||'快乐房间';
   myNick=document.getElementById('create-nick').value.trim()||CHARS[myCharIdx].name;
   roomCode=genRoomCode();myId=genId();isHost=true;
+  // Register room in catch_rooms table
+  registerRoom();
   joinChannel();
+}
+async function registerRoom(){
+  try{
+    await sb.from('catch_rooms').upsert({
+      room_code:roomCode,
+      room_name:roomName,
+      host_nick:myNick,
+      player_count:1,
+      max_players:8,
+      is_public:roomType==='public',
+      last_active:new Date().toISOString()
+    },{onConflict:'room_code'});
+  }catch(e){console.warn('registerRoom error',e);}
+}
+async function updateRoomPlayerCount(delta){
+  try{
+    const {data}=await sb.from('catch_rooms').select('player_count').eq('room_code',roomCode).single();
+    if(data){
+      const newCount=Math.max(0,(data.player_count||0)+delta);
+      await sb.from('catch_rooms').update({player_count:newCount,last_active:new Date().toISOString()}).eq('room_code',roomCode);
+    }
+  }catch(e){console.warn('updateRoomPlayerCount error',e);}
+}
+async function removeRoom(){
+  try{
+    await sb.from('catch_rooms').delete().eq('room_code',roomCode);
+  }catch(e){console.warn('removeRoom error',e);}
 }
 function joinRoom(){
   roomCode=document.getElementById('join-code').value.trim();
   if(!roomCode||roomCode.length!==4){alert('请输入4位房间号');return;}
   myNick=document.getElementById('join-nick').value.trim()||CHARS[myCharIdx].name;
   myId=genId();isHost=false;
+  updateRoomPlayerCount(1);
   joinChannel();
 }
-function randomJoin(){
+async function randomJoin(){
   myNick=document.getElementById('join-nick').value.trim()||CHARS[myCharIdx].name;
-  myId=genId();isHost=false;roomCode='random_'+Date.now();
-  // Will be handled by presence - find a room
-  alert('随机加入功能开发中，请输入房间号加入');
+  myId=genId();isHost=false;
+  // Query available public rooms with space
+  try{
+    const thirtySecsAgo=new Date(Date.now()-30000).toISOString();
+    const {data,error}=await sb.from('catch_rooms')
+      .select('*')
+      .eq('is_public',true)
+      .gt('last_active',thirtySecsAgo)
+      .lt('player_count',8);
+    if(error)throw error;
+    // Filter rooms that have space
+    const available=data?data.filter(r=>r.player_count<r.max_players):[];
+    if(!available.length){
+      alert('暂无可加入的公开房间，请创建一个新房间吧！');
+      return;
+    }
+    // Pick a random room
+    const room=available[Math.floor(Math.random()*available.length)];
+    roomCode=room.room_code;
+    roomName=room.room_name;
+    updateRoomPlayerCount(1);
+    joinChannel();
+  }catch(e){
+    console.warn('randomJoin error',e);
+    alert('随机加入失败，请稍后再试');
+  }
 }
 function leaveRoom(){
   if(channel){channel.unsubscribe();channel=null;}
   leaveVoice();
+  stopRoomHeartbeat();
+  // Clean up room in DB
+  if(isHost){
+    removeRoom();
+  }else{
+    updateRoomPlayerCount(-1);
+  }
   gameState='menu';players={};lobbyPlayers={};
   showScreen('menu-screen');
 }
@@ -571,10 +631,28 @@ function joinChannel(){
       document.getElementById('lobby-room-code').textContent='#'+roomCode;
       if(isHost)document.getElementById('force-start-btn').style.display='inline-block';
       broadcastPresence();
+      // 延迟再广播一次，确保后加入的人能看到先加入的人
+      setTimeout(()=>broadcastPresence(),1500);
+      startRoomHeartbeat();
       joinVoice();
     }
   });
 }
+// Keep room alive in DB (heartbeat every 15s)
+let roomHeartbeat=null;
+function startRoomHeartbeat(){
+  stopRoomHeartbeat();
+  roomHeartbeat=setInterval(async()=>{
+    if(!roomCode)return;
+    try{
+      await sb.from('catch_rooms').update({last_active:new Date().toISOString()}).eq('room_code',roomCode);
+    }catch(e){}
+  },15000);
+}
+function stopRoomHeartbeat(){
+  if(roomHeartbeat){clearInterval(roomHeartbeat);roomHeartbeat=null;}
+}
+
 function broadcastPresence(){
   if(!channel)return;
   channel.send({type:'broadcast',event:'presence',payload:{
@@ -582,8 +660,13 @@ function broadcastPresence(){
   }});
 }
 function onPresence(p){
+  const isNewPlayer=!lobbyPlayers[p.id];
   lobbyPlayers[p.id]={nick:p.nick,charIdx:p.charIdx,isHost:p.isHost};
   if(p.isHost){roomName=p.roomName||roomName;selectedMap=p.mapIdx??selectedMap;}
+  // 新玩家加入时，回广播自己的 presence 让对方看到我
+  if(isNewPlayer&&p.id!==myId){
+    setTimeout(()=>broadcastPresence(),500);
+  }
   // 如果别人抢了我的头像，自动换一个空闲的
   if(p.id!==myId){
     const takenIdxs=Object.entries(lobbyPlayers).filter(([id])=>id!==myId).map(([,v])=>v.charIdx);
@@ -1322,7 +1405,41 @@ function backToMenu(){
 
 // ===== BROWSE ROOMS =====
 async function loadRooms(){
-  document.getElementById('room-list').innerHTML='<p style="color:#999;text-align:center">暂无公开房间</p>';
+  const listEl=document.getElementById('room-list');
+  listEl.innerHTML='<p style="color:#999;text-align:center">加载中...</p>';
+  try{
+    const thirtySecsAgo=new Date(Date.now()-30000).toISOString();
+    const {data,error}=await sb.from('catch_rooms')
+      .select('*')
+      .eq('is_public',true)
+      .gt('last_active',thirtySecsAgo)
+      .order('last_active',{ascending:false});
+    if(error)throw error;
+    if(!data||data.length===0){
+      listEl.innerHTML='<p style="color:#999;text-align:center">暂无公开房间</p>';
+      return;
+    }
+    listEl.innerHTML=data.map(r=>`
+      <div class="room-card" onclick="joinRoomFromBrowse('${escH(r.room_code)}','${escH(r.room_name)}')">
+        <div>
+          <div style="font-weight:bold">${escH(r.room_name)}</div>
+          <div style="font-size:0.8em;color:#666">房主: ${escH(r.host_nick)} | #${escH(r.room_code)}</div>
+        </div>
+        <div style="font-size:0.85em;color:#4ECDC4;font-weight:bold">${r.player_count}/${r.max_players} 👥</div>
+      </div>
+    `).join('');
+  }catch(e){
+    console.warn('loadRooms error',e);
+    listEl.innerHTML='<p style="color:#999;text-align:center">加载失败，请稍后再试</p>';
+  }
+}
+function joinRoomFromBrowse(code,name){
+  myNick=prompt('输入你的昵称:')||CHARS[myCharIdx].name;
+  myId=genId();isHost=false;
+  roomCode=code;
+  roomName=name;
+  updateRoomPlayerCount(1);
+  joinChannel();
 }
 
 
@@ -1852,3 +1969,4 @@ window.addEventListener('load',()=>{
 </script>
 </body>
 </html>
+
