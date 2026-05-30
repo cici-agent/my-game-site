@@ -189,7 +189,7 @@ body {
       <div class="char-grid" id="lobby-chars"></div>
     </div>
     <div id="lobby-map-select" style="margin:8px 0;display:none">
-      <p style="font-size:0.85em;color:#888;margin-bottom:6px">选择地图：</p>
+      <p style="font-size:0.85em;color:#888;margin-bottom:6px" id="lobby-map-label">选择地图：</p>
       <div class="toggle-group" id="map-toggle"></div>
     </div>
     <div class="player-list" id="lobby-players"></div>
@@ -691,7 +691,15 @@ function joinChannel(){
   channel.on('broadcast',{event:'chest-respawn'},({payload})=>onChestRespawn(payload));
   channel.on('broadcast',{event:'chest-remove'},({payload})=>onChestRemove(payload));
   channel.on('broadcast',{event:'map-random-init'},({payload})=>onMapRandomInit(payload));
-  channel.on('broadcast',{event:'map-change'},({payload})=>{selectedMap=payload.mapIdx;});
+  channel.on('broadcast',{event:'map-change'},({payload})=>{
+    selectedMap=payload.mapIdx;
+    // 同步大厅地图显示
+    document.getElementById('map-toggle').querySelectorAll('.toggle-btn').forEach(b=>{
+      const active=+b.dataset.val===selectedMap;
+      b.classList.toggle('active',active);
+      if(!isHost)b.style.opacity=active?'1':'0.4';
+    });
+  });
   channel.on('broadcast',{event:'player-quit'},({payload})=>onPlayerQuit(payload));
 
   channel.subscribe((status)=>{
@@ -702,6 +710,14 @@ function joinChannel(){
       if(isHost){
         document.getElementById('force-start-btn').style.display='inline-block';
         document.getElementById('lobby-map-select').style.display='block';
+      } else {
+        document.getElementById('force-start-btn').style.display='none';
+        document.getElementById('lobby-map-select').style.display='block';
+        document.getElementById('lobby-map-label').textContent='当前地图：';
+        // 非房主地图不可点击
+        document.getElementById('map-toggle').querySelectorAll('.toggle-btn').forEach(b=>{
+          b.style.pointerEvents='none';b.style.opacity=b.classList.contains('active')?'1':'0.4';
+        });
       }
       // Init lobby char selector
       const lg=document.getElementById('lobby-chars');
@@ -1949,6 +1965,18 @@ function returnToLobby(){
   document.getElementById('item-bar').classList.remove('active');
   gameState='lobby';players={};foods=[];obstacles=[];itemPickups=[];tunnelKeys=[];
   showScreen('lobby-screen');
+  // 重置地图/强制开始按钮权限
+  const mt=document.getElementById('map-toggle');
+  document.getElementById('lobby-map-select').style.display='block';
+  if(isHost){
+    document.getElementById('force-start-btn').style.display='inline-block';
+    document.getElementById('lobby-map-label').textContent='选择地图：';
+    mt.querySelectorAll('.toggle-btn').forEach(b=>{b.style.pointerEvents='';b.style.opacity='';});
+  } else {
+    document.getElementById('force-start-btn').style.display='none';
+    document.getElementById('lobby-map-label').textContent='当前地图：';
+    mt.querySelectorAll('.toggle-btn').forEach(b=>{b.style.pointerEvents='none';b.style.opacity=b.classList.contains('active')?'1':'0.4';});
+  }
   // Refresh lobby char selector to reflect current selection
   const lg=document.getElementById('lobby-chars');
   if(lg){lg.querySelectorAll('.char-option').forEach((c,i)=>{c.classList.toggle('selected',i===myCharIdx);});}
