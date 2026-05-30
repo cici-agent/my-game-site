@@ -153,7 +153,6 @@ body {
     <h3>🎮 创建房间</h3>
     <input class="input" id="create-name" placeholder="房间名称" maxlength="12">
     <input class="input" id="create-nick" placeholder="你的昵称" maxlength="8">
-    <div class="char-grid" id="create-chars"></div>
     <div><b>地图：</b><div class="toggle-group" id="map-toggle"></div></div>
     <div><b>类型：</b><div class="toggle-group"><span class="toggle-btn active" data-val="public" onclick="toggleRoomType(this)">公开</span><span class="toggle-btn" data-val="private" onclick="toggleRoomType(this)">私密</span></div></div>
     <button class="btn btn-orange" onclick="createRoom()">创建</button>
@@ -167,7 +166,6 @@ body {
     <h3>🚪 加入房间</h3>
     <input class="input" id="join-code" placeholder="输入房间号(4位)" maxlength="4">
     <input class="input" id="join-nick" placeholder="你的昵称" maxlength="8">
-    <div class="char-grid" id="join-chars"></div>
     <button class="btn btn-green" onclick="joinRoom()">加入</button>
     <button class="btn btn-blue" onclick="randomJoin()">🎲 随机加入</button>
     <button class="btn btn-gray" onclick="showScreen('menu-screen')">返回</button>
@@ -554,11 +552,6 @@ function isMobile(){return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 function initUI(){
   const mt=document.getElementById('map-toggle');
   MAPS.forEach((m,i)=>{mt.innerHTML+=`<span class="toggle-btn${i===0?' active':''}" data-val="${i}" onclick="selectMap(this)">${m.name}</span>`;});
-  ['create-chars','join-chars'].forEach(gid=>{
-    const g=document.getElementById(gid);
-    CHARS.forEach((c,i)=>{g.innerHTML+=`<div class="char-option" style="background:${c.color}" data-idx="${i}" onclick="selectChar(this,${i})">${c.emoji}</div>`;});
-    g.children[0].classList.add('selected');
-  });
 }
 function selectMap(el){el.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');selectedMap=+el.dataset.val;}
 function selectChar(el,idx){
@@ -762,23 +755,15 @@ function onPresence(p){
 }
 function updateTakenChars(){
   const takenIdxs=Object.entries(lobbyPlayers).filter(([id])=>id!==myId).map(([,v])=>v.charIdx);
-  ['create-chars','join-chars','lobby-chars'].forEach(gid=>{
-    const g=document.getElementById(gid);
-    if(!g)return;
-    g.querySelectorAll('.char-option').forEach(c=>{
-      const idx=+c.dataset.idx;
-      if(takenIdxs.includes(idx)){
-        c.classList.add('taken');
-        c.style.opacity='0.3';
-        c.style.cursor='not-allowed';
-        c.title='已被其他玩家选择';
-      } else {
-        c.classList.remove('taken');
-        c.style.opacity='1';
-        c.style.cursor='pointer';
-        c.title='';
-      }
-    });
+  const g=document.getElementById('lobby-chars');
+  if(!g)return;
+  g.querySelectorAll('.char-option').forEach(c=>{
+    const idx=+c.dataset.idx;
+    if(takenIdxs.includes(idx)){
+      c.classList.add('taken');c.style.opacity='0.3';c.style.cursor='not-allowed';c.title='已被其他玩家选择';
+    } else {
+      c.classList.remove('taken');c.style.opacity='1';c.style.cursor='pointer';c.title='';
+    }
   });
 }
 function renderLobby(){
