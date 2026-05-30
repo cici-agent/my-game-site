@@ -619,7 +619,7 @@ function joinRoom(){
   joinChannel();
 }
 async function randomJoin(){
-  myNick=document.getElementById('join-nick').value.trim()||CHARS[myCharIdx].name;
+  myNick=myNick||(document.getElementById('join-nick')?.value.trim())||CHARS[myCharIdx].name;
   myId=genId();isHost=false;
   // Query available public rooms with space
   try{
@@ -1993,7 +1993,7 @@ async function loadRooms(){
   }
 }
 function joinRoomFromBrowse(code,name){
-  myNick=prompt('输入你的昵称:')||CHARS[myCharIdx].name;
+  myNick=myNick||(document.getElementById('join-nick')?.value.trim())||CHARS[myCharIdx].name;
   myId=genId();isHost=false;
   roomCode=code;
   roomName=name;
