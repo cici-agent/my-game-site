@@ -564,6 +564,7 @@ function selectChar(el,idx){
   if(el.classList.contains('taken'))return; // 已被占用，不可选
   el.parentElement.querySelectorAll('.char-option').forEach(c=>c.classList.remove('selected'));
   el.classList.add('selected');myCharIdx=idx;
+  if(gameState==='lobby')broadcastPresence(); // 实时同步给房间其他人
 }
 function toggleRoomType(el){el.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');roomType=el.dataset.val;}
 
