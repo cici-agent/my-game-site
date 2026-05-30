@@ -110,7 +110,8 @@ body {
   position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
   background: rgba(0,0,0,0.75); color: #fff; padding: 8px 18px;
   border-radius: 12px; font-size: 0.9em; z-index: 140;
-  display: none; pointer-events: none;
+  display: none; pointer-events: auto; cursor: pointer;
+  user-select: none; -webkit-user-select: none;
 }
 #interact-hint.active { display: block; }
 /* Voice panel */
@@ -258,6 +259,7 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const MAP_W=1800, MAP_H=1350;
+let camX=0, camY=0; // global camera position for tap detection
 const PLAYER_R=16, FOOD_R=8;
 const STAMINA_MAX=100, STAMINA_DRAIN=0.12, STAMINA_REGEN=0.25, FOOD_STAMINA=20;
 const BASE_SPEED=3, CATCHER_SPEED=3;
@@ -871,6 +873,13 @@ function onGameStart({catcherId,positions,ids,mapIdx}){
   document.getElementById('hud-role').style.background=me.isCatcher?'#FF6B6B':'#4ECDC4';
   resizeCanvas();
   if(isMobile())initJoystick();
+  // Tap interact-hint to trigger interaction on mobile
+  document.getElementById('interact-hint').addEventListener('click',()=>interactNearby());
+  document.getElementById('interact-hint').addEventListener('touchend',e=>{e.preventDefault();interactNearby();},{passive:false});
+  // Tap on canvas near interactable objects (mobile)
+  const cvs=document.getElementById('gameCanvas');
+  cvs.addEventListener('click',handleCanvasTap);
+  cvs.addEventListener('touchend',e=>{if(e.changedTouches.length===1){handleCanvasTap({clientX:e.changedTouches[0].clientX,clientY:e.changedTouches[0].clientY});}},{passive:true});
   // Randomize map elements (host generates, broadcasts)
   if(isHost){
     const map=MAPS[selectedMap];
@@ -963,6 +972,24 @@ function initJoystick(){
 }
 
 // ===== INTERACT (E key / tap) =====
+function handleCanvasTap(e){
+  if(gameState!=='playing')return;
+  const me=players[myId];if(!me||me.caught)return;
+  const cvs=document.getElementById('gameCanvas');
+  const rect=cvs.getBoundingClientRect();
+  const scaleX=cvs.width/rect.width, scaleY=cvs.height/rect.height;
+  // Convert screen tap to world coords
+  const sx=(e.clientX-rect.left)*scaleX, sy=(e.clientY-rect.top)*scaleY;
+  const wx=sx+camX, wy=sy+camY;
+  const map=MAPS[selectedMap];
+  const TAP_RANGE=60; // generous tap radius for mobile
+  // Check chests
+  if(activeChests){for(const ch of activeChests){if(Math.hypot(wx-ch.x,wy-ch.y)<TAP_RANGE){interactNearby();return;}}}
+  // Check portals
+  if(portals){for(const p of portals){if(Math.hypot(wx-p.x,wy-p.y)<TAP_RANGE){interactNearby();return;}}}
+  // Check gate switches
+  if(map.gates){for(const g of map.gates){if(Math.hypot(wx-g.switchPos.x,wy-g.switchPos.y)<TAP_RANGE){interactNearby();return;}}}
+}
 function interactNearby(){
   if(gameState!=='playing')return;
   const me=players[myId];if(!me||me.caught)return;
@@ -1921,8 +1948,8 @@ function draw(){
   const me=players[myId];if(!me)return;
 
   // Camera (clamped to map bounds)
-  const camX=Math.max(0,Math.min(MAP_W-canvas.width,me.x-canvas.width/2));
-  const camY=Math.max(0,Math.min(MAP_H-canvas.height,me.y-canvas.height/2));
+  camX=Math.max(0,Math.min(MAP_W-canvas.width,me.x-canvas.width/2));
+  camY=Math.max(0,Math.min(MAP_H-canvas.height,me.y-canvas.height/2));
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.save();
   ctx.translate(-camX,-camY);
@@ -2610,6 +2637,7 @@ window.addEventListener('load',()=>{
 </script>
 </body>
 </html>
+
 
 
 
