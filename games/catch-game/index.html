@@ -658,7 +658,12 @@ async function updateRoomPlayerCount(delta){
     const {data}=await sb.from('catch_rooms').select('player_count').eq('room_code',roomCode).single();
     if(data){
       const newCount=Math.max(0,(data.player_count||0)+delta);
-      await sb.from('catch_rooms').update({player_count:newCount,last_active:new Date().toISOString()}).eq('room_code',roomCode);
+      if(newCount===0){
+        // 房间已无人，直接删除记录，立即从列表消失
+        await sb.from('catch_rooms').delete().eq('room_code',roomCode);
+      }else{
+        await sb.from('catch_rooms').update({player_count:newCount,last_active:new Date().toISOString()}).eq('room_code',roomCode);
+      }
     }
   }catch(e){console.warn('updateRoomPlayerCount error',e);}
 }
