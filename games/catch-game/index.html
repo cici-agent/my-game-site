@@ -297,10 +297,16 @@ const CATCHER_COLORS=['#FF1744','#FF6D00'];
 
 // ===== 人物头像图片预加载 =====
 const charImageCache = new Map();
+const charImageFailed = new Set(); // 记录加载失败的 URL
 function preloadCharImages() {
   CHARS.forEach(c => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // 不设置 crossOrigin，避免 CORS 导致 canvas 污染或加载失败
+    img.onload = () => { charImageCache.set(c.imgUrl, img); };
+    img.onerror = () => {
+      charImageFailed.add(c.imgUrl);
+      console.warn('头像加载失败，将使用颜色 fallback：', c.imgUrl);
+    };
     img.src = c.imgUrl;
     charImageCache.set(c.imgUrl, img);
   });
@@ -309,15 +315,30 @@ preloadCharImages();
 
 function drawCharImage(ctx, imgUrl, cx, cy, size) {
   const img = charImageCache.get(imgUrl);
-  if (img && img.complete && img.naturalWidth > 0) {
-    ctx.drawImage(img, cx - size/2, cy - size/2, size, size);
-  } else {
-    // Fallback: draw a colored circle if image not loaded
-    ctx.fillStyle = '#ccc';
-    ctx.beginPath();
-    ctx.arc(cx, cy, size/2, 0, Math.PI*2);
-    ctx.fill();
+  const failed = charImageFailed.has(imgUrl);
+  if (!failed && img && img.complete && img.naturalWidth > 0) {
+    try {
+      ctx.drawImage(img, cx - size/2, cy - size/2, size, size);
+      return;
+    } catch(e) {
+      charImageFailed.add(imgUrl); // 标记失败，下次直接走 fallback
+    }
   }
+  // Fallback：主题色圆形 + 首字母
+  const ch = CHARS.find(c => c.imgUrl === imgUrl);
+  const color = ch ? ch.color : '#ccc';
+  const letter = ch ? ch.name[0] : '?';
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, size/2, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.round(size*0.45)}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(letter, cx, cy);
+  ctx.restore();
 }
 
 function charAvatarURL(imgUrl, size=64) {
@@ -684,7 +705,11 @@ async function randomJoin(){
   }
 }
 function leaveRoom(){
-  if(channel){channel.unsubscribe();channel=null;}
+  if(channel){
+    // 广播离开事件，让其他人从大厅列表中移除我
+    try{channel.send({type:'broadcast',event:'player-leave',payload:{id:myId}});}catch(e){}
+    channel.unsubscribe();channel=null;
+  }
   leaveVoice();
   stopRoomHeartbeat();
   // Clean up room in DB
@@ -737,6 +762,25 @@ function joinChannel(){
     });
   });
   channel.on('broadcast',{event:'player-quit'},({payload})=>onPlayerQuit(payload));
+  channel.on('broadcast',{event:'player-leave'},({payload})=>{
+    // 玩家离开大厅，从列表中删除
+    if(payload.id && lobbyPlayers[payload.id]){
+      delete lobbyPlayers[payload.id];
+      renderLobby();
+      updateTakenChars();
+    }
+  });
+  channel.on('broadcast',{event:'player-rejoin'},({payload})=>{
+    // 玩家重新加入，先清除同名旧条目，再等对方广播 presence
+    if(payload.nick){
+      Object.keys(lobbyPlayers).forEach(id=>{
+        if(lobbyPlayers[id].nick===payload.nick && id!==payload.id){
+          delete lobbyPlayers[id];
+        }
+      });
+      renderLobby();
+    }
+  });
 
   channel.subscribe((status)=>{
     if(status==='SUBSCRIBED'){
@@ -764,6 +808,8 @@ function joinChannel(){
         lg.innerHTML+=`<div class="char-option${i===myCharIdx?' selected':''}" style="background:${c.color};padding:3px" data-idx="${i}" onclick="selectChar(this,${i})" title="${c.name}"><img src="${url}" style="width:44px;height:44px;"><div style="font-size:9px;color:#fff;text-align:center;margin-top:2px;text-shadow:0 1px 2px #000;font-weight:bold">${c.name}</div></div>`;
         });
       }
+      // 广播 rejoin 事件，让其他客户端清除同名旧条目
+      channel.send({type:'broadcast',event:'player-rejoin',payload:{id:myId,nick:myNick}});
       broadcastPresence();
       // 延迟再广播一次，确保后加入的人能看到先加入的人
       setTimeout(()=>broadcastPresence(),1500);
@@ -841,7 +887,8 @@ function renderLobby(){
   el.innerHTML=Object.entries(lobbyPlayers).map(([id,p])=>{
     const ch=CHARS[p.charIdx]||CHARS[0];
     const url=charAvatarURL(ch.imgUrl,28);
-    return `<span class="player-tag${p.isHost?' host':''}"><img src="${url}" style="width:20px;height:20px;vertical-align:middle;margin-right:3px">${escH(p.nick)}${p.isHost?' 👑':''}</span>`;
+    const fbStyle=`background:${ch.color};color:#fff;font-weight:bold;font-size:11px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;width:20px;height:20px;margin-right:3px;`;
+    return `<span class="player-tag${p.isHost?' host':''}"><img src="${url}" style="width:20px;height:20px;vertical-align:middle;margin-right:3px;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span style="${fbStyle}display:none">${ch.name[0]}</span>${escH(p.nick)}${p.isHost?' 👑':''}</span>`;
   }).join('');
 }
 
@@ -1979,6 +2026,8 @@ function endGame(winner){
 }
 function onGameEnd({winner}){
   gameState='ended';
+  // 清空大厅玩家列表，只有主动点"返回大厅"的玩家才重新出现
+  lobbyPlayers={};
   showResult(winner);
 }
 function showResult(winner){
