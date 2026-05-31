@@ -711,18 +711,29 @@ async function randomJoin(){
 }
 function leaveRoom(){
   if(channel){
+    // 如果是房主且房间里还有其他玩家，转让房主而不是删除房间
+    if(isHost){
+      const otherIds=Object.keys(lobbyPlayers).filter(id=>id!==myId);
+      if(otherIds.length>0){
+        const newHostId=otherIds[0];
+        const newHostNick=lobbyPlayers[newHostId]?.nick||'???';
+        try{channel.send({type:'broadcast',event:'host-transfer',payload:{newHostId,newHostNick}});}catch(e){}
+        // 更新 DB 里的 host_nick，人数 -1
+        try{sb.from('catch_rooms').update({host_nick:newHostNick,last_active:new Date().toISOString()}).eq('room_code',roomCode).then(()=>{});}catch(e){}
+        updateRoomPlayerCount(-1);
+      }else{
+        // 房间里只有自己，删除房间
+        removeRoom();
+      }
+    }else{
+      updateRoomPlayerCount(-1);
+    }
     // 广播离开事件，让其他人从大厅列表中移除我
     try{channel.send({type:'broadcast',event:'player-leave',payload:{id:myId}});}catch(e){}
     channel.unsubscribe();channel=null;
   }
   leaveVoice();
   stopRoomHeartbeat();
-  // Clean up room in DB - 无论是否房主，都通过 updateRoomPlayerCount 检查并清理
-  if(isHost){
-    removeRoom();
-  }else{
-    updateRoomPlayerCount(-1);
-  }
   gameState='menu';players={};lobbyPlayers={};
   showScreen('menu-screen');
 }
@@ -730,13 +741,22 @@ function leaveRoom(){
 // ===== 页面关闭/切换时自动离开房间，防止幽灵房间 =====
 window.addEventListener('beforeunload',()=>{
   if(channel&&roomCode){
-    try{channel.send({type:'broadcast',event:'player-leave',payload:{id:myId}});}catch(e){}
-    // 尝试同步更新数据库（不保证成功，靠心跳超时兜底）
+    // 如果是房主且有其他玩家，转让房主
     if(isHost){
-      try{sb.from('catch_rooms').delete().eq('room_code',roomCode).then(()=>{});}catch(e){}
+      const otherIds=Object.keys(lobbyPlayers).filter(id=>id!==myId);
+      if(otherIds.length>0){
+        const newHostId=otherIds[0];
+        const newHostNick=lobbyPlayers[newHostId]?.nick||'???';
+        try{channel.send({type:'broadcast',event:'host-transfer',payload:{newHostId,newHostNick}});}catch(e){}
+        try{sb.from('catch_rooms').update({host_nick:newHostNick}).eq('room_code',roomCode).then(()=>{});}catch(e){}
+        try{updateRoomPlayerCount(-1);}catch(e){}
+      }else{
+        try{sb.from('catch_rooms').delete().eq('room_code',roomCode).then(()=>{});}catch(e){}
+      }
     }else{
       try{updateRoomPlayerCount(-1);}catch(e){}
     }
+    try{channel.send({type:'broadcast',event:'player-leave',payload:{id:myId}});}catch(e){}
   }
 });
 window.addEventListener('pagehide',()=>{
@@ -785,6 +805,7 @@ function joinChannel(){
     });
   });
   channel.on('broadcast',{event:'player-quit'},({payload})=>onPlayerQuit(payload));
+  channel.on('broadcast',{event:'host-transfer'},({payload})=>onHostTransfer(payload));
   channel.on('broadcast',{event:'player-leave'},({payload})=>{
     // 玩家离开大厅，从列表中删除
     if(payload.id && lobbyPlayers[payload.id]){
@@ -923,6 +944,27 @@ function renderLobby(){
     const fbStyle=`background:${ch.color};color:#fff;font-weight:bold;font-size:11px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;width:20px;height:20px;margin-right:3px;`;
     return `<span class="player-tag${p.isHost?' host':''}"><img src="${url}" style="width:20px;height:20px;vertical-align:middle;margin-right:3px;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span style="${fbStyle}display:none">${ch.name[0]}</span>${escH(p.nick)}${p.isHost?' 👑':''}</span>`;
   }).join('');
+}
+function onHostTransfer({newHostId,newHostNick}){
+  // 更新 lobbyPlayers 里的 isHost 标记
+  Object.keys(lobbyPlayers).forEach(id=>{
+    lobbyPlayers[id].isHost=(id===newHostId);
+  });
+  // 如果自己就是新房主，升级权限
+  if(newHostId===myId){
+    isHost=true;
+    // 显示房主专属按钮
+    document.getElementById('force-start-btn').style.display='inline-block';
+    document.getElementById('lobby-map-label').textContent='选择地图：';
+    document.getElementById('map-toggle').querySelectorAll('.toggle-btn').forEach(b=>{
+      b.style.pointerEvents='auto';b.style.opacity='1';
+    });
+    // 更新心跳（现在自己负责维护房间活跃状态）
+    startRoomHeartbeat();
+    // 广播自己的新状态
+    broadcastPresence();
+  }
+  renderLobby();
 }
 
 // ===== VOTING =====
