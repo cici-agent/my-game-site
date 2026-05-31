@@ -717,7 +717,7 @@ function leaveRoom(){
   }
   leaveVoice();
   stopRoomHeartbeat();
-  // Clean up room in DB
+  // Clean up room in DB - 无论是否房主，都通过 updateRoomPlayerCount 检查并清理
   if(isHost){
     removeRoom();
   }else{
@@ -726,6 +726,24 @@ function leaveRoom(){
   gameState='menu';players={};lobbyPlayers={};
   showScreen('menu-screen');
 }
+
+// ===== 页面关闭/切换时自动离开房间，防止幽灵房间 =====
+window.addEventListener('beforeunload',()=>{
+  if(channel&&roomCode){
+    try{channel.send({type:'broadcast',event:'player-leave',payload:{id:myId}});}catch(e){}
+    // 尝试同步更新数据库（不保证成功，靠心跳超时兜底）
+    if(isHost){
+      try{sb.from('catch_rooms').delete().eq('room_code',roomCode).then(()=>{});}catch(e){}
+    }else{
+      try{updateRoomPlayerCount(-1);}catch(e){}
+    }
+  }
+});
+window.addEventListener('pagehide',()=>{
+  if(channel&&roomCode){
+    try{channel.send({type:'broadcast',event:'player-leave',payload:{id:myId}});}catch(e){}
+  }
+});
 
 // ===== CHANNEL (Supabase Realtime) =====
 function joinChannel(){
@@ -839,12 +857,22 @@ function stopRoomHeartbeat(){
 }
 
 function broadcastPresence(){
-  if(!channel)return;
+  if(!channel||gameState!=='lobby')return;
   channel.send({type:'broadcast',event:'presence',payload:{
     id:myId,nick:myNick,charIdx:myCharIdx,isHost,roomName,roomType,mapIdx:selectedMap
   }});
 }
 function onPresence(p){
+  // 只在大厅状态处理 presence，避免游戏结束后未返回的玩家被重新加入列表
+  if(gameState!=='lobby')return;
+  // 去重：如果同名玩家已存在但 id 不同，删除旧条目（处理断线重连产生新 id 的情况）
+  if(p.nick){
+    Object.keys(lobbyPlayers).forEach(id=>{
+      if(id!==p.id && lobbyPlayers[id].nick===p.nick){
+        delete lobbyPlayers[id];
+      }
+    });
+  }
   const isNewPlayer=!lobbyPlayers[p.id];
   lobbyPlayers[p.id]={nick:p.nick,charIdx:p.charIdx,isHost:p.isHost};
   if(p.isHost){roomName=p.roomName||roomName;selectedMap=p.mapIdx??selectedMap;}
@@ -2091,6 +2119,9 @@ async function loadRooms(){
   const listEl=document.getElementById('room-list');
   listEl.innerHTML='<p style="color:#999;text-align:center">加载中...</p>';
   try{
+    // 清理超过60秒无心跳的幽灵房间
+    const sixtySecsAgo=new Date(Date.now()-60000).toISOString();
+    try{await sb.from('catch_rooms').delete().lt('last_active',sixtySecsAgo);}catch(e){}
     const twentySecsAgo=new Date(Date.now()-20000).toISOString();
     const {data,error}=await sb.from('catch_rooms')
       .select('*')
