@@ -672,12 +672,33 @@ async function removeRoom(){
     await sb.from('catch_rooms').delete().eq('room_code',roomCode);
   }catch(e){console.warn('removeRoom error',e);}
 }
-function joinRoom(){
-  roomCode=document.getElementById('join-code').value.trim();
-  if(!roomCode||roomCode.length!==4){alert('请输入4位房间号');return;}
+async function joinRoom(){
+  const code=document.getElementById('join-code').value.trim();
+  if(!code||code.length!==4){alert('请输入4位房间号');return;}
   myNick=document.getElementById('join-nick').value.trim()||CHARS[myCharIdx].name;
+  // 先查询房间是否存在
+  try{
+    const {data,error}=await sb.from('catch_rooms')
+      .select('room_code,room_name,player_count,max_players')
+      .eq('room_code',code)
+      .single();
+    if(error||!data){
+      alert('找不到该房间，请确认房间号是否正确');
+      return;
+    }
+    if(data.player_count>=data.max_players){
+      alert('该房间已满员，无法加入');
+      return;
+    }
+    roomCode=code;
+    roomName=data.room_name||'快乐房间';
+  }catch(e){
+    // 网络异常时仍允许尝试加入（靠 Realtime 频道兜底）
+    roomCode=code;
+    roomName='';
+  }
   myId=genId();isHost=false;
-  updateRoomPlayerCount(1);
+  await updateRoomPlayerCount(1);
   joinChannel();
 }
 async function randomJoin(){
