@@ -2771,11 +2771,39 @@ function updateMicBtn(){
 }
 function hashUid(str){let h=0;for(let i=0;i<str.length;i++){h=((h<<5)-h)+str.charCodeAt(i);h=h&h;}return Math.abs(h)%100000000+1;}
 
+// ===== DB HEALTH CHECK =====
+async function checkDbPermission(){
+  try{
+    const {error}=await sb.from('catch_rooms').select('room_code').limit(1);
+    if(error){
+      console.error('[DB健康检查] catch_rooms 读取失败：',error);
+      // 在浏览房间界面显示红色提示
+      const listEl=document.getElementById('room-list');
+      if(listEl){
+        listEl.innerHTML='<p style="color:#e53935;text-align:center;font-weight:bold">⚠️ 数据库权限异常，请联系管理员</p>';
+      }
+      // 在菜单页也加一条提示
+      const menuCard=document.querySelector('#menu-screen .card');
+      if(menuCard&&!document.getElementById('db-error-banner')){
+        const banner=document.createElement('p');
+        banner.id='db-error-banner';
+        banner.style.cssText='color:#e53935;font-size:0.85em;text-align:center;margin-top:8px;font-weight:bold';
+        banner.textContent='⚠️ 数据库权限异常，请联系管理员';
+        menuCard.appendChild(banner);
+      }
+    }
+  }catch(e){
+    console.error('[DB健康检查] 网络或未知错误：',e);
+  }
+}
+
 // ===== INIT =====
 window.addEventListener('load',async()=>{
   myId=genId();
   initUI();
   initAgoraClient();
+  // 启动自检：测试能否匿名读取 catch_rooms 表
+  checkDbPermission();
   // 预填网站注册用户名（监听 auth 状态，session 恢复后立即填入）
   sb.auth.onAuthStateChange(async(event, session)=>{
     if(session?.user){
