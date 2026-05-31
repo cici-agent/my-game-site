@@ -632,12 +632,12 @@ function selectChar(el,idx){
 function toggleRoomType(el){el.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');roomType=el.dataset.val;}
 
 // ===== ROOM MANAGEMENT =====
-function createRoom(){
+async function createRoom(){
   roomName=document.getElementById('create-name').value.trim()||'快乐房间';
   myNick=document.getElementById('create-nick').value.trim()||CHARS[myCharIdx].name;
   roomCode=genRoomCode();myId=genId();isHost=true;
-  // Register room in catch_rooms table
-  registerRoom();
+  // Register room in catch_rooms table (await确保写入完成再加入频道)
+  await registerRoom();
   joinChannel();
 }
 async function registerRoom(){
@@ -685,11 +685,11 @@ async function randomJoin(){
   myId=genId();isHost=false;
   // Query available public rooms with space
   try{
-    const thirtySecsAgo=new Date(Date.now()-30000).toISOString();
+    const sixtySecsAgo=new Date(Date.now()-60000).toISOString();
     const {data,error}=await sb.from('catch_rooms')
       .select('*')
       .eq('is_public',true)
-      .gt('last_active',thirtySecsAgo)
+      .gt('last_active',sixtySecsAgo)
       .lt('player_count',8);
     if(error)throw error;
     // Filter rooms that have space
@@ -806,7 +806,6 @@ function joinChannel(){
   });
   channel.on('broadcast',{event:'player-quit'},({payload})=>onPlayerQuit(payload));
   channel.on('broadcast',{event:'host-transfer'},({payload})=>onHostTransfer(payload));
-  channel.on('broadcast',{event:'kick-player'},({payload})=>onKickPlayer(payload));
   channel.on('broadcast',{event:'player-leave'},({payload})=>{
     // 玩家离开大厅，从列表中删除
     if(payload.id && lobbyPlayers[payload.id]){
@@ -943,8 +942,7 @@ function renderLobby(){
     const ch=CHARS[p.charIdx]||CHARS[0];
     const url=charAvatarURL(ch.imgUrl,28);
     const fbStyle=`background:${ch.color};color:#fff;font-weight:bold;font-size:11px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;width:20px;height:20px;margin-right:3px;`;
-    const kickBtn=(isHost&&id!==myId)?`<button onclick="kickPlayer('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px;line-height:1;padding:0 2px;margin-left:2px;vertical-align:middle;opacity:0.7" title="踢出玩家">❌</button>`:'';
-    return `<span class="player-tag${p.isHost?' host':''}" style="display:inline-flex;align-items:center"><img src="${url}" style="width:20px;height:20px;vertical-align:middle;margin-right:3px;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span style="${fbStyle}display:none">${ch.name[0]}</span>${escH(p.nick)}${p.isHost?' 👑':''}${kickBtn}</span>`;
+    return `<span class="player-tag${p.isHost?' host':''}"><img src="${url}" style="width:20px;height:20px;vertical-align:middle;margin-right:3px;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span style="${fbStyle}display:none">${ch.name[0]}</span>${escH(p.nick)}${p.isHost?' 👑':''}</span>`;
   }).join('');
 }
 function onHostTransfer({newHostId,newHostNick}){
@@ -1021,47 +1019,6 @@ function forceStart(){
   const count=Object.keys(lobbyPlayers).length;
   if(count<2){alert('至少需要2个玩家！');return;}
   startGame();
-}
-
-// ===== KICK PLAYER =====
-function kickPlayer(targetId){
-  if(!isHost||targetId===myId)return;
-  const nick=lobbyPlayers[targetId]?.nick||'该玩家';
-  if(!confirm(`确定要踢出 ${nick} 吗？`))return;
-  channel.send({type:'broadcast',event:'kick-player',payload:{targetId,kickedBy:myId}});
-  // 房主本地也立即移除
-  if(lobbyPlayers[targetId]){
-    delete lobbyPlayers[targetId];
-    renderLobby();
-    updateTakenChars();
-    updateRoomPlayerCount(-1);
-  }
-}
-function onKickPlayer({targetId}){
-  if(targetId===myId){
-    // 被踢玩家：退出房间并提示
-    if(channel){
-      try{channel.send({type:'broadcast',event:'player-leave',payload:{id:myId}});}catch(e){}
-      channel.unsubscribe();channel=null;
-    }
-    leaveVoice();
-    stopRoomHeartbeat();
-    gameState='menu';players={};lobbyPlayers={};
-    showScreen('menu-screen');
-    // 显示提示
-    const msg=document.createElement('div');
-    msg.textContent='你已被房主踢出房间';
-    msg.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.85);color:#fff;padding:16px 28px;border-radius:12px;font-size:1.1em;z-index:9999;pointer-events:none';
-    document.body.appendChild(msg);
-    setTimeout(()=>msg.remove(),3000);
-  } else {
-    // 其他玩家：从列表移除
-    if(lobbyPlayers[targetId]){
-      delete lobbyPlayers[targetId];
-      renderLobby();
-      updateTakenChars();
-    }
-  }
 }
 
 // ===== START GAME =====
@@ -2204,14 +2161,14 @@ async function loadRooms(){
   const listEl=document.getElementById('room-list');
   listEl.innerHTML='<p style="color:#999;text-align:center">加载中...</p>';
   try{
-    // 清理超过60秒无心跳的幽灵房间
+    // 清理超过120秒无心跳的幽灵房间
+    const cleanupAgo=new Date(Date.now()-120000).toISOString();
+    try{await sb.from('catch_rooms').delete().lt('last_active',cleanupAgo);}catch(e){}
     const sixtySecsAgo=new Date(Date.now()-60000).toISOString();
-    try{await sb.from('catch_rooms').delete().lt('last_active',sixtySecsAgo);}catch(e){}
-    const twentySecsAgo=new Date(Date.now()-20000).toISOString();
     const {data,error}=await sb.from('catch_rooms')
       .select('*')
       .eq('is_public',true)
-      .gt('last_active',twentySecsAgo)
+      .gt('last_active',sixtySecsAgo)
       .gt('player_count',0)
       .order('last_active',{ascending:false});
     if(error)throw error;
