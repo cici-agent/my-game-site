@@ -53,6 +53,11 @@ body {
 /* Vote modal */
 #vote-modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:500; display:none; align-items:center; justify-content:center; }
 #vote-modal.active { display:flex; }
+/* Ready button */
+.btn-ready { background:linear-gradient(135deg,#4ECDC4,#44B09E); color:#fff; }
+.btn-ready.is-ready { background:linear-gradient(135deg,#a8a8a8,#888); }
+.ready-badge { display:inline-block; font-size:0.75em; margin-left:4px; vertical-align:middle; }
+#start-game-btn:disabled { opacity:0.45; cursor:not-allowed; }
 /* Result overlay */
 #result-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:600; display:none; align-items:center; justify-content:center; flex-direction:column; }
 #result-overlay.active { display:flex; }
@@ -195,8 +200,8 @@ body {
     <div class="player-list" id="lobby-players"></div>
     <p id="lobby-wait-msg" style="color:#666;margin:8px 0;font-size:0.9em"></p>
     <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
-      <button class="btn btn-orange" onclick="proposeStart()">🚀 开始游戏</button>
-      <button class="btn btn-blue" id="force-start-btn" style="display:none" onclick="forceStart()">⚡ 强制开始</button>
+      <button class="btn btn-orange" id="start-game-btn" style="display:none" onclick="hostStart()" disabled>🚀 开始游戏</button>
+      <button class="btn btn-ready" id="ready-btn" style="display:none" onclick="toggleReady()">✅ 准备</button>
       <button class="btn btn-gray" onclick="leaveRoom()">退出房间</button>
     </div>
   </div>
@@ -582,6 +587,7 @@ let inTunnel=false,tunnelCooldown=0;
 let currentVote=null;
 let springLaunch={active:false,dx:0,dy:0,frames:0};
 let iceVX=0,iceVY=0;
+// readyPlayers 和 myReady 在 READY SYSTEM 函数块中声明
 // New systems
 let chestStates={}; // {chestId: {items:[...]}} - chest contents
 let gateStates={}; // {gateId: true} = open
@@ -827,12 +833,15 @@ function joinChannel(){
   });
   channel.on('broadcast',{event:'player-quit'},({payload})=>onPlayerQuit(payload));
   channel.on('broadcast',{event:'host-transfer'},({payload})=>onHostTransfer(payload));
+  channel.on('broadcast',{event:'player-ready'},({payload})=>onPlayerReady(payload));
   channel.on('broadcast',{event:'player-leave'},({payload})=>{
     // 玩家离开大厅，从列表中删除
     if(payload.id && lobbyPlayers[payload.id]){
       delete lobbyPlayers[payload.id];
+      readyPlayers.delete(payload.id); // 清除该玩家的准备状态
       renderLobby();
       updateTakenChars();
+      if(isHost) updateStartBtn();
     }
   });
   channel.on('broadcast',{event:'player-rejoin'},({payload})=>{
@@ -853,11 +862,17 @@ function joinChannel(){
       document.getElementById('lobby-room-name').textContent=roomName;
       document.getElementById('lobby-room-code').textContent='#'+roomCode;
       if(isHost){
-        document.getElementById('force-start-btn').style.display='inline-block';
-        document.getElementById('lobby-map-select').style.display='block';
+        document.getElementById('start-game-btn').style.display='inline-block';
+        document.getElementById('ready-btn').style.display='none';
+        document.getElementById('lobby-map-label').textContent='选择地图：';
+        document.getElementById('map-toggle').querySelectorAll('.toggle-btn').forEach(b=>{
+          b.style.pointerEvents='auto';b.style.opacity='1';
+        });
       } else {
-        document.getElementById('force-start-btn').style.display='none';
-        document.getElementById('lobby-map-select').style.display='block';
+        document.getElementById('start-game-btn').style.display='none';
+        document.getElementById('ready-btn').style.display='inline-block';
+        document.getElementById('ready-btn').textContent='✅ 准备';
+        document.getElementById('ready-btn').classList.remove('is-ready');
         document.getElementById('lobby-map-label').textContent='当前地图：';
         // 非房主地图不可点击
         document.getElementById('map-toggle').querySelectorAll('.toggle-btn').forEach(b=>{
@@ -943,6 +958,7 @@ function onPresence(p){
   }
   renderLobby();
   updateTakenChars();
+  if(isHost) updateStartBtn();
 }
 function updateTakenChars(){
   const takenIdxs=Object.entries(lobbyPlayers).filter(([id])=>id!==myId).map(([,v])=>v.charIdx);
@@ -963,8 +979,16 @@ function renderLobby(){
     const ch=CHARS[p.charIdx]||CHARS[0];
     const url=charAvatarURL(ch.imgUrl,28);
     const fbStyle=`background:${ch.color};color:#fff;font-weight:bold;font-size:11px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;width:20px;height:20px;margin-right:3px;`;
-    return `<span class="player-tag${p.isHost?' host':''}"><img src="${url}" style="width:20px;height:20px;vertical-align:middle;margin-right:3px;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span style="${fbStyle}display:none">${ch.name[0]}</span>${escH(p.nick)}${p.isHost?' 👑':''}</span>`;
+    let readyBadge='';
+    if(!p.isHost){
+      readyBadge=readyPlayers.has(id)
+        ?'<span class="ready-badge" title="已准备">✅</span>'
+        :'<span class="ready-badge" title="未准备">⏳</span>';
+    }
+    return `<span class="player-tag${p.isHost?' host':''}"><img src="${url}" style="width:20px;height:20px;vertical-align:middle;margin-right:3px;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span style="${fbStyle}display:none">${ch.name[0]}</span>${escH(p.nick)}${p.isHost?' 👑':''}${readyBadge}</span>`;
   }).join('');
+  // 更新开始按钮状态（仅房主）
+  if(isHost) updateStartBtn();
 }
 function onHostTransfer({newHostId,newHostNick}){
   // 更新 lobbyPlayers 里的 isHost 标记
@@ -975,11 +999,15 @@ function onHostTransfer({newHostId,newHostNick}){
   if(newHostId===myId){
     isHost=true;
     // 显示房主专属按钮
-    document.getElementById('force-start-btn').style.display='inline-block';
+    document.getElementById('start-game-btn').style.display='inline-block';
+    document.getElementById('ready-btn').style.display='none';
     document.getElementById('lobby-map-label').textContent='选择地图：';
     document.getElementById('map-toggle').querySelectorAll('.toggle-btn').forEach(b=>{
       b.style.pointerEvents='auto';b.style.opacity='1';
     });
+    // 新房主不需要准备状态，从 readyPlayers 中移除自己
+    readyPlayers.delete(myId);
+    updateStartBtn();
     // 更新心跳（现在自己负责维护房间活跃状态）
     startRoomHeartbeat();
     // 广播自己的新状态
@@ -988,57 +1016,61 @@ function onHostTransfer({newHostId,newHostNick}){
   renderLobby();
 }
 
-// ===== VOTING =====
-function proposeStart(){
-  const count=Object.keys(lobbyPlayers).length;
-  if(count<2){alert('至少需要2个玩家！');return;}
-  currentVote={proposer:myId,needed:count,votes:{[myId]:'agree'}};
-  channel.send({type:'broadcast',event:'vote-propose',payload:{proposerId:myId,proposerName:myNick,needed:count}});
-  document.getElementById('lobby-wait-msg').textContent='等待其他玩家同意...';
-  checkVoteResult();
-}
-function onVotePropose({proposerId,proposerName,needed}){
-  currentVote={proposer:proposerId,needed,votes:{[proposerId]:'agree'}};
-  if(proposerId===myId){
-    document.getElementById('lobby-wait-msg').textContent='等待其他玩家同意...';
+// ===== READY SYSTEM =====
+let readyPlayers=new Set(); // 存储已准备的非房主玩家 id
+let myReady=false;
+
+function toggleReady(){
+  if(isHost)return;
+  myReady=!myReady;
+  if(myReady){
+    readyPlayers.add(myId);
+    document.getElementById('ready-btn').textContent='❌ 取消准备';
+    document.getElementById('ready-btn').classList.add('is-ready');
   } else {
-    document.getElementById('vote-msg').textContent=`${escH(proposerName)} 提议开始游戏，是否同意？`;
-    document.getElementById('vote-modal').classList.add('active');
+    readyPlayers.delete(myId);
+    document.getElementById('ready-btn').textContent='✅ 准备';
+    document.getElementById('ready-btn').classList.remove('is-ready');
   }
-  checkVoteResult();
+  channel.send({type:'broadcast',event:'player-ready',payload:{id:myId,ready:myReady}});
+  renderLobby();
 }
-function voteAgree(){
-  document.getElementById('vote-modal').classList.remove('active');
-  if(currentVote)onVoteResponse({id:myId,vote:'agree'});
-  channel.send({type:'broadcast',event:'vote-response',payload:{id:myId,vote:'agree'}});
-}
-function voteWait(){
-  document.getElementById('vote-modal').classList.remove('active');
-  if(currentVote)onVoteResponse({id:myId,vote:'wait'});
-  channel.send({type:'broadcast',event:'vote-response',payload:{id:myId,vote:'wait'}});
-}
-function onVoteResponse({id,vote}){
-  if(!currentVote)return;
-  currentVote.votes[id]=vote;
-  checkVoteResult();
-}
-function checkVoteResult(){
-  if(!currentVote)return;
-  const votes=Object.values(currentVote.votes);
-  if(votes.includes('wait')){
-    document.getElementById('lobby-wait-msg').textContent='有人选择继续等待，游戏暂不开始';
-    currentVote=null;return;
+
+function onPlayerReady({id,ready}){
+  if(ready){
+    readyPlayers.add(id);
+  } else {
+    readyPlayers.delete(id);
   }
-  if(votes.filter(v=>v==='agree').length>=currentVote.needed){
-    document.getElementById('lobby-wait-msg').textContent='全员同意！即将开始...';
-    if(isHost)setTimeout(()=>startGame(),1000);
-    currentVote=null;
+  renderLobby();
+  if(isHost) updateStartBtn();
+}
+
+function updateStartBtn(){
+  const btn=document.getElementById('start-game-btn');
+  if(!btn)return;
+  const nonHostIds=Object.keys(lobbyPlayers).filter(id=>!lobbyPlayers[id].isHost);
+  const count=Object.keys(lobbyPlayers).length;
+  const allReady=nonHostIds.length>0 && nonHostIds.every(id=>readyPlayers.has(id));
+  const canStart=count>=2 && allReady;
+  btn.disabled=!canStart;
+  if(canStart){
+    document.getElementById('lobby-wait-msg').textContent='所有玩家已准备，可以开始！';
+  } else if(count<2){
+    document.getElementById('lobby-wait-msg').textContent='等待更多玩家加入...';
+  } else {
+    const notReady=nonHostIds.filter(id=>!readyPlayers.has(id)).map(id=>lobbyPlayers[id]?.nick||'?');
+    document.getElementById('lobby-wait-msg').textContent=`等待 ${notReady.join('、')} 准备...`;
   }
 }
-function forceStart(){
+
+function hostStart(){
   if(!isHost)return;
   const count=Object.keys(lobbyPlayers).length;
   if(count<2){alert('至少需要2个玩家！');return;}
+  const nonHostIds=Object.keys(lobbyPlayers).filter(id=>!lobbyPlayers[id].isHost);
+  const allReady=nonHostIds.length>0 && nonHostIds.every(id=>readyPlayers.has(id));
+  if(!allReady){alert('还有玩家未准备好！');return;}
   startGame();
 }
 
@@ -2152,19 +2184,28 @@ function returnToLobby(){
   document.getElementById('result-overlay').classList.remove('active');
   document.getElementById('item-bar').classList.remove('active');
   gameState='lobby';players={};foods=[];obstacles=[];itemPickups=[];tunnelKeys=[];
+  // 重置准备状态
+  readyPlayers=new Set();
+  myReady=false;
   showScreen('lobby-screen');
-  // 重置地图/强制开始按钮权限
+  // 重置地图/按钮权限
   const mt=document.getElementById('map-toggle');
   document.getElementById('lobby-map-select').style.display='block';
   if(isHost){
-    document.getElementById('force-start-btn').style.display='inline-block';
+    document.getElementById('start-game-btn').style.display='inline-block';
+    document.getElementById('start-game-btn').disabled=true;
+    document.getElementById('ready-btn').style.display='none';
     document.getElementById('lobby-map-label').textContent='选择地图：';
     mt.querySelectorAll('.toggle-btn').forEach(b=>{b.style.pointerEvents='';b.style.opacity='';});
   } else {
-    document.getElementById('force-start-btn').style.display='none';
+    document.getElementById('start-game-btn').style.display='none';
+    document.getElementById('ready-btn').style.display='inline-block';
+    document.getElementById('ready-btn').textContent='✅ 准备';
+    document.getElementById('ready-btn').classList.remove('is-ready');
     document.getElementById('lobby-map-label').textContent='当前地图：';
     mt.querySelectorAll('.toggle-btn').forEach(b=>{b.style.pointerEvents='none';b.style.opacity=b.classList.contains('active')?'1':'0.4';});
   }
+  document.getElementById('lobby-wait-msg').textContent='';
   // Refresh lobby char selector to reflect current selection
   const lg=document.getElementById('lobby-chars');
   if(lg){lg.querySelectorAll('.char-option').forEach((c,i)=>{c.classList.toggle('selected',i===myCharIdx);});}
