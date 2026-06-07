@@ -313,6 +313,13 @@
       if (gameId) {
         await loadGameDetail();
         loadComments();
+        // 检测全屏参数：自动启动游戏并全屏
+        var isFullscreenMode = new URLSearchParams(window.location.search).get('fullscreen') === '1';
+        if (isFullscreenMode) {
+          await launchIframeGame();
+          // 稍作延迟确保 iframe 已渲染，再触发全屏
+          setTimeout(function() { toggleFullscreen(); }, 300);
+        }
       } else {
         document.getElementById('gameName').textContent = '游戏不存在';
         document.getElementById('loadingFrame').style.display = 'none';
@@ -939,3 +946,4 @@
   </script>
 </body>
 </html>
+
