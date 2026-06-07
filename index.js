@@ -112,11 +112,12 @@ document.addEventListener('DOMContentLoaded', function() {
       var rawCategory = game.category || '其他';
       var displayCategory = categoryMap[rawCategory] || rawCategory;
       var emoji = categoryEmojis[displayCategory] || categoryEmojis[rawCategory] || '🎮';
+      var fsBtn = '<button class="card-fullscreen-btn" title="全屏游玩" onclick="return goToGameFullscreen(event, \'' + game.id + '\')">⛶</button>';
       var coverHtml = '';
       if (game.cover_url) {
-        coverHtml = '<div class="card-cover" style="background:' + bg + '"><img src="' + game.cover_url + '" alt="' + (game.title||game.name) + '" style="width:100%;height:100%;object-fit:cover;"></div>';
+        coverHtml = '<div class="card-cover" style="background:' + bg + '"><img src="' + game.cover_url + '" alt="' + (game.title||game.name) + '" style="width:100%;height:100%;object-fit:cover;">' + fsBtn + '</div>';
       } else {
-        coverHtml = '<div class="card-cover" style="background:' + bg + '">' + emoji + '</div>';
+        coverHtml = '<div class="card-cover" style="background:' + bg + '">' + emoji + fsBtn + '</div>';
       }
       html += '<a href="game.html?id=' + game.id + '" class="game-card" onclick="return goToGame(event, \'' + game.id + '\')">' +
         coverHtml +
@@ -177,6 +178,17 @@ async function goToGame(e, gameId) {
   if (loggedIn) window.location.href = dest;
   return false;
 }
+
+// 全屏按钮点击 - 跳转并自动全屏
+async function goToGameFullscreen(e, gameId) {
+  e.preventDefault();
+  e.stopPropagation();
+  var dest = gameId ? ('game.html?id=' + gameId + '&fullscreen=1') : 'game.html?fullscreen=1';
+  var loggedIn = await requireLogin(dest);
+  if (loggedIn) window.location.href = dest;
+  return false;
+}
+
 
 
 
