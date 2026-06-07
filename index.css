@@ -278,6 +278,46 @@
   transition: left 0.5s;
 }
 
+/* 全屏按钮 */
+.card-fullscreen-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.game-card:hover .card-fullscreen-btn {
+  opacity: 1;
+}
+
+.card-fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.72);
+}
+
+/* 移动端/iPad 始终显示全屏按钮 */
+@media (hover: none) {
+  .card-fullscreen-btn {
+    opacity: 1;
+  }
+}
+
 .game-card:hover .card-cover::after {
   left: 100%;
 }
@@ -438,3 +478,4 @@
     font-size: 20px;
   }
 }
+
