@@ -387,20 +387,18 @@
       // 隐藏加载占位
       document.getElementById('loadingFrame').style.display = 'none';
 
-      // 判断游戏类型
+      // 判断游戏类型 — 统一走 iframe 模式
       var fileUrl = gameData.file_url || '';
       if (isStorageUrl(fileUrl)) {
         // === iframe 模式：Supabase Storage 游戏 ===
         isIframeMode = true;
-        document.getElementById('iframeGameTitle').textContent = gameName;
-        // 先显示封面+开始按钮，不直接加载游戏
-        showIframeStartScreen(gameData, fileUrl);
       } else {
-        // === 传统模式：站内游戏，点击按钮跳转 ===
-        isIframeMode = false;
-        document.getElementById('gameFrame').style.display = 'block';
-        document.getElementById('gameControls').style.display = 'block';
+        // === 传统模式也改为 iframe 加载 ===
+        isIframeMode = true;
       }
+      document.getElementById('iframeGameTitle').textContent = gameName;
+      // 先显示封面+开始按钮，不直接加载游戏
+      showIframeStartScreen(gameData, fileUrl);
     }
 
     // ===== iframe 模式：显示封面+开始按钮 =====
@@ -464,14 +462,20 @@
       }
 
       // 加载 iframe
-      document.getElementById('gameIframe').src = '';
-      // 用fetch+srcdoc绕过Content-Type问题
-      try {
-        var resp = await fetch(fileUrl);
-        var html = await resp.text();
-        document.getElementById('gameIframe').srcdoc = html;
-      } catch(e) {
-        document.getElementById('gameIframe').src = fileUrl;
+      var iframe = document.getElementById('gameIframe');
+      iframe.src = '';
+      if (isStorageUrl(fileUrl)) {
+        // Supabase Storage 游戏：用 fetch+srcdoc 绕过 Content-Type 问题
+        try {
+          var resp = await fetch(fileUrl);
+          var html = await resp.text();
+          iframe.srcdoc = html;
+        } catch(e) {
+          iframe.src = fileUrl;
+        }
+      } else {
+        // 传统站内游戏（同域相对路径）：直接设置 src
+        iframe.src = fileUrl;
       }
 
       // 记录玩过
