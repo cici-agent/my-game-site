@@ -622,6 +622,9 @@
     var _coinTimerPausedAt = null;
     var _coinTimerElapsedBeforePause = 0;
     var _coinTimerUserId = null;
+    // 心跳：记录最后一次活跃时间戳（本地），用于防止关闭浏览器后无限扣费
+    var _lastHeartbeat = 0;
+    var HEARTBEAT_TIMEOUT = 2 * 60 * 1000; // 2分钟无心跳则认为离开
 
     function startCoinTimer(userId) {
       if (coinTimer) clearInterval(coinTimer);
@@ -630,6 +633,43 @@
       _coinTimerUserId = userId;
       _coinTimerPausedAt = null;
       _coinTimerElapsedBeforePause = 0;
+      _lastHeartbeat = Date.now();
+
+      // ---- beforeunload：页面关闭/刷新时停止计时 ----
+      if (window._coinTimerUnloadHandler) {
+        window.removeEventListener('beforeunload', window._coinTimerUnloadHandler);
+      }
+      window._coinTimerUnloadHandler = function() {
+        // 立即停止计时器
+        if (coinTimer) {
+          clearInterval(coinTimer);
+          coinTimer = null;
+        }
+        // 用 sendBeacon 通知服务器停止计时（清除 last_heartbeat 表示已离开）
+        try {
+          if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined') {
+            var url = SUPABASE_URL + '/rest/v1/profiles?id=eq.' + userId;
+            var headers = {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            };
+            // sendBeacon 只支持简单请求，用 fetch keepalive 作为更可靠的替代
+            if (navigator.sendBeacon) {
+              var blob = new Blob([JSON.stringify({ last_heartbeat: null })], { type: 'application/json' });
+              // sendBeacon 不支持自定义 headers，改用 fetch + keepalive
+              fetch(url, {
+                method: 'PATCH',
+                headers: headers,
+                body: JSON.stringify({ last_heartbeat: null }),
+                keepalive: true
+              }).catch(function(){});
+            }
+          }
+        } catch(e) { /* 尽力而为 */ }
+      };
+      window.addEventListener('beforeunload', window._coinTimerUnloadHandler);
 
       // ---- visibilitychange：页面隐藏时暂停，重新可见时恢复 ----
       // 先移除旧监听（防止重复绑定）
@@ -646,10 +686,18 @@
           _coinTimerPausedAt = Date.now();
           _coinTimerElapsedBeforePause = elapsed;
         } else {
-          // 页面重新可见：恢复计时器，elapsed 从暂停前的值继续
+          // 页面重新可见：检查心跳是否超时
+          var now = Date.now();
+          if (now - _lastHeartbeat > HEARTBEAT_TIMEOUT) {
+            // 超时太久，不再恢复（防止后台挂起后突然恢复继续扣费）
+            _coinTimerUserId = null;
+            return;
+          }
+          // 恢复计时器，elapsed 从暂停前的值继续
           if (!coinTimer && _coinTimerUserId) {
             elapsed = _coinTimerElapsedBeforePause;
             _coinTimerPausedAt = null;
+            _lastHeartbeat = now;
             // 重新启动 interval
             coinTimer = setInterval(tickFn, 30000);
           }
@@ -659,6 +707,17 @@
 
       // ---- 计时器主逻辑（抽成函数供重启复用） ----
       async function tickFn() {
+        // 心跳检查：如果距离上次心跳超过2分钟，说明页面可能被挂起/冻结，停止扣费
+        var now = Date.now();
+        if (now - _lastHeartbeat > HEARTBEAT_TIMEOUT) {
+          clearInterval(coinTimer);
+          coinTimer = null;
+          _coinTimerUserId = null;
+          return;
+        }
+        // 更新心跳时间
+        _lastHeartbeat = now;
+
         elapsed += 30000;
         var sb = getSupabase();
         var profileResult = await sb.from('profiles').select('coins').eq('id', userId).single();
