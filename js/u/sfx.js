@@ -24,21 +24,35 @@ function noiseBuffer() {
   return b;
 }
 
-// 引擎声：随速度变大变尖
+// 引擎声：柔和的"呼呼"气流声 + 低沉的嗡鸣，速度越快越亮
+function brownNoise() {
+  const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = b.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; last = (last + .02 * w) / 1.02; d[i] = last * 3.5; }
+  return b;
+}
 export function engineLevel(power) {
   if (!ensure() || ctx.state !== 'running') return;
   if (!engine) {
-    const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-    o1.type = 'sawtooth'; o2.type = 'sawtooth'; o2.detune.value = 18;
-    f.type = 'lowpass'; f.frequency.value = 300; g.gain.value = 0;
-    o1.connect(f); o2.connect(f); f.connect(g); g.connect(master); o1.start(); o2.start();
-    engine = { o1, o2, f, g };
+    // 气流：棕噪声 → 低通（速度越快越亮）
+    const air = ctx.createBufferSource(); air.buffer = brownNoise(); air.loop = true;
+    const airF = ctx.createBiquadFilter(); airF.type = 'lowpass'; airF.frequency.value = 400; airF.Q.value = .7;
+    const airG = ctx.createGain(); airG.gain.value = 0;
+    air.connect(airF); airF.connect(airG); airG.connect(master); air.start();
+    // 嗡鸣：两个微微错开的正弦波，带一点缓慢起伏
+    const h1 = ctx.createOscillator(), h2 = ctx.createOscillator(); h1.type = 'sine'; h2.type = 'sine'; h2.detune.value = 7;
+    const humG = ctx.createGain(); humG.gain.value = 0;
+    const lfo = ctx.createOscillator(), lfoG = ctx.createGain(); lfo.frequency.value = 3.2; lfoG.gain.value = .006;
+    lfo.connect(lfoG); lfoG.connect(humG.gain);
+    h1.connect(humG); h2.connect(humG); humG.connect(master); h1.start(); h2.start(); lfo.start();
+    engine = { airF, airG, h1, h2, humG };
   }
   const t = ctx.currentTime, p = Math.min(1.5, Math.max(0, power));
-  engine.o1.frequency.setTargetAtTime(55 + p * 45, t, .1);
-  engine.o2.frequency.setTargetAtTime(55 + p * 45, t, .1);
-  engine.f.frequency.setTargetAtTime(250 + p * 700, t, .1);
-  engine.g.gain.setTargetAtTime(.025 + p * .05, t, .15);
+  engine.airF.frequency.setTargetAtTime(300 + p * 1500, t, .2);
+  engine.airG.gain.setTargetAtTime(p < .02 ? 0 : .04 + p * .11, t, .25);
+  engine.h1.frequency.setTargetAtTime(70 + p * 55, t, .2);
+  engine.h2.frequency.setTargetAtTime(70 + p * 55, t, .2);
+  engine.humG.gain.setTargetAtTime(p < .02 ? .006 : .015 + p * .02, t, .25);
 }
 
 // 呼——（星门 / 超空间）
