@@ -135,10 +135,25 @@ function openShop(key) {
         ${it.perks ? `<ul class="pk">${it.perks.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
         <div class="buy">${it.price ? `🪙 ${it.price}` : '免费'}<button disabled>${it.price ? '即将开放' : '已拥有'}</button></div></div>`).join('')}</div>`;
   }).join('');
+  // 飞船商店：顶部放一个 3D 展示台，点卡片切换
+  if (key === 'ship') {
+    $('shopBody').insertAdjacentHTML('afterbegin', '<div class="ship-stage" id="shipStage"><div class="stage-tip">拖动可以旋转飞船</div></div>');
+    import('../u/hangar.js').then(({ createShipViewer }) => {
+      if (!shopOpen) return;
+      viewer = createShipViewer($('shipStage'));
+      viewer.show(items[0].key);
+      $('shopBody').querySelectorAll('.item').forEach((el, i) => {
+        el.style.cursor = 'pointer';
+        el.onclick = () => { viewer.show(items[i].key); $('shopBody').querySelectorAll('.item').forEach(x => x.classList.toggle('sel', x === el)); };
+      });
+      $('shopBody').querySelector('.item').classList.add('sel');
+    });
+  }
   panel.classList.add('show');
   sfx.chime([784, 988]);
 }
-function closeShop() { shopOpen = false; $('shop').classList.remove('show'); }
+let viewer = null;
+function closeShop() { shopOpen = false; $('shop').classList.remove('show'); if (viewer) { viewer.dispose(); viewer = null; } }
 $('shopClose').onclick = closeShop;
 
 // ---------- 离开：回宇宙从菜鸟星球起飞 ----------

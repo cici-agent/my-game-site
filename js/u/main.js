@@ -65,7 +65,7 @@ const gate = createGate(); scene.add(gate);
 // ---------- 飞船 ----------
 const shipObj = buildShip('rookie');
 const ship = shipObj.group; ship.rotation.order = 'YXZ'; scene.add(ship);
-const { flame, engineLight } = shipObj;
+const { flames, engineLight } = shipObj;
 const TRAIL = 160;
 const trail = (() => {
   const pos = new Float32Array(TRAIL * 3).fill(9999), geo = new THREE.BufferGeometry();
@@ -364,7 +364,8 @@ function tick() {
   ship.visible = state.mode !== 'landed';
 
   const power = Math.min(1.6, Math.abs(state.speed) / MAX);
-  flame.scale.setScalar(1.2 + power * 3 + Math.random() * .4);
+  flames.forEach(f => f.scale.setScalar((f.userData.base || 1) * (1 + power * 2.5) + Math.random() * .4));
+  shipObj.update && shipObj.update(t);
   engineLight.intensity = 10 + power * 40;
   sfx.engineLevel(ship.visible ? power : 0);
   if (ship.visible && (power > .05 || Math.random() < .2)) {

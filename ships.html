@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>飞船机库 · 小菜鸟宇宙</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #0b0f26; color: #fff; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; overflow: hidden; }
+  #view { position: fixed; inset: 0; }
+  .top { position: fixed; top: 16px; left: 0; right: 0; text-align: center; pointer-events: none; }
+  .top h1 { font-size: 26px; font-weight: 900; letter-spacing: 2px; }
+  .top p { opacity: .75; font-size: 13px; margin-top: 4px; }
+  .info { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); text-align: center; pointer-events: none; }
+  .info h2 { font-size: 30px; font-weight: 900; } .info .price { color: #ffd23f; font-weight: 800; margin-top: 4px; }
+  .info ul { list-style: none; margin-top: 8px; font-size: 14px; opacity: .9; }
+  .pick { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(20,24,60,.75);
+    padding: 8px; border-radius: 20px; border: 1px solid rgba(255,255,255,.15); }
+  .pick button { border: 0; background: rgba(255,255,255,.1); color: #fff; font: 800 15px inherit; font-family: inherit; padding: 12px 18px; border-radius: 14px; cursor: pointer; }
+  .pick button.on { background: #3ee8ff; color: #0b0f26; }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }</script>
+</head>
+<body>
+<div id="view"></div>
+<div class="top"><h1>🚀 飞船机库</h1><p>拖动旋转 · 滚轮缩放</p></div>
+<div class="info"><h2 id="nm"></h2><div class="price" id="pr"></div><ul id="pk"></ul></div>
+<div class="pick" id="pick"></div>
+<script type="module">
+import { createShipViewer } from './js/u/hangar.js';
+import { CATALOG } from './js/p/catalog.js';
+const v = createShipViewer(document.getElementById('view'));
+const pick = document.getElementById('pick');
+function sel(it) {
+  v.show(it.key);
+  document.getElementById('nm').textContent = it.name;
+  document.getElementById('pr').textContent = it.price ? '🪙 ' + it.price + ' 金币' : '免费 · 人人都有';
+  document.getElementById('pk').innerHTML = it.perks.map(p => '<li>' + p + '</li>').join('');
+  pick.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === it.key));
+}
+CATALOG.ship.forEach(it => { const b = document.createElement('button'); b.dataset.k = it.key; b.textContent = it.name; b.onclick = () => sel(it); pick.appendChild(b); });
+sel(CATALOG.ship[new URLSearchParams(location.search).get('i') | 0] || CATALOG.ship[0]);
+window.__sel = i => sel(CATALOG.ship[i]);
+</script>
+</body>
+</html>
