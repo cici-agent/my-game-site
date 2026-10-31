@@ -470,7 +470,7 @@ async function boot() {
     state.mode = 'landed'; state.landed = p; parkAt(p, true); refreshUI(); markDock(p);
     camera.position.set(p.pos[0], p.pos[1] + p.radius * 1.2, p.pos[2] - p.radius * 3.6); lookAt.set(...p.pos);
     if (land) { if (ME) openStation(p); else requireLogin(p).then(ok => ok && openStation(p)); }
-    else takeOff();
+    else takeOff(PLANETS.find(x => x.kind === params.get('next')));
     hintEl.style.opacity = 0; hintHidden = true;
     history.replaceState(null, '', location.pathname);
   }
