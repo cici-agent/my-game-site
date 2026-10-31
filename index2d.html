@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+    <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="小菜鸟">
+  <meta name="theme-color" content="#FF6B35">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>小菜鸟 - 儿童游戏乐园</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body style="opacity:0;transition:opacity 0.15s">
+  <!-- 导航栏 -->
+  <nav class="navbar" id="navbar">
+    <a href="index.html" class="logo">
+      <img src="assets/logo.jpg" alt="小菜鸟" />
+      <span>小菜鸟</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <!-- 由 auth.js 根据登录状态动态渲染 -->
+    </div>
+  </nav>
+
+  <!-- 轮播 Banner -->
+  <section class="banner-section">
+    <div class="banner-wrapper">
+      <!-- Banner 1: 做游戏 -->
+      <div class="banner-slide active">
+        <div class="banner-content">
+          <div class="banner-badge">✨ AI 游戏创作</div>
+          <h2>开始制作你的游戏！</h2>
+          <p>用语音告诉 AI 你的想法，几秒钟就能做出一个游戏 🎮</p>
+          <a href="editor.html" class="banner-btn" onclick="return bannerGoEditor(event)">🚀 马上试试</a>
+        </div>
+        <div class="banner-deco">
+          <div class="deco-circle c1"></div>
+          <div class="deco-circle c2"></div>
+          <div class="deco-circle c3"></div>
+          <div class="deco-emoji e1">🎮</div>
+          <div class="deco-emoji e2">⭐</div>
+          <div class="deco-emoji e3">🎯</div>
+        </div>
+      </div>
+
+      <!-- Banner 2: 玩游戏 -->
+      <div class="banner-slide">
+        <div class="banner-content">
+          <div class="banner-badge">🔥 本周热门</div>
+          <h2>和小伙伴一起玩！</h2>
+          <p>小朋友们自己做的游戏，好玩又有趣，快来发现新宝藏 🌟</p>
+          <a href="#gamesGrid" class="banner-btn banner-btn-blue" onclick="return bannerGoPlay(event)">🎲 去玩游戏</a>
+        </div>
+        <div class="banner-deco">
+          <div class="deco-circle c1"></div>
+          <div class="deco-circle c2"></div>
+          <div class="deco-circle c3"></div>
+          <div class="deco-emoji e1">🏆</div>
+          <div class="deco-emoji e2">🌈</div>
+          <div class="deco-emoji e3">🎪</div>
+        </div>
+      </div>
+
+
+      <!-- Banner 3: 学习赚积分 -->
+      <div class="banner-slide">
+        <div class="banner-content">
+          <div class="banner-badge">📚 学习赚积分</div>
+          <h2>边学边玩，赚取积分！</h2>
+          <p>打字、答题、阅读闯关，学习也能赚金币 🪙 用积分解锁更多好玩游戏 🎮</p>
+          <a href="learn.html" class="banner-btn banner-btn-green">📚 去学习</a>
+        </div>
+        <div class="banner-deco">
+          <div class="deco-circle c1"></div>
+          <div class="deco-circle c2"></div>
+          <div class="deco-emoji e1">📚</div>
+          <div class="deco-emoji e2">🪙</div>
+          <div class="deco-emoji e3">🎯</div>
+          <div class="deco-emoji e4">⭐</div>
+        </div>
+      </div>
+      <!-- 轮播圆点 -->
+      <div class="banner-dots">
+        <span class="dot active" data-index="0"></span>
+        <span class="dot" data-index="1"></span>
+        <span class="dot" data-index="2"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 分类导航 -->
+  <nav class="category-nav">
+    <ul class="category-list">
+      <li><a href="#" class="active" data-category="all">🎯 全部</a></li>
+      <li><a href="#" data-category="new">✨ 新游戏</a></li>
+      <li><a href="#" data-category="hot">🔥 热门</a></li>
+      <li><a href="#" data-category="动作">💥 动作</a></li>
+      <li><a href="#" data-category="射击">🔫 射击</a></li>
+      <li><a href="#" data-category="塔防">🏰 塔防</a></li>
+      <li><a href="#" data-category="益智">🧩 益智</a></li>
+      <li><a href="#" data-category="跑酷">🏃 跑酷</a></li>
+      <li><a href="#" data-category="学习">📚 学习</a></li>
+      <li><a href="#" data-category="休闲">🎪 休闲</a></li>
+      <li><a href="#" data-category="养成">🌱 养成</a></li>
+      <li><a href="#" data-category="其他">🎮 其他</a></li>
+    </ul>
+  </nav>
+
+
+  <!-- 游戏卡片列表 -->
+  <section class="games-grid" id="gamesGrid">
+    <!-- 由 JS 从 Supabase 加载，下面是加载中提示 -->
+    <div class="loading-tip" id="gamesLoading">🎮 加载游戏中...</div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>© 2026 小菜鸟 - 专为小朋友打造的游戏乐园 🐣</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+  <script src="index.js"></script>
+  <script>
+    // Banner 按钮登录拦截
+    async function bannerGoEditor(e) {
+      e.preventDefault();
+      var loggedIn = await requireLogin('editor.html');
+      if (loggedIn) window.location.href = 'editor.html';
+      return false;
+    }
+    async function bannerGoPlay(e) {
+      e.preventDefault();
+      var loggedIn = await requireLogin('index.html#gamesGrid');
+      if (loggedIn) {
+        document.getElementById('gamesGrid').scrollIntoView({ behavior: 'smooth' });
+      }
+      return false;
+    }
+  </script>
+</body>
+</html>
+
+
+
