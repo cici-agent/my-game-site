@@ -1,8 +1,9 @@
 // ===== 菜鸟星球游乐园：主程序 =====
 import * as THREE from 'three';
 import { buildWorld, ISLAND_R, SHOPS } from './world.js';
-import { buildAvatar } from './avatar.js';
-import { CATALOG } from './catalog.js';
+import { buildAvatar, buildPet } from './avatar.js';
+import { INV, loadInventory, itemsOf, findItem, slotOf, owns, buy, equip, useItem } from './inventory.js';
+import { createAbilities, DURATION } from './abilities.js';
 import { loadPlanets, loadMe } from '../u/data.js';
 import { askLogin } from '../u/login.js';
 import { esc } from '../u/stations.js';
@@ -31,10 +32,28 @@ const world = buildWorld(scene);
 setLoad(60);
 
 // ---------- 玩家 ----------
-const me = buildAvatar('explorer');
+let me = buildAvatar('explorer');
 scene.add(me.root);
 const player = { pos: new THREE.Vector3(0, 0, 80), vy: 0, ground: true, face: Math.PI, riding: null };
 me.root.position.copy(player.pos);
+let pet = null;
+const petPos = new THREE.Vector3(2, 0, 82);
+
+// 按装备重新搭人物（皮肤 / 手上 / 头上 / 背上 / 宠物）
+function applyLook() {
+  const e = INV.equip, vis = me.root.visible;
+  scene.remove(me.root);
+  me = buildAvatar(e.skin || 'explorer', { hand: e.hand, head: e.head, back: e.back });
+  me.root.visible = vis; scene.add(me.root);
+  abil.reattach();
+  if (pet) { scene.remove(pet.group); pet = null; }
+  if (e.pet) { pet = buildPet(e.pet); petPos.copy(player.pos).add(new THREE.Vector3(1.5, 0, 1.5)); petPos.y = 0; scene.add(pet.group); }
+}
+
+// ---------- 提示条 ----------
+let toastT = 0;
+function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600); }
+const abil = createAbilities({ scene, player, getAvatar: () => me, sfx, toast });
 
 // ---------- 状态 / 输入 ----------
 const keys = {};
@@ -45,6 +64,8 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (e.code === 'KeyE' && !e.repeat) action();
+  if (e.code === 'Space' && !e.repeat) abil.onJumpPress();
+  const dn = /^Digit([0-9])$/.exec(e.code); if (dn && !e.repeat) usePropAt((+dn[1] + 9) % 10);
   if (e.code === 'Escape' && player.riding) leaveRide();
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -73,7 +94,8 @@ function moveJoy(e) {
   const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
   joy.x = dx / R; joy.y = -dy / R; knob.style.transform = `translate(${dx}px, ${dy}px)`;
 }
-$('jumpBtn').addEventListener('pointerdown', () => { keys.Space = true; setTimeout(() => keys.Space = false, 120); });
+$('jumpBtn').addEventListener('pointerdown', e => { keys.Space = true; abil.onJumpPress(); $('jumpBtn').setPointerCapture(e.pointerId); });
+['pointerup', 'pointercancel'].forEach(ev => $('jumpBtn').addEventListener(ev, () => keys.Space = false));
 $('actBtn').addEventListener('click', () => action());
 
 // ---------- 交互：设施 / 商店 / 星门 ----------
@@ -117,44 +139,138 @@ function leaveRide() {
   me.root.rotation.set(0, player.face, 0);
 }
 
-// ---------- 商店界面（批次 2 接入购买） ----------
-let shopOpen = false;
+// ---------- 商店 ----------
+let shopOpen = false, shopKey = null, viewer = null, preview = null, confirmKey = null, confirmT = 0, busy = false;
+const GROUPS = { ship: [['all', '']], skin: [['all', '']], prop: [['use', '⚡ 能力道具（买一次用一次，可以多买几个存着）'], ['decor', '🎀 装饰品（买了永久拥有，可以随时换）']] };
+const SLOT_NAME = { hand: '手上', head: '头上', back: '背上', pet: '宠物', fx: '脚印' };
+
+function itemState(it) {
+  if (it.kind === 'use') return { kind: 'use', have: INV.have[it.key] || 0 };
+  const slot = slotOf({ ...it, shop: shopKey });
+  return { kind: 'perm', slot, owned: owns(it.key), on: INV.equip[slot] === it.key };
+}
+function cardButtons(it) {
+  const st = itemState(it);
+  const price = it.price ? `🪙 ${it.price}` : '免费';
+  if (st.kind === 'use') {
+    const ask = confirmKey === it.key;
+    return `<div class="have">${st.have ? `背包里 ×${st.have}` : ''}</div>
+      <div class="buy">${price}<button data-act="buy" class="${ask ? 'ask' : ''}">${ask ? '确定买？' : '买一个'}</button></div>`;
+  }
+  if (!st.owned) {
+    const ask = confirmKey === it.key;
+    return `<div class="buy">${price}<button data-act="buy" class="${ask ? 'ask' : ''}">${ask ? '确定买？' : '购买'}</button></div>`;
+  }
+  if (st.on) return `<div class="buy"><span class="own">✔ 已拥有</span>${['ship', 'skin'].includes(st.slot) ? '<button disabled>使用中</button>' : '<button data-act="off" class="off">卸下</button>'}</div>`;
+  return `<div class="buy"><span class="own">✔ 已拥有</span><button data-act="on">${st.slot === 'ship' ? '换这艘' : st.slot === 'skin' ? '换上' : '戴上'}</button></div>`;
+}
+function renderShop() {
+  const key = shopKey, items = itemsOf(key);
+  const body = $('shopBody'), scroll = body.scrollTop;
+  body.querySelectorAll('.shop-grid, .shop-h').forEach(e => e.remove());
+  const html = GROUPS[key].map(([g, title]) => {
+    const list = g === 'all' ? items : items.filter(i => i.kind === g);
+    return (title ? `<h4 class="shop-h">${title}</h4>` : '') + `<div class="shop-grid">${list.map(it => {
+      const st = itemState(it);
+      return `<div class="item ${st.on ? 'on' : ''} ${preview === it.key ? 'sel' : ''}" data-key="${it.key}"><div class="ic">${it.icon}</div><div class="nm">${esc(it.name)}</div>
+        ${it.group ? `<div class="tag">${esc(it.group)}</div>` : it.slot ? `<div class="tag">${SLOT_NAME[it.slot]}</div>` : ''}
+        ${it.desc ? `<div class="ds">${esc(it.desc)}</div>` : ''}
+        ${it.perks ? `<ul class="pk">${it.perks.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
+        ${cardButtons(it)}</div>`;
+    }).join('')}</div>`;
+  }).join('');
+  body.insertAdjacentHTML('beforeend', html);
+  body.scrollTop = scroll;
+  body.querySelectorAll('.item').forEach(el => {
+    el.onclick = e => {
+      const it = items.find(i => i.key === el.dataset.key), btn = e.target.closest('button[data-act]');
+      if (btn) { onShopAction(it, btn.dataset.act); return; }
+      showPreview(it);
+    };
+  });
+}
+function showPreview(it) {
+  preview = it.key;
+  if (shopKey === 'ship' && viewer) viewer.show(it.key);
+  if (shopKey !== 'ship' && viewer) {
+    const e = { ...INV.equip };
+    if (shopKey === 'skin') e.skin = it.key;
+    else if (it.kind === 'decor') e[it.slot] = it.key;
+    viewer.show(e.skin, e);
+  }
+  $('shopBody').querySelectorAll('.item').forEach(x => x.classList.toggle('sel', x.dataset.key === it.key));
+}
+async function onShopAction(it, act) {
+  if (busy) return;
+  if (!ME) { const ok = await askLogin({ icon: '🐣', name: '菜鸟星球', color: '#ffb84d' }); if (!ok) return; await refreshMe(); renderShop(); return; }
+  const slot = slotOf({ ...it, shop: shopKey });
+  try {
+    busy = true;
+    if (act === 'buy') {
+      if (confirmKey !== it.key) {                 // 第一次点：让小朋友确认一下
+        confirmKey = it.key; clearTimeout(confirmT); confirmT = setTimeout(() => { confirmKey = null; shopOpen && renderShop(); }, 3500);
+        renderShop(); return;
+      }
+      confirmKey = null;
+      const r = await buy(it.key, 1);
+      setCoins(r.coins); sfx.chime([784, 988, 1318]);
+      if (it.kind === 'use') toast(`${it.icon} 买好了！背包里有 ${r.qty} 个，按道具栏使用`);
+      else { await equip(slot, it.key); applyEquip(slot); toast(`${it.icon} ${it.name} 是你的啦！`); }
+      renderProps();
+    } else if (act === 'on') { await equip(slot, it.key); applyEquip(slot); sfx.click(); }
+    else if (act === 'off') { await equip(slot, null); applyEquip(slot); sfx.click(); }
+  } catch (e) { toast('😅 ' + e.message); }
+  finally { busy = false; shopOpen && renderShop(); }
+}
+function applyEquip(slot) {
+  if (slot === 'ship') return;                       // 飞船回到宇宙里才看得到
+  applyLook();
+  if (viewer && shopKey !== 'ship') viewer.show(INV.equip.skin, { ...INV.equip });
+}
 function openShop(key) {
-  shopOpen = true; Object.keys(keys).forEach(k => keys[k] = false);
+  shopOpen = true; shopKey = key; preview = null; confirmKey = null; Object.keys(keys).forEach(k => keys[k] = false);
   const shop = SHOPS.find(s => s.key === key);
   const panel = $('shop'); panel.style.setProperty('--c', shop.color);
   $('shopTitle').textContent = shop.icon + ' ' + shop.name;
-  const items = CATALOG[key];
-  const groups = key === 'prop' ? [['use', '⚡ 能力道具（买一次用一次）'], ['decor', '🎀 装饰品（买了永久拥有）']] : key === 'skin' ? [['all', '']] : [['all', '']];
-  $('shopBody').innerHTML = groups.map(([g, title]) => {
-    const list = g === 'all' ? items : items.filter(i => i.kind === g);
-    return (title ? `<h4 class="shop-h">${title}</h4>` : '') + `<div class="shop-grid">${list.map(it => `
-      <div class="item"><div class="ic">${it.icon}</div><div class="nm">${esc(it.name)}</div>
-        ${it.group ? `<div class="tag">${esc(it.group)}</div>` : ''}
-        ${it.desc ? `<div class="ds">${esc(it.desc)}</div>` : ''}
-        ${it.perks ? `<ul class="pk">${it.perks.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
-        <div class="buy">${it.price ? `🪙 ${it.price}` : '免费'}<button disabled>${it.price ? '即将开放' : '已拥有'}</button></div></div>`).join('')}</div>`;
-  }).join('');
-  // 飞船商店：顶部放一个 3D 展示台，点卡片切换
-  if (key === 'ship') {
-    $('shopBody').insertAdjacentHTML('afterbegin', '<div class="ship-stage" id="shipStage"><div class="stage-tip">拖动可以旋转飞船</div></div>');
-    import('../u/hangar.js').then(({ createShipViewer }) => {
-      if (!shopOpen) return;
-      viewer = createShipViewer($('shipStage'));
-      viewer.show(items[0].key);
-      $('shopBody').querySelectorAll('.item').forEach((el, i) => {
-        el.style.cursor = 'pointer';
-        el.onclick = () => { viewer.show(items[i].key); $('shopBody').querySelectorAll('.item').forEach(x => x.classList.toggle('sel', x === el)); };
-      });
-      $('shopBody').querySelector('.item').classList.add('sel');
-    });
-  }
+  $('shopBody').innerHTML = `<div class="${key === 'ship' ? 'ship-stage' : 'ship-stage av-stage'}" id="shipStage"><div class="stage-tip">${key === 'ship' ? '拖动可以旋转飞船 · 点卡片看看别的飞船' : '拖动可以转身 · 点卡片先试穿'}</div></div>`;
+  renderShop();
+  const loader = key === 'ship' ? import('../u/hangar.js').then(m => m.createShipViewer($('shipStage'))) : import('./stage.js').then(m => m.createAvatarStage($('shipStage')));
+  loader.then(v => {
+    if (!shopOpen || shopKey !== key) { v.dispose(); return; }
+    viewer = v;
+    if (key === 'ship') { v.show(INV.equip.ship || 'rookie'); preview = INV.equip.ship || 'rookie'; renderShop(); }
+    else v.show(INV.equip.skin, { ...INV.equip });
+  });
   panel.classList.add('show');
   sfx.chime([784, 988]);
 }
-let viewer = null;
 function closeShop() { shopOpen = false; $('shop').classList.remove('show'); if (viewer) { viewer.dispose(); viewer = null; } }
 $('shopClose').onclick = closeShop;
+
+// ---------- 道具栏（背包里的能力道具） ----------
+function propList() { return itemsOf('prop').filter(i => i.kind === 'use' && (INV.have[i.key] || 0) > 0); }
+function renderProps() {
+  const list = propList(), bar = $('props');
+  bar.innerHTML = list.map((it, i) => `<button data-k="${it.key}" title="${esc(it.name)}"><span class="e">${it.icon}</span><b>${INV.have[it.key]}</b>${isTouch || i > 9 ? '' : `<i>${(i + 1) % 10}</i>`}</button>`).join('');
+  bar.classList.toggle('show', list.length > 0);
+  bar.querySelectorAll('button').forEach(b => b.onclick = () => usePropKey(b.dataset.k));
+}
+function usePropAt(i) { const it = propList()[i]; if (it) usePropKey(it.key); }
+async function usePropKey(key) {
+  if (shopOpen || player.riding || busy) return;
+  const it = findItem(key); const ok = abil.canUse(key);
+  if (ok !== true) { toast(ok); return; }
+  busy = true;
+  try { await useItem(key); abil.start(key); toast(`${it.icon} ${it.name}${DURATION[key] ? ` · ${DURATION[key]} 秒` : ''}`); }
+  catch (e) { toast('😅 ' + e.message); }
+  finally { busy = false; renderProps(); }
+}
+const FX_ICON = { jetpack: '🎒', copter: '🚁', balloon: '🎈', spring: '👟', skate: '🛹', grow: '🍄', shrink: '🧪', bubble: '🫧', unicorn: '🦄', 'unicorn-cd': '🦄💤' };
+let fxShown = '';
+function renderFx() {
+  const st = abil.status(), html = st.map(s => `<span>${FX_ICON[s.key] || '✨'} ${Math.ceil(s.left)}s</span>`).join('');
+  if (html !== fxShown) { fxShown = html; $('fxBar').innerHTML = html; }
+}
 
 // ---------- 离开：回宇宙从菜鸟星球起飞 ----------
 function leave(next) {
@@ -223,7 +339,9 @@ function tick() {
       if (joy.id !== null) { mx = joy.x; my = joy.y; }
     }
     const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
-    const speed = (keys.ShiftLeft || keys.ShiftRight ? RUN : WALK) * Math.min(1, len);
+    const mod = abil.step(dt, t, { up: keys.Space, down: keys.ShiftLeft || keys.ShiftRight, jumpHeld: keys.Space, moving: len > .05, fx: INV.equip.fx });
+    const running = (keys.ShiftLeft || keys.ShiftRight) && !abil.flying;
+    const speed = (running ? RUN : WALK) * Math.min(1, len) * mod.speedMul;
     const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
     const vx = (fx * my - fz * mx) * speed, vz = (fz * my + fx * mx) * speed;
     player.pos.x += vx * dt; player.pos.z += vz * dt;
@@ -234,23 +352,36 @@ function tick() {
       if (my > .3 && !drag) { let dy = player.face - cam.yaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2; cam.yaw += dy * dt * 1.2; }
     }
     // 跳跃 / 重力
-    if ((keys.Space) && player.ground && !shopOpen) { player.vy = JUMP; player.ground = false; }
-    player.vy -= GRAV * dt; player.pos.y += player.vy * dt;
-    if (player.pos.y <= 0) { player.pos.y = 0; player.vy = 0; player.ground = true; }
+    if (mod.gravity) {
+      if ((keys.Space) && player.ground && !shopOpen) { player.vy = JUMP * mod.jumpMul; player.ground = false; }
+      player.vy -= GRAV * dt; player.pos.y += player.vy * dt;
+      if (player.pos.y <= 0) { player.pos.y = 0; player.vy = 0; player.ground = true; }
+    }
     // 碰撞：圆形障碍物 + 岛边缘
     world.colliders.forEach(([cx, cz, cr]) => {
-      const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + .55;
+      if (player.pos.y > 7) return;                       // 飞得够高就越过障碍物
+      const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + .55 * mod.scale;
       if (d < min && d > 1e-4) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
     });
-    const R = Math.hypot(player.pos.x, player.pos.z), maxR = ISLAND_R - 2.5;
+    const R = Math.hypot(player.pos.x, player.pos.z), maxR = ISLAND_R - 2.5 * mod.scale;
     if (R > maxR) { player.pos.x *= maxR / R; player.pos.z *= maxR / R; }
 
-    me.root.position.copy(player.pos); me.root.rotation.set(0, player.face, 0);
-    me.rig.shadow.position.y = .02 - player.pos.y; me.rig.shadow.material.opacity = .25 / (1 + player.pos.y * .3);
-    me.animate(dt, Math.min(1, speed / WALK), !player.ground, false);
+    me.root.position.copy(player.pos); me.root.position.y += mod.lift * mod.scale; me.root.rotation.set(0, player.face, 0);
+    me.rig.shadow.position.y = (.02 - player.pos.y - mod.lift * mod.scale) / mod.scale; me.rig.shadow.material.opacity = .25 / (1 + player.pos.y * .3);
+    me.animate(dt, Math.min(1, speed / WALK), !player.ground, false, mod.pose);
+    if (pet) {
+      const back = new THREE.Vector3(Math.sin(player.face), 0, Math.cos(player.face)).multiplyScalar(-.7 * mod.scale);
+      const want = tmp.set(player.pos.x + back.x + Math.cos(player.face) * 1.5 * mod.scale, 0, player.pos.z + back.z - Math.sin(player.face) * 1.5 * mod.scale);
+      const d = want.distanceTo(petPos), moving = d > .25;
+      if (d > 30) petPos.copy(want);
+      else if (moving) { const step = Math.min(d, dt * Math.max(4, d * 3)); const dir = want.clone().sub(petPos).normalize(); petPos.addScaledVector(dir, step); pet.group.rotation.y = Math.atan2(dir.x, dir.z); }
+      pet.group.position.copy(petPos); pet.update(dt, t, moving);
+    }
+    renderFx();
 
-    camLook.set(player.pos.x, player.pos.y + 2, player.pos.z);
-    camPos.set(camLook.x - Math.sin(cam.yaw) * cam.dist * Math.cos(cam.pitch), camLook.y + Math.sin(cam.pitch) * cam.dist, camLook.z - Math.cos(cam.yaw) * cam.dist * Math.cos(cam.pitch));
+    camLook.set(player.pos.x, player.pos.y + 2 * mod.scale, player.pos.z);
+    const cd = cam.dist * (.55 + mod.scale * .45);
+    camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(cam.pitch), camLook.y + Math.sin(cam.pitch) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(cam.pitch));
     camera.position.lerp(camPos, Math.min(1, dt * 8)); camera.lookAt(camLook);
 
     near = shopOpen ? null : findNear();
@@ -269,12 +400,20 @@ function tick() {
 
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
+let ME = null;
+function setCoins(n) { $('coinNum').textContent = n == null ? '--' : n; }
+async function refreshMe() {
+  ME = await loadMe();
+  await loadInventory(ME && ME.user.id);
+  setCoins(ME ? (ME.profile.coins || 0) : null);
+  applyLook(); renderProps();
+}
+
 async function boot() {
   if (isTouch) $('hint').textContent = '左下摇杆走路 · 拖动屏幕转视角 · 走到设施和商店门口点按钮';
   buildDock();
-  const ME = await loadMe();
+  await refreshMe();
   setLoad(90);
-  $('coinNum').textContent = ME ? (ME.profile.coins || 0) : '--';
   camera.position.set(0, 6, 92); camera.lookAt(0, 2, 70);
   tick();
   setTimeout(() => $('hint').style.opacity = 0, 9000);
@@ -286,8 +425,8 @@ async function boot() {
   if (!ME) {
     const ok = await askLogin({ icon: '🐣', name: '菜鸟星球', color: '#ffb84d' });
     if (!ok) { leave(); return; }
-    const m2 = await loadMe(); $('coinNum').textContent = m2 ? (m2.profile.coins || 0) : '--';
+    await refreshMe();
   }
 }
 boot();
-window.__park = { player, world, cam, action, get near() { return near; } };
+window.__park = { player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, get me() { return me; }, get near() { return near; } };

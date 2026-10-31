@@ -48,9 +48,30 @@
   .item .buy button:disabled { background: #ced4da; cursor: default; }
   .ship-stage { position: relative; height: 300px; border-radius: 18px; overflow: hidden; margin-bottom: 16px; background: #0b0f26; }
   .stage-tip { position: absolute; left: 12px; top: 10px; color: #fff; opacity: .7; font-size: 12px; z-index: 1; pointer-events: none; }
+  .av-stage { background: radial-gradient(circle at 50% 40%, #fff7ec, #ffd8b5); height: 320px; }
+  .av-stage .stage-tip { color: #8a5a2b; }
+  .item.on { background: #fff8e6; }
+  .item .have { font-size: 12px; font-weight: 800; color: #2b8a3e; min-height: 16px; }
+  .item .buy .own { color: #2b8a3e; font-size: 13px; }
+  .item .buy button.ask { background: #e03131; animation: pulse .6s infinite alternate; }
+  .item .buy button.off { background: #868e96; }
+  @keyframes pulse { to { transform: scale(1.08); } }
+  #props { position: fixed; right: 12px; top: calc(var(--top-h) + 40px); z-index: 9; display: none; grid-template-columns: repeat(2, 54px); gap: 7px; }
+  #props.show { display: grid; }
+  #props button { position: relative; width: 54px; height: 54px; border-radius: 15px; border: 2px solid #ffd23f; background: rgba(26,20,70,.8); color: #fff; cursor: pointer; font-family: inherit; padding: 0; }
+  #props button .e { font-size: 26px; }
+  #props button b { position: absolute; right: 4px; bottom: 1px; font-size: 12px; }
+  #props button i { position: absolute; left: 5px; top: 1px; font-size: 11px; font-style: normal; opacity: .7; }
+  #props button:active { transform: scale(.92); }
+  @media (max-height: 560px) { #props { grid-template-columns: repeat(3, 46px); } #props button { width: 46px; height: 46px; } #props button .e { font-size: 22px; } }
+  #fxBar { position: fixed; left: 50%; top: calc(var(--top-h) + 6px); transform: translateX(-50%); z-index: 9; display: flex; gap: 8px; pointer-events: none; }
+  #fxBar span { background: rgba(26,20,70,.8); color: #fff; padding: 5px 12px; border-radius: 999px; font-weight: 800; font-size: 14px; }
+  #toast { position: fixed; left: 50%; top: 38%; transform: translate(-50%, 10px); z-index: 20; background: rgba(26,20,70,.92); color: #fff; padding: 12px 22px; border-radius: 18px;
+    font-weight: 800; font-size: 16px; opacity: 0; pointer-events: none; transition: all .25s; text-align: center; max-width: 86vw; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
   .item.sel { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 35%, transparent); }
   @media (max-width: 640px) {
-    .ship-stage { height: 220px; }
+    .ship-stage { height: 190px !important; position: sticky; top: -16px; z-index: 3; box-shadow: 0 6px 12px rgba(0,0,0,.12); }
     #shop { left: 8px; right: 8px; } .shop-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .item .ic { font-size: 36px; } .shop-head .note { display: none; }
     #prompt { font-size: 14px; }
@@ -68,16 +89,19 @@
   <div class="brand"><div class="dot">🐣</div>小菜鸟宇宙<span class="where" id="where">· 菜鸟星球</span><button id="mute" title="声音">🔊</button></div>
   <div class="coin-hud">🪙 : <span id="coinNum">--</span></div>
 </div>
-<div class="hint" id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 拖动屏幕转视角 · 走到设施和商店门口按 E</div>
+<div class="hint" id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 数字键用道具 · 拖动屏幕转视角 · 走到设施和商店门口按 E</div>
 
 <div id="prompt"></div>
+<div id="props"></div>
+<div id="fxBar"></div>
+<div id="toast"></div>
 <div class="dock" id="dock"></div>
 <div id="stick"><div class="knob"></div></div>
 <button class="round-btn" id="jumpBtn">跳</button>
 <button class="round-btn" id="actBtn">乘坐</button>
 
 <div id="shop">
-  <div class="shop-head"><h2 id="shopTitle"></h2><span class="note">用金币购买，管理员可调整价格</span><button id="shopClose">✕ 离开商店</button></div>
+  <div class="shop-head"><h2 id="shopTitle"></h2><span class="note">用金币购买 · 点卡片可以先看看</span><button id="shopClose">✕ 离开商店</button></div>
   <div id="shopBody"></div>
 </div>
 

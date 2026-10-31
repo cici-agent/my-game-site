@@ -1,6 +1,6 @@
 // ===== 小菜鸟宇宙：主程序 =====
 import * as THREE from 'three';
-import { loadPlanets, loadGames, loadMe } from './data.js';
+import { loadPlanets, loadGames, loadMe, loadEquipment } from './data.js';
 import { layoutPlanets, buildPlanet, createGate } from './planets.js';
 import { buildShip } from './ships.js';
 import { glowTex, rand } from './tex.js';
@@ -63,9 +63,14 @@ const dust = (() => {
 const gate = createGate(); scene.add(gate);
 
 // ---------- 飞船 ----------
-const shipObj = buildShip('rookie');
-const ship = shipObj.group; ship.rotation.order = 'YXZ'; scene.add(ship);
-const { flames, engineLight } = shipObj;
+// 外层容器负责位置和朝向，里面放当前装备的飞船（换飞船时只换里面）
+const ship = new THREE.Group(); ship.rotation.order = 'YXZ'; scene.add(ship);
+let shipObj, flames, engineLight;
+function setShip(key) {
+  if (shipObj) ship.remove(shipObj.group);
+  shipObj = buildShip(key); ({ flames, engineLight } = shipObj); ship.add(shipObj.group);
+}
+setShip('rookie');
 const TRAIL = 160;
 const trail = (() => {
   const pos = new Float32Array(TRAIL * 3).fill(9999), geo = new THREE.BufferGeometry();
@@ -249,7 +254,7 @@ async function requireLogin(p) {
   flash(false);
   if (state.mode !== 'landed') { state.mode = 'landed'; state.landed = p; state.speed = 0; state.warp = 0; gate.visible = false; parkAt(p, true); refreshUI(); }
   const ok = await askLogin(p);
-  if (ok) { ME = await loadMe(); showCoins(); return true; }
+  if (ok) { ME = await loadMe(); showCoins(); if (ME) loadEquipment(ME.user.id).then(eq => { if (eq && eq.ship) setShip(eq.ship); }); return true; }
   takeOff();
   return false;
 }
@@ -449,6 +454,7 @@ async function boot() {
   setLoad(20);
   const [planets, me] = await Promise.all([loadPlanets(), loadMe()]);
   ME = me; showCoins();
+  if (ME) loadEquipment(ME.user.id).then(eq => { if (eq && eq.ship && eq.ship !== 'rookie') setShip(eq.ship); });
   PLANETS = layoutPlanets(planets);
   try { sessionStorage.setItem('xcn_planets', JSON.stringify(Object.fromEntries(planets.map(p => [p.kind, [p.name, p.icon]])))); } catch (e) {}
   PLANETS.forEach((p, i) => { scene.add(buildPlanet(p, i)); p.moons = []; planetMeshes.push(p.mesh); });

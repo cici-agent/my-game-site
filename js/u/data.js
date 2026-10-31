@@ -69,6 +69,16 @@ export async function loadMe() {
   return { user, profile };
 }
 
+// 我装备的飞船 / 皮肤 / 装饰（没有记录 = 全部默认）
+export async function loadEquipment(userId) {
+  const client = sb(); if (!client || !userId) return null;
+  try {
+    const { data, error } = await client.from('user_equipment').select('*').eq('user_id', userId).maybeSingle();
+    if (error) return null;
+    return data || { ship: 'rookie', skin: 'explorer' };
+  } catch (e) { return null; }
+}
+
 export async function loadMyHome(userId) {
   const client = sb();
   const [tx, mine, played] = await Promise.all([
