@@ -9,8 +9,15 @@ export const T_DAY = 1140, T_SUNSET = 90, T_NIGHT = 480, T_SUNRISE = 90;
 export const DAY_LEN = T_DAY + T_SUNSET + T_NIGHT + T_SUNRISE;
 export const SHOW_START = 60, SHOW_LEN = 180;
 // 测试用：?dn=秒数 把时间往后拨
-const OFFSET = +(new URLSearchParams(location.search).get('dn') || 0);
+let OFFSET = +(new URLSearchParams(location.search).get('dn') || 0);
 export const now = () => rideClock() + OFFSET;
+// 管理员测试：把“我这边”的时间跳到一天里的某一秒（别人不受影响）；target = null 恢复正常
+export function jumpTo(target) {
+  if (target == null) OFFSET = 0;
+  else { const c = ((rideClock() % DAY_LEN) + DAY_LEN) % DAY_LEN; OFFSET = ((target - c) % DAY_LEN + DAY_LEN) % DAY_LEN; }
+  dispatchEvent(new Event('xcn-time-jump'));
+}
+export const isShifted = () => OFFSET !== 0;
 
 export function dayInfo(t = now()) {
   const n = Math.floor(t / DAY_LEN), c = t - n * DAY_LEN;

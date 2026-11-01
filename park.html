@@ -99,6 +99,17 @@
     box-shadow: 0 8px 24px rgba(112,72,232,.45); }
   #dnBanner.show { opacity: 1; transform: translate(-50%, 0); }
   @media (max-width: 640px) { #dnChip { font-size: 11px; left: 8px; } #dnBanner { font-size: 15px; padding: 9px 16px; } }
+  #timeTest { position: fixed; left: 18px; top: calc(var(--top-h) + 34px); z-index: 11; display: none; }
+  #timeTest.show { display: block; }
+  #timeTest .tt-head { border: 0; background: #e03131; color: #fff; font: 800 12px inherit; font-family: inherit; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+  #timeTest.shifted .tt-head::after { content: ' · 已跳时间'; }
+  #timeTest .tt-body { display: none; margin-top: 6px; background: rgba(26,20,70,.92); border: 2px solid #e03131; border-radius: 14px; padding: 8px; width: 190px; }
+  #timeTest.open .tt-body { display: block; }
+  #timeTest .tt-body p { color: #ffc9c9; font-size: 11px; margin: 0 2px 6px; }
+  #timeTest .tt-body button { display: block; width: 100%; margin: 4px 0; border: 0; border-radius: 10px; padding: 7px 10px; text-align: left; background: rgba(255,255,255,.12); color: #fff;
+    font: 700 13px inherit; font-family: inherit; cursor: pointer; }
+  #timeTest .tt-body button:hover { background: rgba(255,255,255,.25); }
+  #timeTest .tt-body .tt-reset { background: #2b8a3e; }
   #fxBar { position: fixed; left: 50%; top: calc(var(--top-h) + 6px); transform: translateX(-50%); z-index: 9; display: flex; gap: 8px; pointer-events: none; }
   #fxBar span { background: rgba(26,20,70,.8); color: #fff; padding: 5px 12px; border-radius: 999px; font-weight: 800; font-size: 14px; }
   #toast { position: fixed; left: 50%; top: 38%; transform: translate(-50%, 10px); z-index: 20; background: rgba(26,20,70,.92); color: #fff; padding: 12px 22px; border-radius: 18px;
@@ -134,6 +145,7 @@
 <div id="fxBar"></div>
 <div id="toast"></div>
 <div id="dnChip"></div>
+<div id="timeTest"></div>
 <div id="dnBanner"></div>
 <div class="dock" id="dock"></div>
 <div id="stick"><div class="knob"></div></div>

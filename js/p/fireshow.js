@@ -65,6 +65,7 @@ export function showProgram(nightIndex) {
 
 export function createFireShow({ abil, banner }) {
   let night = -1, prog = [], last = null, said = {};
+  addEventListener('xcn-time-jump', () => { last = null; said = {}; });     // 管理员跳时间后重新开始算
   function update(I) {
     if (I.phase !== 'night') { last = null; return null; }
     if (I.nightIndex !== night) { night = I.nightIndex; prog = showProgram(night); said = {}; last = null; }

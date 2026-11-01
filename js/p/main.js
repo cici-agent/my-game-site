@@ -5,7 +5,7 @@ import { buildAvatar, buildPet } from './avatar.js';
 import { INV, loadInventory, itemsOf, findItem, slotOf, owns, buy, equip, useItem } from './inventory.js';
 import { createAbilities, DURATION } from './abilities.js';
 import { createParkMP } from './mp.js';
-import { createDayNight } from './daynight.js';
+import { createDayNight, jumpTo, isShifted, T_DAY, T_SUNSET, T_NIGHT, SHOW_START, SHOW_LEN, DAY_LEN } from './daynight.js';
 import { createFireShow } from './fireshow.js';
 import { clockTower, clockText } from './clock.js';
 import { loadPlanets, loadMe } from '../u/data.js';
@@ -523,6 +523,19 @@ let ME = null, mp = null, myMove = { speed: 0 };
 const fireShow = createFireShow({ abil, banner });
 let bannerT = 0, chipSig = '';
 function banner(msg, ms = 4000) { const el = $('dnBanner'); el.textContent = msg; el.classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => el.classList.remove('show'), ms); }
+// 管理员测试时间（只改自己这边看到的时间）
+function setupTimeTest() {
+  const el = $('timeTest'); if (!el) return;
+  const isAdmin = ME && (ME.profile.role === 'admin' || ME.profile.is_admin);
+  el.classList.toggle('show', !!isAdmin);
+  if (!isAdmin || el.dataset.ready) return; el.dataset.ready = 1;
+  const N0 = T_DAY + T_SUNSET, S0 = N0 + SHOW_START;
+  const opts = [['🌇 日落', T_DAY - 3], ['🌙 刚天黑', N0], ['⏱ 烟花秀前 10 秒', S0 - 10], ['🎆 烟花秀开始', S0], ['💥 大结局', S0 + 148], ['🐣 结尾小菜鸟', S0 + SHOW_LEN - 8], ['🌅 日出', DAY_LEN - 90 - 3], ['☀️ 白天', 60]];
+  el.innerHTML = `<button class="tt-head">⏱ 测试时间</button><div class="tt-body"><p>只改你自己看到的时间，别的玩家不受影响</p>
+    ${opts.map(([n, s]) => `<button data-s="${s}">${n}</button>`).join('')}<button data-s="" class="tt-reset">↩ 恢复正常时间</button></div>`;
+  el.querySelector('.tt-head').onclick = () => el.classList.toggle('open');
+  el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { el.classList.remove('open'); jumpTo(b.dataset.s === '' ? null : +b.dataset.s); el.classList.toggle('shifted', isShifted()); toast(b.dataset.s === '' ? '已恢复正常时间' : '⏱ 已跳到：' + b.textContent); });
+}
 function updateDnChip(I) {
   const T = clockText(I), sig = T.icon + T.title + T.line + T.big;
   if (sig === chipSig) return; chipSig = sig;
@@ -540,7 +553,7 @@ async function refreshMe() {
   await loadInventory(ME && ME.user.id);
   setCoins(ME ? (ME.profile.coins || 0) : null);
   syncBag.loaded = null; bag = Array(BAG_N).fill(null);
-  applyLook(); syncBag();
+  applyLook(); syncBag(); setupTimeTest();
   if (!mp) mp = createParkMP({ scene, camera, player, getSeat: (ri, si) => { const r = world.rides[ri]; return r && r.seats && r.seats[si]; }, getMe: () => ME, getLook: () => ({ ...INV.equip }), getAvatar: () => me, abil, toast, sfx });
   mp.connect();
 }
