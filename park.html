@@ -78,6 +78,19 @@
   body.touch #stick { bottom: calc(var(--dock-h) + 70px) !important; }
   body.touch #jumpBtn { bottom: calc(var(--dock-h) + 70px); }
   body.touch #actBtn { bottom: calc(var(--dock-h) + 90px); }
+  #ward { position: fixed; right: 12px; top: calc(var(--top-h) + 10px); z-index: 9; width: 214px; display: none; background: rgba(26,20,70,.72);
+    border: 2px solid rgba(255,210,63,.6); border-radius: 18px; color: #fff; overflow: hidden; max-height: calc(100vh - var(--top-h) - var(--dock-h) - 120px); overflow-y: auto; }
+  #ward.show { display: block; }
+  #ward .w-head { width: 100%; text-align: left; border: 0; background: rgba(255,210,63,.18); color: #fff; font: 800 15px inherit; font-family: inherit; padding: 9px 14px; cursor: pointer; }
+  #ward .w-head b { float: right; }
+  #ward .w-body { padding: 8px 8px 10px; }
+  #ward h5 { margin: 10px 4px 6px; font-size: 13px; } #ward h5 small { font-weight: 400; opacity: .7; font-size: 11px; }
+  #ward .w-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  #ward .w { border: 2px solid transparent; background: rgba(255,255,255,.12); border-radius: 12px; color: #fff; padding: 5px 2px 4px; cursor: pointer; font-family: inherit; }
+  #ward .w span { display: block; font-size: 26px; line-height: 1.1; } #ward .w em { display: block; font-style: normal; font-size: 11px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ward .w.on { border-color: #ffd23f; background: rgba(255,210,63,.3); }
+  #ward .w-tip { font-size: 12px; opacity: .8; margin: 8px 4px 2px; }
+  @media (max-width: 640px) { #ward { width: 168px; right: 8px; } #ward .w span { font-size: 22px; } #ward .w em { font-size: 10px; } }
   #fxBar { position: fixed; left: 50%; top: calc(var(--top-h) + 6px); transform: translateX(-50%); z-index: 9; display: flex; gap: 8px; pointer-events: none; }
   #fxBar span { background: rgba(26,20,70,.8); color: #fff; padding: 5px 12px; border-radius: 999px; font-weight: 800; font-size: 14px; }
   #toast { position: fixed; left: 50%; top: 38%; transform: translate(-50%, 10px); z-index: 20; background: rgba(26,20,70,.92); color: #fff; padding: 12px 22px; border-radius: 18px;
@@ -107,6 +120,7 @@
 
 <div id="prompt"></div>
 <div id="bag"></div>
+<div id="ward"></div>
 <div id="bagName"></div>
 <div id="mpTags"></div>
 <div id="fxBar"></div>

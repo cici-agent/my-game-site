@@ -216,9 +216,8 @@ async function onShopAction(it, act) {
       confirmKey = null;
       const r = await buy(it.key, 1);
       setCoins(r.coins); sfx.chime([784, 988, 1318]);
-      if (slot !== 'ship' && !syncBag(it.key)) toast(`${it.icon} 买好了！不过九格背包满了，用掉一些东西就会放进去`);
-      else if (it.kind === 'use') toast(`${it.icon} 买好了！已经放进背包（按格子的数字两次就能用）`);
-      if (it.kind !== 'use') { await equip(slot, it.key); applyEquip(slot); if (slot === 'ship') toast(`${it.icon} ${it.name} 是你的啦！回到宇宙就能开`); else toast(`${it.icon} ${it.name} 是你的啦！已经穿上，也放进了背包`); }
+      if (it.kind === 'use') toast(syncBag(it.key) ? `${it.icon} 买好了！已经放进背包（按格子的数字两次就能用）` : `${it.icon} 买好了！不过九格背包满了，用掉一些东西就会放进去`);
+      else { await equip(slot, it.key); applyEquip(slot); toast(slot === 'ship' ? `${it.icon} ${it.name} 是你的啦！回到宇宙就能开` : `${it.icon} ${it.name} 是你的啦！已经换上，右边「我的角色」里可以随时换`); }
       renderBag();
     } else if (act === 'on') { await equip(slot, it.key); applyEquip(slot); sfx.click(); }
     else if (act === 'off') { await equip(slot, null); applyEquip(slot); sfx.click(); }
@@ -256,11 +255,8 @@ const BAG_N = 9;
 let bag = Array(BAG_N).fill(null), bagSel = 0;
 const bagKey = () => 'xcn_bag_' + (ME ? ME.user.id : 'guest');
 function ownedForBag() {
-  // 飞船不放背包；免费的默认皮肤也不放
-  const use = itemsOf('prop').filter(i => i.kind === 'use' && (INV.have[i.key] || 0) > 0);
-  const decor = itemsOf('prop').filter(i => i.kind === 'decor' && owns(i.key));
-  const skins = itemsOf('skin').filter(i => i.price > 0 && owns(i.key));
-  return [...use, ...decor, ...skins].map(i => i.key);
+  // 背包只放会用掉的道具；角色和装扮放在右边的「我的角色」框里，飞船在宇宙里用
+  return itemsOf('prop').filter(i => i.kind === 'use' && (INV.have[i.key] || 0) > 0).map(i => i.key);
 }
 function syncBag(newKey) {
   try { const saved = JSON.parse(localStorage.getItem(bagKey()) || 'null'); if (Array.isArray(saved) && saved.length === BAG_N && !syncBag.loaded) { bag = saved; } } catch (e) {}
@@ -286,6 +282,34 @@ function renderBag() {
   const cur = bag[bagSel] && findItem(bag[bagSel]);
   $('bagName').textContent = cur ? `${cur.icon} ${cur.name} · ${cur.kind === 'use' ? '再按一次使用' : INV.equip[slotOf(cur)] === cur.key ? '再按一次取下' : '再按一次穿戴'}` : '';
   el.querySelectorAll('.slot').forEach(b => b.onclick = () => pressSlot(+b.dataset.i));
+  renderWard();
+}
+
+// ---------- 右边的「我的角色」框：买过的角色和装扮，点一下就换 ----------
+let wardOpen = !isTouch;
+function renderWard() {
+  const el = $('ward'); if (!el) return;
+  el.classList.toggle('show', !!ME);
+  const skins = itemsOf('skin').filter(i => owns(i.key));
+  const decor = itemsOf('prop').filter(i => i.kind === 'decor' && owns(i.key));
+  const cell = (it, on) => `<button class="w ${on ? 'on' : ''}" data-k="${it.key}" title="${esc(it.name)}"><span>${it.icon}</span><em>${esc(it.name)}</em></button>`;
+  el.innerHTML = `<button class="w-head" id="wardToggle">👕 我的角色 <b>${wardOpen ? '▾' : '▸'}</b></button>
+    <div class="w-body" style="display:${wardOpen ? 'block' : 'none'}">
+      <div class="w-grid">${skins.map(it => cell(it, INV.equip.skin === it.key)).join('')}</div>
+      ${decor.length ? `<h5>🎀 装扮 <small>点一下戴上 / 取下</small></h5><div class="w-grid">${decor.map(it => cell(it, INV.equip[it.slot] === it.key)).join('')}</div>` : ''}
+      ${skins.length < 2 && !decor.length ? '<p class="w-tip">在皮肤商店、道具商店买的角色和装扮会出现在这里</p>' : ''}
+    </div>`;
+  $('wardToggle').onclick = () => { wardOpen = !wardOpen; renderWard(); };
+  el.querySelectorAll('.w[data-k]').forEach(b => b.onclick = () => wardPick(b.dataset.k));
+}
+async function wardPick(key) {
+  if (busy) return;
+  const it = findItem(key), slot = slotOf(it), on = INV.equip[slot] === key;
+  if (slot === 'skin' && on) return;
+  busy = true;
+  try { await equip(slot, slot === 'skin' ? key : (on ? null : key)); applyLook(); sfx.click(); }
+  catch (e) { toast('😅 ' + e.message); }
+  finally { busy = false; renderBag(); }
 }
 let bagNameT = 0;
 function pressSlot(i) {
