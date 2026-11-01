@@ -8,8 +8,8 @@ import { rideClock } from './rides.js';
 export const T_DAY = 1140, T_SUNSET = 90, T_NIGHT = 480, T_SUNRISE = 90;
 export const DAY_LEN = T_DAY + T_SUNSET + T_NIGHT + T_SUNRISE;
 export const SHOW_START = 60, SHOW_LEN = 180;
-// 测试用：?dn=秒数 把时间往后拨
-let OFFSET = +(new URLSearchParams(location.search).get('dn') || 0);
+// 时间偏移只能由管理员的「测试时间」面板设置（jumpTo），普通玩家改不了
+let OFFSET = 0;
 export const now = () => rideClock() + OFFSET;
 // 管理员测试：把“我这边”的时间跳到一天里的某一秒（别人不受影响）；target = null 恢复正常
 export function jumpTo(target) {
