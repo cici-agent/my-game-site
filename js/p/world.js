@@ -92,7 +92,7 @@ function ground(scene) {
     m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(x2 - x1, z2 - z1);
     m.position.set((x1 + x2) / 2, .025, (z1 + z2) / 2); scene.add(m);
   };
-  road(0, 10, 0, 74); road(-40, -6, -96, 6); road(38, -2, 86, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6); road(-22, 38, -78, 98); road(0, 74, 0, 120, 6); road(-14, 120, 14, 120, 8); road(-78, 98, -114, 106);
+  road(0, 10, 0, 74); road(-40, -6, -96, 6); road(38, -2, 86, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6); road(-22, 38, -78, 98); road(0, 74, 0, 128, 6); road(-48, 132, 48, 132, 10); road(-78, 98, -114, 106);
   // 边缘的栏杆
   const postMat = M(0xffffff), railMat = M(0xff9f43);
   { const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(.12, .12, 1.3, 6), postMat, 300), o = new THREE.Object3D();
@@ -297,7 +297,7 @@ export function buildWorld(scene) {
   const bumper = bumperArena(-110, 75); scene.add(bumper.group); colliders.push(...bumper.colliders);
   updaters.push(dt => { bumper.lastHit = bumper.update(dt, bumper.othersFn ? bumper.othersFn() : []); });
   // 摆摊一条街（入口拱门南边）
-  const stalls = buildStalls(scene, 0, 125); colliders.push(...stalls.colliders); interact.push(...stalls.interact);
+  const stalls = buildStalls(scene, 0, 132); colliders.push(...stalls.colliders); interact.push(...stalls.interact);
   // 商店一排在北边
   const shopPos = [[-24, -62, 0], [0, -66, 0], [24, -62, 0]];
   SHOPS.forEach((s, i) => {
@@ -307,7 +307,7 @@ export function buildWorld(scene) {
   const f = fountain(0, 10); scene.add(f.group); colliders.push([0, 10, 7.3]); updaters.push(dt => f.update(dt));
   const gate = arrivalGate(0, 80); scene.add(gate.group); interact.push({ type: 'gate', pos: gate.entry, r: 5 }); updaters.push(dt => gate.update(dt));
   // 树、路灯、花
-  const r = rand(21), blocked = [[-110, 75, 38], [-112, 104, 12], [0, 125, 42], [140, -95, 60], [-130, -100, 18], [0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [40, 50, 20], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
+  const r = rand(21), blocked = [[-110, 75, 38], [-112, 104, 12], [-30, 132, 22], [30, 132, 22], [0, 132, 18], [44, 132, 6], [0, 125, 42], [140, -95, 60], [-130, -100, 18], [0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [40, 50, 20], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
   const treeList = [];
   for (let i = 0; i < 240; i++) {
     const a = r() * Math.PI * 2, d = 20 + r() * (ISLAND_R - 28), x = Math.cos(a) * d, z = Math.sin(a) * d;

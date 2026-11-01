@@ -778,7 +778,7 @@ function tick() {
   } else if (player.stall) {
     me.root.visible = false;
     const r = stallGame.update(dt, keys);
-    if (r && stallGame.kind === 'balloon') { const a = r.aim, el = $('aimDot'); el.classList.add('on'); el.style.left = ((a.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - a.y) / 2 * innerHeight) + 'px'; } else $('aimDot').classList.remove('on');
+    if (r && r.showAim) { const a = r.aim, el = $('aimDot'); el.classList.add('on'); el.style.left = ((a.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - a.y) / 2 * innerHeight) + 'px'; } else $('aimDot').classList.remove('on');
     promptEl.classList.remove('show'); $('actBtn').textContent = '离开'; $('actBtn').classList.add('show');
     myMove = { speed: 0 };
   } else if (player.bumper) {

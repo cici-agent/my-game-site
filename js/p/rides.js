@@ -331,7 +331,7 @@ export function pirateShip(cx, cz) {
     const back = new THREE.Mesh(new THREE.BoxGeometry(.15, .8, 3.2), M(0x1971c2)); back.position.set(xx - Math.sign(xx || 1) * .45, 1.75, 0); ship.add(back);
     const bar = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 3.2, 6), M(0xdddddd, { metalness: .6 })); bar.rotation.x = Math.PI / 2; bar.position.set(xx + Math.sign(xx || 1) * .55, 1.9, 0); ship.add(bar);
     [-1.15, 0, 1.15].forEach(zz => {
-      const seat = new THREE.Object3D(); seat.position.set(xx, 1.85, zz);
+      const seat = new THREE.Object3D(); seat.position.set(xx, 1.52, zz);           // 屁股正好坐在凳子上
       seat.rotation.y = (xx < 0 || (xx === 0 && zz <= 0)) ? Math.PI / 2 : -Math.PI / 2;      // 两边的人面朝船中间
       ship.add(seat); seats.push(seat);
     });
@@ -380,7 +380,7 @@ export function pirateShip(cx, cz) {
     canBoard() { return phase === 'board' && boardLeft > .4; },
     boardTime() { return phase === 'board' ? boardLeft : 0; },
     // 上海盗船：走到船边的上船台阶（船是吊在半空的，不能走到船底下）
-    boardSpot(k) { const v = new THREE.Vector3(); seats[k].getWorldPosition(v); return [v.x, cz + 5.2 * SC]; },
+    boardSpot(k) { const v = new THREE.Vector3(); seats[k].getWorldPosition(v); return [v.x, cz + 6.3 * SC + .7]; },          // 站在上船台子的前面
     board(taken = [], want = null) {
       const k = want != null && seats[want] && !taken.includes(want) ? want : seats.findIndex((_, i) => !taken.includes(i)); if (k < 0) return null;
       const start = cycleN;

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { nameTag } from '../net.js';
 import { dayInfo, mmss, SHOW_START } from './daynight.js';
 
-const NAMES = ['小美', '阿乐', '豆豆', '小虎', '糖糖', '乐乐', '星星', '果果', '小鹿', '团团', '小宇', '朵朵', '毛毛', '天天', '笑笑', '可可', '小雨', '阳阳', '多多', '甜甜', '皮皮', '妞妞', '贝贝', '欢欢', '小树', '月月', '圆圆', '壮壮', '小船', '芊芊', '浩浩', '安安', '琪琪', '牛牛', '晴晴', '宝宝'];
+const NAMES = ['小美', '阿乐', '豆豆', '小虎', '糖糖', '乐乐', '星星', '果果', '小鹿', '团团', '小宇', '朵朵', '毛毛', '天天', '笑笑', '可可', '小雨', '阳阳', '多多', '甜甜', '皮皮', '妞妞', '贝贝', '欢欢', '小树', '月月', '圆圆', '壮壮', '小船', '芊芊', '浩浩', '安安', '琪琪', '牛牛', '晴晴', '宝宝', '小鱼', '乐天', '豆包', '飞飞', '花花', '小米', '跳跳', '蛋蛋', '橙子', '桃桃', '石头', '布丁', '小熊', '咚咚'];
 const FAVS = ['过山车', '摩天轮', '旋转木马', '海盗船', '鬼屋', '碰碰车', '卡丁车', '烟花秀', '喷泉', '摩天轮'];
 const HOBBY = ['吃冰淇淋', '收集金币', '看星星', '画画', '跑步', '拍照', '唱歌', '搭积木', '养小猫', '讲笑话'];
 const SPEED = 3.2;
@@ -87,14 +87,14 @@ export function buildPerson(seed) {
 }
 
 
-export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, queues, qRides, count = 36 }) {
+export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, queues, qRides, count = 50 }) {
   const rnd = Math.random;
   const npcs = [];
   const tmp = new THREE.Vector3(), seatPos = new THREE.Vector3(), seatQ = new THREE.Quaternion();
   const mansion = world.mansion;
   // 能去玩的项目：所有有座位的游乐设施 + 鬼屋
   // 能去玩的项目：每个项目的排队区入口（碰碰车的权重大一点，大家都爱玩）+ 鬼屋
-  const spots = qRides.map((r, i) => ({ kind: 'ride', ride: r, idx: i, pos: queues.queues[i].entrance, w: r === world.bumper ? 3 : [1.2, 1.5, 1, 2, 1][i] || 1 })).concat(mansion ? [{ kind: 'mansion', pos: mansion.entry, w: .5 }] : []);
+  const spots = qRides.map((r, i) => ({ kind: 'ride', ride: r, idx: i, pos: queues.queues[i].entrance, w: r === world.bumper ? 3 : [1.2, 1.5, 1, 3, 1][i] || 1 })).concat(mansion ? [{ kind: 'mansion', pos: mansion.entry, w: .5 }] : []);
   const pickSpot = () => { const tot = spots.reduce((a, s) => a + s.w, 0); let x = rnd() * tot; for (const s of spots) { x -= s.w; if (x <= 0) return s; } return spots[0]; };
 
   function blocked(x, z, pad = .6) {
@@ -140,15 +140,46 @@ export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, q
     else { n.target = randomPoint(); n.state = 'walk'; }
     n.stuckT = 0; n.lastD = 1e9;
   }
+  // 线段是不是穿过了一个（转了角度的）长方形
+  function segHitsBox(ax, az, bx, bz, box, pad) {
+    const [cx, cz, hw, hl, yaw] = box, co = Math.cos(yaw), si = Math.sin(yaw);
+    const L = (x, z) => { const dx = x - cx, dz = z - cz; return [dx * co - dz * si, dx * si + dz * co]; };
+    const [x0, z0] = L(ax, az), [x1, z1] = L(bx, bz), W = hw + pad, H = hl + pad;
+    let t0 = 0, t1 = 1; const dx = x1 - x0, dz = z1 - z0;
+    for (const [p, q] of [[-dx, x0 + W], [dx, W - x0], [-dz, z0 + H], [dz, H - z0]]) { if (p === 0) { if (q < 0) return false; } else { const r = q / p; if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; } } }
+    return true;
+  }
+  // 排队区挡着的话：先走到它的一个角，再到入口外面一点，最后到入口
+  function detour(n, qi) {
+    const q = queues.queues[qi], box = q.area.box, e = q.entrance, s2 = q.slots[q.slots.length - 2] || q.slots[0];
+    const ox = e[0] - s2[0], oz = e[1] - s2[1], ol = Math.hypot(ox, oz) || 1, A = [e[0] + ox / ol * 2.2, e[1] + oz / ol * 2.2];
+    const px = n.pos.x, pz = n.pos.z;
+    if (Math.hypot(px - A[0], pz - A[1]) < 1.4) return null;                                   // 已经在入口外面了：直接去入口
+    if (!segHitsBox(px, pz, A[0], A[1], box, .6)) return A;
+    // 小小的“可见图”：起点、四个角、入口外面那点，找最短的路，返回第一步
+    const [cx, cz, hw, hl, yaw] = box, co = Math.cos(yaw), si = Math.sin(yaw);
+    const nodes = [[px, pz]]; [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sz]) => { const lx = sx * (hw + 1.6), lz = sz * (hl + 1.6); nodes.push([cx + lx * co + lz * si, cz - lx * si + lz * co]); }); nodes.push(A);
+    const n6 = nodes.length, dist = Array(n6).fill(Infinity), prev = Array(n6).fill(-1), done = Array(n6).fill(false); dist[0] = 0;
+    for (let it = 0; it < n6; it++) { let u = -1; for (let i = 0; i < n6; i++) if (!done[i] && (u < 0 || dist[i] < dist[u])) u = i; if (u < 0 || dist[u] === Infinity) break; done[u] = true;
+      for (let v2 = 0; v2 < n6; v2++) { if (done[v2] || segHitsBox(nodes[u][0], nodes[u][1], nodes[v2][0], nodes[v2][1], box, .3)) continue; const d = dist[u] + Math.hypot(nodes[u][0] - nodes[v2][0], nodes[u][1] - nodes[v2][1]); if (d < dist[v2]) { dist[v2] = d; prev[v2] = u; } } }
+    let k = n6 - 1; if (prev[k] < 0) return A; while (prev[k] !== 0) k = prev[k];
+    return nodes[k];
+  }
   function walkTo(n, dt) {
     const dx = n.target[0] - n.pos.x, dz = n.target[1] - n.pos.z, d = Math.hypot(dx, dz);
     if (d < 1.2) return true;
-    const want = Math.atan2(dx, dz); let df = want - n.face; df = Math.atan2(Math.sin(df), Math.cos(df)); n.face += df * Math.min(1, dt * 5);
+    let want = Math.atan2(dx, dz);
+    // 前面有圆形的东西（树、喷泉、路灯、圆形的项目）挡着：往旁边绕
+    { const fx = dx / d, fz = dz / d;
+      for (const c of world.colliders) { if (c.box || c.queueArea) continue; const ox = c[0] - n.pos.x, oz = c[1] - n.pos.z, pr = ox * fx + oz * fz; if (pr < 0 || pr > Math.min(d, c[2] + 3)) continue;
+        const perp = ox * fz - oz * fx; if (Math.abs(perp) < c[2] + .8) { want += (perp > 0 ? -1 : 1) * Math.min(1.2, (c[2] + .8 - Math.abs(perp)) / (c[2] + .8) * 1.6 + .3); break; } } }
+    let df = want - n.face; df = Math.atan2(Math.sin(df), Math.cos(df)); n.face += df * Math.min(1, dt * 5);
     const sp = n.state === 'follow' ? Math.min(8, 3 + d * .5) : SPEED;
     n.pos.x += Math.sin(n.face) * sp * dt; n.pos.z += Math.cos(n.face) * sp * dt; n.speed = sp;
     push(n);
     // 卡住了（绕不过障碍物）：换个地方走
-    n.stuckT += dt; if (n.stuckT > 2.5 && n.state !== 'follow') { if (d > n.lastD - 1.5) { n.target = randomPoint(); n.state = 'walk'; n.spot = null; } n.stuckT = 0; n.lastD = d; }
+    // 卡住了（2.5 秒几乎没走动）：换个地方走
+    n.stuckT += dt; if (n.stuckT > 2.5 && n.state !== 'follow') { const mv = n.stuckP ? Math.hypot(n.pos.x - n.stuckP[0], n.pos.z - n.stuckP[1]) : 9; if (mv < 1.2) { n.target = randomPoint(); n.state = 'walk'; n.spot = null; } n.stuckT = 0; n.stuckP = [n.pos.x, n.pos.z]; }
     return false;
   }
   // 排到了：上车（碰碰车会玩 1~2 轮）
@@ -212,7 +243,11 @@ export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, q
         } else if (n.state === 'idle') { n.timer -= dt; if (n.timer <= 0) decide(n); }
         else if (n.state === 'walk') { if (walkTo(n, dt)) { n.state = 'idle'; n.timer = 1 + rnd() * 5; } }
         else if (n.state === 'toSpot') {
-          if (walkTo(n, dt)) {
+          // 去排队：先绕到排队区入口外面，不从栏杆中间穿过去
+          const final = [n.spot.pos[0], n.spot.pos[1]];
+          if (n.spot.kind === 'ride') { const wp = detour(n, n.spot.idx); n.target = wp || final; } else n.target = final;
+          const reached = walkTo(n, dt) && (n.spot.kind !== 'ride' || (n.target[0] === final[0] && n.target[1] === final[1]));
+          if (reached) {
             if (n.spot.kind === 'mansion') { n.state = 'mansion'; n.inMansion = true; n.timer = 30 + rnd() * 40; }
             else if (queues.length(n.spot.idx) > (n.spot.ride.capacity || 8) * 2) { n.state = 'idle'; n.timer = 1; n.spot = null; }      // 队太长了，换一个
             else { n.state = 'queue'; n.wait = 0; queues.join(n.spot.idx, n); }
