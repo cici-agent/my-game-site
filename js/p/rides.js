@@ -58,27 +58,33 @@ export function ferrisWheel(x, z, faceAngle = 0) {
     pivot.userData = { a0: k / N * Math.PI * 2 }; cab.userData.seat = seat;
     cabins.push({ pivot, cab, seat });
   }
-  let rot = 0, rider = null;
+  let rot = 0, rider = null, phase = 'board', boardLeft = 0, cycleN = 0;
+  const F_BOARD = 15, F_RUN = 36, F_CYCLE = F_BOARD + F_RUN;
   const worldPos = new THREE.Vector3();
   return {
     name: '摩天轮', icon: '🎡', group: g,
-    entry: [x + Math.sin(faceAngle) * 6, z + Math.cos(faceAngle) * 6], entryR: 4.5,
+    entry: [x + Math.sin(faceAngle) * 6, z + Math.cos(faceAngle) * 6], entryR: 4.5, out: [Math.sin(faceAngle), Math.cos(faceAngle)],
     colliders: [[x, z, 5.5]],
     seats: cabins.map(c => c.seat),
     update() {
-      rot = (rideClock() * SPEED) % (Math.PI * 2 * 1e4); wheel.rotation.z = rot;
+      // 一轮一轮：停下来上下客 15 秒 → 转整整一圈（慢慢起步、慢慢停）
+      const now = rideClock(), c = now % F_CYCLE; cycleN = Math.floor(now / F_CYCLE);
+      if (c < F_BOARD) { phase = 'board'; boardLeft = F_BOARD - c; } else phase = 'spin';
+      const s2 = Math.max(0, c - F_BOARD), F = s2 < 4 ? s2 * s2 / 8 : s2 < F_RUN - 4 ? 2 + (s2 - 4) : F_RUN - 4 - (F_RUN - s2) ** 2 / 8;
+      rot = F / (F_RUN - 4) * Math.PI * 2; wheel.rotation.z = rot;
       cabins.forEach(c => { const a = c.pivot.userData.a0;
         c.pivot.position.set(Math.cos(a) * R, Math.sin(a) * R, 0); c.cab.rotation.z = -rot; });
     },
     status() { return '按 E 坐摩天轮'; },
+    capacity: N,
+    canBoard() { return phase === 'board' && boardLeft > 1; },
     board(taken = []) {
-      // 选当前最低、没人坐的吊舱，坐满一圈
-      let best = cabins[0], lowY = Infinity;
-      cabins.forEach((c, k) => { if (taken.includes(k)) return; c.seat.getWorldPosition(worldPos); if (worldPos.y < lowY) { lowY = worldPos.y; best = c; } });
-      const start = rot;
+      const bk = cabins.findIndex((_, k) => !taken.includes(k)); if (bk < 0) return null;      // 坐满了：等下一轮
+      const best = cabins[bk];
+      const start = cycleN;
       rider = best;
       // 相机放在转轮正面（入口那一侧），不会被支架挡住
-      return { seat: best.seat, seatIndex: cabins.indexOf(best), view: 'follow', camDist: 15, camYaw: faceAngle + Math.PI, camPitch: .18, exitPos: this.entry, done: () => rot - start >= Math.PI * 2 - .05 };
+      return { seat: best.seat, seatIndex: cabins.indexOf(best), view: 'follow', camDist: 15, camYaw: faceAngle + Math.PI, camPitch: .18, exitPos: this.entry, done: () => cycleN > start && phase === 'board' };
     },
   };
 }
@@ -133,22 +139,23 @@ export function rollerCoaster(cx, cz) {
     const pp = st.clone().addScaledVector(side, 1.3 + a * 2.6).addScaledVector(tan, b * 4);
     pole.position.set(pp.x, 2.5, pp.z); g.add(pole);
   });
-  // 列车：两节小车
-  const train = [];
-  for (let k = 0; k < 2; k++) {
+  // 列车：四节小车，每节坐两个人
+  const train = [], cSeats = [];
+  for (let k = 0; k < 4; k++) {
     const car = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, .8, 2.2), M(k ? 0x4dabf7 : 0xffd23f)); body.position.y = .5; car.add(body);
-    const front = new THREE.Mesh(new THREE.SphereGeometry(.85, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), M(k ? 0x4dabf7 : 0xffd23f));
+    const cc = [0xffd23f, 0x4dabf7, 0xff6b6b, 0x69db7c][k];
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, .8, 2.2), M(cc)); body.position.y = .5; car.add(body);
+    const front = new THREE.Mesh(new THREE.SphereGeometry(.85, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), M(cc));
     front.rotation.x = Math.PI / 2; front.position.set(0, .5, 1.1); front.scale.set(1, .6, .5); car.add(front);
     const seatBack = new THREE.Mesh(new THREE.BoxGeometry(1.5, .9, .2), M(0x2b2d42)); seatBack.position.set(0, 1.1, -.9); car.add(seatBack);
     const bar = new THREE.Mesh(new THREE.TorusGeometry(.55, .06, 6, 16, Math.PI), M(0xdddddd, { metalness: .6 })); bar.position.set(0, 1.1, .5); car.add(bar);
-    const seat = new THREE.Object3D(); seat.position.set(0, .35, -.3); car.add(seat);
-    car.userData.seat = seat; g.add(car); train.push(car);
+    [-.42, .42].forEach(sx => { const seat = new THREE.Object3D(); seat.position.set(sx, .35, -.3); car.add(seat); cSeats.push(seat); });
+    car.userData.seat = cSeats[cSeats.length - 2]; g.add(car); train.push(car);
   }
   // 运动：站台停 4 秒，链条匀速拉上坡，然后靠"重力"跑
   const hTop = Math.max(...samples.map(p => p.y));
   // 预先算好跑一圈的时刻表（和以前一样的“重力”速度），之后按共享时钟查表
-  const DWELL = 4, table = [[0, 0]];
+  const DWELL = 12, table = [[0, 0]];
   { let uu = 0, tt = 0; const dtS = 1 / 120, pp = new THREE.Vector3();
     while (uu < 1) {
       curve.getPointAt(uu % 1, pp);
@@ -168,11 +175,11 @@ export function rollerCoaster(cx, cz) {
   return {
     name: '过山车', icon: '🎢', group: g, curve,
     // 上下车的位置在站台外侧，不会卡进站台里
-    entry: [platPos.x + side.x * 3.1, platPos.z + side.z * 3.1], entryR: 4.5,
+    entry: [platPos.x + side.x * 3.1, platPos.z + side.z * 3.1], entryR: 4.5, out: [side.x, side.z],
     // 站台是长方形：[x, z, 半宽, 半长, 朝向]；外加顶棚的柱子
     colliders: [{ box: [platPos.x, platPos.z, 1.75, 4, Math.atan2(tan.x, tan.z)] },
       ...[[1, -1], [1, 1]].map(([a, b]) => { const pp = st.clone().addScaledVector(side, 1.3 + a * 2.6).addScaledVector(tan, b * 4); return [pp.x, pp.z, .3]; })],
-    seats: train.map(c => c.userData.seat),
+    seats: cSeats, capacity: cSeats.length,
     update() {
       const now = rideClock(), c = now % CYCLE;
       lap = Math.floor(now / CYCLE);
@@ -181,11 +188,11 @@ export function rollerCoaster(cx, cz) {
       train.forEach((car, k) => place(car, u - k * 2.6 / L));
     },
     status(queued) { return dwell > 0 ? '按 E 坐过山车' : queued ? '排队中，过山车回站就上车…' : '按 E 排队，过山车回站就上车'; },
-    canBoard() { return dwell > .3; },
+    canBoard() { return dwell > 1; },
     board(taken = []) {
-      const k = taken.includes(0) && !taken.includes(1) ? 1 : 0;      // 第一节有人就坐第二节
-      const startLap = lap; rider = train[k];
-      return { seat: train[k].userData.seat, seatIndex: k, view: 'pov', exitPos: this.entry, done: () => lap > startLap && dwell > 0 };
+      const k = cSeats.findIndex((_, i) => !taken.includes(i)); if (k < 0) return null;      // 坐满了：等下一趟
+      const startLap = lap; rider = train[k >> 1];
+      return { seat: cSeats[k], seatIndex: k, view: 'pov', exitPos: this.entry, done: () => lap > startLap && dwell > 0 };
     },
   };
 }
@@ -228,29 +235,39 @@ export function carousel(x, z) {
     const h = horse(RAINBOW[k]); h.position.set(Math.cos(a) * 4.3, 2.2, Math.sin(a) * 4.3); h.rotation.y = -a; spin.add(h);
     h.userData.phase = k; horses.push(h);
   }
-  let t0 = 0, rider = null;
+  let t0 = 0, rider = null, phase = 'board', boardLeft = 0, cycleN = 0, angle = 0, lastNow = 0, bobK = 0;
+  const C_BOARD = 12, C_RUN = 26, C_CYCLE = C_BOARD + C_RUN;
   const wp = new THREE.Vector3();
   return {
     name: '旋转木马', icon: '🎠', group: g,
     // 圆形的设施：走到一圈任何地方都能上（以前只有南边一个点，很难找到）
-    entry: [x, z], entryR: R + 3.6, exit: [x, z + R + 3.5],
+    entry: [x, z], entryR: R + 3.6, exit: [x, z + R + 3.5], gate: [x, z + R + 2.2], out: [0, 1],
     colliders: [[x, z, R + 1]],
     seats: horses.map(h => h.userData.seat),
+    capacity: 8,
     update() {
-      const now = rideClock() % 1e5;
-      spin.rotation.y = now * .5; t0 = now;
-      horses.forEach(h => h.position.y = 2.2 + Math.sin(now * 2.2 + h.userData.phase * 1.3) * .45);
+      // 一轮一轮：停下上客 12 秒 → 转 26 秒（慢慢加速、再慢慢停）
+      const now = rideClock(), c = now % C_CYCLE; cycleN = Math.floor(now / C_CYCLE); t0 = now;
+      if (c < C_BOARD) { phase = 'board'; boardLeft = C_BOARD - c; }
+      else phase = 'spin';
+      // 转过的角度只看时钟（大家看到的一样）：每一轮转的量一样，起步和停下是慢慢的
+      const s2 = Math.max(0, c - C_BOARD), F = s2 < 4 ? s2 * s2 / 8 : s2 < C_RUN - 4 ? 2 + (s2 - 4) : C_RUN - 4 - (C_RUN - s2) ** 2 / 8;
+      angle = ((cycleN * (C_RUN - 4) * .5) % (Math.PI * 2)) + F * .5; spin.rotation.y = angle;
+      const bob = phase === 'spin' ? 1 : 0; bobK += (bob - bobK) * .05;
+      horses.forEach(h => h.position.y = 2.2 + Math.sin(now * 2.2 + h.userData.phase * 1.3) * .45 * bobK);
     },
     status() { return '按 E 骑旋转木马'; },
+    canBoard() { return phase === 'board' && boardLeft > 1; },
     board(taken = []) {
-      let best = horses[0], bd = Infinity;
+      if (horses.every((_, k) => taken.includes(k))) return null;
+      let best = null, bd = Infinity;
       const me = this.playerPos || [x, z + R + 3.5];
       horses.forEach((h, k) => { if (taken.includes(k)) return; h.getWorldPosition(wp); const d = Math.hypot(wp.x - me[0], wp.z - me[1]); if (d < bd) { bd = d; best = h; } });
       // 从哪边上就从哪边下
       const ang = Math.atan2(me[0] - x, me[1] - z), exitPos = [x + Math.sin(ang) * (R + 3.2), z + Math.cos(ang) * (R + 3.2)];
-      const start = t0;
+      const start = cycleN;
       // 相机自动绕到木马外侧、从顶篷下面看进来
-      return { seat: best.userData.seat, seatIndex: horses.indexOf(best), view: 'follow', camDist: 10, camPitch: .1, camOutFrom: [x, z], exitPos, done: () => t0 - start > 25 };
+      return { seat: best.userData.seat, seatIndex: horses.indexOf(best), view: 'follow', camDist: 10, camPitch: .1, camOutFrom: [x, z], exitPos, done: () => cycleN > start && phase === 'board' };
     },
   };
 }
@@ -260,7 +277,7 @@ export function carousel(x, z) {
 export function pirateShip(cx, cz) {
   const SC = 1.45;                                   // 整个放大
   const g = new THREE.Group(); g.position.set(cx, 0, cz); g.scale.setScalar(SC);
-  const AXLE = 14, ARM = 9, BOARD = 8, SWING = 26, PERIOD = 4.8, CYCLE = BOARD + SWING, AMAX = 1.38;   // 荡得更高（最高约 80°）
+  const AXLE = 14, ARM = 9, BOARD = 14, SWING = 26, PERIOD = 4.8, CYCLE = BOARD + SWING, AMAX = 1.38;   // 荡得更高（最高约 80°）
   const white = M(0xffffff, { metalness: .3 }), gold = M(0xffd23f, { metalness: .5, roughness: .3 });
   // 两个 A 字形支架 + 横轴
   [-3.4, 3.4].forEach(zz => [-1, 1].forEach(s => {
@@ -336,8 +353,8 @@ export function pirateShip(cx, cz) {
 
   let theta = 0, phase = 'board', boardLeft = BOARD, cycleN = 0;
   return {
-    name: '海盗船', icon: '🏴‍☠️', group: g, seats,
-    entry: [cx, cz + 7.2 * SC], entryR: 5,
+    name: '海盗船', icon: '🏴‍☠️', group: g, seats, capacity: seats.length,
+    entry: [cx, cz + 7.2 * SC], entryR: 5, out: [0, 1],
     colliders: [{ box: [cx, cz, 9.2 * SC, 3.6 * SC, 0] }, { box: [cx, cz + 5.2 * SC, 5 * SC, 1.1 * SC, 0] }],
     update() {
       const now = rideClock(), c = now % CYCLE;
@@ -356,7 +373,7 @@ export function pirateShip(cx, cz) {
     status(queued) { return phase === 'board' ? '按 E 坐海盗船' : queued ? '排队中，海盗船停下就上船…' : '按 E 排队，海盗船停下就上船'; },
     canBoard() { return phase === 'board' && boardLeft > .4; },
     board(taken = []) {
-      let k = 0; while (taken.includes(k) && k < seats.length - 1) k++;
+      const k = seats.findIndex((_, i) => !taken.includes(i)); if (k < 0) return null;
       const start = cycleN;
       return { seat: seats[k], seatIndex: k, view: 'follow', camDist: 30, camYaw: Math.PI, camPitch: .15, exitPos: this.entry,
         done: () => cycleN > start && phase === 'board' };
