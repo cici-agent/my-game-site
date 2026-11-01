@@ -64,9 +64,9 @@ export function createParkMP({ scene, camera, player, getMe, getLook, getAvatar,
 
   function connect() {
     const ME = getMe();
-    if (net) net.close();
-    remotes.forEach(removeRemote);
-    net = joinRoom('park', ME ? { id: ME.user.id, name: ME.profile.username || '小菜鸟', look: getLook() } : null);
+    const meObj = ME ? { id: ME.user.id, name: ME.profile.username || '小菜鸟', look: getLook() } : null;
+    if (net) { net.setMe(meObj); return; }                      // 登录 / 退出：同一个频道里换身份
+    net = joinRoom('park', meObj);
     const upd = p => { const r = remotes.get(p.id); if (!r) return addRemote(p); r.name = p.name || r.name; r.tag.textContent = r.name; if (p.look && lookSig(p.look) !== r.sig) build(r, p.look); };
     net.on('join', upd);
     net.on('update', upd);

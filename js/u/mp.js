@@ -204,9 +204,9 @@ export function createUniverseMP(ctx) {
   // ---------- 网络 ----------
   function connect() {
     const ME = getMe();
-    if (net) net.close();
-    remotes.forEach(removeRemote);
-    net = joinRoom('universe', ME ? { id: ME.user.id, name: ME.profile.username || '小菜鸟', ship: getShipKey() } : null);
+    const meObj = ME ? { id: ME.user.id, name: ME.profile.username || '小菜鸟', ship: getShipKey() } : null;
+    if (net) { net.setMe(meObj); paintHud(); return; }        // 登录 / 退出：同一个频道里换身份
+    net = joinRoom('universe', meObj);
     const upd = p => { const r = remotes.get(p.id); if (!r) return addRemote(p); r.name = p.name || r.name; r.tag.textContent = r.name; if (p.ship) setRemoteShip(r, p.ship); };
     net.on('join', upd);
     net.on('update', upd);

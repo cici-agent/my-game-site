@@ -500,7 +500,13 @@ function tick() {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 let ME = null, mp = null, myMove = { speed: 0 };
-function setCoins(n) { $('coinNum').textContent = n == null ? '--' : n; }
+function setCoins(n) { $('coinNum').textContent = n == null ? '--' : n; $('loginBtn').hidden = !!ME; }
+$('loginBtn').onclick = async () => {
+  const ok = await askLogin(null);
+  if (!ok) return;
+  await refreshMe();
+  if (ME) toast(`👋 欢迎回来，${ME.profile.username || '小菜鸟'}！`);
+};
 async function refreshMe() {
   ME = await loadMe();
   await loadInventory(ME && ME.user.id);

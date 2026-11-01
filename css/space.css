@@ -198,3 +198,11 @@ body.touch #weaponHud { flex-direction: column-reverse; align-items: center; rig
   font-weight: 800; font-size: 16px; opacity: 0; pointer-events: none; transition: all .25s; text-align: center; max-width: 86vw; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 @media (max-width: 640px) { body.touch #weaponHud { bottom: 220px; right: 14px; } #weaponHud button { width: 50px; height: 50px; font-size: 22px; } #weaponHud #fireBtn { width: 64px; height: 64px; } }
+
+/* 右上角登录按钮 */
+.hud-right { display: flex; align-items: center; gap: 8px; }
+.login-btn { pointer-events: auto; border: 0; background: #ff6b35; color: #fff; font: 800 15px inherit; font-family: inherit; padding: 8px 16px; border-radius: 999px;
+  cursor: pointer; box-shadow: 0 0 0 2px rgba(255,255,255,.35), 0 4px 12px rgba(255,107,53,.45); white-space: nowrap; }
+.login-btn:hover { transform: translateY(-1px); }
+.login-btn[hidden] { display: none; }
+@media (max-width: 640px) { .login-btn { font-size: 13px; padding: 6px 11px; } }

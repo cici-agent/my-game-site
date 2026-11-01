@@ -192,7 +192,16 @@ function refreshUI() {
   document.body.classList.toggle('flying', state.mode === 'fly');
   $('where').textContent = landed ? '· ' + state.landed.name : '';
 }
-function showCoins() { $('coinNum').textContent = ME ? (ME.profile.coins || 0) : '--'; }
+function showCoins() { $('coinNum').textContent = ME ? (ME.profile.coins || 0) : '--'; $('loginBtn').hidden = !!ME; }
+// 右上角“登录”：不用等降落，随时可以先登录
+$('loginBtn').onclick = async () => {
+  const ok = await askLogin(null);
+  if (!ok) return;
+  ME = await loadMe(); showCoins();
+  if (ME) { const eq = await loadEquipment(ME.user.id); if (eq && eq.ship) setShip(eq.ship); }
+  mp && mp.connect();
+  if (ME) toast(`👋 欢迎回来，${ME.profile.username || '小菜鸟'}！`);
+};
 const hintEl = $('hint');
 let hintHidden = false;
 function hideHint() { if (!hintHidden) { hintHidden = true; setTimeout(() => hintEl.style.opacity = 0, 2500); } }
