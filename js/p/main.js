@@ -10,6 +10,7 @@ import { createFireShow } from './fireshow.js';
 import { clockTower, clockText } from './clock.js';
 import { buildKart, kartColorOf } from './kart.js';
 import { createNPCs } from './npc.js';
+import { BUMPER_COLORS } from './bumper.js';
 import { loadPlanets, loadMe } from '../u/data.js';
 import { askLogin } from '../u/login.js';
 import { esc } from '../u/stations.js';
@@ -127,14 +128,17 @@ function promptText(it) {
   if (it.type === 'shop') return `${it.shop.icon} 按 E 进入${it.shop.name}`;
   if (it.type === 'gate') return '🚀 按 E 起飞离开菜鸟星球';
   if (it.type === 'kart') return '🏎️ 按 E 开卡丁车';
+  if (it.type === 'bumper') return '🚗 按 E 开碰碰车';
   if (it.type === 'mansion') return '🏚️ 鬼屋：直接走进去，找到出口（很黑哦）';
   return '';
 }
 function action() {
   if (player.riding) { tryLeaveRide(); return; }
   if (player.kart) { stopKart(); return; }
+  if (player.bumper) { stopBumper(); return; }
   if (!near) return;
   if (near.type === 'kart') { startKart(); return; }
+  if (near.type === 'bumper') { startBumper(); return; }
   if (near.type === 'ride') {
     if (near.ride.canBoard && !near.ride.canBoard()) { queued = near.ride; return; }   // 排队，回站自动上车
     boardRide(near.ride);
@@ -227,6 +231,55 @@ function kartRespawn() {
   const k = world.kart, i = K.check ?? k.start.idx, [x, y, z] = k.pointAt(i), tt = k.tanAt(i);
   player.pos.set(x, y + .3, z); K.heading = Math.atan2(tt.x, tt.z); K.speed = 0; K.vy = 0; K.air = false; K.y = y + .3; K.lastS = i / k.N;
   banner('↩ 回到赛道', 1200);
+}
+// ---------- 碰碰车 ----------
+function startBumper() {
+  if (abil.flying) { toast('先落地再开碰碰车哦'); return; }
+  const B = world.bumper, id = ME ? ME.user.id : 'me';
+  let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  B.join(BUMPER_COLORS[h % BUMPER_COLORS.length]);
+  player.bumper = true; player.vy = 0; player.ground = true;
+  if (pet) pet.group.visible = false;
+  document.body.classList.add('karting'); sfx.chime([523, 659, 988]); sfx.unlock();
+  toast(isTouch ? '🚗 摇杆开车，去撞别人吧！点「下车」离开' : '🚗 W 前进 · S 后退 · A D 转弯 · 去撞别人吧！按 E 下车');
+}
+function stopBumper() {
+  if (!player.bumper) return;
+  const B = world.bumper; B.leave(); player.bumper = false; sfx.engineLevel(0);
+  player.pos.set(B.exitPos[0], 0, B.exitPos[1]); me.root.rotation.set(0, player.face, 0, 'XYZ'); me.root.visible = true;
+  if (pet) { pet.group.visible = true; petPos.copy(player.pos); }
+  document.body.classList.remove('karting');
+}
+let bumpShake = 0;
+function bumperTick(dt, t) {
+  const B = world.bumper, c = B.mine; if (!c) { player.bumper = false; return; }
+  let thr = 0, st = 0;
+  if (keys.KeyW || keys.ArrowUp) thr += 1;
+  if (keys.KeyS || keys.ArrowDown) thr -= 1;
+  if (keys.KeyA || keys.ArrowLeft) st += 1;
+  if (keys.KeyD || keys.ArrowRight) st -= 1;
+  if (joy.id !== null) { thr = Math.abs(joy.y) > .15 ? joy.y : 0; st = -joy.x; }
+  c.thr = thr; c.steer = st;
+  // 别的玩家的碰碰车：当成撞不动的障碍物
+  const others = [];
+  if (mp) mp.remotes.forEach(r => { if (r.flags & 64) { const [x, z] = B.toLocal(r.p.pos.x, r.p.pos.z); others.push({ x, z, vx: 0, vz: 0, fixed: true }); } });
+  const hit = B.update(dt, others);
+  if (hit > 1.5) { sfx.boom && sfx.boom(Math.min(.6, .12 + hit * .05)); bumpShake = Math.min(.5, hit * .06); }
+  const [wx, wz] = B.toWorld(c.x, c.z);
+  player.pos.set(wx, 0, wz); player.face = c.head;
+  c.m.seat.getWorldPosition(kartSeat);
+  me.root.position.copy(kartSeat).y -= .62; me.root.rotation.set(0, c.head, 0, 'XYZ'); me.root.scale.setScalar(1); me.root.visible = true;
+  me.rig.shadow.visible = false; me.animate(dt, 0, false, true);
+  sfx.engineLevel(.15 + Math.hypot(c.vx, c.vz) / 9 * .5);
+  // 相机：在车后上方
+  bumpShake *= Math.max(0, 1 - dt * 6);
+  const fx = Math.sin(c.head), fz = Math.cos(c.head), sh = () => (Math.random() - .5) * bumpShake;
+  camPos.set(wx - fx * 7.5 + sh(), 4.3 + sh(), wz - fz * 7.5 + sh());
+  camera.position.lerp(camPos, Math.min(1, dt * 4));
+  camera.lookAt(wx + fx * 3, 1.2, wz + fz * 3);
+  promptEl.textContent = isTouch ? '点「下车」离开' : '按 E 下车'; promptEl.classList.add('show');
+  $('actBtn').textContent = '下车'; $('actBtn').classList.add('show');
+  myMove = { speed: Math.hypot(c.vx, c.vz) / 9, bumper: true };
 }
 // 水花：车在湖里开的时候往两边溅
 const splashes = [];
@@ -550,7 +603,7 @@ async function useBagItem(key) {
 }
 const renderProps = () => syncBag();
 async function usePropKey(key) {
-  if (shopOpen || player.riding || player.kart || busy) return;
+  if (shopOpen || player.riding || player.kart || player.bumper || busy) return;
   const it = findItem(key); const ok = abil.canUse(key);
   if (ok !== true) { toast(ok); return; }
   busy = true;
@@ -632,6 +685,8 @@ function tick() {
       camera.position.lerp(camPos, Math.min(1, dt * 6)); camera.lookAt(seatPos.x, seatPos.y + 1.2, seatPos.z);
     }
     if (player.riding) { promptEl.textContent = '🎢 到站会自动下来'; promptEl.classList.add('show'); $('actBtn').classList.remove('show'); }
+  } else if (player.bumper) {
+    bumperTick(dt, t);
   } else if (player.kart) {
     kartTick(dt, t);
     tickSplashes(dt);

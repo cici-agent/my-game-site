@@ -7,7 +7,7 @@ import { glowTex } from '../u/tex.js';
 import { kartLayout } from './kartlayout.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
-export const KI = { x: 0, z: -1000, R: 380 };          // 岛的位置和大小（离乐园很远，互相看不见）
+export const KI = { x: 0, z: -1150, R: 380 };          // 岛的位置和大小（离乐园很远，互相看不见）
 
 export function buildKartIsland(scene) {
   const g = new THREE.Group(); g.position.set(KI.x, 0, KI.z); scene.add(g);

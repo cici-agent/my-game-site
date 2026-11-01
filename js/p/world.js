@@ -3,10 +3,11 @@ import * as THREE from 'three';
 import { glowTex, canvasTex, rand, swirlTex } from '../u/tex.js';
 import { ferrisWheel, rollerCoaster, carousel, pirateShip } from './rides.js';
 import { buildKartIsland, KI } from './kartisland.js';
+import { bumperArena } from './bumper.js';
 import { hauntedMansion } from './mansion.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
-export const ISLAND_R = 150;
+export const ISLAND_R = 230;
 
 // 天空：顶部 / 中间 / 地平线三种颜色的渐变（白天、日落、夜晚的颜色由 daynight.js 每帧调）
 function sky(scene) {
@@ -74,12 +75,12 @@ function ground(scene) {
     const r = rand(9);
     for (let i = 0; i < 2600; i++) { g.fillStyle = r() > .5 ? '#6ec25c' : '#8ad877'; g.fillRect(r() * w, r() * w, 3, 6); }
   });
-  grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping; grassTex.repeat.set(23, 23);
-  const top = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_R, 128), M(0xffffff, { map: grassTex }));
+  grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping; grassTex.repeat.set(35, 35);
+  const top = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_R, 180), M(0xffffff, { map: grassTex }));
   top.rotation.x = -Math.PI / 2; scene.add(top);
   // 浮空岛的岩石底
-  const rock = new THREE.Mesh(new THREE.ConeGeometry(ISLAND_R, 60, 48, 6, true), M(0x9c7a5b, { flatShading: true, side: THREE.DoubleSide }));
-  rock.rotation.x = Math.PI; rock.position.y = -30.2; scene.add(rock);
+  const rock = new THREE.Mesh(new THREE.ConeGeometry(ISLAND_R, 80, 64, 6, true), M(0x9c7a5b, { flatShading: true, side: THREE.DoubleSide }));
+  rock.rotation.x = Math.PI; rock.position.y = -40.2; scene.add(rock);
   const rim = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND_R, ISLAND_R - 1, 2.4, 96, 1, true), M(0x6b8f3e, { side: THREE.DoubleSide }));
   rim.position.y = -1.2; scene.add(rim);
   // 小路：中心广场 + 通往各处的路
@@ -90,14 +91,14 @@ function ground(scene) {
     m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(x2 - x1, z2 - z1);
     m.position.set((x1 + x2) / 2, .025, (z1 + z2) / 2); scene.add(m);
   };
-  road(0, 10, 0, 74); road(-40, -6, -96, 6); road(38, -2, 86, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6);
+  road(0, 10, 0, 74); road(-40, -6, -96, 6); road(38, -2, 86, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6); road(-22, 38, -108, 92);
   // 边缘的栏杆
   const postMat = M(0xffffff), railMat = M(0xff9f43);
-  for (let k = 0; k < 200; k++) {
-    const a = k / 200 * Math.PI * 2, rr = ISLAND_R - 1.2;
+  for (let k = 0; k < 300; k++) {
+    const a = k / 300 * Math.PI * 2, rr = ISLAND_R - 1.2;
     const post = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 1.3, 6), postMat); post.position.set(Math.cos(a) * rr, .65, Math.sin(a) * rr); scene.add(post);
   }
-  const rail = new THREE.Mesh(new THREE.TorusGeometry(ISLAND_R - 1.2, .08, 6, 160), railMat); rail.rotation.x = Math.PI / 2; rail.position.y = 1.2; scene.add(rail);
+  const rail = new THREE.Mesh(new THREE.TorusGeometry(ISLAND_R - 1.2, .08, 6, 240), railMat); rail.rotation.x = Math.PI / 2; rail.position.y = 1.2; scene.add(rail);
 }
 
 function tree(x, z, s = 1, kind = 0) {
@@ -293,6 +294,10 @@ export function buildWorld(scene) {
   ];
   updaters.push(dt => kart.update(dt));
   rides.forEach(r => { scene.add(r.group); colliders.push(...r.colliders); interact.push({ type: 'ride', ride: r, pos: r.entry, r: r.entryR }); updaters.push((dt, t) => r.update(dt, t)); });
+  // 碰碰车场（西南边）
+  const bumper = bumperArena(-110, 75); scene.add(bumper.group); colliders.push(...bumper.colliders);
+  interact.push({ type: 'bumper', bumper, pos: bumper.entry, r: bumper.entryR });
+  updaters.push(dt => { if (!bumper.mine) bumper.update(dt); });
   // 商店一排在北边
   const shopPos = [[-24, -62, 0], [0, -66, 0], [24, -62, 0]];
   SHOPS.forEach((s, i) => {
@@ -302,11 +307,12 @@ export function buildWorld(scene) {
   const f = fountain(0, 10); scene.add(f.group); colliders.push([0, 10, 7.3]); updaters.push(dt => f.update(dt));
   const gate = arrivalGate(0, 80); scene.add(gate.group); interact.push({ type: 'gate', pos: gate.entry, r: 5 }); updaters.push(dt => gate.update(dt));
   // 树、路灯、花
-  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [40, 50, 20], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
-  for (let i = 0; i < 170; i++) {
-    const a = r() * Math.PI * 2, d = 20 + r() * 122, x = Math.cos(a) * d, z = Math.sin(a) * d;
+  const r = rand(21), blocked = [[-110, 75, 30], [0, 125, 42], [140, -95, 60], [-130, -100, 18], [0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [40, 50, 20], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
+  for (let i = 0; i < 240; i++) {
+    const a = r() * Math.PI * 2, d = 20 + r() * (ISLAND_R - 28), x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (Math.hypot(x + 100, z - 6) < 6 || mansion.near(x, z)) continue;
     if (blocked.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br)) continue;
+    if (Math.abs(Math.hypot(x, z) - 190) < 9) continue;                 // 小火车的轨道
     if (Math.abs(x) < 4 && z > 10) continue; // 主路
     const s = .8 + r() * .6; scene.add(tree(x, z, s, r() > .6 ? 1 : 0)); colliders.push([x, z, .7 * s]);
   }
@@ -345,5 +351,5 @@ export function buildWorld(scene) {
     updaters.push((dt, t) => { const ph = (t || performance.now() / 1000) * 3;
       for (let i = 0; i < pts.length; i++) { const k = .45 + .55 * Math.max(0, Math.sin(i * .5 - ph)); im.setColorAt(i, tc.copy(COLS[i % 5]).multiplyScalar(k)); }
       im.instanceColor.needsUpdate = true; }); }
-  return { colliders, interact, rides, kart, mansion, portals, KI, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
+  return { colliders, interact, rides, kart, bumper, mansion, portals, KI, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
 }

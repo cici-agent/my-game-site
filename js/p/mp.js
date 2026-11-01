@@ -4,6 +4,7 @@ import { joinRoom, throttle, nameTag, r1, r2 } from '../net.js';
 import { buildAvatar, buildPet } from './avatar.js';
 import { createAbilities } from './abilities.js';
 import { buildKart, kartColorOf } from './kart.js';
+import { buildBumperCar, BUMPER_COLORS } from './bumper.js';
 
 const LOOK_KEYS = ['skin', 'hand', 'head', 'back', 'pet', 'fx'];
 
@@ -36,6 +37,7 @@ export function createParkMP({ scene, camera, player, getSeat, onTime, getMe, ge
   }
   function removeRemote(r) {
     if (r.kartM) scene.remove(r.kartM.group);
+    if (r.bumpM) scene.remove(r.bumpM.group);
     scene.remove(r.av.root); if (r.pet) scene.remove(r.pet.group); r.tag.remove(); remotes.delete(r.id);
   }
 
@@ -123,7 +125,7 @@ export function createParkMP({ scene, camera, player, getSeat, onTime, getMe, ge
     if (net && net.me) {
       const root = getAvatar().root;
       const pos = player.riding ? root.position : player.pos;
-      const flags = (player.ground ? 0 : 1) | (player.riding ? 2 : 0) | (my.pose === 'skate' ? 4 : 0) | (my.uniFly ? 8 : 0) | (my.pose === 'fly' ? 16 : 0) | (my.kart ? 32 : 0);
+      const flags = (player.ground ? 0 : 1) | (player.riding ? 2 : 0) | (my.pose === 'skate' ? 4 : 0) | (my.uniFly ? 8 : 0) | (my.pose === 'fly' ? 16 : 0) | (my.kart ? 32 : 0) | (my.bumper ? 64 : 0);
       const moving = !my.ride && (my.speed > .05 || !player.ground);
       const sig = my.ride ? flags + ':r' + my.ride.join(',') : flags + ':' + Math.round(pos.x) + ':' + Math.round(pos.z);
       if (send(performance.now(), moving, sig)) {
@@ -164,6 +166,17 @@ export function createParkMP({ scene, camera, player, getSeat, onTime, getMe, ge
         placeTag(r, 1);
         return;
       } else if (r.kartM) { scene.remove(r.kartM.group); r.kartM = null; if (r.pet) r.pet.group.visible = true; }
+      // 开碰碰车
+      if (r.flags & 64) {
+        if (!r.bumpM) { let h = 0; for (const ch of String(r.id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; r.bumpM = buildBumperCar(BUMPER_COLORS[h % BUMPER_COLORS.length]); scene.add(r.bumpM.group); }
+        r.bumpM.group.position.copy(r.p.pos).setY(0); r.bumpM.group.rotation.y = r.p.face; r.bumpM.update(dt);
+        r.bumpM.seat.getWorldPosition(seatPos);
+        r.av.root.position.copy(seatPos).y -= .62; r.av.root.rotation.set(0, r.p.face, 0); r.av.rig.shadow.visible = false;
+        r.av.animate(dt, 0, false, true);
+        if (r.pet) r.pet.group.visible = false;
+        placeTag(r, 1);
+        return;
+      } else if (r.bumpM) { scene.remove(r.bumpM.group); r.bumpM = null; if (r.pet) r.pet.group.visible = true; }
       const mod = r.abil.step(dt, t, { moving: r.spd > .05 && r.p.ground, fx: r.look.fx });
       const sitting = !!(r.flags & 2);
       r.av.root.position.copy(r.p.pos); if (!sitting) r.av.root.position.y += mod.lift * mod.scale;
