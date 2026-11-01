@@ -314,8 +314,9 @@ function tick() {
     r.seat.getWorldPosition(seatPos); r.seat.getWorldQuaternion(seatQ);
     me.root.position.copy(seatPos).y -= .62; me.root.quaternion.copy(seatQ);
     me.animate(dt, 0, false, true);
-    if (r.done()) leaveRide();
-    if (r.view === 'pov') {
+    if (r.done()) {
+      leaveRide();                                    // 自动结束：这一帧到此为止，不能再把人物藏起来
+    } else if (r.view === 'pov') {
       // 第一人称：相机就在座位上方（人物眼睛的位置），沿着车头方向看
       me.root.visible = false;
       fwdV.set(0, 0, 1).applyQuaternion(seatQ); upV.set(0, 1, 0).applyQuaternion(seatQ);
@@ -327,8 +328,11 @@ function tick() {
       camPos.set(seatPos.x - Math.sin(cam.yaw) * cam.dist * Math.cos(cam.pitch), seatPos.y + 1.5 + Math.sin(cam.pitch) * cam.dist, seatPos.z - Math.cos(cam.yaw) * cam.dist * Math.cos(cam.pitch));
       camera.position.lerp(camPos, Math.min(1, dt * 6)); camera.lookAt(seatPos.x, seatPos.y + 1.2, seatPos.z);
     }
-    promptEl.textContent = isTouch ? '点「下来」离开' : '按 E 下来'; promptEl.classList.add('show'); $('actBtn').textContent = '下来'; $('actBtn').classList.add('show');
+    if (player.riding) { promptEl.textContent = isTouch ? '点「下来」离开' : '按 E 下来'; promptEl.classList.add('show'); $('actBtn').textContent = '下来'; $('actBtn').classList.add('show'); }
   } else {
+    // 不在设施上时，人物一定要看得见、相机一定是正的
+    if (!me.root.visible) me.root.visible = true;
+    if (camera.up.y !== 1) camera.up.set(0, 1, 0);
     // 移动：相对相机方向
     let mx = 0, my = 0;
     if (!shopOpen) {
