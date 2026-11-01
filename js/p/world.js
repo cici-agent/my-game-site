@@ -262,5 +262,28 @@ export function buildWorld(scene) {
   const glowMats = [];
   scene.traverse(o => { if (o.isMesh && o.material && o.material.emissive && o.material.emissiveIntensity > 0 && !o.material.userData.night) {
     o.material.userData.night = { day: o.material.emissiveIntensity, night: Math.min(2.2, o.material.emissiveIntensity * 3 + .4) }; glowMats.push(o.material); } });
+  // ---------- 彩灯串：岛边一圈 + 大道上的路灯之间，晚上亮，还会一闪一闪地“跑” ----------
+  { const spans = [], poles = [];
+    const RR = ISLAND_R - 6, NP = 40;
+    for (let k = 0; k < NP; k++) { const a0 = k / NP * Math.PI * 2, a1 = (k + 1) / NP * Math.PI * 2; spans.push([[Math.cos(a0) * RR, 5.2, Math.sin(a0) * RR], [Math.cos(a1) * RR, 5.2, Math.sin(a1) * RR], 1.3]); poles.push([Math.cos(a0) * RR, Math.sin(a0) * RR]); }
+    [[25, 50], [50, 68]].forEach(([z0, z1]) => { spans.push([[-5, 4.1, z0], [5, 4.1, z1], 1], [[5, 4.1, z0], [-5, 4.1, z1], 1]); });
+    [25, 50, 68].forEach(z => spans.push([[-5, 4.1, z], [5, 4.1, z], .9]));
+    const pts = [];
+    spans.forEach(([A, B, sag]) => { const L = Math.hypot(B[0] - A[0], B[2] - A[2]), n = Math.max(4, Math.round(L / 1.7));
+      for (let i = 0; i < n; i++) { const u = (i + .5) / n; pts.push([A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u - sag * 4 * u * (1 - u), A[2] + (B[2] - A[2]) * u]); } });
+    const COLS = [0xff6b6b, 0xffd43b, 0x69db7c, 0x4dabf7, 0xda77f2].map(c => new THREE.Color(c));
+    const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const im = new THREE.InstancedMesh(new THREE.SphereGeometry(.17, 8, 6), bulbMat, pts.length), o = new THREE.Object3D();
+    pts.forEach((p, i) => { o.position.set(...p); o.updateMatrix(); im.setMatrixAt(i, o.matrix); im.setColorAt(i, COLS[i % 5]); });
+    im.userData.nightBulb = 0xffffff; scene.add(im);
+    // 电线
+    spans.forEach(([A, B, sag]) => { const c = []; for (let i = 0; i <= 10; i++) { const u = i / 10; c.push(new THREE.Vector3(A[0] + (B[0] - A[0]) * u, A[1] + .15 + (B[1] - A[1]) * u - sag * 4 * u * (1 - u), A[2] + (B[2] - A[2]) * u)); }
+      scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(c), new THREE.LineBasicMaterial({ color: 0x343a40 }))); });
+    const pm = M(0x495057), pi = new THREE.InstancedMesh(new THREE.CylinderGeometry(.09, .12, 5.4, 6), pm, poles.length);
+    poles.forEach(([x, z], i) => { o.position.set(x, 2.7, z); o.updateMatrix(); pi.setMatrixAt(i, o.matrix); }); scene.add(pi);
+    const tc = new THREE.Color();
+    updaters.push((dt, t) => { const ph = (t || performance.now() / 1000) * 3;
+      for (let i = 0; i < pts.length; i++) { const k = .45 + .55 * Math.max(0, Math.sin(i * .5 - ph)); im.setColorAt(i, tc.copy(COLS[i % 5]).multiplyScalar(k)); }
+      im.instanceColor.needsUpdate = true; }); }
   return { colliders, interact, rides, kart, mansion, portals, KI, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
 }

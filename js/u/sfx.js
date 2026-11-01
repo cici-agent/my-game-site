@@ -147,3 +147,39 @@ export function step() {
   const o = ctx.createOscillator(), og = ctx.createGain(); o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(55, t + .08);
   og.gain.setValueAtTime(.12, t); og.gain.exponentialRampToValueAtTime(.001, t + .1); o.connect(og); og.connect(master); o.start(t); o.stop(t + .12);
 }
+
+// ===== 烟花秀背景音乐：用 WebAudio 现场合成的一段欢快小曲（循环），开 / 关时淡入淡出 =====
+let music = null;
+export function showMusic(on) {
+  if (!ensure()) return;
+  if (on && ctx.state !== 'running') return;
+  if (on && !music) {
+    const out = ctx.createGain(); out.gain.value = 0; out.connect(master);
+    out.gain.setTargetAtTime(.32, ctx.currentTime, 1.2);
+    const BPM = 116, beat = 60 / BPM;
+    // C - G - Am - F，每个和弦 2 小节
+    const chords = [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]];
+    const mel = [76, 74, 72, 74, 76, 76, 76, -1, 74, 74, 74, -1, 76, 79, 79, -1, 76, 74, 72, 74, 76, 76, 76, 76, 74, 74, 76, 74, 72, -1, -1, -1];
+    const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+    let step = 0, next = ctx.currentTime + .1;
+    const note = (m, t, dur, type, vol, dest = out) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.value = hz(m);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .02); g.gain.exponentialRampToValueAtTime(.0008, t + dur); o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + .05); };
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(out);
+    const timer = setInterval(() => {
+      while (next < ctx.currentTime + .3) {
+        const s = step % 64, ch = chords[Math.floor(s / 16) % 4];          // 每个和弦 16 个八分音符
+        if (s % 4 === 0) note(ch[0] - 12, next, beat * 1.8, 'sine', .22);                                   // 低音
+        if (s % 8 === 0) ch.forEach(m => note(m, next, beat * 3.8, 'triangle', .05));                       // 和弦铺底
+        note(ch[[0, 1, 2, 1][s % 4]] + 12, next, beat * .45, 'triangle', .045, lp);                           // 琶音
+        const mm = mel[s % 32]; if (s % 2 === 0 && mm > 0) note(mm, next, beat * .9, 'square', .035, lp);   // 旋律
+        if (s % 16 === 15) note(96 + (s % 3), next, beat * .6, 'sine', .03);                                // 叮
+        next += beat / 2; step++;
+      }
+    }, 80);
+    music = { out, timer };
+  } else if (!on && music) {
+    const m = music; music = null;
+    m.out.gain.setTargetAtTime(0, ctx.currentTime, .8);
+    setTimeout(() => { clearInterval(m.timer); m.out.disconnect(); }, 3500);
+  }
+}

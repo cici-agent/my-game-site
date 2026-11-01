@@ -27,47 +27,69 @@ function textPts(text, step = 4) {
   return pts;
 }
 
-const PALETTES = [
-  [0xff6b6b, 0xffd43b, 0x4dabf7, 0x69db7c, 0xda77f2], [0xff8787, 0xffa94d, 0xffe066], [0x74c0fc, 0x9775fa, 0xf783ac],
-  [0x63e6be, 0x4dabf7, 0xffffff], [0xffd43b, 0xff922b, 0xffffff], [0xf06595, 0xcc5de8, 0x845ef7],
-];
+// 颜色：每一发自己挑，有单色、相近两色、撞色、彩虹、金色、银色
+function pickColors(r) {
+  const hsl = (h, l = .55) => { const c = { r: 0, g: 0, b: 0 }; const a = 1 * Math.min(l, 1 - l), f = n => { const k = (n + h * 12) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+    return (Math.round(f(0) * 255) << 16) | (Math.round(f(8) * 255) << 8) | Math.round(f(4) * 255); };
+  const h = r(), k = r();
+  if (k < .28) return [hsl(h), hsl(h, .62)];                                   // 单色
+  if (k < .5) return [hsl(h), hsl((h + .07 + r() * .06) % 1)];                 // 相近两色（渐变）
+  if (k < .66) return [hsl(h), hsl((h + .5) % 1)];                             // 撞色
+  if (k < .76) return [0xff4d4d, 0xffd43b, 0x51cf66, 0x4dabf7, 0xcc5de8];       // 彩虹
+  if (k < .86) return [0xffd43b, 0xffc078, 0xfff3bf];                          // 金色
+  if (k < .93) return [0xf1f3f5, 0xd0ebff, 0xffffff];                          // 银色
+  return [hsl(h), 0xffffff];                                                   // 彩色 + 白闪
+}
+// 大多是普通烟花（爆开的样子不一样），偶尔才有图形
+const NORMAL = [['peony', 5], ['chrys', 4], ['palm', 3], ['dahlia', 3], ['crossette', 2], ['glitter', 3], ['double', 2], ['willow', 2], ['crackle', 2], ['saturn', 1.5]];
+const SHAPED = ['heart', 'star', 'smile', 'ring'];
+function pickType(r) {
+  if (r() < .06) return SHAPED[Math.floor(r() * SHAPED.length)];
+  const tot = NORMAL.reduce((a, [, w]) => a + w, 0); let x = r() * tot;
+  for (const [n, w] of NORMAL) { x -= w; if (x <= 0) return n; } return 'peony';
+}
 
 // 生成某一个晚上的节目单：[{ t: 第几秒, d: 发射参数 }]
 export function showProgram(nightIndex) {
   const r = seeded(nightIndex * 7919 + 101), ev = [];
-  const pal = PALETTES[Math.floor(r() * PALETTES.length)];
-  const col = () => { const a = pal[Math.floor(r() * pal.length)], b = pal[Math.floor(r() * pal.length)]; return a === b ? [a, 0xffffff] : [a, b]; };
   const seed = () => Math.floor(r() * 1e9);
   const at = (x, z) => [x, 1, 10 + z];
-  const add = (t, d) => ev.push({ t, d: { scale: 1.8, top: 40 + r() * 10, ...d } });
-  const shapes = ['ball', 'ring', 'heart', 'star', 'smile', 'double', 'willow', 'crackle'];
-  const shp = () => shapes[Math.floor(r() * shapes.length)];
+  const add = (t, d) => ev.push({ t, d: { scale: 1.7 + r() * .5, top: 38 + r() * 16, ...d } });
+  const one = (t, x, z, extra = {}) => add(t, { p: at(x, z), shape: pickType(r), colors: pickColors(r), seed: seed(), ...extra });
+  const X = () => (r() - .5) * 56, Z = () => (r() - .5) * 22;
   // 开场
   add(0, { p: at(0, 0), pts2d: chickPts(), colors: [0xffd43b, 0xff922b], top: 42, scale: 2.4, seed: seed() });
   add(3.2, { p: at(0, 0), pts2d: textPts('烟花秀'), colors: [0xff6b9d, 0xffd43b, 0xffffff], top: 55, scale: 2.3, seed: seed() });
-  // 第一段（7–60 秒）：一发一发，左右交替
-  for (let t = 7.5; t < 60; t += 2.4 + r() * 1.4) add(t, { p: at((r() - .5) * 40, (r() - .5) * 16), shape: shp(), colors: col(), seed: seed() });
-  // 第二段（60–110 秒）：左右成对，同样的形状
-  for (let t = 60; t < 110; t += 2.6 + r()) { const dx = 12 + r() * 14, s = shp(), c = col(), sd = seed(), top = 42 + r() * 8;
-    add(t, { p: at(-dx, 0), shape: s, colors: c, seed: sd, top }); add(t + .15, { p: at(dx, 0), shape: s, colors: c, seed: sd + 1, top }); }
-  // 第三段（110–150 秒）：一排扫过去（从左到右或从右到左）+ 柳枝
-  for (let t = 110; t < 150; t += 7 + r() * 2) {
-    const dir = r() < .5 ? 1 : -1, s = shp(), c = col();
-    for (let k = 0; k < 5; k++) add(t + k * .45, { p: at(dir * (-24 + k * 12), -4), shape: s, colors: c, seed: seed(), top: 38 + k * 2 });
-    add(t + 3.4, { p: at((r() - .5) * 10, 0), shape: 'willow', colors: [0xffd43b, 0xffc078, 0xfff3bf], seed: seed(), top: 56 });
+  // 第一段（7–50 秒）：一发接一发，常常两发一起
+  for (let t = 7; t < 50; t += .7 + r() * .8) { one(t, X(), Z()); if (r() < .35) one(t + .1 + r() * .3, X(), Z()); }
+  // 第二段（50–95 秒）：齐射，2–4 发一起（左右对称，同样子同颜色）+ 中间穿插单发
+  for (let t = 50; t < 95; t += 2 + r() * 1.2) {
+    const n = 2 + Math.floor(r() * 3), shape = pickType(r), colors = pickColors(r), top = 38 + r() * 12, sp = 10 + r() * 10;
+    for (let k = 0; k < n; k++) { const x = (k - (n - 1) / 2) * sp; add(t + Math.abs(x) * .004, { p: at(x, (r() - .5) * 6), shape, colors, seed: seed(), top }); }
+    if (r() < .7) one(t + 1 + r() * .6, X(), Z());
   }
-  // 大结局（150–172 秒）：越来越密
-  for (let t = 150; t < 172; t += Math.max(.25, .9 - (t - 150) * .03)) add(t, { p: at((r() - .5) * 50, (r() - .5) * 20), shape: ['ball', 'double', 'crackle', 'ring', 'heart'][Math.floor(r() * 5)], colors: col(), seed: seed(), top: 38 + r() * 18 });
+  // 第三段（95–130 秒）：一排扫过去 + 中间一颗大菊花，空当里也有单发
+  for (let t = 95; t < 130; t += 4.6 + r() * 1.2) {
+    const dir = r() < .5 ? 1 : -1, shape = pickType(r), colors = pickColors(r);
+    for (let k = 0; k < 7; k++) add(t + k * .28, { p: at(dir * (-30 + k * 10), -4), shape, colors, seed: seed(), top: 34 + k * 2.2 });
+    add(t + 2.4, { p: at((r() - .5) * 8, 0), shape: r() < .5 ? 'chrys' : 'willow', colors: pickColors(r), seed: seed(), top: 58, scale: 2.4 });
+    for (let k = 0; k < 3; k++) one(t + 2.8 + k * .6, X(), Z());
+  }
+  // 第四段（130–150 秒）：很快的混合
+  for (let t = 130; t < 150; t += .35 + r() * .4) one(t, X(), Z());
+  // 大结局（150–172 秒）：越来越密，最后一片金色柳枝
+  for (let t = 150; t < 168; t += Math.max(.1, .32 - (t - 150) * .012)) one(t, X() * 1.1, Z(), { shape: ['peony', 'crackle', 'glitter', 'chrys', 'dahlia', 'crossette', 'palm'][Math.floor(r() * 7)] });
+  for (let k = 0; k < 9; k++) add(168 + k * .12, { p: at(-36 + k * 9, 0), shape: 'willow', colors: [0xffd43b, 0xffc078, 0xfff3bf], seed: seed(), top: 52, scale: 2.3 });
   // 最后一个小菜鸟
-  add(SHOW_LEN - 6, { p: at(0, 0), pts2d: chickPts(), colors: [0xffd43b, 0xff922b, 0xffffff], top: 48, scale: 3, seed: seed() });
+  add(SHOW_LEN - 5, { p: at(0, 0), pts2d: chickPts(), colors: [0xffd43b, 0xff922b, 0xffffff], top: 48, scale: 3, seed: seed() });
   return ev.sort((a, b) => a.t - b.t);
 }
 
-export function createFireShow({ abil, banner }) {
+export function createFireShow({ abil, banner, music }) {
   let night = -1, prog = [], last = null, said = {};
   addEventListener('xcn-time-jump', () => { last = null; said = {}; });     // 管理员跳时间后重新开始算
   function update(I) {
-    if (I.phase !== 'night') { last = null; return null; }
+    if (I.phase !== 'night') { last = null; music && music(false); return null; }
     if (I.nightIndex !== night) { night = I.nightIndex; prog = showProgram(night); said = {}; last = null; }
     const st = I.nightT - SHOW_START;                  // 烟花秀开始后的第几秒（负数 = 还没开始）
     // 提示
@@ -75,6 +97,7 @@ export function createFireShow({ abil, banner }) {
     if (st > -10.5 && st < 0 && !said.ten) { said.ten = 1; banner('🎆 烟花秀 10 秒后开始！抬头往乐园中间看～', 6000); }
     if (st >= 0 && st < 3 && !said.go) { said.go = 1; banner('🎆 烟花秀开始啦！', 3000); }
     if (st >= SHOW_LEN && st < SHOW_LEN + 5 && !said.end) { said.end = 1; banner('🐣 烟花秀结束，明天晚上见～', 4000); }
+    music && music(st >= 0 && st <= SHOW_LEN);
     if (st < 0 || st > SHOW_LEN) { last = st; return st; }
     // 从上一帧到这一帧之间该放的烟花（中途进来的人，前面的就不补了）
     const from = last == null || last < 0 ? Math.max(0, st - .05) : last;

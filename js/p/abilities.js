@@ -165,6 +165,14 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast, remote =
       [[-.35, .3], [.35, .3]].forEach(([x, y]) => { for (let i = 0; i < 8; i++) { const t = i / 8 * 6.283; pts.push([x + Math.cos(t) * .08, y + Math.sin(t) * .08]); } });
       return planeDirs(pts, 13, yaw); }
     if (shape === 'double') return [...sphere(90, 14), ...sphere(60, 7)];
+    if (shape === 'chrys') return sphere(170, 12);
+    if (shape === 'palm') { const out = [], arms = 7 + Math.floor(rnd() * 4);
+      for (let k = 0; k < arms; k++) { const a = rnd() * Math.PI * 2, b = rnd() * 1.1 + .15, d = new THREE.Vector3(Math.sin(b) * Math.cos(a), Math.cos(b), Math.sin(b) * Math.sin(a));
+        for (let j = 0; j < 13; j++) out.push(d.clone().multiplyScalar(5 + j * .75)); } return out; }
+    if (shape === 'dahlia') { const out = []; sphere(28, 1).forEach(d => { for (let j = 0; j < 5; j++) out.push(d.clone().multiplyScalar(10.5 + j * .6 + rnd() * .3).add(new THREE.Vector3((rnd() - .5) * .5, (rnd() - .5) * .5, (rnd() - .5) * .5))); }); return out; }
+    if (shape === 'saturn') { const yawS = rnd() * 6.283, tilt = (rnd() - .5) * 1.4; return [...sphere(90, 9), ...planeDirs(Array.from({ length: 70 }, (_, i) => [Math.cos(i / 70 * 6.283), Math.sin(i / 70 * 6.283)]), 15, yawS, Math.PI / 2 + tilt)]; }
+    if (shape === 'crossette') return sphere(16, 11);
+    if (shape === 'glitter') return sphere(130, 12);
     if (shape === 'willow') return sphere(110, 8);
     return sphere(shape === 'crackle' ? 90 : 150, 13);
   }
@@ -198,7 +206,15 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast, remote =
         if (d && d.pts2d) burstDirs(at, dirs, colors, 3.4, 1.1 * S, .4, .94);
         else if (shape === 'willow') burstDirs(at, dirs, colors, 3.2, 1 * S, 3.5, .975);
         else if (shape === 'double') { burstDirs(at, dirs.slice(0, 90), [colors[0]], 2.2, 1.1 * S, 3); burstDirs(at, dirs.slice(90), [colors[1] || 0xffffff], 1.8, .9 * S, 3); }
-        else burstDirs(at, dirs, colors, 2.2, 1.1 * S, shape === 'ball' || shape === 'crackle' ? 4 : 1.2, ['heart', 'star', 'smile', 'ring'].includes(shape) ? .97 : .985);
+        else if (shape === 'chrys') burstDirs(at, dirs, colors, 3.0, 1.0 * S, 2.2, .978);
+        else if (shape === 'palm') burstDirs(at, dirs, colors, 2.7, 1.25 * S, 5, .986);
+        else if (shape === 'dahlia') burstDirs(at, dirs, colors, 2.2, 1.15 * S, 3, .982);
+        else if (shape === 'saturn') { burstDirs(at, dirs.slice(0, 90), [colors[0]], 2.3, 1.1 * S, 2.5); burstDirs(at, dirs.slice(90), [colors[1] || 0xffffff], 2.3, 1.0 * S, 1.2, .975); }
+        else if (shape === 'crossette') { burstDirs(at, dirs, colors, .75, 1.4 * S, 2, .99);
+          dirs.forEach((dv, k) => setTimeout(() => burst(at.clone().addScaledVector(dv, .62), [colors[k % colors.length], 0xffffff], 9, 5 * S, 1, .75 * S, 3), 680)); }
+        else if (shape === 'glitter') { burstDirs(at, dirs, colors, 2.4, 1.05 * S, 3, .982);
+          for (let k = 0; k < 9; k++) { const off = new THREE.Vector3((rnd() - .5) * 18 * S, (rnd() - .6) * 14 * S, (rnd() - .5) * 18 * S); setTimeout(() => burst(at.clone().add(off), [0xffffff, 0xe7f5ff], 10, 2.2, .45, .45 * S, 1.5), 900 + k * 110); } }
+        else burstDirs(at, dirs, colors, 2.2, 1.1 * S, shape === 'ball' || shape === 'peony' || shape === 'crackle' ? 4 : 1.2, ['heart', 'star', 'smile', 'ring'].includes(shape) ? .97 : .985);
         SFX.boom(vol(), shape === 'crackle');
         if (shape === 'crackle') for (let k = 0; k < 10; k++) {
           const off = new THREE.Vector3((rnd() - .5) * 14, (rnd() - .5) * 10, (rnd() - .5) * 14);

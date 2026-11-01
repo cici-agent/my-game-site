@@ -758,7 +758,7 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 
 let ME = null, mp = null, myMove = { speed: 0 };
 // 左上角的小时钟 + 大横幅提示
-const fireShow = createFireShow({ abil, banner });
+const fireShow = createFireShow({ abil, banner, music: on => sfx.showMusic && sfx.showMusic(on) });
 let bannerT = 0, chipSig = '';
 function banner(msg, ms = 4000) { const el = $('dnBanner'); el.textContent = msg; el.classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => el.classList.remove('show'), ms); }
 // ---------- 乐园时间：管理员可以给所有人一起切换（存在 shop_items 里一条隐藏记录 __park_time，价格字段 = 偏移秒数） ----------
