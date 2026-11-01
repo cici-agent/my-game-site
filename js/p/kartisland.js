@@ -1,184 +1,222 @@
-// ===== 卡丁车岛：一座单独的大浮空岛 + 8 字形双层赛道（有高架、立交、飞跃断桥） =====
-// 赛道中心线：8 字形（Gerono 曲线），中间一段爬上 10 米高架，在 8 字中心从另一条路头顶上过去；还有一条穿湖的近路和一条隧道
-// 高架上有两个缺口（前面有跳台），要开快才能飞过去；掉下去按 R / 「回到赛道」回到检查点
+// ===== 卡丁车岛：一座单独的大浮空岛 + 一圈约 2.6 公里的四层赛道 =====
+// 地下隧道（-8 米，很黑，里面有小汽车在慢慢开）· 地面 · 10 米高架（有断桥要飞过去）· 螺旋坡转上 22 米最高层
+// 岔路：主路钻隧道；近路沿着岛边、穿过一片浅湖，在起点前合回来
 import * as THREE from 'three';
 import { buildKart } from './kart.js';
 import { glowTex } from '../u/tex.js';
+import { kartLayout } from './kartlayout.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
-export const KI = { x: 0, z: -900, R: 262 };          // 岛的位置和大小（离乐园很远，互相看不见）
+export const KI = { x: 0, z: -1000, R: 380 };          // 岛的位置和大小（离乐园很远，互相看不见）
 
 export function buildKartIsland(scene) {
   const g = new THREE.Group(); g.position.set(KI.x, 0, KI.z); scene.add(g);
-  // ---------- 岛 ----------
-  const grass = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
-    x.fillStyle = '#6fbf5a'; x.fillRect(0, 0, 256, 256); for (let i = 0; i < 1500; i++) { x.fillStyle = Math.random() < .5 ? '#64b350' : '#7dcc68'; x.fillRect(Math.random() * 256, Math.random() * 256, 2, 5); }
-    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(40, 40); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  const top = new THREE.Mesh(new THREE.CircleGeometry(KI.R, 160), M(0xffffff, { map: grass })); top.rotation.x = -Math.PI / 2; g.add(top);
-  const rock = new THREE.Mesh(new THREE.ConeGeometry(KI.R, 100, 56, 6, true), M(0x8c6d52, { flatShading: true, side: THREE.DoubleSide })); rock.rotation.x = Math.PI; rock.position.y = -50.2; g.add(rock);
-  const rim = new THREE.Mesh(new THREE.CylinderGeometry(KI.R, KI.R - 1, 2.4, 160, 1, true), M(0x5d8a3a, { side: THREE.DoubleSide })); rim.position.y = -1.2; g.add(rim);
-  { const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(.12, .12, 1.3, 6), M(0xffffff), 340), o = new THREE.Object3D(); for (let k = 0; k < 340; k++) { const a = k / 340 * Math.PI * 2, rr = KI.R - 1.2; o.position.set(Math.cos(a) * rr, .65, Math.sin(a) * rr); o.updateMatrix(); im.setMatrixAt(k, o.matrix); } g.add(im); }
-  const rail = new THREE.Mesh(new THREE.TorusGeometry(KI.R - 1.2, .08, 6, 280), M(0xff9f43)); rail.rotation.x = Math.PI / 2; rail.position.y = 1.2; g.add(rail);
+  const LY = kartLayout(), W = LY.W, N = LY.N;
 
-  // ---------- 主赛道：8 字形 ----------
-  const N = 1500, W = 18, A = 205, B = 300, H = 10;
-  const T = i => i / N * Math.PI * 2;
-  const GAPS = [[2.4, 2.46], [3.86, 3.92]];                     // 两个断桥
-  const TUNNEL = [.3, .78];                                       // 隧道
-  const FORK = [5.0, 5.9];                                        // 岔路（近路穿过湖）
-  const inGap = t => GAPS.some(([a, b]) => t > a && t < b);
-  const kicker = t => GAPS.reduce((h, [a]) => h + (t > a - .06 && t <= a ? 1.6 * Math.pow((t - (a - .06)) / .06, 1.3) : 0), 0);
-  const waves = t => (t > 1.0 && t < 1.42 ? .7 * Math.max(0, Math.sin((t - 1.0) * 60)) : 0);
-  const height = t => { const d = Math.abs(t - Math.PI); return (d < 1.5 ? H * (.5 + .5 * Math.cos(Math.PI * d / 1.5)) : 0) + kicker(t) + waves(t); };
-  const mainPos = t => new THREE.Vector3(A * Math.sin(t), height(t), B * Math.sin(t) * Math.cos(t));
-  // 统一的“路段”：主赛道（闭合）+ 岔路（不闭合）；每个点记住它在一圈里的位置 s
+  // ---------- 路段数据：主路（闭合）+ 岔路（不闭合），每个点记住它在一圈里的位置 s ----------
   const segs = [];
-  function makeSeg(points, closed, sOf, flags = () => ({})) {
-    const n = points.length, tan = [], side = [], f = points.map((_, i) => flags(i));
+  function makeSeg(points, closed, sOf, flags) {
+    const n = points.length, tan = [], side = [];
     for (let i = 0; i < n; i++) { const a = closed ? points[(i + 1) % n] : points[Math.min(n - 1, i + 1)], b = closed ? points[(i - 1 + n) % n] : points[Math.max(0, i - 1)];
       const t = new THREE.Vector3().subVectors(a, b); const flat = t.clone().setY(0).normalize(); tan.push(t.normalize()); side.push(new THREE.Vector3(flat.z, 0, -flat.x)); }
-    const seg = { pt: points, tan, side, closed, n, s: points.map((_, i) => sOf(i)), gap: f.map(x => !!x.gap), water: f.map(x => !!x.water), tunnel: f.map(x => !!x.tunnel) };
+    const f = k => flags.map(x => !!x[k]);
+    const seg = { pt: points, tan, side, closed, n, s: points.map((_, i) => sOf(i)), gap: f('gap'), water: f('water'), tunnel: f('tunnel'), trench: f('trench') };
     segs.push(seg); return seg;
   }
-  const main = makeSeg(Array.from({ length: N }, (_, i) => mainPos(T(i))), true, i => i / N, i => { const t = T(i); return { gap: inGap(t), tunnel: t > TUNNEL[0] && t < TUNNEL[1] }; });
-  // 岔路：从主路的 FORK[0] 分出去，往里绕，穿过一片浅湖，到 FORK[1] 合回来
-  const ia = Math.round(FORK[0] / (Math.PI * 2) * N), ib = Math.round(FORK[1] / (Math.PI * 2) * N);
-  const C = new THREE.Vector3(-115, 0, -10);                         // 左边那个圈的中间
-  const ctrl = [0, .12, .3, .5, .7, .88, 1].map((u, k) => { const t = FORK[0] + (FORK[1] - FORK[0]) * u, p = mainPos(t).setY(0); const off = [0, 12, 30, 38, 30, 12, 0][k]; const dir = C.clone().sub(p).setY(0).normalize(); return p.addScaledVector(dir, off); });
-  const bcurve = new THREE.CatmullRomCurve3(ctrl, false, 'centripetal'), BN = 240;
-  const bpts = bcurve.getSpacedPoints(BN - 1);
-  const lakeC = bcurve.getPointAt(.5), LAKE = { x: lakeC.x, z: lakeC.z, rx: 26, rz: 18 };
-  const inLake = (x, z) => ((x - LAKE.x) / LAKE.rx) ** 2 + ((z - LAKE.z) / LAKE.rz) ** 2 < 1;
-  bpts.forEach(p => { p.y = inLake(p.x, p.z) ? -.35 : 0; });
-  const branch = makeSeg(bpts, false, k => (ia + (ib - ia) * k / (BN - 1)) / N, k => ({ water: inLake(bpts[k].x, bpts[k].z) }));
+  const main = makeSeg(LY.pts, true, i => i / N, LY.flagsMain);
+  const ia = LY.ia, ib = LY.ib, span = (ib - ia + N) % N;
+  const branch = makeSeg(LY.bpts, false, k => ((ia + span * k / (LY.bpts.length - 1)) % N) / N, LY.flagsBranch);
   const pt = main.pt, tan = main.tan, side = main.side, gap = main.gap;
+  const inLake = LY.inLake;
 
-  // ---------- 路面（有厚度的板子；断桥 / 湖里不画） ----------
-  const asphalt = (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const x = c.getContext('2d');
-    x.fillStyle = '#4a4e57'; x.fillRect(0, 0, 64, 64); for (let i = 0; i < 300; i++) { x.fillStyle = Math.random() < .5 ? '#555a64' : '#40444c'; x.fillRect(Math.random() * 64, Math.random() * 64, 2, 2); }
-    x.fillStyle = '#ffffff'; x.fillRect(30, 0, 4, 28);
+  // 空间格子：查附近的路点
+  const CELL = 10, grid = new Map();
+  segs.forEach((sg, si) => sg.pt.forEach((p, i) => { const key = Math.floor(p.x / CELL) + ',' + Math.floor(p.z / CELL); (grid.get(key) || grid.set(key, []).get(key)).push(si, i); }));
+  function nearby(lx, lz, r = 1) { const out = [], cx = Math.floor(lx / CELL), cz = Math.floor(lz / CELL); for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) { const l = grid.get((cx + a) + ',' + (cz + b)); if (l) out.push(...l); } return out; }
+  // 某个位置附近 d 米内有没有满足条件的路点
+  function anyRoad(x, z, d, test) { const L = nearby(x, z, Math.ceil(d / CELL)); for (let n = 0; n < L.length; n += 2) { const sg = segs[L[n]], i = L[n + 1], p = sg.pt[i]; if ((p.x - x) ** 2 + (p.z - z) ** 2 < d * d && test(sg, i, p)) return true; } return false; }
+
+  // ---------- 岛：草地是一张格子网，地下隧道的“坡道沟”那里挖空 ----------
+  const grassTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
+    x.fillStyle = '#6fbf5a'; x.fillRect(0, 0, 256, 256); for (let i = 0; i < 1500; i++) { x.fillStyle = Math.random() < .5 ? '#64b350' : '#7dcc68'; x.fillRect(Math.random() * 256, Math.random() * 256, 2, 5); }
     const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  const dirt = (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const x = c.getContext('2d');
-    x.fillStyle = '#b08968'; x.fillRect(0, 0, 64, 64); for (let i = 0; i < 260; i++) { x.fillStyle = Math.random() < .5 ? '#9c7656' : '#c4a07a'; x.fillRect(Math.random() * 64, Math.random() * 64, 3, 2); }
-    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: .9 }), dirtMat = new THREE.MeshStandardMaterial({ map: dirt, roughness: 1 }), slabMat = M(0x868e96), edgeMat = new THREE.MeshStandardMaterial({ color: 0xff6b6b, side: THREE.DoubleSide });
-  function ribbon(seg, i0, i1, mat, thick) {
-    const top = [], uv = [], idx = [], bot = [], bidx = []; let n = 0;
-    for (let i = i0; i <= i1; i++) {
-      const k = seg.closed ? i % seg.n : i, p = seg.pt[k], sd = seg.side[k];
-      const L = [p.x + sd.x * W / 2, p.y + .05, p.z + sd.z * W / 2], R = [p.x - sd.x * W / 2, p.y + .05, p.z - sd.z * W / 2];
-      top.push(...L, ...R); uv.push(0, i / 4, 1, i / 4); bot.push(L[0], L[1] - .7, L[2], R[0], R[1] - .7, R[2]);
-      if (i < i1) { idx.push(n * 2, n * 2 + 1, n * 2 + 2, n * 2 + 1, n * 2 + 3, n * 2 + 2); bidx.push(n * 2, n * 2 + 2, n * 2 + 1, n * 2 + 1, n * 2 + 2, n * 2 + 3); }
-      n++;
+  { const S = 4, R = KI.R, n = Math.ceil(R * 2 / S), pos = [], uv = [], idx = [];
+    for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) { let x = -R + i * S, z = -R + j * S; const r = Math.hypot(x, z); if (r > R) { x *= R / r; z *= R / r; } pos.push(x, 0, z); uv.push(x / 12, z / 12); }
+    const V = (i, j) => j * (n + 1) + i;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const cx = -R + (i + .5) * S, cz = -R + (j + .5) * S; if (Math.hypot(cx, cz) > R + S) continue;
+      if (Math.hypot(-R + i * S, -R + j * S) > R && Math.hypot(-R + (i + 1) * S, -R + j * S) > R && Math.hypot(-R + i * S, -R + (j + 1) * S) > R && Math.hypot(-R + (i + 1) * S, -R + (j + 1) * S) > R) continue;
+      if (anyRoad(cx, cz, W / 2 + 1.5, (sg, k) => sg.trench[k])) continue;          // 坡道沟：挖空
+      idx.push(V(i, j), V(i, j + 1), V(i + 1, j), V(i + 1, j), V(i, j + 1), V(i + 1, j + 1));
     }
-    const mk = (pos, ind, mt, uvs) => { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); if (uvs) geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); geo.setIndex(ind); geo.computeVertexNormals(); g.add(new THREE.Mesh(geo, mt)); };
-    mk(top, idx, mat, uv);
-    if (!thick) return;
-    mk(bot, bidx, slabMat);
-    for (const s of [0, 1]) { const pos = [], ind = []; for (let k = 0; k < n; k++) { pos.push(...top.slice((k * 2 + s) * 3, (k * 2 + s) * 3 + 3), ...bot.slice((k * 2 + s) * 3, (k * 2 + s) * 3 + 3)); if (k < n - 1) ind.push(k * 2, k * 2 + 1, k * 2 + 2, k * 2 + 1, k * 2 + 3, k * 2 + 2); } mk(pos, ind, edgeMat); }
-  }
-  function ribbons(seg, skip, mat, thick) { let start = null; const last = seg.closed ? seg.n : seg.n - 1;
-    for (let i = 0; i <= last; i++) { const k = seg.closed ? i % seg.n : i; const off = skip(k) || i === last; if (!skip(k) && start === null) start = i; if (off && start !== null) { ribbon(seg, start, skip(k) ? i - 1 : i, mat, thick); start = null; } } }
-  ribbons(main, k => main.gap[k], roadMat, true);
-  ribbons(branch, k => branch.water[k], dirtMat, false);          // 近路是土路
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, M(0xffffff, { map: grassTex }))); }
+  const rock = new THREE.Mesh(new THREE.ConeGeometry(KI.R, 110, 64, 6, true), M(0x8c6d52, { flatShading: true, side: THREE.DoubleSide })); rock.rotation.x = Math.PI; rock.position.y = -55.2; g.add(rock);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(KI.R, KI.R - 1, 2.4, 180, 1, true), M(0x5d8a3a, { side: THREE.DoubleSide })); rim.position.y = -1.2; g.add(rim);
+  { const C = 420, im = new THREE.InstancedMesh(new THREE.CylinderGeometry(.12, .12, 1.3, 6), M(0xffffff), C), o = new THREE.Object3D(); for (let k = 0; k < C; k++) { const a = k / C * Math.PI * 2, rr = KI.R - 1.2; o.position.set(Math.cos(a) * rr, .65, Math.sin(a) * rr); o.updateMatrix(); im.setMatrixAt(k, o.matrix); } g.add(im); }
+  const rail = new THREE.Mesh(new THREE.TorusGeometry(KI.R - 1.2, .08, 6, 320), M(0xff9f43)); rail.rotation.x = Math.PI / 2; rail.position.y = 1.2; g.add(rail);
 
-  // 路肩（地面的部分）+ 护栏（高架上，缺口前后不放）+ 柱子
-  const kerbA = M(0xe03131), kerbB = M(0xffffff), postM = M(0xdee2e6), railM = M(0xffd43b), pillarM = M(0xced4da);
-  const nearGap = i => { for (let d = -10; d <= 10; d++) if (gap[(i + d + N) % N]) return true; return false; };
-  const kerbList = [[], []];
-  for (let i = 0; i < N; i += 3) {
-    const p = pt[i], sd = side[i], tt = tan[i];
-    if (gap[i]) continue;
-    [1, -1].forEach(s => {
-      if (p.y < 1) { const kb = new THREE.Object3D(); kb.position.set(p.x + sd.x * s * (W / 2 + .35), p.y + .08, p.z + sd.z * s * (W / 2 + .35)); kb.lookAt(kb.position.clone().add(tt)); kb.updateMatrix(); kerbList[(i / 3) % 2 ? 0 : 1].push(kb.matrix.clone()); }
-      else if (i % 6 === 0 && !nearGap(i)) { const post = new THREE.Mesh(new THREE.CylinderGeometry(.09, .09, 1.2, 6), postM); post.position.set(p.x + sd.x * s * (W / 2 - .2), p.y + .6, p.z + sd.z * s * (W / 2 - .2)); g.add(post); }
-    });
+  // ---------- 路面 ----------
+  const mkTex = (base, dots, line) => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const x = c.getContext('2d');
+    x.fillStyle = base; x.fillRect(0, 0, 64, 64); for (let i = 0; i < 300; i++) { x.fillStyle = dots[i % 2]; x.fillRect(Math.random() * 64, Math.random() * 64, 2, 2); }
+    if (line) { x.fillStyle = line; x.fillRect(30, 0, 4, 28); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; };
+  const asphalt = mkTex('#4a4e57', ['#555a64', '#40444c'], '#ffffff'), dirtT = mkTex('#b08968', ['#9c7656', '#c4a07a']);
+  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: .9 }), tunRoadMat = new THREE.MeshLambertMaterial({ map: asphalt, color: 0x777777 });
+  const dirtMat = new THREE.MeshStandardMaterial({ map: dirtT, roughness: 1 }), slabMat = M(0x868e96), edgeMat = new THREE.MeshStandardMaterial({ color: 0xff6b6b, side: THREE.DoubleSide });
+  const mkMesh = (pos, ind, mt, uvs) => { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); if (uvs) geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); geo.setIndex(ind); geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mt); g.add(m); return m; };
+  // 沿着路做一条带子：off0/off1 是横向位置，h0/h1 是相对路面的高度（可以是函数）
+  function strip(seg, i0, i1, f, mat, uvScale = 0) {
+    const pos = [], uv = [], ind = []; let n = 0;
+    for (let i = i0; i <= i1; i++) { const k = seg.closed ? i % seg.n : i, p = seg.pt[k], sd = seg.side[k]; const [a, b] = f(p, k);
+      pos.push(p.x + sd.x * a[0], a[1], p.z + sd.z * a[0], p.x + sd.x * b[0], b[1], p.z + sd.z * b[0]); uv.push(0, i * uvScale, 1, i * uvScale);
+      if (i < i1) ind.push(n * 2, n * 2 + 1, n * 2 + 2, n * 2 + 1, n * 2 + 3, n * 2 + 2); n++; }
+    return mkMesh(pos, ind, mat, uvScale ? uv : null);
   }
-  kerbList.forEach((list, c) => { const im = new THREE.InstancedMesh(new THREE.BoxGeometry(.7, .16, 2.2), c ? kerbB : kerbA, list.length); list.forEach((mt, k) => im.setMatrixAt(k, mt)); g.add(im); });
-  { const posts = []; g.children.forEach(o => { if (o.isMesh && o.geometry.type === 'CylinderGeometry' && o.material === postM && o.geometry.parameters.height === 1.2) posts.push(o); });
-    const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(.09, .09, 1.2, 6), postM, posts.length); posts.forEach((o, k) => { o.updateMatrix(); im.setMatrixAt(k, o.matrix); g.remove(o); }); g.add(im); }
+  function runs(seg, test, cb) { let start = null; const last = seg.closed ? seg.n : seg.n - 1;
+    for (let i = 0; i <= last; i++) { const k = seg.closed ? i % seg.n : i, on = test(k) && i < last; if (on && start === null) start = i; if (!on && start !== null) { cb(start, Math.min(i, last)); start = null; } } }
+  // 主路：亮的路 / 隧道里暗一点的路；底板 + 红色侧边
+  const roadTop = (p) => [[W / 2, p.y + .05], [-W / 2, p.y + .05]];
+  runs(main, k => !gap[k] && !main.tunnel[k], (a, b) => { strip(main, a, b, roadTop, roadMat, .25); });
+  runs(main, k => main.tunnel[k], (a, b) => { strip(main, a, b, roadTop, tunRoadMat, .25); });
+  runs(main, k => !gap[k] && pt[k].y > .4, (a, b) => {
+    strip(main, a, b, p => [[-W / 2, p.y - .65], [W / 2, p.y - .65]], slabMat);
+    [1, -1].forEach(s => strip(main, a, b, p => [[s * W / 2, p.y + .05], [s * W / 2, p.y - .65]], edgeMat));
+  });
+  runs(branch, k => !branch.water[k], (a, b) => strip(branch, a, b, roadTop, dirtMat, .25));
+
+  // ---------- 地下隧道：坡道沟（两边水泥墙）+ 盖着的隧道（墙 + 顶，里面黑） ----------
+  const concrete = M(0xadb5bd), tunWall = new THREE.MeshLambertMaterial({ color: 0x3a3a44, side: THREE.DoubleSide });
+  const under = k => main.trench[k] || main.tunnel[k];
+  runs(main, under, (a, b) => {
+    [1, -1].forEach(s => strip(main, a, b, (p, k) => [[s * (W / 2 + .3), p.y - .7], [s * (W / 2 + .3), main.tunnel[k] ? -.5 : 0]], new THREE.MeshLambertMaterial({ color: 0x8a8f96, side: THREE.DoubleSide })));
+  });
+  runs(main, k => main.tunnel[k], (a, b) => strip(main, a, b, () => [[W / 2 + .4, -.5], [-W / 2 - .4, -.5]], tunWall));
+  runs(main, k => main.tunnel[k], (a, b) => [1, -1].forEach(s => strip(main, a, b, p => [[s * (W / 2 + .25), p.y + .2], [s * (W / 2 + .25), -.6]], tunWall)));
+  // 沟两边地面上的水泥边 + 黄色护栏（盖住草地格子挖空留下的锯齿）
+  const railY = M(0xffd43b);
+  runs(main, k => main.trench[k], (a, b) => {
+    [1, -1].forEach(s => { strip(main, Math.max(0, a - 4), b + 4, () => [[s * (W / 2 + .3), .03], [s * (W / 2 + 5), .03]], concrete);
+      const run = []; for (let i = a; i <= b; i += 2) { const p = pt[i % N], sd = side[i % N]; run.push(new THREE.Vector3(p.x + sd.x * s * (W / 2 + .8), 1.1, p.z + sd.z * s * (W / 2 + .8))); }
+      if (run.length > 3) g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(run), run.length, .1, 6, false), railY)); });
+  });
+  // 洞口：水泥门框 + 牌子
+  const sign = (text, w, h, bg = '#1c7ed6', fg = '#fff', font = 34) => { const c = document.createElement('canvas'); c.width = 640; c.height = Math.round(640 * h / w); const x = c.getContext('2d');
+    x.fillStyle = bg; x.beginPath(); x.roundRect(0, 0, c.width, c.height, 22); x.fill(); x.fillStyle = fg; x.font = `bold ${font}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, c.width / 2, c.height / 2 + 2);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, side: THREE.DoubleSide })); };
+  const portals = [];
+  for (let i = 0; i < N; i++) { if (main.tunnel[i] && !main.tunnel[(i - 1 + N) % N]) portals.push([i, 1]); if (main.tunnel[i] && !main.tunnel[(i + 1) % N]) portals.push([i, -1]); }
+  portals.forEach(([i, dir]) => { const p = pt[i], t = tan[i], fr = new THREE.Group(); fr.position.set(p.x, 0, p.z); fr.lookAt(p.x + t.x, 0, p.z + t.z); g.add(fr);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(W + 3, 2.4, 1.2), concrete); top.position.y = -.2; fr.add(top);
+    [-1, 1].forEach(s => { const col = new THREE.Mesh(new THREE.BoxGeometry(1.5, 9, 1.2), concrete); col.position.set(s * (W / 2 + .9), p.y + 3.5, 0); fr.add(col); });
+    if (dir > 0) { const sg = sign('🚇 地下隧道 · 小心车辆', 12, 1.8, '#212529', '#ffd43b', 54); sg.position.set(0, .4, -.65); sg.rotation.y = Math.PI; fr.add(sg); } });
+  // 隧道里稀稀拉拉的灯（每 30 米一对，很暗的隧道里就靠它们）
+  const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd8a8 });
+  { const list = []; for (let i = 0; i < N; i += 30) if (main.tunnel[i]) list.push(i);
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(.25, .25, 1.6), bulbMat, list.length * 2), o = new THREE.Object3D(); let c = 0;
+    list.forEach(i => [1, -1].forEach(s => { const p = pt[i]; o.position.set(p.x + side[i].x * s * (W / 2), p.y + 5.2, p.z + side[i].z * s * (W / 2)); o.lookAt(o.position.clone().add(tan[i])); o.updateMatrix(); im.setMatrixAt(c++, o.matrix); }));
+    g.add(im); }
+
+  // ---------- 路肩 / 护栏 / 柱子 ----------
+  const kerbA = M(0xe03131), kerbB = M(0xffffff), postM = M(0xdee2e6), pillarM = M(0xced4da);
+  const nearGap = i => { for (let d = -10; d <= 10; d++) if (gap[(i + d + N) % N]) return true; return false; };
+  { const kerbs = [[], []], posts = [], o = new THREE.Object3D();
+    for (let i = 0; i < N; i += 3) { const p = pt[i], sd = side[i], tt = tan[i]; if (gap[i] || under(i)) continue;
+      [1, -1].forEach(s => {
+        if (p.y < 1) { if (i > ia && i < ia + 40) return; o.position.set(p.x + sd.x * s * (W / 2 + .35), p.y + .08, p.z + sd.z * s * (W / 2 + .35)); o.lookAt(o.position.clone().add(tt)); o.updateMatrix(); kerbs[(i / 3) % 2].push(o.matrix.clone()); }
+        else if (i % 6 === 0 && !nearGap(i)) { o.position.set(p.x + sd.x * s * (W / 2 - .2), p.y + .6, p.z + sd.z * s * (W / 2 - .2)); o.rotation.set(0, 0, 0); o.updateMatrix(); posts.push(o.matrix.clone()); }
+      }); }
+    kerbs.forEach((list, c) => { const im = new THREE.InstancedMesh(new THREE.BoxGeometry(.7, .16, 2.2), c ? kerbA : kerbB, list.length); list.forEach((mt, k) => im.setMatrixAt(k, mt)); g.add(im); });
+    const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(.09, .09, 1.2, 6), postM, posts.length); posts.forEach((mt, k) => im.setMatrixAt(k, mt)); g.add(im); }
   [1, -1].forEach(s => { let run = [];
-    const flush = () => { if (run.length > 3) g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(run), run.length, .09, 6, false), railM)); run = []; };
+    const flush = () => { if (run.length > 3) g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(run), run.length, .09, 6, false), railY)); run = []; };
     for (let i = 0; i <= N; i += 2) { const k = i % N, p = pt[k], sd = side[k]; if (p.y > 1 && !nearGap(k)) run.push(new THREE.Vector3(p.x + sd.x * s * (W / 2 - .2), p.y + 1.15, p.z + sd.z * s * (W / 2 - .2))); else flush(); }
     flush(); });
-  // 地面那一半的路离柱子远一点：柱子不能挡在下面的路上
-  const groundPts = pt.filter(p => p.y < 1.5);
-  for (let i = 0; i < N; i += 14) { const p = pt[i]; if (p.y < 2.2 || gap[i]) continue;
-    [1, -1].forEach(s => { const x = p.x + side[i].x * s * (W / 2 - 1), z = p.z + side[i].z * s * (W / 2 - 1);
-      if (groundPts.some(q => Math.hypot(q.x - x, q.z - z) < W / 2 + 1)) return;
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(.45, .6, p.y - .6, 10), pillarM); col.position.set(x, (p.y - .6) / 2, z); g.add(col); }); }
-  // 断桥前的跳台箭头 + 警示条
-  GAPS.forEach(([a]) => { const i = Math.round(a / (Math.PI * 2) * N) - 12; const p = pt[i], tt = tan[i];
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(W * .8, 2.2), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 64; const x = c.getContext('2d');
+  // 柱子：不能插在下面一层的路上
+  { const cols = [], o = new THREE.Object3D();
+    for (let i = 0; i < N; i += 12) { const p = pt[i]; if (p.y < 2.2 || gap[i]) continue;
+      [1, -1].forEach(s => { const x = p.x + side[i].x * s * (W / 2 - 1), z = p.z + side[i].z * s * (W / 2 - 1);
+        if (anyRoad(x, z, W / 2 + 1.2, (sg, k, q) => q.y < p.y - 2 && q.y > -7)) return;
+        o.position.set(x, (p.y - .6) / 2, z); o.scale.set(1, p.y - .6, 1); o.updateMatrix(); cols.push(o.matrix.clone()); }); }
+    const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(.5, .65, 1, 10), pillarM, cols.length); cols.forEach((mt, k) => im.setMatrixAt(k, mt)); g.add(im); }
+  // 断桥前的牌子
+  const gapStarts = []; for (let i = 0; i < N; i++) if (gap[i] && !gap[(i - 1 + N) % N]) gapStarts.push(i);
+  gapStarts.forEach(gi => { const i = (gi - 14 + N) % N, p = pt[i], tt = tan[i];
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(W * .8, 2.2), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 64; const x = c.getContext('2d');
       x.fillStyle = '#ffd43b'; x.fillRect(0, 0, 256, 64); x.fillStyle = '#212529'; for (let k = -2; k < 12; k++) { x.beginPath(); x.moveTo(k * 26, 64); x.lineTo(k * 26 + 14, 64); x.lineTo(k * 26 + 40, 0); x.lineTo(k * 26 + 26, 0); x.fill(); }
       x.fillStyle = '#e03131'; x.fillRect(48, 10, 160, 44); x.fillStyle = '#fff'; x.font = 'bold 30px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('⚡ 加速飞过去！', 128, 33); return new THREE.CanvasTexture(x.canvas); })(), side: THREE.DoubleSide }));
-    sign.position.set(p.x, p.y + 4.2, p.z); sign.lookAt(sign.position.clone().sub(tt)); g.add(sign);
-    [1, -1].forEach(s => { const pole = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 4.4, 6), postM); pole.position.set(p.x + side[i].x * s * W * .4, p.y + 2.2, p.z + side[i].z * s * W * .4); g.add(pole); }); });
-  // 起点：黑白格 + 拱门
+    sg.position.set(p.x, p.y + 5.2, p.z); sg.lookAt(sg.position.clone().sub(tt)); g.add(sg);
+    [1, -1].forEach(s => { const pole = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 5.4, 6), postM); pole.position.set(p.x + side[i].x * s * W * .4, p.y + 2.7, p.z + side[i].z * s * W * .4); g.add(pole); }); });
+
+  // ---------- 起点：黑白格 + 拱门 ----------
   const p0 = pt[0], t0 = tan[0];
   const chk = (() => { const c = document.createElement('canvas'); c.width = 96; c.height = 16; const x = c.getContext('2d'); for (let i = 0; i < 24; i++) for (let j = 0; j < 4; j++) { x.fillStyle = (i + j) % 2 ? '#111' : '#fff'; x.fillRect(i * 4, j * 4, 4, 4); } const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; return t; })();
   const line = new THREE.Mesh(new THREE.PlaneGeometry(W, 2), new THREE.MeshBasicMaterial({ map: chk })); line.rotation.x = -Math.PI / 2; line.rotation.z = Math.atan2(t0.x, t0.z); line.position.set(p0.x, p0.y + .08, p0.z); g.add(line);
-  // 起点在 8 字中间（地面那一条），头顶就是高架——拱门放在起点后面一点
-  const iar = N - 40, pa = pt[iar], ta = tan[iar];
-  const arch = new THREE.Group(); arch.position.set(pa.x, pa.y, pa.z); arch.rotation.y = Math.atan2(ta.x, ta.z); g.add(arch);
-  const archM = M(0x1c7ed6, { metalness: .3 });
-  [-1, 1].forEach(s => { const pole = new THREE.Mesh(new THREE.CylinderGeometry(.35, .35, 8, 10), archM); pole.position.set(s * (W / 2 + 1.2), 4, 0); arch.add(pole); });
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(W + 3, 1.6, .5), archM); beam.position.y = 8; arch.add(beam);
-  const archSign = (() => { const c = document.createElement('canvas'); c.width = 384; c.height = 64; const x = c.getContext('2d'); for (let i = 0; i < 48; i++) for (let j = 0; j < 8; j++) { x.fillStyle = (i + j) % 2 ? '#111' : '#fff'; x.fillRect(i * 8, j * 8, 8, 8); }
-    x.fillStyle = 'rgba(255,107,53,.95)'; x.fillRect(92, 6, 200, 52); x.fillStyle = '#fff'; x.font = 'bold 36px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('🏁 卡丁车岛', 192, 33); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  [1, -1].forEach(s => { const sp = new THREE.Mesh(new THREE.PlaneGeometry(W + 2.6, 1.4), new THREE.MeshBasicMaterial({ map: archSign })); sp.position.set(0, 8, s * .27); if (s < 0) sp.rotation.y = Math.PI; arch.add(sp); });
-  // 一圈彩旗 + 灯泡（晚上会亮）
+  { const pa = pt[N - 30], ta = tan[N - 30];
+    const arch = new THREE.Group(); arch.position.set(pa.x, pa.y, pa.z); arch.rotation.y = Math.atan2(ta.x, ta.z); g.add(arch);
+    const archM = M(0x1c7ed6, { metalness: .3 });
+    [-1, 1].forEach(s => { const pole = new THREE.Mesh(new THREE.CylinderGeometry(.35, .35, 8, 10), archM); pole.position.set(s * (W / 2 + 1.2), 4, 0); arch.add(pole); });
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(W + 3, 1.6, .5), archM); beam.position.y = 8; arch.add(beam);
+    [1, -1].forEach(s => { const sp = sign('🏁 卡丁车岛', W + 2.6, 1.4, '#ff6b35', '#fff', 60); sp.position.set(0, 8, s * .27); if (s < 0) sp.rotation.y = Math.PI; arch.add(sp); }); }
+  // 彩旗 + 灯泡（晚上会亮）
   const flagC = [0xff6b6b, 0xffd43b, 0x4dabf7, 0x69db7c, 0xda77f2];
-  for (let i = 0; i < N; i += 22) { const p = pt[i]; if (p.y > 1 || gap[i] || main.tunnel[i]) continue; const s = (i / 22) % 2 ? 1 : -1, x = p.x + side[i].x * s * (W / 2 + 3), z = p.z + side[i].z * s * (W / 2 + 3);
+  for (let i = 0; i < N; i += 26) { const p = pt[i]; if (p.y > 1 || p.y < -.2 || gap[i] || (i > ia && i < ia + 60)) continue; const s = (i / 26) % 2 ? 1 : -1, x = p.x + side[i].x * s * (W / 2 + 3), z = p.z + side[i].z * s * (W / 2 + 3);
+    if (anyRoad(x, z, W / 2 + 1, (sg, k, q) => q.y > -2 && q.y < 3)) continue;
+    const c = flagC[(i / 26) % 5];
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, 3.6, 6), postM); pole.position.set(x, 1.8, z); g.add(pole);
-    const fl = new THREE.Mesh(new THREE.PlaneGeometry(1, .6), M(flagC[(i / 22) % 5], { side: THREE.DoubleSide })); fl.position.set(x + .5, 3.3, z); g.add(fl);
-    const b = new THREE.Mesh(new THREE.SphereGeometry(.16, 8, 6), new THREE.MeshBasicMaterial({ color: flagC[(i / 22) % 5] })); b.position.set(x, 3.7, z); b.userData.nightBulb = flagC[(i / 22) % 5]; g.add(b); }
-  // 近路两边的小木桩
-  for (let k = 0; k < branch.n; k += 6) { if (branch.water[k]) continue; const p = branch.pt[k], sd = branch.side[k];
-    [1, -1].forEach(s => { const st = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, .8, 6), M(0x8b5a2b)); st.position.set(p.x + sd.x * s * (W / 2 + .4), .4, p.z + sd.z * s * (W / 2 + .4)); g.add(st); }); }
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(1, .6), M(c, { side: THREE.DoubleSide })); fl.position.set(x + .5, 3.3, z); g.add(fl);
+    const b = new THREE.Mesh(new THREE.SphereGeometry(.16, 8, 6), new THREE.MeshBasicMaterial({ color: c })); b.position.set(x, 3.7, z); b.userData.nightBulb = c; g.add(b); }
 
-  // ---------- 湖：浅浅的水 + 沙滩 ----------
-  const sand = new THREE.Mesh(new THREE.CircleGeometry(1, 48), M(0xe9d8a6)); sand.scale.set(LAKE.rx + 4, LAKE.rz + 4, 1); sand.rotation.x = -Math.PI / 2; sand.position.set(LAKE.x, .03, LAKE.z); g.add(sand);
-  const bed = new THREE.Mesh(new THREE.CircleGeometry(1, 48), M(0x6c8ea0)); bed.scale.set(LAKE.rx, LAKE.rz, 1); bed.rotation.x = -Math.PI / 2; bed.position.set(LAKE.x, -.4, LAKE.z); g.add(bed);
+  // ---------- 近路：土路 + 小木桩 + 湖 ----------
+  { const list = [], o = new THREE.Object3D(); for (let k = 30; k < branch.n - 30; k += 6) { if (branch.water[k]) continue; const p = branch.pt[k], sd = branch.side[k];
+      [1, -1].forEach(s => { const x = p.x + sd.x * s * (W / 2 + .4), z = p.z + sd.z * s * (W / 2 + .4); if (anyRoad(x, z, W / 2 - .5, (sg) => sg === main)) return; o.position.set(x, .4, z); o.updateMatrix(); list.push(o.matrix.clone()); }); }
+    const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(.14, .14, .8, 6), M(0x8b5a2b), list.length); list.forEach((mt, k) => im.setMatrixAt(k, mt)); g.add(im); }
+  const lk = LY.lake;
+  const sand = new THREE.Mesh(new THREE.CircleGeometry(1, 56), M(0xe9d8a6)); sand.scale.set(lk.rx + 5, lk.rz + 5, 1); sand.rotation.x = -Math.PI / 2; sand.position.set(lk.x, .03, lk.z); g.add(sand);
+  const bed = new THREE.Mesh(new THREE.CircleGeometry(1, 56), M(0x6c8ea0)); bed.scale.set(lk.rx, lk.rz, 1); bed.rotation.x = -Math.PI / 2; bed.position.set(lk.x, -.4, lk.z); g.add(bed);
   const waterTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.fillStyle = '#4dabf7'; x.fillRect(0, 0, 128, 128);
     x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 2; for (let i = 0; i < 18; i++) { x.beginPath(); const y = Math.random() * 128, x0 = Math.random() * 128; x.moveTo(x0, y); x.quadraticCurveTo(x0 + 10, y - 4, x0 + 20, y); x.stroke(); }
-    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 4); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  const water = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshStandardMaterial({ map: waterTex, transparent: true, opacity: .75, roughness: .1, metalness: .1 }));
-  water.scale.set(LAKE.rx, LAKE.rz, 1); water.rotation.x = -Math.PI / 2; water.position.set(LAKE.x, .12, LAKE.z); g.add(water);
-  for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283; const lp = new THREE.Mesh(new THREE.CircleGeometry(.9, 12), M(0x40c057)); lp.rotation.x = -Math.PI / 2; lp.position.set(LAKE.x + Math.cos(a) * LAKE.rx * .7, .14, LAKE.z + Math.sin(a) * LAKE.rz * .75); g.add(lp); }
-  // 岔路口的指示牌
-  { const p = pt[ia], t0 = tan[ia], sd = side[ia];
-    const tx = (() => { const c = document.createElement('canvas'); c.width = 640; c.height = 112; const x = c.getContext('2d'); x.fillStyle = '#1c7ed6'; x.beginPath(); x.roundRect(0, 0, 640, 112, 22); x.fill();
-      x.fillStyle = '#fff'; x.font = 'bold 34px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('⬅ 正路      🌊 近路（过湖）➡', 320, 58); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-    const sg = new THREE.Mesh(new THREE.PlaneGeometry(12, 2.1), new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide }));
-    const q = pt[(ia - 30 + N) % N]; sg.position.set(q.x - sd.x * (W / 2 + 4), 4.2, q.z - sd.z * (W / 2 + 4)); sg.lookAt(sg.position.clone().sub(t0)); g.add(sg);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 4, 6), M(0xdee2e6)); pole.position.set(sg.position.x, 2, sg.position.z); g.add(pole); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 8); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const water = new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshStandardMaterial({ map: waterTex, transparent: true, opacity: .75, roughness: .1, metalness: .1 }));
+  water.scale.set(lk.rx, lk.rz, 1); water.rotation.x = -Math.PI / 2; water.position.set(lk.x, .12, lk.z); g.add(water);
+  for (let k = 0; k < 12; k++) { const a = k / 12 * 6.283; const lp = new THREE.Mesh(new THREE.CircleGeometry(1, 12), M(0x40c057)); lp.rotation.x = -Math.PI / 2; lp.position.set(lk.x + Math.cos(a) * lk.rx * .8, .14, lk.z + Math.sin(a) * lk.rz * .85); g.add(lp); }
+  // 岔路口的指示牌（自动判断近路在左边还是右边）
+  { const q = branch.pt[40], d = side[ia].x * (q.x - pt[ia].x) + side[ia].z * (q.z - pt[ia].z), left = d > 0;   // side 指向左边
+    const txt = left ? '⬅ 🌊 近路（过湖）     🚇 隧道 ➡' : '⬅ 🚇 隧道     🌊 近路（过湖）➡';
+    const i = (ia - 40 + N) % N, p = pt[i], sg = sign(txt, 14, 2.2, '#1c7ed6', '#fff', 54); sg.position.set(p.x, p.y + 6, p.z); sg.lookAt(sg.position.clone().sub(tan[i])); g.add(sg);
+    [1, -1].forEach(s => { const pole = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 6, 6), postM); pole.position.set(p.x + side[i].x * s * 6.8, 3, p.z + side[i].z * s * 6.8); g.add(pole); }); }
 
-  // ---------- 隧道：沿着路做一个拱形，外面堆成一座小山，里面一排灯 ----------
-  { const i0 = Math.round(TUNNEL[0] / (Math.PI * 2) * N), i1 = Math.round(TUNNEL[1] / (Math.PI * 2) * N), RT = W / 2 + 2.5, HT = 1.05, SEGS = 16;
-    const pos = [], idx = []; let n = 0;
-    for (let i = i0; i <= i1; i++) { const p = pt[i], sd = side[i];
-      for (let k = 0; k <= SEGS; k++) { const a = k / SEGS * Math.PI; pos.push(p.x + sd.x * Math.cos(a) * RT, p.y + Math.sin(a) * RT * HT, p.z + sd.z * Math.cos(a) * RT); }
-      if (i < i1) for (let k = 0; k < SEGS; k++) { const a0 = n * (SEGS + 1) + k, b0 = a0 + SEGS + 1; idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1); }
-      n++; }
-    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
-    g.add(new THREE.Mesh(geo, M(0x5c4d3c, { side: THREE.DoubleSide, flatShading: true })));
-    // 洞口的石头框
-    [i0, i1].forEach(i => { const p = pt[i], t = tan[i]; const arch = new THREE.Mesh(new THREE.TorusGeometry(RT, .8, 8, 20, Math.PI), M(0x868e96, { flatShading: true })); arch.position.set(p.x, p.y, p.z); arch.lookAt(arch.position.clone().add(t)); arch.scale.y = HT; g.add(arch); });
-    // 山
-    for (let i = i0 + 6; i <= i1 - 6; i += 14) { const p = pt[i]; [-1, 0, 1].forEach(s => { const r = s ? 5 + Math.random() * 2 : 4 + Math.random() * 2; const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), M(s ? 0x6b8f3e : 0x7a6a55, { flatShading: true })); rock.position.set(p.x + side[i].x * s * (RT + 1), p.y + (s ? RT * .55 : RT * HT + r * .35), p.z + side[i].z * s * (RT + 1)); rock.rotation.set(Math.random(), Math.random(), 0); g.add(rock); }); }
-    // 里面的灯
-    for (let i = i0 + 4; i < i1; i += 8) { const p = pt[i]; [-1, 1].forEach(s => { const b = new THREE.Mesh(new THREE.SphereGeometry(.35, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe066 })); b.position.set(p.x + side[i].x * s * (RT - .8), p.y + 4.5, p.z + side[i].z * s * (RT - .5)); g.add(b); }); }
+  // ---------- 隧道里的小汽车（大家看到的一样：按共同的时钟开） ----------
+  const tunRuns = []; runs(main, k => main.tunnel[k], (a, b) => tunRuns.push([a, b]));
+  const [c0, c1] = tunRuns.sort((A, B) => (B[1] - B[0]) - (A[1] - A[0]))[0] || [0, 0], CL = c1 - c0, CAR_V = 9, NCAR = 7;
+  const cars = [];
+  const carColors = [0xe03131, 0x1971c2, 0xf08c00, 0x2f9e44, 0x7048e8, 0xf8f9fa, 0x495057];
+  for (let k = 0; k < NCAR; k++) {
+    const cg = new THREE.Group(); g.add(cg); const C = M(carColors[k], { metalness: .3, roughness: .4 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, .9, 4.4), C); body.position.y = .75; cg.add(body);
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(1.9, .75, 2.2), M(0x1e2a3a, { metalness: .4, roughness: .2 })); cab.position.set(0, 1.55, -.2); cg.add(cab);
+    [[-1, 1.4], [1, 1.4], [-1, -1.4], [1, -1.4]].forEach(([x, z]) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(.42, .42, .3, 12), M(0x111111)); w.rotation.z = Math.PI / 2; w.position.set(x * 1.1, .42, z); cg.add(w); });
+    [-.7, .7].forEach(x => { const h = new THREE.Mesh(new THREE.BoxGeometry(.45, .22, .08), new THREE.MeshBasicMaterial({ color: 0xfff9db })); h.position.set(x, .85, 2.22); cg.add(h);
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(.45, .2, .08), new THREE.MeshBasicMaterial({ color: 0xff2020 })); tl.position.set(x, .85, -2.22); cg.add(tl); });
+    const beam = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: 0xfff3bf, transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false })); beam.position.set(0, .8, 4); beam.scale.set(4, 2, 1); cg.add(beam);
+    cars.push({ g: cg, lat: (k % 2 ? 1 : -1) * 4.3, off: k * CL / NCAR + (k % 2) * 13, pos: new THREE.Vector3(), tan: new THREE.Vector3(), side: new THREE.Vector3() });
   }
+  function placeCars(t) {
+    cars.forEach(c => { const s = ((t * CAR_V + c.off) % CL + CL) % CL, f = c0 + s, i = Math.floor(f), u = f - i, a = pt[i % N], b = pt[(i + 1) % N];
+      c.tan.copy(tan[i % N]); c.side.copy(side[i % N]);
+      c.pos.set(a.x + (b.x - a.x) * u + c.side.x * c.lat, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u + c.side.z * c.lat);
+      c.g.position.copy(c.pos); c.g.rotation.set(0, Math.atan2(c.tan.x, c.tan.z), 0); });
+  }
+
   // ---------- 维修区 + 看台 + 传送门 ----------
-  const pitL = new THREE.Vector3(0, 0, 70);                 // 岛的局部坐标
+  const pitL = new THREE.Vector3(0, 0, 205);
   const pit = new THREE.Group(); pit.position.copy(pitL); g.add(pit);
   const pf = new THREE.Mesh(new THREE.BoxGeometry(16, .25, 9), M(0xced4da)); pf.position.y = .12; pit.add(pf);
   const roof = new THREE.Mesh(new THREE.BoxGeometry(17, .4, 10), M(0xff922b)); roof.position.y = 4.6; pit.add(roof);
   [[-8, -4.4], [8, -4.4], [-8, 4.4], [8, 4.4]].forEach(([x, z]) => { const p = new THREE.Mesh(new THREE.CylinderGeometry(.16, .16, 4.5, 8), M(0xffffff)); p.position.set(x, 2.3, z); pit.add(p); });
-  [-5, 0, 5].forEach((x, i) => { const k = buildKart([0xff6b6b, 0x4dabf7, 0xffd43b][i]); k.group.position.set(x, .25, 0); k.group.rotation.y = Math.PI; pit.add(k.group); });
-  const stand = new THREE.Group(); stand.position.set(-34, 0, 30); stand.rotation.y = .35; g.add(stand);
-  for (let r = 0; r < 5; r++) { const step = new THREE.Mesh(new THREE.BoxGeometry(22, .6, 1.4), M(r % 2 ? 0x74c0fc : 0x4dabf7)); step.position.set(0, .3 + r * .6, -r * 1.4); stand.add(step); }
+  [-5, 0, 5].forEach((x, i) => { const k = buildKart([0xff6b6b, 0x4dabf7, 0xffd43b][i]); k.group.position.set(x, .25, 0); pit.add(k.group); });
+  const stand = new THREE.Group(); stand.position.set(-45, 0, 212); g.add(stand);
+  for (let r = 0; r < 5; r++) { const step = new THREE.Mesh(new THREE.BoxGeometry(26, .6, 1.4), M(r % 2 ? 0x74c0fc : 0x4dabf7)); step.position.set(0, .3 + r * .6, -r * 1.4); stand.add(step); }
   const portal = (lx, lz, color, label) => { const pg = new THREE.Group(); pg.position.set(lx, 0, lz); g.add(pg);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(2.4, .3, 12, 48), M(color, { emissive: color, emissiveIntensity: .8 })); ring.position.y = 2.8; pg.add(ring);
     const disc = new THREE.Mesh(new THREE.CircleGeometry(2.2, 32), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .45, side: THREE.DoubleSide })); disc.position.y = 2.8; pg.add(disc);
@@ -186,26 +224,30 @@ export function buildKartIsland(scene) {
     const lt = (() => { const c = document.createElement('canvas'); c.width = 320; c.height = 64; const x = c.getContext('2d'); x.fillStyle = 'rgba(26,20,70,.85)'; x.beginPath(); x.roundRect(0, 0, 320, 64, 30); x.fill(); x.fillStyle = '#fff'; x.font = 'bold 34px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(label, 160, 34); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
     const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: lt, transparent: true })); lab.position.y = 6.2; lab.scale.set(6, 1.2, 1); pg.add(lab);
     pg.userData.spin = disc; return pg; };
-  const back = portal(22, 82, 0x9775fa, '🎡 回乐园');
-  const arrive = new THREE.Vector3(KI.x + 34, 0, KI.z + 62);    // 从乐园传送过来时站的地方（离回去的门远一点）
-  // 树（避开赛道）
-  const treeM = M(0x2f9e44, { flatShading: true }), trunkM = M(0x8b5a2b);
-  for (let k = 0; k < 260; k++) { const a = Math.random() * Math.PI * 2, d = 20 + Math.random() * (KI.R - 28), x = Math.cos(a) * d, z = Math.sin(a) * d;
-    if (pt.some(p => Math.hypot(p.x - x, p.z - z) < W / 2 + 5) || branch.pt.some(p => Math.hypot(p.x - x, p.z - z) < W / 2 + 4) || ((x - LAKE.x) / (LAKE.rx + 6)) ** 2 + ((z - LAKE.z) / (LAKE.rz + 6)) ** 2 < 1 || Math.hypot(x - pitL.x, z - pitL.z) < 14 || Math.hypot(x - 22, z - 82) < 8 || Math.hypot(x + 34, z - 30) < 16) continue;
-    const t = new THREE.Group(); t.position.set(x, 0, z); g.add(t); const s = .9 + Math.random() * .7;
-    const tr = new THREE.Mesh(new THREE.CylinderGeometry(.25 * s, .35 * s, 2 * s, 6), trunkM); tr.position.y = s; t.add(tr);
-    const cn = new THREE.Mesh(new THREE.ConeGeometry(1.6 * s, 3.6 * s, 7), treeM); cn.position.y = 3.4 * s; t.add(cn); }
+  const BP = [30, 192];
+  const back = portal(BP[0], BP[1], 0x9775fa, '🎡 回乐园');
+  const arrive = new THREE.Vector3(KI.x + 46, 0, KI.z + 178);
+  // 树（避开路、湖、维修区）
+  { const treeM = M(0x2f9e44, { flatShading: true }), trunkM = M(0x8b5a2b), trs = [], cns = [], o = new THREE.Object3D();
+    for (let k = 0; k < 700; k++) { const a = Math.random() * Math.PI * 2, d = 20 + Math.sqrt(Math.random()) * (KI.R - 30), x = Math.cos(a) * d, z = Math.sin(a) * d;
+      if (anyRoad(x, z, W / 2 + 5, (sg, i, q) => q.y > -7 && q.y < 8) || ((x - lk.x) / (lk.rx + 7)) ** 2 + ((z - lk.z) / (lk.rz + 7)) ** 2 < 1 || Math.hypot(x - pitL.x, z - pitL.z) < 18 || Math.hypot(x - BP[0], z - BP[1]) < 10 || Math.hypot(x - 46, z - 178) < 6 || Math.hypot(x + 45, z - 208) < 18) continue;
+      const s = .9 + Math.random() * .7;
+      o.position.set(x, s, z); o.scale.set(s, s, s); o.updateMatrix(); trs.push(o.matrix.clone());
+      o.position.set(x, 3.4 * s, z); o.updateMatrix(); cns.push(o.matrix.clone()); }
+    const ti = new THREE.InstancedMesh(new THREE.CylinderGeometry(.25, .35, 2, 6), trunkM, trs.length); trs.forEach((m, k) => ti.setMatrixAt(k, m)); g.add(ti);
+    const ci = new THREE.InstancedMesh(new THREE.ConeGeometry(1.6, 3.6, 7), treeM, cns.length); cns.forEach((m, k) => ci.setMatrixAt(k, m)); g.add(ci); }
 
-  // ---------- 查询：路面支撑（考虑上下两层 + 岔路 + 湖） ----------
-  const CELL = 10, grid = new Map();
-  segs.forEach((sg, si) => sg.pt.forEach((p, i) => { const key = Math.floor(p.x / CELL) + ',' + Math.floor(p.z / CELL); (grid.get(key) || grid.set(key, []).get(key)).push(si, i); }));
-  function nearby(lx, lz) { const out = [], cx = Math.floor(lx / CELL), cz = Math.floor(lz / CELL); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const l = grid.get((cx + a) + ',' + (cz + b)); if (l) out.push(...l); } return out; }
+  // 走路的时候不能掉进坡道沟：沿着沟放一串圆形障碍
+  const colliders = [];
+  for (let i = 0; i < N; i += 7) if (main.trench[i] || (main.tunnel[i] && (main.trench[(i + 7) % N] || main.trench[(i - 7 + N) % N]))) colliders.push([KI.x + pt[i].x, KI.z + pt[i].z, W / 2 + .5]);
+
+  // ---------- 查询 ----------
   const mainIdx = (sg, i) => Math.round(sg.s[i] * N) % N;
   const api = {
     name: '卡丁车', icon: '🏎️', kind: 'kart', W, N, group: g,
     entry: [KI.x + pitL.x, KI.z + pitL.z + 6], entryR: 7,
-    colliders: [],
-    arrive, backPortal: { pos: [KI.x + 22, KI.z + 82], obj: back },
+    colliders,
+    arrive, backPortal: { pos: [KI.x + BP[0], KI.z + BP[1]], obj: back },
     start: (() => { const i = N - 25, p = pt[i], tt = tan[i]; return { x: KI.x + p.x, z: KI.z + p.z, y: p.y, heading: Math.atan2(tt.x, tt.z), idx: i }; })(),
     onIsland(x, z) { return Math.hypot(x - KI.x, z - KI.z) < KI.R + 4; },
     inWater(x, z) { return inLake(x - KI.x, z - KI.z); },
@@ -226,13 +268,23 @@ export function buildKartIsland(scene) {
       for (let n = 0; n < L.length; n += 2) { const sg = segs[L[n]], i = L[n + 1], p = sg.pt[i]; if (Math.abs(p.y - y) > 2.5) continue; const d = (lx - p.x) ** 2 + (lz - p.z) ** 2; if (d < bd) { bd = d; bs = sg; bi = i; } }
       if (!bs) return null;
       const p = bs.pt[bi], dx = lx - p.x, dz = lz - p.z, isMain = bs === main;
-      return { i: mainIdx(bs, bi), y: p.y, lat: dx * bs.side[bi].x + dz * bs.side[bi].z, side: bs.side[bi], tan: bs.tan[bi], high: p.y > 1, railed: isMain && ((p.y > 1 && !nearGap(bi)) || main.tunnel[bi]), gap: bs.gap[bi], water: bs.water[bi], tunnel: bs.tunnel[bi], branch: !isMain };
+      return { i: mainIdx(bs, bi), y: p.y, lat: dx * bs.side[bi].x + dz * bs.side[bi].z, side: bs.side[bi], tan: bs.tan[bi], high: p.y > 1,
+        railed: isMain && ((p.y > 1 && !nearGap(bi)) || bs.trench[bi] || bs.tunnel[bi]), gap: bs.gap[bi], water: bs.water[bi], tunnel: bs.tunnel[bi], under: bs.tunnel[bi] || bs.trench[bi], branch: !isMain };
+    },
+    // 撞到隧道里的小汽车了吗？
+    hitCar(x, y, z) {
+      const lx = x - KI.x, lz = z - KI.z;
+      for (const c of cars) { if (Math.abs(c.pos.y - y) > 2) continue; const dx = lx - c.pos.x, dz = lz - c.pos.z; if (dx * dx + dz * dz > 25) continue;
+        const lon = dx * c.tan.x + dz * c.tan.z, lat = dx * c.side.x + dz * c.side.z;
+        if (Math.abs(lon) < 3.1 && Math.abs(lat) < 2.1) return { lon, lat, tan: c.tan, side: c.side, speed: CAR_V }; }
+      return null;
     },
     pointAt(i) { const p = pt[((i % N) + N) % N]; return [KI.x + p.x, p.y, KI.z + p.z]; },
     tanAt(i) { return tan[((i % N) + N) % N]; },
     blocks() { return false; },
-    debug: { segs, LAKE, ia, ib, TUNNEL, GAPS },
-    update(dt) { back.userData.spin.rotation.z += dt; },
+    debug: { segs, LAKE: lk, ia, ib, cars, tunnel: [c0, c1] },
+    update(dt) { back.userData.spin.rotation.z += dt; placeCars(Date.now() / 1000); },
   };
+  placeCars(Date.now() / 1000);
   return api;
 }

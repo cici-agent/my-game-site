@@ -203,6 +203,7 @@ function stopKart() {
   if (!kartObj) return;
   scene.remove(kartObj.group); kartObj = null; player.kart = false;
   splashes.splice(0).forEach(m => scene.remove(m));
+  headLight.intensity = 0; if (K.fogT) { K.fogT = false; K.tunnel = false; scene.fog.near = 120; scene.fog.far = 420; }
   const e = world.kart.entry; player.pos.set(e[0] + 1.5, 0, e[1] + 2);
   me.root.rotation.set(0, player.face, 0, 'XYZ'); me.root.visible = true; player.pos.y = 0;
   if (pet) { pet.group.visible = true; petPos.copy(player.pos); }
@@ -216,6 +217,7 @@ function renderKartHud(now) {
   $('kartSpeed').textContent = Math.round(Math.abs(K.speed) * 3.6) + ' km/h';
 }
 const kartSeat = new THREE.Vector3();
+const headLight = new THREE.PointLight(0xfff1c4, 0, 34, 1.4); scene.add(headLight);   // 隧道里的车灯
 function kartRespawn() {
   const k = world.kart, i = K.check ?? k.start.idx, [x, y, z] = k.pointAt(i), tt = k.tanAt(i);
   player.pos.set(x, y + .3, z); K.heading = Math.atan2(tt.x, tt.z); K.speed = 0; K.vy = 0; K.air = false; K.y = y + .3; K.lastS = i / k.N;
@@ -253,8 +255,8 @@ function kartTick(dt, t) {
   // 油门 / 刹车 / 阻力（在空中不能加速）
   if (grounded) {
     const inWater = !!(sup && sup.water);
-    const maxV = inWater ? 10 : onRoad ? 22 : 8;
-    K.speed += thr * (thr * K.speed < 0 ? 24 : thr > 0 ? 12 : 8) * dt;
+    const maxV = inWater ? 9 : onRoad ? 30 : 9;
+    K.speed += thr * (thr * K.speed < 0 ? 26 : thr > 0 ? 15 : 8) * dt;
     K.speed -= K.speed * (inWater ? .9 : onRoad ? .28 : 1.4) * dt;
     if (inWater && Math.abs(K.speed) > 2) kartSplash(dt);
     if (inWater && !K.wet) { K.wet = true; sfx.boom && sfx.boom(.15); toast('🌊 下水啦！水里开得慢一点'); } else if (!inWater) K.wet = false;
@@ -287,7 +289,17 @@ function kartTick(dt, t) {
     const lim = k.W / 2 - .9;
     if (Math.abs(nr.lat) > lim) { const push = Math.abs(nr.lat) - lim; player.pos.x -= nr.side.x * Math.sign(nr.lat) * push; player.pos.z -= nr.side.z * Math.sign(nr.lat) * push; K.speed *= .97; }
   }
-  K.tunnel = !!(nr && nr.tunnel);
+  K.tunnel = !!(nr && nr.tunnel && K.y < -3);
+  // 隧道里的小汽车：撞上会被弹回来
+  K.hitCD = Math.max(0, (K.hitCD || 0) - dt);
+  const hc = k.hitCar && k.hitCar(player.pos.x, K.y, player.pos.z);
+  if (hc) {
+    const fwd = Math.sin(K.heading) * hc.tan.x + Math.cos(K.heading) * hc.tan.z;          // 和小汽车同方向 = 1
+    const push = hc.lon > 0 ? 3.15 - hc.lon : -3.15 - hc.lon;                          // 推到车头 / 车尾外面
+    if (Math.abs(hc.lat) > 1.6) { const pl = (Math.sign(hc.lat) * 2.15 - hc.lat); player.pos.x += hc.side.x * pl; player.pos.z += hc.side.z * pl; }
+    else { player.pos.x += hc.tan.x * push; player.pos.z += hc.tan.z * push; }
+    if (!K.hitCD) { K.hitCD = .8; K.speed = -Math.min(6, Math.abs(K.speed) * .3) - 2; void fwd; sfx.boom && sfx.boom(.5); banner('💥 撞车啦！从旁边超车吧', 1400); }
+  }
   clampIsland(player.pos, 3);
   player.pos.y = K.y; player.face = K.heading;
   // 坡度：用这一帧的高度变化算车头抬起 / 低下
@@ -319,17 +331,19 @@ function kartTick(dt, t) {
   me.root.position.copy(kartSeat).y -= .62; me.root.rotation.set(K.pitch, K.heading, 0, 'YXZ'); me.root.scale.setScalar(1);
   me.rig.shadow.visible = false;
   me.animate(dt, 0, false, true);
-  sfx.engineLevel(.25 + Math.abs(K.speed) / 22 * .9);
+  sfx.engineLevel(.25 + Math.abs(K.speed) / 30 * .9);
   // 追尾视角
   const fx = Math.sin(K.heading), fz = Math.cos(K.heading);
-  const ct = K.tunnel ? [7, 3.2] : [10, 4.6];
+  const ct = K.tunnel ? [8, 3.0] : [11, 4.8];
+  headLight.intensity = K.tunnel ? 60 : 0; headLight.position.set(player.pos.x + Math.sin(K.heading) * 5, player.pos.y + 2.2, player.pos.z + Math.cos(K.heading) * 5);
+  if (K.tunnel !== K.fogT) { K.fogT = K.tunnel; scene.fog.near = K.tunnel ? 2 : 120; scene.fog.far = K.tunnel ? 55 : 420; }
   camPos.set(player.pos.x - fx * ct[0], player.pos.y + ct[1], player.pos.z - fz * ct[0]);
   camera.position.lerp(camPos, Math.min(1, dt * 5));
   camera.lookAt(player.pos.x + fx * 5, player.pos.y + 1.6, player.pos.z + fz * 5);
   if (Math.floor(t * 10) !== K.last) { K.last = Math.floor(t * 10); renderKartHud(t); }
   promptEl.textContent = isTouch ? '点「下车」离开 · 掉下去点「回到赛道」' : '按 E 下车 · 掉下去按 R 回到赛道'; promptEl.classList.add('show');
   $('actBtn').textContent = '下车'; $('actBtn').classList.add('show');
-  myMove = { speed: Math.abs(K.speed) / 22, kart: true };
+  myMove = { speed: Math.abs(K.speed) / 30, kart: true };
 }
 
 function leaveRide() {
@@ -588,7 +602,7 @@ function tick() {
   const now = performance.now(), dt = Math.min((now - last) / 1000, .05); last = now; t += dt;
   world.update(dt, t);
   // 白天 / 晚上、钟楼、烟花秀
-  const DI = dayNight.update(dt, camera.position, inMansion || !!(player.riding && player.riding.dark));
+  const DI = dayNight.update(dt, camera.position, inMansion || !!(player.riding && player.riding.dark) || !!(player.kart && K.tunnel));
   clock.update(DI);
   fireShow && fireShow.update(DI);
   updateDnChip(DI);
