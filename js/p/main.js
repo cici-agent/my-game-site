@@ -121,6 +121,7 @@ function promptText(it) {
   if (it.type === 'shop') return `${it.shop.icon} 按 E 进入${it.shop.name}`;
   if (it.type === 'gate') return '🚀 按 E 起飞离开菜鸟星球';
   if (it.type === 'kart') return '🏎️ 按 E 开卡丁车';
+  if (it.type === 'mansion') return '🏚️ 鬼屋：直接走进去，找到出口（很黑哦）';
   return '';
 }
 function action() {
@@ -146,6 +147,16 @@ function boardRide(rideObj) {
   if (ride.camYaw !== undefined) cam.yaw = ride.camYaw;
   if (ride.camPitch !== undefined) cam.pitch = ride.camPitch;
 }
+// ---------- 鬼屋：进去以后是第一人称、很黑、只有一点点手电光 ----------
+let inMansion = false, stepT = 0;
+const flashLight = new THREE.PointLight(0xffe2b0, 0, 9, 1.6); scene.add(flashLight);
+function setMansion(on) {
+  inMansion = on;
+  me.root.visible = !on; if (pet) pet.group.visible = !on;
+  if (on) { world.mansion.reset(); scene.fog.near = .5; scene.fog.far = 9; cam.pitch = .32; document.body.classList.add('in-mansion'); }
+  else { scene.fog.near = 120; scene.fog.far = 420; flashLight.intensity = 0; document.body.classList.remove('in-mansion'); }
+}
+
 // ---------- 卡丁车 ----------
 let kartObj = null;
 const K = { speed: 0, heading: 0, steer: 0, started: false, lap: 0, lapStart: 0, best: null, lastS: 0, cp: false, last: null };
@@ -497,7 +508,7 @@ function tick() {
   const now = performance.now(), dt = Math.min((now - last) / 1000, .05); last = now; t += dt;
   world.update(dt, t);
   // 白天 / 晚上、钟楼、烟花秀
-  const DI = dayNight.update(dt, camera.position, !!(player.riding && player.riding.dark));
+  const DI = dayNight.update(dt, camera.position, inMansion || !!(player.riding && player.riding.dark));
   clock.update(DI);
   fireShow && fireShow.update(DI);
   updateDnChip(DI);
@@ -527,7 +538,7 @@ function tick() {
   } else {
     if (!me.rig.shadow.visible) me.rig.shadow.visible = true;
     // 不在设施上时，人物一定要看得见、相机一定是正的
-    if (!me.root.visible) me.root.visible = true;
+    if (!me.root.visible && !inMansion) me.root.visible = true;
     if (camera.up.y !== 1) camera.up.set(0, 1, 0);
     // 移动：相对相机方向
     let mx = 0, my = 0;
@@ -537,6 +548,8 @@ function tick() {
       if (keys.KeyA || keys.ArrowLeft) mx -= 1;
       if (keys.KeyD || keys.ArrowRight) mx += 1;
       if (joy.id !== null) { mx = joy.x; my = joy.y; }
+      // 在鬼屋里是第一人称：左右键 / 摇杆左右 = 转身，不是横着走
+      if (inMansion) { cam.yaw -= mx * dt * 2.3; mx = 0; }
     }
     const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
     const mod = abil.step(dt, t, { up: keys.Space, down: keys.ShiftLeft || keys.ShiftRight, jumpHeld: keys.Space, moving: len > .05, fx: INV.equip.fx });
@@ -557,6 +570,8 @@ function tick() {
       player.vy -= GRAV * dt; player.pos.y += player.vy * dt;
       if (player.pos.y <= 0) { player.pos.y = 0; player.vy = 0; player.ground = true; }
     }
+    // 鬼屋的墙
+    if (world.mansion.near(player.pos.x, player.pos.z)) world.mansion.collide(player.pos, .45 * mod.scale);
     // 碰撞：圆形障碍物 + 岛边缘
     world.colliders.forEach(c => {
       if (player.pos.y > 7) return;                       // 飞得够高就越过障碍物
@@ -601,17 +616,31 @@ function tick() {
     const pv = Math.max(cam.pitch, -.12);
     camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(pv), camLook.y + Math.sin(pv) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(pv));
     camPos.y = Math.max(camPos.y, .5);
-    camera.position.lerp(camPos, Math.min(1, dt * 8));
-    camera.lookAt(camLook.x, camLook.y + Math.tan(Math.min(up, 1.0) * 1.25) * cd, camLook.z);
+    const nowIn = world.mansion.inside(player.pos.x, player.pos.z);
+    if (nowIn !== inMansion) setMansion(nowIn);
+    if (inMansion) {
+      // 第一人称：眼睛的位置，往看的方向看（上下拖可以抬头低头一点）
+      const eye = 1.55 * mod.scale, lookDown = THREE.MathUtils.clamp(cam.pitch - .32, -.6, .6);
+      camera.position.set(player.pos.x, player.pos.y + eye, player.pos.z);
+      camera.lookAt(player.pos.x + Math.sin(cam.yaw), player.pos.y + eye - Math.tan(lookDown), player.pos.z + Math.cos(cam.yaw));
+      const res = world.mansion.update(dt, t, player.pos, cam.yaw);
+      flashLight.position.copy(camera.position).add(new THREE.Vector3(Math.sin(cam.yaw) * .6, -.2, Math.cos(cam.yaw) * .6));
+      flashLight.intensity = 4.2 * res.flashlight;
+      // 脚步声
+      if (len > .05 && player.ground) { stepT -= dt * (speed / WALK); if (stepT <= 0) { stepT = .45; sfx.step(); } } else stepT = 0;
+    } else {
+      camera.position.lerp(camPos, Math.min(1, dt * 8));
+      camera.lookAt(camLook.x, camLook.y + Math.tan(Math.min(up, 1.0) * 1.25) * cd, camLook.z);
+    }
 
     near = shopOpen ? null : findNear();
-    if (queued && (!near || near.ride !== queued)) queued = null;          // 走开就取消排队
+    if (queued && (!near || near.ride !== queued)) queued = null;            // 走开就取消排队
     else if (queued && queued.canBoard()) boardRide(queued);
     const txt = isTouch ? promptText(near).replace(/按 E ?/, '点按钮') : promptText(near);
     promptEl.textContent = txt; promptEl.classList.toggle('show', !!txt);
     const act = $('actBtn');
-    act.classList.toggle('show', !!near);
-    if (near) act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : near.type === 'kart' ? '开车' : (near.ride.canBoard && !near.ride.canBoard() ? (queued ? '排队中' : '排队') : '乘坐');
+    act.classList.toggle('show', !!near && near.type !== 'mansion');
+    if (near && near.type !== 'mansion') act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : near.type === 'kart' ? '开车' : near.ride ? (near.ride.canBoard && !near.ride.canBoard() ? (queued ? '排队中' : '排队') : '乘坐') : '';
   }
 
   mp && mp.update(dt, t, player.riding ? { speed: 0, ride: [player.riding.rideIdx, player.riding.seatIndex ?? 0] } : myMove);

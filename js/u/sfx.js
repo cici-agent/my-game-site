@@ -135,3 +135,15 @@ export function boo() {
   o.connect(f); o2.connect(f); f.connect(g); g.connect(master); o.start(t); o2.start(t); o.stop(t + 1); o2.stop(t + 1);
   setTimeout(() => chime([523, 659, 784]), 900);
 }
+
+// 脚步声（鬼屋里唯一的声音）：木地板上闷闷的一下
+let stepAlt = 0;
+export function step() {
+  if (!ensure() || ctx.state !== 'running') return;
+  const t = ctx.currentTime, src = ctx.createBufferSource(); src.buffer = noiseBuffer();
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 380 + (stepAlt ^= 1) * 60;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.32, t + .01); g.gain.exponentialRampToValueAtTime(.001, t + .16);
+  src.connect(f); f.connect(g); g.connect(master); src.start(t, Math.random() * .5); src.stop(t + .2);
+  const o = ctx.createOscillator(), og = ctx.createGain(); o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(55, t + .08);
+  og.gain.setValueAtTime(.12, t); og.gain.exponentialRampToValueAtTime(.001, t + .1); o.connect(og); og.connect(master); o.start(t); o.stop(t + .12);
+}

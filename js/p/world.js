@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { glowTex, canvasTex, rand, swirlTex } from '../u/tex.js';
 import { ferrisWheel, rollerCoaster, carousel, pirateShip } from './rides.js';
 import { kartTrack } from './kart.js';
-import { hauntedHouse } from './haunted.js';
+import { hauntedMansion } from './mansion.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
 export const ISLAND_R = 150;
@@ -77,7 +77,7 @@ function ground(scene) {
     m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(x2 - x1, z2 - z1);
     m.position.set((x1 + x2) / 2, .025, (z1 + z2) / 2); scene.add(m);
   };
-  road(0, 10, 0, 74); road(-40, -6, -62, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6);
+  road(0, 10, 0, 74); road(-40, -6, -62, 2); road(38, -2, 86, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6);
   // 边缘的栏杆
   const postMat = M(0xffffff), railMat = M(0xff9f43);
   for (let k = 0; k < 200; k++) {
@@ -205,7 +205,10 @@ export function buildWorld(scene) {
   const colliders = [], interact = [], updaters = [];
   const skyRefs = sky(scene);
   // 游乐设施
-  const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42), pirateShip(34, 44), hauntedHouse(62, 30, -Math.PI / 2)];
+  const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42), pirateShip(34, 44)];
+  // 鬼屋（大迷宫，自己走进去）：在过山车东边，门朝西
+  const mansion = hauntedMansion(102, 12, -Math.PI / 2); scene.add(mansion.group);
+  interact.push({ type: 'mansion', mansion, pos: mansion.entry, r: mansion.entryR });
   // 卡丁车赛道（摩天轮西边）
   const kart = kartTrack(-104, 6); scene.add(kart.group); colliders.push(...kart.colliders);
   interact.push({ type: 'kart', kart, pos: kart.entry, r: kart.entryR });
@@ -219,10 +222,10 @@ export function buildWorld(scene) {
   const f = fountain(0, 10); scene.add(f.group); colliders.push([0, 10, 5.6]); updaters.push(dt => f.update(dt));
   const gate = arrivalGate(0, 80); scene.add(gate.group); interact.push({ type: 'gate', pos: gate.entry, r: 5 }); updaters.push(dt => gate.update(dt));
   // 树、路灯、花
-  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [34, 44, 14], [62, 30, 15], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
+  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [34, 44, 14], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
   for (let i = 0; i < 170; i++) {
     const a = r() * Math.PI * 2, d = 20 + r() * 122, x = Math.cos(a) * d, z = Math.sin(a) * d;
-    if (kart.blocks(x, z)) continue;
+    if (kart.blocks(x, z) || mansion.near(x, z)) continue;
     if (blocked.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br)) continue;
     if (Math.abs(x) < 4 && z > 10) continue; // 主路
     const s = .8 + r() * .6; scene.add(tree(x, z, s, r() > .6 ? 1 : 0)); colliders.push([x, z, .7 * s]);
@@ -239,5 +242,5 @@ export function buildWorld(scene) {
   const glowMats = [];
   scene.traverse(o => { if (o.isMesh && o.material && o.material.emissive && o.material.emissiveIntensity > 0 && !o.material.userData.night) {
     o.material.userData.night = { day: o.material.emissiveIntensity, night: Math.min(2.2, o.material.emissiveIntensity * 3 + .4) }; glowMats.push(o.material); } });
-  return { colliders, interact, rides, kart, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
+  return { colliders, interact, rides, kart, mansion, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
 }

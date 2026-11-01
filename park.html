@@ -116,6 +116,7 @@
   #kartHud { position: fixed; left: 50%; top: calc(var(--top-h) + 8px); transform: translateX(-50%); z-index: 9; display: none; background: rgba(26,20,70,.85);
     border: 2px solid #ffd43b; border-radius: 16px; color: #fff; padding: 6px 16px; text-align: center; pointer-events: none; }
   #kartHud.show { display: block; }
+  body.in-mansion #ward, body.in-mansion #dnChip, body.in-mansion #fxBar { display: none !important; }
   body.karting #bag, body.karting #bagName, body.karting #ward { display: none !important; }
   #kartHud .kh-lap { font-weight: 900; font-size: 16px; }
   #kartHud .kh-row { display: flex; gap: 14px; font-size: 13px; margin-top: 2px; } #kartHud b { color: #ffd43b; font-variant-numeric: tabular-nums; }
