@@ -47,7 +47,8 @@ setLoad(60);
 let me = buildAvatar('explorer');
 scene.add(me.root);
 const player = { pos: new THREE.Vector3(0, 0, 80), vy: 0, ground: true, face: Math.PI, riding: null };
-world.rides.forEach((r, i) => { if (r.name === '激流勇进') r.onSplash = () => { if (player.riding && player.riding.rideIdx === i) { toast('💦 哗——！全身都湿透啦！'); sfx.whoosh && sfx.whoosh(1, false); } }; });
+world.rides.forEach((r, i) => { if (r.name === '跳楼机') { r.onTop = () => { if (player.riding && player.riding.rideIdx === i) toast('😨 好高啊……要掉下去了吗？'); }; r.onDrop = () => { if (player.riding && player.riding.rideIdx === i) { toast('😱 啊啊啊啊——！'); sfx.whoosh && sfx.whoosh(2.4, false); } }; }
+  if (r.name === '激流勇进') r.onSplash = () => { if (player.riding && player.riding.rideIdx === i) { toast('💦 哗——！全身都湿透啦！'); sfx.whoosh && sfx.whoosh(1, false); } }; });
 // 排队区：所有项目（4 个游乐设施 + 碰碰车）
 const qRides = [...world.rides, world.bumper], BUMPER_Q = qRides.length - 1;
 function getTaken(qi) {
