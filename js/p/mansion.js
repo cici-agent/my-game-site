@@ -72,7 +72,8 @@ export function hauntedMansion(cx, cz, rotY = 0) {
   [-1.9, 1.9].forEach(dx => { const l = add(g, new THREE.SphereGeometry(.18, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff922b }), [ex + dx, 3, D / 2 + .4]); l.userData.nightBulb = 0xff922b; });
   const [xx, xz] = cellC(EXIT[0], EXIT[1]);
   const exitSign = tex(256, 80, (c, w, h) => { c.fillStyle = '#2b8a3e'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = 'bold 46px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🚪 出口', w / 2, h / 2 + 2); });
-  [-1, 1].forEach(s => { const m = add(g, new THREE.PlaneGeometry(2.2, .7), new THREE.MeshBasicMaterial({ map: exitSign }), [xx, WH - .6, -D / 2 + s * .2]); if (s > 0) m.rotation.y = 0; else m.rotation.y = Math.PI; });
+  const noEntry = tex(320, 80, (c, w, h) => { c.fillStyle = '#c92a2a'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = 'bold 40px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('⛔ 出口 · 不能进', w / 2, h / 2 + 2); });
+  [-1, 1].forEach(s => { const m = add(g, new THREE.PlaneGeometry(s > 0 ? 2.2 : 2.8, .7), new THREE.MeshBasicMaterial({ map: s > 0 ? exitSign : noEntry }), [xx, WH - .6, -D / 2 + s * .2]); if (s > 0) m.rotation.y = 0; else m.rotation.y = Math.PI; });
 
   // ---------- 屋里的小装饰：蜡烛、画、蜘蛛网 ----------
   const candleM = new THREE.MeshBasicMaterial({ color: 0xffb347 });
@@ -163,6 +164,7 @@ export function hauntedMansion(cx, cz, rotY = 0) {
   }
   function clearAll() { S_.face.m.visible = false; S_.face.l.intensity = 0; S_.spider.visible = false; S_.behind.visible = false; S_.eyes.visible = false; S_.rush.visible = false; S_.doll.visible = false; flashOff = 0; }
 
+  let lastInside = -1e9; const exitBlock = [xx - S / 2, -D / 2 - .5, xx + S / 2, -D / 2 - .2];
   const api = {
     name: '鬼屋', icon: '🏚️', group: g, kind: 'mansion', walls,
     // 入口外面一点（提示用）
@@ -172,7 +174,11 @@ export function hauntedMansion(cx, cz, rotY = 0) {
     // 把人推出墙外（局部坐标里做长方形碰撞）
     collide(pos, rad) {
       let [lx, lz] = toLocal(pos.x, pos.z);
-      for (const [x0, z0, x1, z1] of walls) {
+      // 出口只能出不能进：从外面走过来时，出口那里当成一堵墙（刚从里面走出来的 2 秒内不挡）
+      const now = performance.now();
+      if (Math.abs(lx) < W / 2 - .05 && Math.abs(lz) < D / 2 - .05) lastInside = now;
+      const list = now - lastInside > 2000 ? walls.concat([exitBlock]) : walls;
+      for (const [x0, z0, x1, z1] of list) {
         const nx = Math.max(x0, Math.min(lx, x1)), nz = Math.max(z0, Math.min(lz, z1)), dx = lx - nx, dz = lz - nz, d2 = dx * dx + dz * dz;
         if (d2 < rad * rad) {
           if (d2 > 1e-8) { const d = Math.sqrt(d2), k = (rad - d) / d; lx += dx * k; lz += dz * k; }
