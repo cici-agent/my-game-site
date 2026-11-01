@@ -150,6 +150,14 @@ function boardRide(rideObj) {
 // ---------- 鬼屋：进去以后是第一人称、很黑、只有一点点手电光 ----------
 let inMansion = false, stepT = 0;
 const flashLight = new THREE.PointLight(0xffe2b0, 0, 9, 1.6); scene.add(flashLight);
+// 紧急退出：直接回到鬼屋门口
+function mansionEscape() {
+  if (!inMansion) return;
+  const e = world.mansion.entry; player.pos.set(e[0], 0, e[1]); player.vy = 0;
+  cam.yaw += Math.PI;                                  // 背对鬼屋站好
+  setMansion(false); toast('🚪 已经回到鬼屋门口啦');
+}
+$('escBtn').onclick = mansionEscape;
 function setMansion(on) {
   inMansion = on;
   me.root.visible = !on; if (pet) pet.group.visible = !on;
