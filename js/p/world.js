@@ -5,6 +5,7 @@ import { ferrisWheel, rollerCoaster, carousel, pirateShip } from './rides.js';
 import { buildKartIsland, KI } from './kartisland.js';
 import { bumperArena } from './bumper.js';
 import { buildStalls } from './stalls.js';
+import { buildTrain } from './train.js';
 import { hauntedMansion } from './mansion.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
@@ -92,7 +93,7 @@ function ground(scene) {
     m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(x2 - x1, z2 - z1);
     m.position.set((x1 + x2) / 2, .025, (z1 + z2) / 2); scene.add(m);
   };
-  road(0, 10, 0, 74); road(-40, -6, -96, 6); road(38, -2, 86, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6); road(-22, 38, -78, 98); road(0, 74, 0, 128, 6); road(-48, 132, 48, 132, 10); road(-78, 98, -114, 106);
+  road(0, 10, 0, 74); road(-40, -6, -96, 6); road(38, -2, 86, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6); road(-22, 38, -78, 98); road(0, 74, 0, 128, 6); road(0, 138, 0, 196, 6); road(0, -66, 0, -196, 6); road(-48, 132, 48, 132, 10); road(-78, 98, -114, 106);
   // 边缘的栏杆
   const postMat = M(0xffffff), railMat = M(0xff9f43);
   { const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(.12, .12, 1.3, 6), postMat, 300), o = new THREE.Object3D();
@@ -296,6 +297,9 @@ export function buildWorld(scene) {
   // 碰碰车场（西南边）
   const bumper = bumperArena(-110, 75); scene.add(bumper.group); colliders.push(...bumper.colliders);
   updaters.push(dt => { bumper.lastHit = bumper.update(dt, bumper.othersFn ? bumper.othersFn() : []); });
+  // 环园小火车
+  const train = buildTrain(scene); colliders.push(...train.colliders); updaters.push(dt => train.update(dt));
+  train.stations.forEach(st => interact.push({ type: 'train', station: st, pos: st.board, r: 3 }));
   // 摆摊一条街（入口拱门南边）
   const stalls = buildStalls(scene, 0, 132); colliders.push(...stalls.colliders); interact.push(...stalls.interact);
   // 商店一排在北边
@@ -313,7 +317,7 @@ export function buildWorld(scene) {
     const a = r() * Math.PI * 2, d = 20 + r() * (ISLAND_R - 28), x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (Math.hypot(x + 100, z - 6) < 6 || mansion.near(x, z)) continue;
     if (blocked.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br)) continue;
-    if (Math.abs(Math.hypot(x, z) - 190) < 9) continue;                 // 小火车的轨道
+    if (Math.abs(Math.hypot(x, z) - 205) < 10) continue;                // 小火车的轨道
     if (Math.abs(x) < 4 && z > 10) continue; // 主路
     const s = .8 + r() * .6; treeList.push([x, z, s, r() > .6 ? 1 : 0]); colliders.push([x, z, .7 * s]);
   }
@@ -363,5 +367,5 @@ export function buildWorld(scene) {
     updaters.push((dt, t) => { const ph = (t || performance.now() / 1000) * 3;
       for (let i = 0; i < pts.length; i++) { const k = .45 + .55 * Math.max(0, Math.sin(i * .5 - ph)); im.setColorAt(i, tc.copy(COLS[i % 5]).multiplyScalar(k)); }
       im.instanceColor.needsUpdate = true; }); }
-  return { colliders, interact, rides, kart, bumper, stalls, mansion, portals, KI, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
+  return { colliders, interact, rides, kart, bumper, stalls, train, mansion, portals, KI, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
 }

@@ -168,6 +168,7 @@ function promptText(it) {
   if (it.type === 'kart') return '🏎️ 按 E 开卡丁车';
   if (it.type === 'bumper') return '🚗 按 E 开碰碰车';
   if (it.type === 'npc') return `💬 按 E 和 ${it.npc.name} 说话`;
+  if (it.type === 'train') { const S = world.train.state; return S.phase === 'dwell' && world.train.stations[S.at] === it.station ? `🚂 按 E 上火车（${Math.ceil(S.left)} 秒后开车）` : `🚂 ${it.station.name} · 火车还有 ${Math.ceil(trainEta(it.station))} 秒到站`; }
   if (it.type === 'stall') return stallsOpen ? `${it.icon} 按 E 玩${it.name}` : `🌙 ${it.name}晚上收摊了，白天再来`;
   if (it.type === 'queue') { const n = it.q.members.length; return `${it.q.ride.icon} 按 E 排队玩${it.q.ride.name}${n ? `（现在有 ${n} 人在排）` : ''}`; }
   if (it.type === 'mansion') return '🏚️ 鬼屋：直接走进去，找到出口（很黑哦）';
@@ -175,6 +176,7 @@ function promptText(it) {
 }
 function action() {
   if (player.stall) { exitStall(); return; }
+  if (player.train) { exitTrain(); return; }
   if (player.riding) { tryLeaveRide(); return; }
   if (player.kart) { stopKart(); return; }
   if (player.bumper) { tryLeaveBumper(); return; }
@@ -185,6 +187,7 @@ function action() {
   if (near.type === 'queue') { if (abil.flying) { toast('先落地再排队哦'); return; } queues.join(near.q.idx, pq); sfx.click(); toast(`${near.q.ride.icon} 排进${near.q.ride.name}的队伍啦，前面还有 ${queues.position(pq)} 人`); return; }
   if (near.type === 'npc') { openChat(near.npc); return; }
   if (near.type === 'stall') { enterStall(near); return; }
+  if (near.type === 'train') { enterTrain(near.station); return; }
   if (near.type === 'ride') {
     if (near.ride.canBoard && !near.ride.canBoard()) { queued = near.ride; return; }   // 排队，回站自动上车
     boardRide(near.ride);
@@ -301,6 +304,69 @@ setTimeout(() => {
   document.querySelectorAll('#npcChat .quick button').forEach(b => b.addEventListener('click', () => sendChat(b.textContent)));
   $('npcInput').addEventListener('keydown', e => { e.stopPropagation(); if (e.code === 'Escape' || (e.code === 'KeyE' && !e.isComposing && !e.target.value)) { e.preventDefault(); closeChat(); } });
 });
+// ---------- 环园小火车：在车厢里可以走来走去 ----------
+function trainEta(st) {             // 还有多少秒到这个站
+  const T = world.train, S = T.state; const target = T.stations.indexOf(st);
+  if (S.phase === 'run') return S.at == null && ((S.stop + 1) % 2) === target ? S.left : S.left + 15 + 75;
+  return S.left + 75 + (S.at === target ? 90 : 0);
+}
+function enterTrain(st) {
+  const T = world.train, S = T.state;
+  if (!(S.phase === 'dwell' && T.stations[S.at] === st)) { toast(`🚂 火车还有 ${Math.ceil(trainEta(st))} 秒到站，等一等`); return; }
+  if (abil.flying) { toast('先落地再上车哦'); return; }
+  // 找离站台最近的那节车厢，从中间的门上去
+  let best = 0, bd = Infinity; for (let k = 0; k < T.NCAR; k++) { const w = T.carToWorld(k, 0, 0); const d = Math.hypot(w.x - player.pos.x, w.z - player.pos.z); if (d < bd) { bd = d; best = k; } }
+  player.train = { k: best, lx: 0, lz: 0, lf: Math.PI / 2, yaw: T.carYaw(best) };
+  if (pet) pet.group.visible = false;
+  sfx.chime([659, 784, 988]); toast('🚂 上车啦！可以在车厢里走来走去，到站按 E 下车');
+}
+function exitTrain() {
+  const T = world.train, S = T.state, P = player.train; if (!P) return;
+  if (S.phase !== 'dwell') { const now = performance.now(); if (now - noLeaveT > 1500) { noLeaveT = now; toast('🚂 火车开着呢，到站才能下车'); } return; }
+  const st = T.stations[S.at]; player.train = null; player.pos.set(st.board[0], 0, st.board[1]);
+  if (pet) { pet.group.visible = true; petPos.copy(player.pos); }
+  toast(`🚂 到${st.name}啦`);
+}
+const trainV = new THREE.Vector3();
+function trainTick(dt, t) {
+  const T = world.train, P = player.train, L = T.CAR_L;
+  // 火车转弯时，镜头跟着一起转
+  const yaw = T.carYaw(P.k); cam.yaw += yaw - P.yaw; P.yaw = yaw;
+  let mx = 0, my = 0;
+  if (keys.KeyW || keys.ArrowUp) my += 1; if (keys.KeyS || keys.ArrowDown) my -= 1;
+  if (keys.KeyA || keys.ArrowLeft) mx -= 1; if (keys.KeyD || keys.ArrowRight) mx += 1;
+  if (joy.id !== null) { mx = joy.x; my = joy.y; }
+  const len = Math.min(1, Math.hypot(mx, my)), speed = 3.2 * len;
+  const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
+  const vx = (fx * my - fz * mx) * speed, vz = (fz * my + fx * mx) * speed;
+  if (len > .05) {
+    // 世界方向 → 车厢自己的方向
+    const c = Math.cos(-yaw), s = Math.sin(-yaw), lvx = vx * c + vz * s, lvz = -vx * s + vz * c;
+    P.lx += lvx * dt; P.lz += lvz * dt;
+    const want = Math.atan2(lvx, lvz); let d = want - P.lf; d = Math.atan2(Math.sin(d), Math.cos(d)); P.lf += d * Math.min(1, dt * 12);
+  }
+  // 车厢里能走的地方：中间的过道；门口（中间）可以走到边上
+  const door = Math.abs(P.lz) < .8;
+  P.lx = THREE.MathUtils.clamp(P.lx, door ? -1.15 : -.42, door ? 1.15 : .42);
+  // 走到车厢头 / 尾：走到下一节车厢（车厢 0 在最前面，挨着车头）
+  if (P.lz > L / 2 - .25) { if (P.k > 0) { P.k--; P.lz -= L + .5; P.lx = THREE.MathUtils.clamp(P.lx, -.42, .42); } else P.lz = L / 2 - .25; }
+  if (P.lz < -L / 2 + .25) { if (P.k < T.NCAR - 1) { P.k++; P.lz += L + .5; P.lx = THREE.MathUtils.clamp(P.lx, -.42, .42); } else P.lz = -L / 2 + .25; }
+  T.carToWorld(P.k, P.lx, P.lz, trainV);
+  player.pos.copy(trainV); player.face = P.lf + T.carYaw(P.k);
+  me.root.position.copy(player.pos); me.root.rotation.set(0, player.face, 0); me.root.visible = true; me.root.scale.setScalar(1);
+  me.rig.shadow.visible = false;
+  me.animate(dt, len, false, false);
+  if (len > .05) { stepT -= dt * .7; if (stepT <= 0) { stepT = .45; sfx.step(); } }
+  // 镜头
+  camLook.set(player.pos.x, player.pos.y + 2, player.pos.z);
+  const cd = Math.min(cam.dist, 8), pv = Math.max(cam.pitch, -.1);
+  camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(pv), camLook.y + Math.sin(pv) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(pv));
+  camera.position.lerp(camPos, Math.min(1, dt * 8)); camera.lookAt(camLook);
+  const S = T.state;
+  promptEl.textContent = S.phase === 'dwell' ? `🚂 ${T.stations[S.at].name} · ${isTouch ? '点按钮' : '按 E'}下车（${Math.ceil(S.left)} 秒后开车）` : `🚂 开往${T.stations[(S.stop + 1) % 2].name}… 还有 ${Math.ceil(S.left)} 秒`;
+  promptEl.classList.add('show'); $('actBtn').textContent = '下车'; $('actBtn').classList.toggle('show', S.phase === 'dwell');
+  myMove = { speed: len };
+}
 // ---------- 摆摊小游戏 ----------
 const stallGame = createStallGame({ scene, camera, stalls: world.stalls, sfx,
   hud(text, charge) { const h = $('stallHud'); if (text == null) { h.classList.remove('show'); return; } h.classList.add('show'); $('stallTxt').textContent = text;
@@ -691,7 +757,7 @@ async function useBagItem(key) {
 }
 const renderProps = () => syncBag();
 async function usePropKey(key) {
-  if (shopOpen || player.riding || player.kart || player.bumper || busy) return;
+  if (shopOpen || player.riding || player.kart || player.bumper || player.train || busy) return;
   const it = findItem(key); const ok = abil.canUse(key);
   if (ok !== true) { toast(ok); return; }
   busy = true;
@@ -775,6 +841,8 @@ function tick() {
       camera.position.lerp(camPos, Math.min(1, dt * 6)); camera.lookAt(seatPos.x, seatPos.y + 1.2, seatPos.z);
     }
     if (player.riding) { promptEl.textContent = '🎢 到站会自动下来'; promptEl.classList.add('show'); $('actBtn').classList.remove('show'); }
+  } else if (player.train) {
+    trainTick(dt, t);
   } else if (player.stall) {
     me.root.visible = false;
     const r = stallGame.update(dt, keys);
@@ -901,7 +969,7 @@ function tick() {
     else { promptEl.textContent = txt; promptEl.classList.toggle('show', !!txt); }
     const act = $('actBtn');
     if (!pq.queue && !pq.boarding) act.classList.toggle('show', !!near && near.type !== 'mansion');
-    if (!pq.queue && !pq.boarding && near && near.type !== 'mansion') act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : near.type === 'kart' ? '开车' : near.type === 'queue' ? '排队' : near.type === 'stall' ? '开始玩' : near.type === 'npc' ? '说话' : '';
+    if (!pq.queue && !pq.boarding && near && near.type !== 'mansion') act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : near.type === 'kart' ? '开车' : near.type === 'queue' ? '排队' : near.type === 'stall' ? '开始玩' : near.type === 'train' ? '上车' : near.type === 'npc' ? '说话' : '';
   }
 
   { const onK = Math.hypot(player.pos.x - world.KI.x, player.pos.z - world.KI.z) < world.KI.R + 60; world.kart.group.visible = onK; }     // 看不见的岛就不画
