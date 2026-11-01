@@ -187,10 +187,9 @@ function fountain(x, z) {
   [-1, 1].forEach(s => { const e = new THREE.Mesh(new THREE.SphereGeometry(.06, 8, 6), M(0x111111)); e.position.set(s * .17, 1.35, .48); chick.add(e); });
   g.add(chick);
   const jetTex = streakTex(); jetTex.repeat.set(2, 1); scroll.push([jetTex, 0, -1.6]);
-  const jet = new THREE.Mesh(new THREE.CylinderGeometry(.09, .16, 1.3, 16, 1, true), waterMat(jetTex, .7)); jet.position.y = B2.y + 1.7 + .65; g.add(jet);
-  const umbPts = []; for (let i = 0; i <= 14; i++) { const u = i / 14; umbPts.push(new THREE.Vector2(.08 + u * 1.45, B2.y + 3.0 + .3 * Math.sin(u * Math.PI * .6) - u * u * 2.6)); }
-  const umbTex = streakTex(); umbTex.repeat.set(8, 1); scroll.push([umbTex, 0, 1.1]);
-  g.add(new THREE.Mesh(new THREE.LatheGeometry(umbPts, 48), waterMat(umbTex, .45)));
+  const jet = new THREE.Mesh(new THREE.CylinderGeometry(.05, .15, 1.5, 16, 1, true), waterMat(jetTex, .75)); jet.position.y = B2.y + 1.55 + .75; g.add(jet);
+  // 水柱顶上一团白白的水花（往上喷，不往下流）
+  const cap = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: 0xe7f5ff, transparent: true, opacity: .75, depthWrite: false })); cap.position.y = B2.y + 3.05; cap.scale.setScalar(.9); g.add(cap);
   // ---------- 水池边 8 道弧形水柱，往中间的大碗喷 ----------
   const arcTex = streakTex(); arcTex.rotation = Math.PI / 2; arcTex.repeat.set(1, 1); scroll.push([arcTex, 0, -1.3]);
   const arcMat = waterMat(arcTex, .7);
@@ -200,7 +199,7 @@ function fountain(x, z) {
     const noz = new THREE.Mesh(new THREE.CylinderGeometry(.12, .16, .25, 10), gold); noz.position.set(ca * (R0 - .6), .82, sa * (R0 - .6)); g.add(noz); }
   // 雾气 / 小水珠：只在水落下的地方飘一点点
   const mistG = new THREE.BufferGeometry(), MN = 120, mp = new Float32Array(MN * 3), mv = [];
-  for (let i = 0; i < MN; i++) { const ring = i % 2 ? B1.r + .7 : (i % 3 ? B2.r + .65 : 0.1); const a = Math.random() * 6.283; mp.set([Math.cos(a) * ring, i % 2 ? .9 : B1.y + .2, Math.sin(a) * ring], i * 3); mv.push({ a, ring, base: i % 2 ? .9 : (ring < .5 ? B2.y + 2.8 : B1.y + .2), t: Math.random() }); }
+  for (let i = 0; i < MN; i++) { const ring = i % 2 ? B1.r + .7 : (i % 3 ? B2.r + .65 : 0.1); const a = Math.random() * 6.283; mp.set([Math.cos(a) * ring, i % 2 ? .9 : B1.y + .2, Math.sin(a) * ring], i * 3); mv.push({ a, ring, base: i % 2 ? .9 : (ring < .5 ? B2.y + 2.95 : B1.y + .2), t: Math.random() }); }
   mistG.setAttribute('position', new THREE.BufferAttribute(mp, 3));
   const mist = new THREE.Points(mistG, new THREE.PointsMaterial({ color: 0xe7f5ff, size: .12, transparent: true, opacity: .7, depthWrite: false }));
   g.add(mist);
@@ -209,7 +208,7 @@ function fountain(x, z) {
     T += dt;
     scroll.forEach(([t, u, v]) => { t.offset.x = (t.offset.x + u * dt) % 1; t.offset.y = (t.offset.y + v * dt) % 1; });
     foam.forEach((f, k) => { const s = 1 + Math.sin(T * 6 + k) * .04; f.scale.set(s, s, 1); f.material.opacity = .35 + .15 * Math.sin(T * 9 + k * 2); });
-    chick.rotation.y += dt * .35;
+    chick.rotation.y += dt * .35; cap.scale.setScalar(.8 + Math.sin(T * 11) * .12 + Math.random() * .08);
     for (let i = 0; i < MN; i++) { const m = mv[i]; m.t = (m.t + dt * 1.4) % 1; const r = m.ring + m.t * .5; mp[i * 3] = Math.cos(m.a) * r; mp[i * 3 + 1] = m.base + Math.sin(m.t * Math.PI) * .45; mp[i * 3 + 2] = Math.sin(m.a) * r; }
     mistG.attributes.position.needsUpdate = true;
   } };
