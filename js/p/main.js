@@ -195,6 +195,7 @@ function startKart() {
 function stopKart() {
   if (!kartObj) return;
   scene.remove(kartObj.group); kartObj = null; player.kart = false;
+  splashes.splice(0).forEach(m => scene.remove(m));
   const e = world.kart.entry; player.pos.set(e[0] + 1.5, 0, e[1] + 2);
   me.root.rotation.set(0, player.face, 0, 'XYZ'); me.root.visible = true; player.pos.y = 0;
   if (pet) { pet.group.visible = true; petPos.copy(player.pos); }
@@ -213,6 +214,23 @@ function kartRespawn() {
   player.pos.set(x, y + .3, z); K.heading = Math.atan2(tt.x, tt.z); K.speed = 0; K.vy = 0; K.air = false; K.y = y + .3; K.lastS = i / k.N;
   banner('↩ 回到赛道', 1200);
 }
+// 水花：车在湖里开的时候往两边溅
+const splashes = [];
+const splashMat = new THREE.MeshBasicMaterial({ color: 0xd0ebff, transparent: true, opacity: .85 });
+const splashGeo = new THREE.SphereGeometry(.14, 6, 4);
+function kartSplash(dt) {
+  const n = Math.min(4, Math.ceil(Math.abs(K.speed) * dt * 6));
+  for (let k = 0; k < n; k++) {
+    const m = new THREE.Mesh(splashGeo, splashMat); const s = Math.random() < .5 ? -1 : 1, back = -1.4;
+    m.position.set(player.pos.x + Math.cos(K.heading) * s * 1.1 + Math.sin(K.heading) * back, -.2, player.pos.z - Math.sin(K.heading) * s * 1.1 + Math.cos(K.heading) * back);
+    m.userData.v = new THREE.Vector3(Math.cos(K.heading) * s * (1.5 + Math.random() * 2), 3 + Math.random() * 3, -Math.sin(K.heading) * s * (1.5 + Math.random() * 2));
+    m.userData.life = .7; scene.add(m); splashes.push(m);
+  }
+}
+function tickSplashes(dt) {
+  for (let k = splashes.length - 1; k >= 0; k--) { const m = splashes[k]; m.userData.life -= dt; m.userData.v.y -= 14 * dt; m.position.addScaledVector(m.userData.v, dt);
+    if (m.userData.life <= 0 || m.position.y < -.4) { scene.remove(m); splashes.splice(k, 1); } }
+}
 function kartTick(dt, t) {
   const k = world.kart;
   let thr = 0, st = 0;
@@ -227,9 +245,12 @@ function kartTick(dt, t) {
   const grounded = !K.air;
   // 油门 / 刹车 / 阻力（在空中不能加速）
   if (grounded) {
-    const maxV = onRoad ? 22 : 8;
+    const inWater = !!(sup && sup.water);
+    const maxV = inWater ? 10 : onRoad ? 22 : 8;
     K.speed += thr * (thr * K.speed < 0 ? 24 : thr > 0 ? 12 : 8) * dt;
-    K.speed -= K.speed * (onRoad ? .28 : 1.4) * dt;
+    K.speed -= K.speed * (inWater ? .9 : onRoad ? .28 : 1.4) * dt;
+    if (inWater && Math.abs(K.speed) > 2) kartSplash(dt);
+    if (inWater && !K.wet) { K.wet = true; sfx.boom && sfx.boom(.15); toast('🌊 下水啦！水里开得慢一点'); } else if (!inWater) K.wet = false;
     if (!thr) K.speed -= Math.sign(K.speed) * Math.min(Math.abs(K.speed), 2.5 * dt);
     if (K.speed > maxV) K.speed += (maxV - K.speed) * Math.min(1, dt * 3);
     K.speed = Math.max(-6, K.speed);
@@ -259,6 +280,7 @@ function kartTick(dt, t) {
     const lim = k.W / 2 - .9;
     if (Math.abs(nr.lat) > lim) { const push = Math.abs(nr.lat) - lim; player.pos.x -= nr.side.x * Math.sign(nr.lat) * push; player.pos.z -= nr.side.z * Math.sign(nr.lat) * push; K.speed *= .97; }
   }
+  K.tunnel = !!(nr && nr.tunnel);
   clampIsland(player.pos, 3);
   player.pos.y = K.y; player.face = K.heading;
   // 坡度：用这一帧的高度变化算车头抬起 / 低下
@@ -293,7 +315,8 @@ function kartTick(dt, t) {
   sfx.engineLevel(.25 + Math.abs(K.speed) / 22 * .9);
   // 追尾视角
   const fx = Math.sin(K.heading), fz = Math.cos(K.heading);
-  camPos.set(player.pos.x - fx * 10, player.pos.y + 4.6, player.pos.z - fz * 10);
+  const ct = K.tunnel ? [7, 3.2] : [10, 4.6];
+  camPos.set(player.pos.x - fx * ct[0], player.pos.y + ct[1], player.pos.z - fz * ct[0]);
   camera.position.lerp(camPos, Math.min(1, dt * 5));
   camera.lookAt(player.pos.x + fx * 5, player.pos.y + 1.6, player.pos.z + fz * 5);
   if (Math.floor(t * 10) !== K.last) { K.last = Math.floor(t * 10); renderKartHud(t); }
@@ -585,6 +608,7 @@ function tick() {
     if (player.riding) { promptEl.textContent = isTouch ? '点「下来」离开' : '按 E 下来'; promptEl.classList.add('show'); $('actBtn').textContent = '下来'; $('actBtn').classList.add('show'); }
   } else if (player.kart) {
     kartTick(dt, t);
+    tickSplashes(dt);
   } else {
     if (!me.rig.shadow.visible) me.rig.shadow.visible = true;
     // 不在设施上时，人物一定要看得见、相机一定是正的
@@ -792,4 +816,4 @@ async function boot() {
   }
 }
 boot();
-window.__park = { K, startKart, stopKart, player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, pressSlot, get bag() { return bag; }, get mp() { return mp; }, get me() { return me; }, get near() { return near; } };
+window.__park = { K, kartTick, renderer, startKart, stopKart, player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, pressSlot, get bag() { return bag; }, get mp() { return mp; }, get me() { return me; }, get near() { return near; } };
