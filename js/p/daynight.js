@@ -82,6 +82,7 @@ export function createDayNight({ scene, hemi, sun, world }) {
   function update(dt, player, dark = false) {
     const I = dayInfo();
     const { night, dusk } = I;
+    sky.skyG.position.set(player.x, 0, player.z);
     // 天空
     mix('top', night, dusk, sky.uniforms.top.value); mix('mid', night, dusk, sky.uniforms.mid.value); mix('bot', night, dusk, sky.uniforms.bot.value);
     if (scene.fog) mix('fog', night, dusk, scene.fog.color);

@@ -74,6 +74,7 @@ addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (e.code === 'KeyE' && !e.repeat) action();
   if (e.code === 'Space' && !e.repeat) abil.onJumpPress();
+  if (e.code === 'KeyR' && !e.repeat && player.kart) kartRespawn();
   const dn = /^Digit([1-9])$/.exec(e.code); if (dn && !e.repeat) pressSlot(+dn[1] - 1);
   if (e.code === 'Escape' && player.riding) leaveRide();
 });
@@ -158,11 +159,21 @@ function mansionEscape() {
   setMansion(false); toast('🚪 已经回到鬼屋门口啦');
 }
 $('escBtn').onclick = mansionEscape;
+setTimeout(() => { const b = $('kartReset'); if (b) b.onclick = () => player.kart && kartRespawn(); });
 function setMansion(on) {
   inMansion = on;
   me.root.visible = !on; if (pet) pet.group.visible = !on;
   if (on) { world.mansion.reset(); scene.fog.near = .5; scene.fog.far = 9; cam.pitch = .32; document.body.classList.add('in-mansion'); }
   else { scene.fog.near = 120; scene.fog.far = 420; flashLight.intensity = 0; document.body.classList.remove('in-mansion'); }
+}
+
+// 在哪个岛上就用哪个岛的边界
+let portalCD = 0;
+function clampIsland(pos, margin) {
+  const KI = world.KI, onK = Math.hypot(pos.x - KI.x, pos.z - KI.z) < KI.R + 20;
+  const cx = onK ? KI.x : 0, cz = onK ? KI.z : 0, maxR = (onK ? KI.R : ISLAND_R) - margin;
+  const dx = pos.x - cx, dz = pos.z - cz, R = Math.hypot(dx, dz);
+  if (R > maxR) { pos.x = cx + dx * maxR / R; pos.z = cz + dz * maxR / R; }
 }
 
 // ---------- 卡丁车 ----------
@@ -173,8 +184,8 @@ function startKart() {
   const k = world.kart;
   kartObj = buildKart(kartColorOf(ME ? ME.user.id : 'me')); scene.add(kartObj.group);
   player.kart = true; player.vy = 0; player.ground = true;
-  player.pos.set(k.start.x, 0, k.start.z); player.face = K.heading = k.start.heading;
-  Object.assign(K, { y: null, pitch: 0, speed: 0, steer: 0, started: false, lap: 0, lastS: k.track(player.pos.x, player.pos.z).s, cp: false, last: null });
+  player.pos.set(k.start.x, k.start.y, k.start.z); player.face = K.heading = k.start.heading;
+  Object.assign(K, { y: k.start.y, vy: 0, air: false, check: k.start.idx, pitch: 0, speed: 0, steer: 0, started: false, lap: 0, lastS: k.start.idx / k.N, cp: false, last: null });
   cam.yaw = K.heading; cam.pitch = .25;
   if (pet) pet.group.visible = false;
   $('kartHud').classList.add('show'); document.body.classList.add('karting'); renderKartHud(0);
@@ -184,7 +195,7 @@ function startKart() {
 function stopKart() {
   if (!kartObj) return;
   scene.remove(kartObj.group); kartObj = null; player.kart = false;
-  const e = world.kart.entry; player.pos.set(e[0] + 1.5, 0, e[1]);
+  const e = world.kart.entry; player.pos.set(e[0] + 1.5, 0, e[1] + 2);
   me.root.rotation.set(0, player.face, 0, 'XYZ'); me.root.visible = true; player.pos.y = 0;
   if (pet) { pet.group.visible = true; petPos.copy(player.pos); }
   $('kartHud').classList.remove('show'); document.body.classList.remove('karting'); sfx.engineLevel(0);
@@ -197,6 +208,11 @@ function renderKartHud(now) {
   $('kartSpeed').textContent = Math.round(Math.abs(K.speed) * 3.6) + ' km/h';
 }
 const kartSeat = new THREE.Vector3();
+function kartRespawn() {
+  const k = world.kart, i = K.check ?? k.start.idx, [x, y, z] = k.pointAt(i), tt = k.tanAt(i);
+  player.pos.set(x, y + .3, z); K.heading = Math.atan2(tt.x, tt.z); K.speed = 0; K.vy = 0; K.air = false; K.y = y + .3; K.lastS = i / k.N;
+  banner('↩ 回到赛道', 1200);
+}
 function kartTick(dt, t) {
   const k = world.kart;
   let thr = 0, st = 0;
@@ -205,59 +221,85 @@ function kartTick(dt, t) {
   if (keys.KeyA || keys.ArrowLeft) st += 1;
   if (keys.KeyD || keys.ArrowRight) st -= 1;
   if (joy.id !== null) { thr = Math.abs(joy.y) > .15 ? joy.y : 0; st = -joy.x; }
-  const T = k.track(player.pos.x, player.pos.z);
-  const onRoad = T.off < k.W / 2 + .3, maxV = onRoad ? 20 : 7;
-  // 坡度：沿车头方向的高度变化。上坡变慢、下坡变快
-  const fwdDot = Math.sin(K.heading) * T.tan.x + Math.cos(K.heading) * T.tan.z;
-  const slope = onRoad ? T.tan.y / Math.max(.2, Math.hypot(T.tan.x, T.tan.z)) * Math.sign(fwdDot || 1) : 0;
-  K.speed -= slope * 9.8 * .7 * dt;
-  K.speed += thr * (thr * K.speed < 0 ? 22 : thr > 0 ? 11 : 8) * dt;       // 反方向按 = 刹车（更快）
-  K.speed -= K.speed * (onRoad ? .3 : 1.4) * dt;                          // 空气阻力 / 草地更慢
-  if (!thr) K.speed -= Math.sign(K.speed) * Math.min(Math.abs(K.speed), 2.5 * dt);
-  if (K.speed > maxV) K.speed += (maxV - K.speed) * Math.min(1, dt * 3);
-  K.speed = Math.max(-5, K.speed);
-  K.steer += (st - K.steer) * Math.min(1, dt * 8);
-  K.heading += K.steer * dt * 2.1 * THREE.MathUtils.clamp(K.speed / 7, -1, 1);
+  const sup = k.support(player.pos.x, K.y + .05, player.pos.z);
+  const onRoad = !!sup && Math.abs(sup.y - K.y) < .6;
+  const onGrass = !onRoad && K.y < .4 && k.onIsland(player.pos.x, player.pos.z);
+  const grounded = !K.air;
+  // 油门 / 刹车 / 阻力（在空中不能加速）
+  if (grounded) {
+    const maxV = onRoad ? 22 : 8;
+    K.speed += thr * (thr * K.speed < 0 ? 24 : thr > 0 ? 12 : 8) * dt;
+    K.speed -= K.speed * (onRoad ? .28 : 1.4) * dt;
+    if (!thr) K.speed -= Math.sign(K.speed) * Math.min(Math.abs(K.speed), 2.5 * dt);
+    if (K.speed > maxV) K.speed += (maxV - K.speed) * Math.min(1, dt * 3);
+    K.speed = Math.max(-6, K.speed);
+    K.steer += (st - K.steer) * Math.min(1, dt * 8);
+    K.heading += K.steer * dt * 2.0 * THREE.MathUtils.clamp(K.speed / 7, -1, 1);
+  } else K.steer *= .95;
+  const ox = player.pos.x, oz = player.pos.z, oy = K.y;
   player.pos.x += Math.sin(K.heading) * K.speed * dt; player.pos.z += Math.cos(K.heading) * K.speed * dt;
-  // 不能开出赛道太远：推回来并减速（高架上有护栏，不能开出路面）
-  const T2 = k.track(player.pos.x, player.pos.z), lim = T2.y > .8 ? k.W / 2 - .6 : k.W / 2 + 3;
-  if (T2.off > lim) { const f = (T2.off - lim) / T2.off; player.pos.x += (T2.cx - player.pos.x) * f; player.pos.z += (T2.cz - player.pos.z) * f; K.speed *= .6; }
-  player.face = K.heading;
-  // 计圈：开过起点线（s 从接近 1 变到接近 0）；中途要经过对面（防止倒着开刷圈）
-  const s = T2.s;
-  if (s > .4 && s < .6) K.cp = true;
-  if (K.lastS > .85 && s < .15) {
-    if (!K.started) { K.started = true; K.lapStart = t; K.cp = false; banner('🏁 开始计时！', 1500); }
-    else if (K.cp) {
-      const lapT = t - K.lapStart, best = K.best == null || lapT < K.best;
-      if (best) K.best = lapT;
-      K.lap++; K.lapStart = t; K.cp = false;
-      banner(`🏁 第 ${K.lap} 圈：${fmtLap(lapT)}${best ? '  ⭐ 最快！' : ''}`, 2500); sfx.chime(best ? [784, 988, 1318, 1568] : [784, 988]);
-    }
+  // 高度：在路面上就贴着路面；路突然没了（断桥 / 跳台尽头）就飞起来
+  const sup2 = k.support(player.pos.x, K.y + .05, player.pos.z);
+  if (!K.air) {
+    const target = sup2 ? sup2.y : (onGrass || (K.y < .4 && k.onIsland(player.pos.x, player.pos.z)) ? 0 : null);
+    if (target === null || K.y - target > .45) { K.air = true; K.vy = Math.max(K.vyGround || 0, target === null ? Math.abs(K.speed) * .2 : 0); }   // 冲出跳台会往上抛一点
+    else { K.y = target; }
   }
-  if (K.lastS < .15 && s > .85) K.cp = false;             // 倒着开过线不算
-  K.lastS = s;
+  if (K.air) {
+    K.vy -= 24 * dt; K.y += K.vy * dt;
+    const land = k.support(player.pos.x, K.y + .3, player.pos.z);
+    const floor = land ? land.y : (k.onIsland(player.pos.x, player.pos.z) ? 0 : -999);
+    if (K.y <= floor) { K.y = floor; K.air = false; K.vy = 0; if (floor > -999) { kartObj.group.position.y = floor; sfx.boom && sfx.boom(.25); } }
+    if (K.y < -25) { kartRespawn(); return; }
+  }
+  K.vyGround = K.air ? 0 : (K.y - oy) / Math.max(dt, 1e-3);
+  // 护栏：高架上不能从侧面开出去（断桥那里没有护栏）
+  const nr = k.nearest(player.pos.x, K.y, player.pos.z);
+  if (nr && nr.railed && !K.air) {
+    const lim = k.W / 2 - .9;
+    if (Math.abs(nr.lat) > lim) { const push = Math.abs(nr.lat) - lim; player.pos.x -= nr.side.x * Math.sign(nr.lat) * push; player.pos.z -= nr.side.z * Math.sign(nr.lat) * push; K.speed *= .97; }
+  }
+  clampIsland(player.pos, 3);
+  player.pos.y = K.y; player.face = K.heading;
+  // 坡度：用这一帧的高度变化算车头抬起 / 低下
+  const moved = Math.hypot(player.pos.x - ox, player.pos.z - oz);
+  const slope = moved > 1e-3 ? (K.y - oy) / moved : 0;
+  if (!K.air && onRoad) K.speed -= THREE.MathUtils.clamp(slope, -.6, .6) * 9.8 * .6 * dt;
+  const wantPitch = -Math.atan(K.air ? K.vy / Math.max(6, Math.abs(K.speed)) : slope);       // 车头朝上 = 负的
+  K.pitch = (K.pitch || 0) + (THREE.MathUtils.clamp(wantPitch, -.5, .5) - (K.pitch || 0)) * Math.min(1, dt * 8);
+  // 计圈 + 检查点（只在路上的时候算）
+  if (nr && !K.air && Math.abs(nr.lat) < k.W / 2 + .5) {
+    const s = nr.i / k.N;
+    if (nr.i % 40 === 0 || K.check == null) K.check = nr.i;
+    if (s > .4 && s < .6) K.cp = true;
+    if (K.lastS > .9 && s < .1) {
+      if (!K.started) { K.started = true; K.lapStart = t; K.cp = false; banner('🏁 开始计时！', 1500); }
+      else if (K.cp) {
+        const lapT = t - K.lapStart, best = K.best == null || lapT < K.best;
+        if (best) K.best = lapT;
+        K.lap++; K.lapStart = t; K.cp = false;
+        banner(`🏁 第 ${K.lap} 圈：${fmtLap(lapT)}${best ? '  ⭐ 最快！' : ''}`, 2500); sfx.chime(best ? [784, 988, 1318, 1568] : [784, 988]);
+      }
+    }
+    if (K.lastS < .1 && s > .9) K.cp = false;
+    K.lastS = s;
+  }
   // 小车和人
-  // 车贴着路面：高度跟路面走，车头跟着坡度抬起 / 低下
-  const roadY = T2.off < k.W / 2 + .5 ? T2.y : 0;
-  K.y = K.y == null ? roadY : K.y + (roadY - K.y) * Math.min(1, dt * 12);
-  player.pos.y = K.y;
-  K.pitch = (K.pitch || 0) + (-Math.atan(slope) - (K.pitch || 0)) * Math.min(1, dt * 8);
   kartObj.group.position.copy(player.pos); kartObj.group.rotation.set(K.pitch, K.heading, 0, 'YXZ'); kartObj.update(dt, K.speed, K.steer);
   kartObj.seat.getWorldPosition(kartSeat);
   me.root.position.copy(kartSeat).y -= .62; me.root.rotation.set(K.pitch, K.heading, 0, 'YXZ'); me.root.scale.setScalar(1);
   me.rig.shadow.visible = false;
   me.animate(dt, 0, false, true);
-  sfx.engineLevel(.25 + Math.abs(K.speed) / 20 * .9);
+  sfx.engineLevel(.25 + Math.abs(K.speed) / 22 * .9);
   // 追尾视角
   const fx = Math.sin(K.heading), fz = Math.cos(K.heading);
   camPos.set(player.pos.x - fx * 10, player.pos.y + 4.6, player.pos.z - fz * 10);
   camera.position.lerp(camPos, Math.min(1, dt * 5));
   camera.lookAt(player.pos.x + fx * 5, player.pos.y + 1.6, player.pos.z + fz * 5);
   if (Math.floor(t * 10) !== K.last) { K.last = Math.floor(t * 10); renderKartHud(t); }
-  promptEl.textContent = isTouch ? '点「下车」离开' : '按 E 下车'; promptEl.classList.add('show');
+  promptEl.textContent = isTouch ? '点「下车」离开 · 掉下去点「回到赛道」' : '按 E 下车 · 掉下去按 R 回到赛道'; promptEl.classList.add('show');
   $('actBtn').textContent = '下车'; $('actBtn').classList.add('show');
-  myMove = { speed: Math.abs(K.speed) / 20, kart: true };
+  myMove = { speed: Math.abs(K.speed) / 22, kart: true };
 }
 
 function leaveRide() {
@@ -600,8 +642,13 @@ function tick() {
       const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
       if (d < min && d > 1e-4) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
     });
-    const R = Math.hypot(player.pos.x, player.pos.z), maxR = ISLAND_R - 2.5 * mod.scale;
-    if (R > maxR) { player.pos.x *= maxR / R; player.pos.z *= maxR / R; }
+    clampIsland(player.pos, 2.5 * mod.scale);
+    // 传送门：走进去就传送（乐园 ⇄ 卡丁车岛）
+    for (const pt of world.portals) if (Math.hypot(player.pos.x - pt.pos[0], player.pos.z - pt.pos[1]) < pt.r && !portalCD) {
+      portalCD = 1.5; $('flash').classList.add('on'); sfx.whoosh(.8, true);
+      setTimeout(() => { player.pos.set(pt.to.x, 0, pt.to.z); player.face = cam.yaw = pt.to.yaw; petPos.copy(player.pos); camera.position.set(pt.to.x - Math.sin(pt.to.yaw) * 10, 6, pt.to.z - Math.cos(pt.to.yaw) * 10); $('flash').classList.remove('on'); banner(pt.label, 2500); }, 300);
+    }
+    if (portalCD > 0) portalCD = Math.max(0, portalCD - dt);
 
     me.root.position.copy(player.pos); me.root.position.y += mod.lift * mod.scale; me.root.rotation.set(0, player.face, 0);
     me.rig.shadow.position.y = (.02 - player.pos.y - mod.lift * mod.scale) / mod.scale; me.rig.shadow.material.opacity = .25 / (1 + player.pos.y * .3);

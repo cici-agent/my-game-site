@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { glowTex, canvasTex, rand, swirlTex } from '../u/tex.js';
 import { ferrisWheel, rollerCoaster, carousel, pirateShip } from './rides.js';
-import { kartTrack } from './kart.js';
+import { buildKartIsland, KI } from './kartisland.js';
 import { hauntedMansion } from './mansion.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
@@ -20,8 +20,9 @@ function sky(scene) {
         #include <colorspace_fragment>
       }`,
   });
+  const skyG = new THREE.Group(); scene.add(skyG);                 // 天空跟着相机走（去卡丁车岛也有天空）
   const dome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), mat); dome.renderOrder = -10;
-  scene.add(dome);
+  skyG.add(dome);
   const N = 1400, pos = new Float32Array(N * 3), r = rand(5);
   for (let i = 0; i < N; i++) {
     const th = r() * Math.PI * 2, ph = r() * Math.PI * .45, R = 560;
@@ -29,14 +30,14 @@ function sky(scene) {
   }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const stars = new THREE.Points(geo, new THREE.PointsMaterial({ size: 3, map: glowTex(), color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, fog: false }));
-  scene.add(stars);
+  skyG.add(stars);
   // 天上能看到其他星球（白天淡一点，晚上清楚）
   const planets = [];
   [['#ff6b35', [-260, 230, -330], 38], ['#ffd23f', [300, 180, -260], 26], ['#8b6bff', [-330, 160, 220], 30], ['#2ec4b6', [280, 260, 300], 22]].forEach(([c, p, s]) => {
     const m = new THREE.Mesh(new THREE.SphereGeometry(s, 24, 16), new THREE.MeshBasicMaterial({ color: c, fog: false, transparent: true }));
-    m.position.set(...p); scene.add(m);
+    m.position.set(...p); skyG.add(m);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: c, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, fog: false, depthWrite: false }));
-    halo.position.copy(m.position); halo.scale.setScalar(s * 3.5); scene.add(halo);
+    halo.position.copy(m.position); halo.scale.setScalar(s * 3.5); skyG.add(halo);
     planets.push({ m, halo });
   });
   // 太阳和月亮
@@ -52,7 +53,19 @@ function sky(scene) {
   moon.add(new THREE.Mesh(new THREE.PlaneGeometry(46, 46), new THREE.MeshBasicMaterial({ map: moonTex, transparent: true, fog: false, depthWrite: false })));
   const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: 0xc5d6ff, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, fog: false, depthWrite: false }));
   moonGlow.scale.setScalar(110); moon.add(moonGlow); scene.add(moon);
-  return { dome, uniforms, stars, planets, sun, moon };
+  return { skyG, dome, uniforms, stars, planets, sun, moon };
+}
+
+// 传送门（走进去就传送）
+function portalGate(scene, x, z, color, label) {
+  const pg = new THREE.Group(); pg.position.set(x, 0, z); scene.add(pg);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.4, .3, 12, 48), M(color, { emissive: color, emissiveIntensity: .8 })); ring.position.y = 2.8; pg.add(ring);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(2.2, 32), new THREE.MeshBasicMaterial({ map: swirlTex(), color, transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false })); disc.position.y = 2.8; pg.add(disc);
+  const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color, transparent: true, opacity: .6, blending: THREE.AdditiveBlending, depthWrite: false })); gl.position.y = 2.8; gl.scale.setScalar(8); pg.add(gl);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3, .4, 24), M(0xb0b8d0)); base.position.y = .2; pg.add(base);
+  const lt = canvasTex(360, 64, (c, w, h) => { c.fillStyle = 'rgba(26,20,70,.88)'; c.beginPath(); c.roundRect(0, 0, w, h, 30); c.fill(); c.fillStyle = '#fff'; c.font = 'bold 34px "PingFang SC","Microsoft YaHei",sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, w / 2, h / 2 + 2); });
+  const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: lt, transparent: true })); lab.position.y = 6.3; lab.scale.set(6.6, 1.2, 1); pg.add(lab);
+  pg.userData.spin = disc; return pg;
 }
 
 function ground(scene) {
@@ -77,7 +90,7 @@ function ground(scene) {
     m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(x2 - x1, z2 - z1);
     m.position.set((x1 + x2) / 2, .025, (z1 + z2) / 2); scene.add(m);
   };
-  road(0, 10, 0, 74); road(-40, -6, -62, 2); road(38, -2, 86, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6);
+  road(0, 10, 0, 74); road(-40, -6, -96, 6); road(38, -2, 86, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6);
   // 边缘的栏杆
   const postMat = M(0xffffff), railMat = M(0xff9f43);
   for (let k = 0; k < 200; k++) {
@@ -205,13 +218,20 @@ export function buildWorld(scene) {
   const colliders = [], interact = [], updaters = [];
   const skyRefs = sky(scene);
   // 游乐设施
-  const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42), pirateShip(34, 44)];
+  const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42), pirateShip(40, 50)];
   // 鬼屋（大迷宫，自己走进去）：在过山车东边，门朝西
   const mansion = hauntedMansion(102, 12, -Math.PI / 2); scene.add(mansion.group);
   interact.push({ type: 'mansion', mansion, pos: mansion.entry, r: mansion.entryR });
-  // 卡丁车赛道（摩天轮西边）
-  const kart = kartTrack(-104, 6); scene.add(kart.group); colliders.push(...kart.colliders);
+  // 卡丁车岛（单独一座大岛，离这里很远）+ 两边的传送门
+  const kart = buildKartIsland(scene); colliders.push(...kart.colliders);
   interact.push({ type: 'kart', kart, pos: kart.entry, r: kart.entryR });
+  const toKart = portalGate(scene, -100, 6, 0xff922b, '🏎️ 去卡丁车岛');
+  updaters.push(dt => toKart.userData.spin.rotation.z += dt);
+  const portals = [
+    { pos: [-100, 6], r: 2.6, to: { x: kart.arrive.x, z: kart.arrive.z, yaw: -Math.PI / 2 }, label: '🏎️ 欢迎来到卡丁车岛！' },
+    { pos: kart.backPortal.pos, r: 2.6, to: { x: -96, z: 6, yaw: Math.PI / 2 }, label: '🎡 回到菜鸟星球乐园' },
+  ];
+  updaters.push(dt => kart.update(dt));
   rides.forEach(r => { scene.add(r.group); colliders.push(...r.colliders); interact.push({ type: 'ride', ride: r, pos: r.entry, r: r.entryR }); updaters.push((dt, t) => r.update(dt, t)); });
   // 商店一排在北边
   const shopPos = [[-24, -62, 0], [0, -66, 0], [24, -62, 0]];
@@ -222,10 +242,10 @@ export function buildWorld(scene) {
   const f = fountain(0, 10); scene.add(f.group); colliders.push([0, 10, 5.6]); updaters.push(dt => f.update(dt));
   const gate = arrivalGate(0, 80); scene.add(gate.group); interact.push({ type: 'gate', pos: gate.entry, r: 5 }); updaters.push(dt => gate.update(dt));
   // 树、路灯、花
-  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [34, 44, 14], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
+  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [40, 50, 20], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
   for (let i = 0; i < 170; i++) {
     const a = r() * Math.PI * 2, d = 20 + r() * 122, x = Math.cos(a) * d, z = Math.sin(a) * d;
-    if (kart.blocks(x, z) || mansion.near(x, z)) continue;
+    if (Math.hypot(x + 100, z - 6) < 6 || mansion.near(x, z)) continue;
     if (blocked.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br)) continue;
     if (Math.abs(x) < 4 && z > 10) continue; // 主路
     const s = .8 + r() * .6; scene.add(tree(x, z, s, r() > .6 ? 1 : 0)); colliders.push([x, z, .7 * s]);
@@ -242,5 +262,5 @@ export function buildWorld(scene) {
   const glowMats = [];
   scene.traverse(o => { if (o.isMesh && o.material && o.material.emissive && o.material.emissiveIntensity > 0 && !o.material.userData.night) {
     o.material.userData.night = { day: o.material.emissiveIntensity, night: Math.min(2.2, o.material.emissiveIntensity * 3 + .4) }; glowMats.push(o.material); } });
-  return { colliders, interact, rides, kart, mansion, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
+  return { colliders, interact, rides, kart, mansion, portals, KI, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
 }

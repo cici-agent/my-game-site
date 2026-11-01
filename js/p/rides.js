@@ -258,8 +258,9 @@ export function carousel(x, z) {
 // ---------------- 海盗船 ----------------
 // 大家共用同一个时钟：上船 8 秒 → 摆 26 秒（越摆越高再慢慢停下）→ 再上船……
 export function pirateShip(cx, cz) {
-  const g = new THREE.Group(); g.position.set(cx, 0, cz);
-  const AXLE = 14, ARM = 9, BOARD = 8, SWING = 26, PERIOD = 4.2, CYCLE = BOARD + SWING, AMAX = 1.05;
+  const SC = 1.45;                                   // 整个放大
+  const g = new THREE.Group(); g.position.set(cx, 0, cz); g.scale.setScalar(SC);
+  const AXLE = 14, ARM = 9, BOARD = 8, SWING = 26, PERIOD = 4.8, CYCLE = BOARD + SWING, AMAX = 1.38;   // 荡得更高（最高约 80°）
   const white = M(0xffffff, { metalness: .3 }), gold = M(0xffd23f, { metalness: .5, roughness: .3 });
   // 两个 A 字形支架 + 横轴
   [-3.4, 3.4].forEach(zz => [-1, 1].forEach(s => {
@@ -336,8 +337,8 @@ export function pirateShip(cx, cz) {
   let theta = 0, phase = 'board', boardLeft = BOARD, cycleN = 0;
   return {
     name: '海盗船', icon: '🏴‍☠️', group: g, seats,
-    entry: [cx, cz + 7.2], entryR: 4.5,
-    colliders: [{ box: [cx, cz, 9.2, 3.6, 0] }, { box: [cx, cz + 5.2, 5, 1.1, 0] }],
+    entry: [cx, cz + 7.2 * SC], entryR: 5,
+    colliders: [{ box: [cx, cz, 9.2 * SC, 3.6 * SC, 0] }, { box: [cx, cz + 5.2 * SC, 5 * SC, 1.1 * SC, 0] }],
     update() {
       const now = rideClock(), c = now % CYCLE;
       cycleN = Math.floor(now / CYCLE);
@@ -357,7 +358,7 @@ export function pirateShip(cx, cz) {
     board(taken = []) {
       let k = 0; while (taken.includes(k) && k < seats.length - 1) k++;
       const start = cycleN;
-      return { seat: seats[k], seatIndex: k, view: 'follow', camDist: 22, camYaw: Math.PI, camPitch: .15, exitPos: this.entry,
+      return { seat: seats[k], seatIndex: k, view: 'follow', camDist: 30, camYaw: Math.PI, camPitch: .15, exitPos: this.entry,
         done: () => cycleN > start && phase === 'board' };
     },
   };

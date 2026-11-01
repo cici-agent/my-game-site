@@ -113,9 +113,10 @@
   #timeTest h6 { color: #fff; font-size: 12px; margin: 6px 2px 2px; } #timeTest h6.all { margin-top: 12px; color: #ffd43b; }
   #timeTest .tt-body button.all { background: rgba(255,210,63,.25); }
   #timeTest .tt-body { max-height: calc(100vh - 160px); overflow-y: auto; }
-  #kartHud { position: fixed; left: 50%; top: calc(var(--top-h) + 8px); transform: translateX(-50%); z-index: 9; display: none; background: rgba(26,20,70,.85);
+  #kartHud { position: fixed; left: 50%; top: calc(var(--top-h) + 8px); transform: translateX(-50%); z-index: 12; display: none; background: rgba(26,20,70,.85);
     border: 2px solid #ffd43b; border-radius: 16px; color: #fff; padding: 6px 16px; text-align: center; pointer-events: none; }
   #kartHud.show { display: block; }
+  #kartHud button { pointer-events: auto; margin-top: 4px; border: 0; background: #ff922b; color: #fff; font: 800 12px inherit; font-family: inherit; padding: 4px 12px; border-radius: 999px; cursor: pointer; }
   #escBtn { position: fixed; right: 16px; top: calc(var(--top-h) + 8px); z-index: 12; display: none; border: 2px solid #ffc9c9; background: #c92a2a; color: #fff;
     font: 900 15px inherit; font-family: inherit; padding: 9px 16px; border-radius: 999px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.5); }
   body.in-mansion #escBtn { display: block; }
@@ -159,7 +160,7 @@
 <div id="toast"></div>
 <div id="dnChip"></div>
 <button id="escBtn">🚪 紧急退出</button>
-<div id="kartHud"><div class="kh-lap" id="kartLap"></div><div class="kh-row"><span>⏱ <b id="kartTime">--</b></span><span>⭐ 最快 <b id="kartBest">--</b></span><span>🏎️ <b id="kartSpeed">0</b></span></div></div>
+<div id="kartHud"><div class="kh-lap" id="kartLap"></div><div class="kh-row"><span>⏱ <b id="kartTime">--</b></span><span>⭐ 最快 <b id="kartBest">--</b></span><span>🏎️ <b id="kartSpeed">0</b></span></div><button id="kartReset">↩ 回到赛道</button></div>
 <div id="timeTest"></div>
 <div id="dnBanner"></div>
 <div class="dock" id="dock"></div>
