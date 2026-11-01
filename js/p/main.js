@@ -75,6 +75,7 @@ const keys = {};
 let cam = { yaw: Math.PI, pitch: .32, dist: 11 };   // yaw=π：相机在玩家南边看向北
 addEventListener('keydown', e => {
   sfx.unlock();
+  if (chatNpc) { if (e.code === 'Escape') closeChat(); return; }
   if (shopOpen) { if (e.code === 'Escape') closeShop(); return; }
   keys[e.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
@@ -120,6 +121,7 @@ const promptEl = $('prompt');
 function findNear() {
   let best = null, bd = Infinity;
   world.interact.forEach(it => { const d = Math.hypot(player.pos.x - it.pos[0], player.pos.z - it.pos[1]); if (d < it.r && d < bd) { bd = d; best = it; } });
+  if (!best && npcs && !player.riding && !player.kart && !player.bumper) { const n = npcs.near(player.pos.x, player.pos.z); if (n) best = { type: 'npc', npc: n }; }
   return best;
 }
 function promptText(it) {
@@ -129,6 +131,7 @@ function promptText(it) {
   if (it.type === 'gate') return '🚀 按 E 起飞离开菜鸟星球';
   if (it.type === 'kart') return '🏎️ 按 E 开卡丁车';
   if (it.type === 'bumper') return '🚗 按 E 开碰碰车';
+  if (it.type === 'npc') return `💬 按 E 和 ${it.npc.name} 说话`;
   if (it.type === 'mansion') return '🏚️ 鬼屋：直接走进去，找到出口（很黑哦）';
   return '';
 }
@@ -139,6 +142,7 @@ function action() {
   if (!near) return;
   if (near.type === 'kart') { startKart(); return; }
   if (near.type === 'bumper') { startBumper(); return; }
+  if (near.type === 'npc') { openChat(near.npc); return; }
   if (near.type === 'ride') {
     if (near.ride.canBoard && !near.ride.canBoard()) { queued = near.ride; return; }   // 排队，回站自动上车
     boardRide(near.ride);
@@ -232,6 +236,27 @@ function kartRespawn() {
   player.pos.set(x, y + .3, z); K.heading = Math.atan2(tt.x, tt.z); K.speed = 0; K.vy = 0; K.air = false; K.y = y + .3; K.lastS = i / k.N;
   banner('↩ 回到赛道', 1200);
 }
+// ---------- 和 NPC 聊天 ----------
+let chatNpc = null;
+function chatLine(who, text) { const d = document.createElement('div'); d.className = 'm ' + who; d.textContent = text; const log = $('npcLog'); log.appendChild(d); log.scrollTop = log.scrollHeight; }
+function openChat(n) {
+  chatNpc = n; Object.keys(keys).forEach(k => keys[k] = false);
+  $('npcName').textContent = `💬 ${n.name}`; $('npcLog').innerHTML = '';
+  chatLine('npc', npcs.startChat(n));
+  $('npcChat').classList.add('show'); if (!isTouch) setTimeout(() => $('npcInput').focus(), 30);
+}
+function closeChat() { if (!chatNpc) return; npcs.endChat(chatNpc); chatNpc = null; $('npcChat').classList.remove('show'); $('npcInput').blur(); }
+function sendChat(text) {
+  if (!chatNpc || !text.trim()) return;
+  chatLine('me', text.trim());
+  const n = chatNpc; setTimeout(() => { if (chatNpc === n) chatLine('npc', npcs.talk(n, text)); else npcs.talk(n, text); sfx.click && sfx.click(); }, 350 + Math.random() * 400);
+}
+setTimeout(() => {
+  $('npcForm').addEventListener('submit', e => { e.preventDefault(); const i = $('npcInput'); sendChat(i.value); i.value = ''; });
+  $('npcClose').addEventListener('click', closeChat);
+  document.querySelectorAll('#npcChat .quick button').forEach(b => b.addEventListener('click', () => sendChat(b.textContent)));
+  $('npcInput').addEventListener('keydown', e => { e.stopPropagation(); if (e.code === 'Escape') closeChat(); });
+});
 // ---------- 碰碰车 ----------
 function startBumper() {
   if (abil.flying) { toast('先落地再开碰碰车哦'); return; }
@@ -804,6 +829,7 @@ function tick() {
   }
 
   npcs && npcs.update(dt);
+  if (chatNpc && chatNpc.pos.distanceTo(player.pos) > 9) closeChat();
   mp && mp.update(dt, t, player.riding ? { speed: 0, ride: [player.riding.rideIdx, player.riding.seatIndex ?? 0] } : myMove);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);

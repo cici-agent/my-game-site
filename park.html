@@ -136,6 +136,24 @@
     .item .ic { font-size: 36px; } .shop-head .note { display: none; }
     #prompt { font-size: 14px; }
   }
+  /* NPC 聊天 */
+  .npc-bubble { position: fixed; left: 0; top: 0; max-width: 220px; background: #fff; color: #1a1446; font-weight: 700; font-size: 13px; line-height: 1.35; padding: 7px 11px; border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25); pointer-events: none; opacity: 0; transition: opacity .2s; z-index: 6; white-space: normal; }
+  .npc-bubble::after { content: ''; position: absolute; left: 50%; bottom: -7px; margin-left: -7px; border: 7px solid transparent; border-bottom: 0; border-top-color: #fff; }
+  #npcChat { position: fixed; right: 16px; bottom: calc(var(--dock-h) + 24px); width: min(340px, calc(100vw - 32px)); z-index: 30; display: none; flex-direction: column;
+    background: rgba(26,20,70,.94); border: 2px solid #ffd23f; border-radius: 18px; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.4); overflow: hidden; }
+  #npcChat.show { display: flex; }
+  #npcChat .hd { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-weight: 800; background: rgba(255,210,63,.15); }
+  #npcChat .hd button { background: none; border: 0; color: #fff; font-size: 20px; cursor: pointer; }
+  #npcLog { max-height: 220px; min-height: 90px; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  #npcLog .m { max-width: 85%; padding: 6px 10px; border-radius: 12px; line-height: 1.4; }
+  #npcLog .npc { align-self: flex-start; background: #fff; color: #1a1446; }
+  #npcLog .me { align-self: flex-end; background: #ffd23f; color: #1a1446; }
+  #npcChat form { display: flex; gap: 6px; padding: 10px; border-top: 1px solid rgba(255,255,255,.12); }
+  #npcChat input { flex: 1; min-width: 0; border-radius: 12px; border: 0; padding: 9px 11px; font-size: 15px; }
+  #npcChat form button { border: 0; border-radius: 12px; background: #ffd23f; color: #1a1446; font-weight: 800; padding: 0 14px; cursor: pointer; }
+  #npcChat .quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 10px; }
+  #npcChat .quick button { border: 0; border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; font-size: 12px; padding: 5px 10px; cursor: pointer; }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
@@ -152,6 +170,10 @@
 <div class="hint" id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 数字键选背包格子、再按一次使用 · 拖动屏幕转视角（往上拖可以抬头看天）· 走到设施和商店门口按 E</div>
 
 <div id="prompt"></div>
+<div id="npcChat"><div class="hd"><span id="npcName">💬</span><button id="npcClose" title="关闭">×</button></div>
+  <div id="npcLog"></div>
+  <div class="quick"><button>你好</button><button>你在干嘛？</button><button>推荐玩什么？</button><button>烟花秀什么时候？</button><button>一起玩吧</button><button>讲个笑话</button></div>
+  <form id="npcForm"><input id="npcInput" maxlength="60" placeholder="跟 TA 说点什么…" autocomplete="off"><button>发送</button></form></div>
 <div id="bag"></div>
 <div id="ward"></div>
 <div id="bagName"></div>
