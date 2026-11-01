@@ -129,28 +129,88 @@ function lamp(x, z) {
 }
 
 function fountain(x, z) {
+  // 三层喷泉：水从上面的碗边像帘子一样一圈流下来，落到下面一层，最后流进大水池；水池边还有 8 道弧形水柱往中间喷
   const g = new THREE.Group(); g.position.set(x, 0, z);
-  const pool = new THREE.Mesh(new THREE.CylinderGeometry(5, 5.4, .8, 32), M(0xe9ecef)); pool.position.y = .4; g.add(pool);
-  const water = new THREE.Mesh(new THREE.CircleGeometry(4.6, 32), M(0x4dabf7, { roughness: .1, metalness: .2, transparent: true, opacity: .85 }));
-  water.rotation.x = -Math.PI / 2; water.position.y = .75; g.add(water);
-  const col = new THREE.Mesh(new THREE.CylinderGeometry(.5, .7, 2.4, 12), M(0xe9ecef)); col.position.y = 1.4; g.add(col);
-  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(1.8, .6, .6, 20), M(0xe9ecef)); bowl.position.y = 2.7; g.add(bowl);
-  // 小黄鸡雕像
-  const chick = new THREE.Group(); chick.position.y = 3.6;
-  const cb = new THREE.Mesh(new THREE.SphereGeometry(.8, 16, 12), M(0xffd23f)); chick.add(cb);
-  const ch = new THREE.Mesh(new THREE.SphereGeometry(.55, 16, 12), M(0xffd23f)); ch.position.set(0, .95, .15); chick.add(ch);
-  const beak = new THREE.Mesh(new THREE.ConeGeometry(.15, .35, 8), M(0xff8c00)); beak.rotation.x = Math.PI / 2; beak.position.set(0, .9, .7); chick.add(beak);
-  [-1, 1].forEach(s => { const e = new THREE.Mesh(new THREE.SphereGeometry(.08, 8, 6), M(0x111111)); e.position.set(s * .22, 1.08, .6); chick.add(e); });
+  const stone = M(0xf1ece2, { roughness: .55 }), stone2 = M(0xd9cfbf, { roughness: .6 }), gold = M(0xffc94d, { metalness: .5, roughness: .3 });
+  // 水的纹理：一条条竖着的亮线（往下流）
+  const streakTex = () => { const c = document.createElement('canvas'); c.width = 128; c.height = 256; const x = c.getContext('2d');
+    x.fillStyle = 'rgba(160,215,255,.7)'; x.fillRect(0, 0, 128, 256);
+    for (let i = 0; i < 70; i++) { const px = Math.random() * 128, w = 1 + Math.random() * 3, y0 = Math.random() * 256, len = 40 + Math.random() * 160;
+      const gr = x.createLinearGradient(0, y0, 0, y0 + len); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, `rgba(255,255,255,${.35 + Math.random() * .5})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = gr; x.fillRect(px, y0, w, len); x.fillRect(px, y0 - 256, w, len); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; };
+  const rippleTex = () => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
+    const gr = x.createRadialGradient(128, 128, 10, 128, 128, 128); gr.addColorStop(0, '#5fb8f5'); gr.addColorStop(1, '#2f8fd8'); x.fillStyle = gr; x.fillRect(0, 0, 256, 256);
+    x.strokeStyle = 'rgba(255,255,255,.28)'; for (let i = 0; i < 40; i++) { x.lineWidth = 1 + Math.random() * 2; x.beginPath(); const px = Math.random() * 256, py = Math.random() * 256; x.ellipse(px, py, 10 + Math.random() * 25, 3 + Math.random() * 5, 0, 0, Math.PI * 2); x.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; };
+  const waterMat = (tex, o = .78) => new THREE.MeshStandardMaterial({ map: tex, transparent: true, opacity: o, roughness: .05, metalness: .1, side: THREE.DoubleSide, depthWrite: false });
+  const scroll = [];                                     // 要动起来的纹理 [tex, 速度u, 速度v]
+  // ---------- 大水池 ----------
+  const R0 = 6.6;
+  const rimPts = [new THREE.Vector2(R0 - .5, 0), new THREE.Vector2(R0 + .35, 0), new THREE.Vector2(R0 + .35, .7), new THREE.Vector2(R0 + .55, .85), new THREE.Vector2(R0 + .3, 1.0), new THREE.Vector2(R0 - .35, 1.0), new THREE.Vector2(R0 - .35, .2)];
+  g.add(new THREE.Mesh(new THREE.LatheGeometry(rimPts, 64), stone));
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(R0 - .3, 64), M(0x3b7fb8)); floor.rotation.x = -Math.PI / 2; floor.position.y = .08; g.add(floor);
+  // 池底的马赛克花纹
+  for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, t = new THREE.Mesh(new THREE.CircleGeometry(.35, 6), M(k % 2 ? 0xffd43b : 0xffffff)); t.rotation.x = -Math.PI / 2; t.position.set(Math.cos(a) * 4.6, .1, Math.sin(a) * 4.6); g.add(t); }
+  const poolTex = rippleTex(); poolTex.repeat.set(2, 2); scroll.push([poolTex, .02, .015]);
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(R0 - .3, 64), waterMat(poolTex, .72)); pool.rotation.x = -Math.PI / 2; pool.position.y = .72; g.add(pool);
+  // 水池边的小彩灯（晚上亮）
+  for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2, b = new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), new THREE.MeshBasicMaterial({ color: 0xd9d4c8 }));
+    b.position.set(Math.cos(a) * (R0 - .4), .82, Math.sin(a) * (R0 - .4)); b.userData.nightBulb = [0x4dabf7, 0x63e6be, 0xda77f2, 0xffd43b][k % 4]; g.add(b); }
+  // ---------- 中间的柱子和两层碗 ----------
+  const bowl = (r, y, depth) => { const pts = [new THREE.Vector2(.5, y - depth), new THREE.Vector2(r * .55, y - depth * .7), new THREE.Vector2(r * .9, y - depth * .25), new THREE.Vector2(r, y), new THREE.Vector2(r + .12, y + .1), new THREE.Vector2(r - .12, y + .14), new THREE.Vector2(r * .9, y - depth * .1), new THREE.Vector2(.4, y - depth * .55)];
+    g.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 48), stone));
+    const wt = rippleTex(); wt.repeat.set(1, 1); scroll.push([wt, .03, .02]);
+    const w = new THREE.Mesh(new THREE.CircleGeometry(r - .1, 48), waterMat(wt, .8)); w.rotation.x = -Math.PI / 2; w.position.y = y + .06; g.add(w); };
+  const colPts = [[1.1, 0], [1.1, .3], [.75, .45], [.55, .9], [.65, 1.2], [.45, 1.5], [.45, 2.6], [.6, 2.8], [.38, 3.0], [.38, 4.1], [.5, 4.3], [0, 4.4]].map(([a, b]) => new THREE.Vector2(a, b));
+  g.add(new THREE.Mesh(new THREE.LatheGeometry(colPts, 32), stone2));
+  const B1 = { r: 3.4, y: 2.75 }, B2 = { r: 1.9, y: 4.35 };
+  bowl(B1.r, B1.y, .7); bowl(B2.r, B2.y, .5);
+  // 碗边的金色装饰
+  [B1, B2].forEach(b => { const t = new THREE.Mesh(new THREE.TorusGeometry(b.r + .02, .06, 8, 64), gold); t.rotation.x = Math.PI / 2; t.position.y = b.y + .12; g.add(t); });
+  // ---------- 水帘：从碗边一圈流下来（往外鼓一点，再垂下去） ----------
+  const curtain = (r, yTop, yBot) => { const pts = []; for (let i = 0; i <= 12; i++) { const u = i / 12; pts.push(new THREE.Vector2(r + .15 + .55 * Math.sqrt(u), yTop - (yTop - yBot) * u * u * .4 - (yTop - yBot) * .6 * u)); }
+    const tex = streakTex(); tex.repeat.set(10, 1); scroll.push([tex, 0, .9]);
+    const m = new THREE.Mesh(new THREE.LatheGeometry(pts, 64), waterMat(tex, .8)); g.add(m);
+    // 落下去的地方：一圈白白的水花
+    const ft = new THREE.Mesh(new THREE.RingGeometry(r + .3, r + 1.25, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .45, depthWrite: false, side: THREE.DoubleSide }));
+    ft.rotation.x = -Math.PI / 2; ft.position.y = yBot + .05; g.add(ft); foam.push(ft); };
+  const foam = [];
+  curtain(B2.r, B2.y + .1, B1.y + .06);
+  curtain(B1.r, B1.y + .1, .74);
+  // ---------- 最上面：小黄鸡雕像，头顶一股水往上喷，像小伞一样散开落回上面的碗 ----------
+  const chick = new THREE.Group(); chick.position.y = B2.y + .1;
+  const cb = new THREE.Mesh(new THREE.SphereGeometry(.62, 18, 14), gold); cb.position.y = .55; chick.add(cb);
+  const ch = new THREE.Mesh(new THREE.SphereGeometry(.42, 18, 14), gold); ch.position.set(0, 1.25, .12); chick.add(ch);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(.12, .3, 8), M(0xff8c00)); beak.rotation.x = Math.PI / 2; beak.position.set(0, 1.2, .58); chick.add(beak);
+  [-1, 1].forEach(s => { const e = new THREE.Mesh(new THREE.SphereGeometry(.06, 8, 6), M(0x111111)); e.position.set(s * .17, 1.35, .48); chick.add(e); });
   g.add(chick);
-  const drops = [];
-  for (let k = 0; k < 40; k++) {
-    const d = new THREE.Mesh(new THREE.SphereGeometry(.12, 6, 4), M(0xa5d8ff, { transparent: true, opacity: .8 }));
-    d.userData = { a: Math.random() * Math.PI * 2, t: Math.random() }; g.add(d); drops.push(d);
-  }
+  const jetTex = streakTex(); jetTex.repeat.set(2, 1); scroll.push([jetTex, 0, -1.6]);
+  const jet = new THREE.Mesh(new THREE.CylinderGeometry(.09, .16, 1.3, 16, 1, true), waterMat(jetTex, .7)); jet.position.y = B2.y + 1.7 + .65; g.add(jet);
+  const umbPts = []; for (let i = 0; i <= 14; i++) { const u = i / 14; umbPts.push(new THREE.Vector2(.08 + u * 1.45, B2.y + 3.0 + .3 * Math.sin(u * Math.PI * .6) - u * u * 2.6)); }
+  const umbTex = streakTex(); umbTex.repeat.set(8, 1); scroll.push([umbTex, 0, 1.1]);
+  g.add(new THREE.Mesh(new THREE.LatheGeometry(umbPts, 48), waterMat(umbTex, .45)));
+  // ---------- 水池边 8 道弧形水柱，往中间的大碗喷 ----------
+  const arcTex = streakTex(); arcTex.rotation = Math.PI / 2; arcTex.repeat.set(1, 1); scroll.push([arcTex, 0, -1.3]);
+  const arcMat = waterMat(arcTex, .7);
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + Math.PI / 8, ca = Math.cos(a), sa = Math.sin(a), pts = [];
+    for (let i = 0; i <= 16; i++) { const u = i / 16, r = (R0 - .6) - u * (R0 - .6 - B1.r - .6), y = .9 + u * 2.6 - u * u * 2.75; pts.push(new THREE.Vector3(ca * r, y, sa * r)); }
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, .07, 8, false), arcMat); g.add(tube);
+    const noz = new THREE.Mesh(new THREE.CylinderGeometry(.12, .16, .25, 10), gold); noz.position.set(ca * (R0 - .6), .82, sa * (R0 - .6)); g.add(noz); }
+  // 雾气 / 小水珠：只在水落下的地方飘一点点
+  const mistG = new THREE.BufferGeometry(), MN = 120, mp = new Float32Array(MN * 3), mv = [];
+  for (let i = 0; i < MN; i++) { const ring = i % 2 ? B1.r + .7 : (i % 3 ? B2.r + .65 : 0.1); const a = Math.random() * 6.283; mp.set([Math.cos(a) * ring, i % 2 ? .9 : B1.y + .2, Math.sin(a) * ring], i * 3); mv.push({ a, ring, base: i % 2 ? .9 : (ring < .5 ? B2.y + 2.8 : B1.y + .2), t: Math.random() }); }
+  mistG.setAttribute('position', new THREE.BufferAttribute(mp, 3));
+  const mist = new THREE.Points(mistG, new THREE.PointsMaterial({ color: 0xe7f5ff, size: .12, transparent: true, opacity: .7, depthWrite: false }));
+  g.add(mist);
+  let T = 0;
   return { group: g, update(dt) {
-    chick.rotation.y += dt * .4;
-    drops.forEach(d => { d.userData.t = (d.userData.t + dt * .7) % 1; const t = d.userData.t, r = 1.6 + t * 2.4;
-      d.position.set(Math.cos(d.userData.a) * r, 3 + t * 3 - t * t * 5.2, Math.sin(d.userData.a) * r); });
+    T += dt;
+    scroll.forEach(([t, u, v]) => { t.offset.x = (t.offset.x + u * dt) % 1; t.offset.y = (t.offset.y + v * dt) % 1; });
+    foam.forEach((f, k) => { const s = 1 + Math.sin(T * 6 + k) * .04; f.scale.set(s, s, 1); f.material.opacity = .35 + .15 * Math.sin(T * 9 + k * 2); });
+    chick.rotation.y += dt * .35;
+    for (let i = 0; i < MN; i++) { const m = mv[i]; m.t = (m.t + dt * 1.4) % 1; const r = m.ring + m.t * .5; mp[i * 3] = Math.cos(m.a) * r; mp[i * 3 + 1] = m.base + Math.sin(m.t * Math.PI) * .45; mp[i * 3 + 2] = Math.sin(m.a) * r; }
+    mistG.attributes.position.needsUpdate = true;
   } };
 }
 
@@ -239,7 +299,7 @@ export function buildWorld(scene) {
     const b = shopBuilding(shopPos[i][0], shopPos[i][1], shopPos[i][2], { color: s.color, roof: s.roof, icon: s.icon, name: s.name });
     scene.add(b.group); colliders.push(b.collider); interact.push({ type: 'shop', shop: s, pos: b.entry, r: 4.5 }); updaters.push((dt, t) => b.update(t));
   });
-  const f = fountain(0, 10); scene.add(f.group); colliders.push([0, 10, 5.6]); updaters.push(dt => f.update(dt));
+  const f = fountain(0, 10); scene.add(f.group); colliders.push([0, 10, 7.3]); updaters.push(dt => f.update(dt));
   const gate = arrivalGate(0, 80); scene.add(gate.group); interact.push({ type: 'gate', pos: gate.entry, r: 5 }); updaters.push(dt => gate.update(dt));
   // 树、路灯、花
   const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [40, 50, 20], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
