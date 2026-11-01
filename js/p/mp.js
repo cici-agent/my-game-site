@@ -87,7 +87,7 @@ export function createParkMP({ scene, camera, player, getSeat, getMe, getLook, g
         lastThrower = p.id;
         // 用一个专门判定“砸到我”的实例来模拟这颗雪球
         snowSim.start('snowball', d);
-      } else r.abil.start(d.k);
+      } else r.abil.start(d.k, d);
     });
     net.on('hit', (d, p) => {
       const r = remotes.get(p.id); if (r) r.abil.slow(5);

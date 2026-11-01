@@ -1,6 +1,7 @@
 // ===== 游乐园里的人物形象：12 款皮肤 + 装饰品 + 宠物 =====
 // 统一的 Q 版骨架（大头、短身子），朝向 +Z。皮肤换颜色和身体部件，装饰挂在手 / 头 / 背上。
 import * as THREE from 'three';
+import { buildAnimal, ANIMAL_KEYS } from './animals.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .55, ...o });
 const METAL = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .32, metalness: .35, ...o });
@@ -329,6 +330,8 @@ export function buildPet(key) {
 
 // ---------- 组装人物 ----------
 export function buildAvatar(skinKey = 'explorer', decor = {}) {
+  // 动物皮肤用四条腿（小黄鸡两条腿）的身体
+  if (ANIMAL_KEYS.includes(skinKey)) return buildAnimal(skinKey, decor, { M, METAL, GLOW, add, sph, cone, cyl, face, buildDecor, star3D, canvasTex });
   const S = SKINS[skinKey] || SKINS.explorer;
   const root = new THREE.Group();
   const rig = { blink: [], ears: [], tails: [], decor: {} };

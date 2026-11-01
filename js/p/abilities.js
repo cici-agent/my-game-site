@@ -60,7 +60,8 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast, remote =
         f.position.set(s * .2, -.85, -.08); f.rotation.x = Math.PI; g.add(f); (g.userData.fl = g.userData.fl || []).push(f);
       });
       add(g, new THREE.BoxGeometry(.5, .2, .12), M(0x495057), [0, .1, 0]);
-      g.position.set(0, -.15, -.12); rig.backMount.add(g);
+      if (av.quad) g.position.set(0, .15, -.1); else g.position.set(0, -.15, -.12);
+      rig.backMount.add(g);
     } else if (key === 'copter') {
       add(g, new THREE.CylinderGeometry(.04, .04, .35, 8), M(0xffd43b), [0, .17, 0]);
       const blades = new THREE.Group(); blades.position.y = .36; g.add(blades);
@@ -75,12 +76,12 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast, remote =
         const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(x, y - .42, z)];
         g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffffff })));
       });
-      g.rotation.x = -Math.PI / 2 + .3; rig.handMount.add(g);
+      g.rotation.x = av.animal ? 0 : -Math.PI / 2 + .3; if (av.animal) g.scale.setScalar(.8); rig.handMount.add(g);
     } else if (key === 'spring') {
-      ['legL', 'legR'].forEach(k => {
-        const sp = new THREE.Group(); sp.position.y = -.72;
+      (rig.legs && rig.legs.length ? rig.legs : [rig.legL, rig.legR]).forEach(leg => {
+        const sp = new THREE.Group(); sp.position.y = rig.footY ?? -.72;
         for (let i = 0; i < 4; i++) add(sp, new THREE.TorusGeometry(.13, .03, 6, 16), M(0xadb5bd, { metalness: .6 }), [0, -i * .07, .05], [Math.PI / 2, 0, 0]);
-        rig[k].add(sp); (g.userData.sub = g.userData.sub || []).push(sp);
+        leg.add(sp); (g.userData.sub = g.userData.sub || []).push(sp);
       });
     } else if (key === 'skate') {
       add(g, new THREE.BoxGeometry(.7, .07, 1.6), M(0x7048e8), [0, .14, 0]);
@@ -124,23 +125,79 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast, remote =
     av.rig.headTop.add(A.snowCap);
     burst(player.pos.clone().setY(player.pos.y + 2.4), [0xffffff, 0xd0ebff], 30, 3, .9, .4, 6);
   }
-  function launchFirework() {
-    const start = player.pos.clone().add(fwd().multiplyScalar(1.5)).setY(player.pos.y + 1);
-    const rocket = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .5, 8), M(0xff6b6b, { emissive: 0xff6b6b, emissiveIntensity: .6 }));
+  // 烟花：每次随机颜色 + 随机形状；用种子 seed，别人那边放出来的是同一个
+  function seeded(seed) {           // mulberry32：相近的种子也会给出完全不同的随机数
+    let a = (seed >>> 0) || 1;
+    return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  const FW_SHAPES = ['ball', 'ring', 'heart', 'star', 'smile', 'double', 'willow', 'crackle'];
+  function burstDirs(pos, dirs, colors, life, size, grav, drag = .985) {
+    const n = dirs.length, geo = new THREE.BufferGeometry(), p = new Float32Array(n * 3), c = new Float32Array(n * 3), v = [];
+    const col = new THREE.Color();
+    dirs.forEach((d, i) => { p.set([pos.x, pos.y, pos.z], i * 3); col.set(colors[i % colors.length]); c.set([col.r, col.g, col.b], i * 3); v.push(d.x, d.y, d.z); });
+    geo.setAttribute('position', new THREE.BufferAttribute(p, 3)); geo.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size, map: dotTex(), vertexColors: true, transparent: true, depthWrite: false, fog: false }));
+    pts.frustumCulled = false; scene.add(pts);
+    parts.push({ obj: pts, life, max: life, step(dt) {
+      const a = geo.attributes.position.array;
+      for (let i = 0; i < n; i++) { v[i * 3 + 1] -= grav * dt; a[i * 3] += v[i * 3] * dt; a[i * 3 + 1] += v[i * 3 + 1] * dt; a[i * 3 + 2] += v[i * 3 + 2] * dt; v[i * 3] *= drag; v[i * 3 + 1] *= drag; v[i * 3 + 2] *= drag; }
+      geo.attributes.position.needsUpdate = true; pts.material.opacity = Math.min(1, this.life / this.max * 1.6);
+      pts.material.size = size * (.6 + .4 * this.life / this.max);
+    } });
+  }
+  // 平面图形（爱心 / 星星 / 笑脸 / 圆环）：在一个竖着的平面里，朝向随机
+  function planeDirs(pts2d, speed, yaw, tilt = 0) {
+    const out = [], cy = Math.cos(yaw), sy = Math.sin(yaw), ct = Math.cos(tilt), st = Math.sin(tilt);
+    pts2d.forEach(([x, y]) => { const yy = y * ct, zz = y * st; out.push(new THREE.Vector3(x * cy + zz * sy, yy, -x * sy + zz * cy).multiplyScalar(speed)); });
+    return out;
+  }
+  function shapeDirs(shape, rnd) {
+    const sphere = (n, sp) => Array.from({ length: n }, () => { const a = rnd() * Math.PI * 2, b = Math.acos(rnd() * 2 - 1); return new THREE.Vector3(Math.sin(b) * Math.cos(a), Math.cos(b), Math.sin(b) * Math.sin(a)).multiplyScalar(sp * (.85 + rnd() * .15)); });
+    const yaw = rnd() * Math.PI * 2, N = 120;
+    if (shape === 'ring') return planeDirs(Array.from({ length: N }, (_, i) => [Math.cos(i / N * 6.283), Math.sin(i / N * 6.283)]), 13, yaw, (rnd() - .5) * 1.2);
+    if (shape === 'heart') return planeDirs(Array.from({ length: N }, (_, i) => { const t = i / N * 6.283; return [16 * Math.sin(t) ** 3 / 17, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 17]; }), 12, yaw);
+    if (shape === 'star') return planeDirs(Array.from({ length: N }, (_, i) => { const k = i / N * 10, seg = Math.floor(k), f = k - seg; const r0 = seg % 2 ? .45 : 1, r1 = seg % 2 ? 1 : .45;
+      const a0 = seg / 10 * 6.283 + Math.PI / 2, a1 = (seg + 1) / 10 * 6.283 + Math.PI / 2; return [Math.cos(a0) * r0 * (1 - f) + Math.cos(a1) * r1 * f, Math.sin(a0) * r0 * (1 - f) + Math.sin(a1) * r1 * f]; }), 13, yaw);
+    if (shape === 'smile') { const pts = [];
+      for (let i = 0; i < 70; i++) { const t = i / 70 * 6.283; pts.push([Math.cos(t), Math.sin(t)]); }
+      for (let i = 0; i < 26; i++) { const t = Math.PI * (1.15 + i / 26 * .7); pts.push([Math.cos(t) * .58, Math.sin(t) * .58]); }
+      [[-.35, .3], [.35, .3]].forEach(([x, y]) => { for (let i = 0; i < 8; i++) { const t = i / 8 * 6.283; pts.push([x + Math.cos(t) * .08, y + Math.sin(t) * .08]); } });
+      return planeDirs(pts, 13, yaw); }
+    if (shape === 'double') return [...sphere(90, 14), ...sphere(60, 7)];
+    if (shape === 'willow') return sphere(110, 8);
+    return sphere(shape === 'crackle' ? 90 : 150, 13);
+  }
+  function launchFirework(d) {
+    const seed = d && d.seed != null ? d.seed : Math.floor(Math.random() * 1e9);
+    const rnd = seeded(seed);
+    const start = d && d.p ? new THREE.Vector3(...d.p) : player.pos.clone().add(fwd().multiplyScalar(1.5)).setY(player.pos.y + 1);
+    const shape = FW_SHAPES[Math.floor(rnd() * FW_SHAPES.length)];
+    // 颜色：随机一个主色，再配一两个相近 / 对比的颜色
+    const h = rnd(), cA = new THREE.Color().setHSL(h, 1, .5).getHex(), cB = new THREE.Color().setHSL((h + .06 + rnd() * .08) % 1, 1, .55).getHex(),
+      cC = new THREE.Color().setHSL((h + .5) % 1, 1, .55).getHex();
+    const colors = shape === 'willow' ? [0xffd43b, 0xffc078, 0xfff3bf] : rnd() < .3 ? [cA, cB, cC, 0xffffff] : [cA, cB];
+    const top = 20 + rnd() * 10, drift = new THREE.Vector3((rnd() - .5) * 4, 0, (rnd() - .5) * 4);
+    const rocket = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .5, 8), M(colors[0], { emissive: colors[0], emissiveIntensity: .7 }));
     rocket.position.copy(start); scene.add(rocket);
-    const top = 22 + Math.random() * 6; let trailT = 0;
+    let trailT = 0;
     parts.push({ obj: rocket, life: 4, max: 4, step(dt) {
-      rocket.position.y += 24 * dt; trailT += dt;
+      rocket.position.y += 24 * dt; rocket.position.addScaledVector(drift, dt); trailT += dt;
       if (trailT > .04) { trailT = 0; burst(rocket.position.clone(), [0xffd43b, 0xffa94d], 3, .8, .5, .4, 2); }
       if (rocket.position.y > start.y + top) {
-        const sets = [[0xff6b6b, 0xffd43b], [0x4dabf7, 0xda77f2], [0x69db7c, 0xffffff], [0xff922b, 0xff6b9d]];
-        const s = sets[Math.floor(Math.random() * sets.length)];
-        burst(rocket.position.clone(), s, 140, 13, 2.4, 1.1, 4);
-        setTimeout(() => burst(rocket.position.clone().add(new THREE.Vector3(3, 2, 0)), sets[(sets.indexOf(s) + 1) % 4], 90, 9, 2, .9, 4), 250);
+        const at = rocket.position.clone();
+        const dirs = shapeDirs(shape, rnd);
+        if (shape === 'willow') burstDirs(at, dirs, colors, 3.2, 1, 3.5, .975);
+        else if (shape === 'double') { burstDirs(at, dirs.slice(0, 90), [colors[0]], 2.2, 1.1, 3); burstDirs(at, dirs.slice(90), [colors[1] || 0xffffff], 1.8, .9, 3); }
+        else burstDirs(at, dirs, colors, 2.2, 1.1, shape === 'ball' || shape === 'crackle' ? 4 : 1.2, ['heart', 'star', 'smile', 'ring'].includes(shape) ? .97 : .985);
+        if (shape === 'crackle') for (let k = 0; k < 10; k++) {
+          const off = new THREE.Vector3((rnd() - .5) * 14, (rnd() - .5) * 10, (rnd() - .5) * 14);
+          setTimeout(() => burst(at.clone().add(off), [0xffffff, 0xfff3bf], 14, 3, .5, .5, 2), 600 + k * 70);
+        }
         sfx.chime && sfx.chime([1046, 1318, 1568]);
         this.life = 0;
       }
     } });
+    return { seed, p: [+start.x.toFixed(2), +start.y.toFixed(2), +start.z.toFixed(2)] };
   }
   function blowBubble() {
     const b = new THREE.Mesh(new THREE.SphereGeometry(.2 + Math.random() * .25, 16, 12), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: new THREE.Color().setHSL(Math.random(), .9, .6), emissiveIntensity: .7, transparent: true, opacity: .45, roughness: .05, depthWrite: false }));
@@ -163,7 +220,7 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast, remote =
   function start(key, data) {
     sfx.chime && sfx.chime([659, 880, 1175]);
     if (key === 'snowball') return throwSnowball(data && data.p, data && data.v);
-    if (key === 'firework') { launchFirework(); return; }
+    if (key === 'firework') return launchFirework(data);
     const now = A.t;
     if (key === 'grow' || key === 'shrink') { delete A.timed[key === 'grow' ? 'shrink' : 'grow']; burst(player.pos.clone().setY(player.pos.y + 1.5), [0xffd43b, 0xffffff, 0xda77f2], 40, 4, 1, .5, 0); }
     if (FLY.includes(key)) { A.fly = key; A.flyEnd = now + DURATION[key]; A.descend = false; if (key !== 'balloon') { player.vy = 0; } }
@@ -276,5 +333,5 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast, remote =
   }
   // 别人的独角兽飞行（画面用）
   function setRemoteFly(on) { A.fly = on ? 'unicorn' : (A.fly === 'unicorn' ? null : A.fly); if (on) A.flyEnd = A.t + 99; }
-  return { start, canUse, step, onJumpPress, status, reattach, slow, setRemoteFly, get flying() { return !!A.fly || A.descend; }, get slowed() { return A.t < A.slowUntil; } };
+  return { start, launchFirework, canUse, step, onJumpPress, status, reattach, slow, setRemoteFly, get flying() { return !!A.fly || A.descend; }, get slowed() { return A.t < A.slowUntil; } };
 }
