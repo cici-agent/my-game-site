@@ -87,21 +87,16 @@ export function kartTrack(cx, cz) {
     colliders: [[cx + Rr + W / 2 + 4.2 + 1.9, cz + 6 - 2.9, .3], [cx + Rr + W / 2 + 4.2 + 1.9, cz + 6 + 2.9, .3]],
     W, start: { x: cx + Rr, z: cz + 3, heading: Math.PI },          // 起点线后面一点，朝 -Z 开
     status() { return '按 E 开卡丁车'; },
-    // 离中心线多远（>W/2 就是在草地上）、在一圈里的位置 0..1
+    // 离中心线多远（>W/2 就是在草地上）、在一圈里的位置 0..1、最近的中心线点
     track(x, z) {
-      const lx = x - cx, lz = z - cz, clz = Math.max(-Ls, Math.min(Ls, lz));
-      const r = Math.hypot(lx, lz - clz), off = Math.abs(r - Rr);
-      // 进度：用角度和直道位置粗略算
-      let s;
-      if (Math.abs(lz) <= Ls) s = lx > 0 ? (-lz / Ls) * (Ls / perim()) : ((2 * Ls + Math.PI * Rr) - 0 + (lz + Ls)) / perim();
-      else if (lz < -Ls) { const a = Math.atan2(-(lz + Ls), lx); s = (Ls + a * Rr) / perim(); }
-      else { const a = Math.atan2(lz - Ls, -lx); s = (Ls + Math.PI * Rr + 2 * Ls + a * Rr) / perim(); }
-      if (Math.abs(lz) <= Ls && lx > 0 && lz > 0) s = 1 - lz / perim();
-      return { off, s: ((s % 1) + 1) % 1, dir: r > 1e-4 ? [lx / r, (lz - clz) / r] : [1, 0], core: [cx, cz + clz] };
+      const lx = x - cx, lz = z - cz;
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < N; i++) { const d = (center[i].x - lx) ** 2 + (center[i].z - lz) ** 2; if (d < bd) { bd = d; best = i; } }
+      const c = center[best];
+      return { off: Math.sqrt(bd), s: best / N, cx: c.x + cx, cz: c.z + cz };
     },
     update() {},
   };
-  function perim() { return 4 * Ls + 2 * Math.PI * Rr; }
   void world;
   return api;
 }
@@ -110,7 +105,7 @@ export function kartTrack(cx, cz) {
 export function buildKart(color) {
   const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
   const C = M(color, { metalness: .2, roughness: .4 }), dark = M(0x2b2d42), black = M(0x111111);
-  body.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1.5, .22, 2.5), dark), { position: new THREE.Vector3(0, .25, 0) }));
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.5, .22, 2.5), dark); chassis.position.y = .25; body.add(chassis);
   const shell = new THREE.Mesh(new THREE.CapsuleGeometry(.5, 1.2, 6, 12), C); shell.rotation.x = Math.PI / 2; shell.scale.set(1.25, 1, .55); shell.position.set(0, .42, .25); body.add(shell);
   const nose = new THREE.Mesh(new THREE.BoxGeometry(1.5, .3, .5), C); nose.position.set(0, .35, 1.35); body.add(nose);
   const bumper = new THREE.Mesh(new THREE.BoxGeometry(1.7, .16, .2), black); bumper.position.set(0, .3, -1.35); body.add(bumper);

@@ -8,6 +8,7 @@ import { createParkMP } from './mp.js';
 import { createDayNight, jumpTo, isShifted, setGlobalOffset, globalOffset, offsetFor, T_DAY, T_SUNSET, T_NIGHT, SHOW_START, SHOW_LEN, DAY_LEN } from './daynight.js';
 import { createFireShow } from './fireshow.js';
 import { clockTower, clockText } from './clock.js';
+import { buildKart, kartColorOf } from './kart.js';
 import { loadPlanets, loadMe } from '../u/data.js';
 import { askLogin } from '../u/login.js';
 import { esc } from '../u/stations.js';
@@ -119,11 +120,14 @@ function promptText(it) {
   if (it.type === 'ride') return `${it.ride.icon} ${it.ride.status(queued === it.ride)}`;
   if (it.type === 'shop') return `${it.shop.icon} 按 E 进入${it.shop.name}`;
   if (it.type === 'gate') return '🚀 按 E 起飞离开菜鸟星球';
+  if (it.type === 'kart') return '🏎️ 按 E 开卡丁车';
   return '';
 }
 function action() {
   if (player.riding) { leaveRide(); return; }
+  if (player.kart) { stopKart(); return; }
   if (!near) return;
+  if (near.type === 'kart') { startKart(); return; }
   if (near.type === 'ride') {
     if (near.ride.canBoard && !near.ride.canBoard()) { queued = near.ride; return; }   // 排队，回站自动上车
     boardRide(near.ride);
@@ -142,6 +146,92 @@ function boardRide(rideObj) {
   if (ride.camYaw !== undefined) cam.yaw = ride.camYaw;
   if (ride.camPitch !== undefined) cam.pitch = ride.camPitch;
 }
+// ---------- 卡丁车 ----------
+let kartObj = null;
+const K = { speed: 0, heading: 0, steer: 0, started: false, lap: 0, lapStart: 0, best: null, lastS: 0, cp: false, last: null };
+function startKart() {
+  if (abil.flying) { toast('先落地再开卡丁车哦'); return; }
+  const k = world.kart;
+  kartObj = buildKart(kartColorOf(ME ? ME.user.id : 'me')); scene.add(kartObj.group);
+  player.kart = true; player.vy = 0; player.ground = true;
+  player.pos.set(k.start.x, 0, k.start.z); player.face = K.heading = k.start.heading;
+  Object.assign(K, { speed: 0, steer: 0, started: false, lap: 0, lastS: k.track(player.pos.x, player.pos.z).s, cp: false, last: null });
+  cam.yaw = K.heading; cam.pitch = .25;
+  if (pet) pet.group.visible = false;
+  $('kartHud').classList.add('show'); document.body.classList.add('karting'); renderKartHud(0);
+  sfx.chime([523, 784, 1046]); sfx.unlock();
+  toast(isTouch ? '🏎️ 摇杆往上加速、左右转弯 · 点「下车」离开' : '🏎️ W 加速 · S 刹车 / 倒车 · A D 转弯 · 按 E 下车');
+}
+function stopKart() {
+  if (!kartObj) return;
+  scene.remove(kartObj.group); kartObj = null; player.kart = false;
+  const e = world.kart.entry; player.pos.set(e[0] + 1.5, 0, e[1]);
+  me.root.rotation.set(0, player.face, 0); me.root.visible = true;
+  if (pet) { pet.group.visible = true; petPos.copy(player.pos); }
+  $('kartHud').classList.remove('show'); document.body.classList.remove('karting'); sfx.engineLevel(0);
+}
+const fmtLap = s => s == null ? '--' : (s >= 60 ? Math.floor(s / 60) + ':' : '') + (s % 60).toFixed(1).padStart(s >= 60 ? 4 : 1, '0') + ' 秒';
+function renderKartHud(now) {
+  $('kartLap').textContent = K.started ? `第 ${K.lap + 1} 圈` : '开过起点线开始计时';
+  $('kartTime').textContent = K.started ? fmtLap(now - K.lapStart) : '--';
+  $('kartBest').textContent = fmtLap(K.best);
+  $('kartSpeed').textContent = Math.round(Math.abs(K.speed) * 3.6) + ' km/h';
+}
+const kartSeat = new THREE.Vector3();
+function kartTick(dt, t) {
+  const k = world.kart;
+  let thr = 0, st = 0;
+  if (keys.KeyW || keys.ArrowUp) thr += 1;
+  if (keys.KeyS || keys.ArrowDown) thr -= 1;
+  if (keys.KeyA || keys.ArrowLeft) st += 1;
+  if (keys.KeyD || keys.ArrowRight) st -= 1;
+  if (joy.id !== null) { thr = Math.abs(joy.y) > .15 ? joy.y : 0; st = -joy.x; }
+  const T = k.track(player.pos.x, player.pos.z);
+  const onRoad = T.off < k.W / 2 + .3, maxV = onRoad ? 17 : 6.5;
+  K.speed += thr * (thr * K.speed < 0 ? 22 : thr > 0 ? 11 : 8) * dt;       // 反方向按 = 刹车（更快）
+  K.speed -= K.speed * (onRoad ? .3 : 1.4) * dt;                          // 空气阻力 / 草地更慢
+  if (!thr) K.speed -= Math.sign(K.speed) * Math.min(Math.abs(K.speed), 2.5 * dt);
+  if (K.speed > maxV) K.speed += (maxV - K.speed) * Math.min(1, dt * 3);
+  K.speed = Math.max(-5, K.speed);
+  K.steer += (st - K.steer) * Math.min(1, dt * 8);
+  K.heading += K.steer * dt * 2.1 * THREE.MathUtils.clamp(K.speed / 7, -1, 1);
+  player.pos.x += Math.sin(K.heading) * K.speed * dt; player.pos.z += Math.cos(K.heading) * K.speed * dt;
+  // 不能开出赛道太远：推回来并减速
+  const T2 = k.track(player.pos.x, player.pos.z), lim = k.W / 2 + 2.6;
+  if (T2.off > lim) { const f = (T2.off - lim) / T2.off; player.pos.x += (T2.cx - player.pos.x) * f; player.pos.z += (T2.cz - player.pos.z) * f; K.speed *= .6; }
+  player.face = K.heading;
+  // 计圈：开过起点线（s 从接近 1 变到接近 0）；中途要经过对面（防止倒着开刷圈）
+  const s = T2.s;
+  if (s > .4 && s < .6) K.cp = true;
+  if (K.lastS > .85 && s < .15) {
+    if (!K.started) { K.started = true; K.lapStart = t; K.cp = false; banner('🏁 开始计时！', 1500); }
+    else if (K.cp) {
+      const lapT = t - K.lapStart, best = K.best == null || lapT < K.best;
+      if (best) K.best = lapT;
+      K.lap++; K.lapStart = t; K.cp = false;
+      banner(`🏁 第 ${K.lap} 圈：${fmtLap(lapT)}${best ? '  ⭐ 最快！' : ''}`, 2500); sfx.chime(best ? [784, 988, 1318, 1568] : [784, 988]);
+    }
+  }
+  if (K.lastS < .15 && s > .85) K.cp = false;             // 倒着开过线不算
+  K.lastS = s;
+  // 小车和人
+  kartObj.group.position.copy(player.pos); kartObj.group.rotation.y = K.heading; kartObj.update(dt, K.speed, K.steer);
+  kartObj.seat.getWorldPosition(kartSeat);
+  me.root.position.copy(kartSeat).y -= .62; me.root.rotation.set(0, K.heading, 0); me.root.scale.setScalar(1);
+  me.rig.shadow.visible = false;
+  me.animate(dt, 0, false, true);
+  sfx.engineLevel(.25 + Math.abs(K.speed) / 17 * .9);
+  // 追尾视角
+  const fx = Math.sin(K.heading), fz = Math.cos(K.heading);
+  camPos.set(player.pos.x - fx * 8, 3.8, player.pos.z - fz * 8);
+  camera.position.lerp(camPos, Math.min(1, dt * 5));
+  camera.lookAt(player.pos.x + fx * 4, 1.2, player.pos.z + fz * 4);
+  if (Math.floor(t * 10) !== K.last) { K.last = Math.floor(t * 10); renderKartHud(t); }
+  promptEl.textContent = isTouch ? '点「下车」离开' : '按 E 下车'; promptEl.classList.add('show');
+  $('actBtn').textContent = '下车'; $('actBtn').classList.add('show');
+  myMove = { speed: Math.abs(K.speed) / 17, kart: true };
+}
+
 function leaveRide() {
   const r = player.riding; if (!r) return;
   player.riding = null; cam.dist = r.prevCam.dist; cam.pitch = r.prevCam.pitch;
@@ -340,7 +430,7 @@ async function useBagItem(key) {
 }
 const renderProps = () => syncBag();
 async function usePropKey(key) {
-  if (shopOpen || player.riding || busy) return;
+  if (shopOpen || player.riding || player.kart || busy) return;
   const it = findItem(key); const ok = abil.canUse(key);
   if (ok !== true) { toast(ok); return; }
   busy = true;
@@ -422,7 +512,10 @@ function tick() {
       camera.position.lerp(camPos, Math.min(1, dt * 6)); camera.lookAt(seatPos.x, seatPos.y + 1.2, seatPos.z);
     }
     if (player.riding) { promptEl.textContent = isTouch ? '点「下来」离开' : '按 E 下来'; promptEl.classList.add('show'); $('actBtn').textContent = '下来'; $('actBtn').classList.add('show'); }
+  } else if (player.kart) {
+    kartTick(dt, t);
   } else {
+    if (!me.rig.shadow.visible) me.rig.shadow.visible = true;
     // 不在设施上时，人物一定要看得见、相机一定是正的
     if (!me.root.visible) me.root.visible = true;
     if (camera.up.y !== 1) camera.up.set(0, 1, 0);
@@ -508,7 +601,7 @@ function tick() {
     promptEl.textContent = txt; promptEl.classList.toggle('show', !!txt);
     const act = $('actBtn');
     act.classList.toggle('show', !!near);
-    if (near) act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : (near.ride.canBoard && !near.ride.canBoard() ? (queued ? '排队中' : '排队') : '乘坐');
+    if (near) act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : near.type === 'kart' ? '开车' : (near.ride.canBoard && !near.ride.canBoard() ? (queued ? '排队中' : '排队') : '乘坐');
   }
 
   mp && mp.update(dt, t, player.riding ? { speed: 0, ride: [player.riding.rideIdx, player.riding.seatIndex ?? 0] } : myMove);
@@ -605,4 +698,4 @@ async function boot() {
   }
 }
 boot();
-window.__park = { player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, pressSlot, get bag() { return bag; }, get mp() { return mp; }, get me() { return me; }, get near() { return near; } };
+window.__park = { K, startKart, stopKart, player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, pressSlot, get bag() { return bag; }, get mp() { return mp; }, get me() { return me; }, get near() { return near; } };
