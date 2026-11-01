@@ -77,7 +77,7 @@ let drag = null;
 renderer.domElement.addEventListener('pointerdown', e => { sfx.unlock(); drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId); });
 renderer.domElement.addEventListener('pointermove', e => {
   if (!drag || drag.id !== e.pointerId) return;
-  cam.yaw -= (e.clientX - drag.x) * .006; cam.pitch = THREE.MathUtils.clamp(cam.pitch + (e.clientY - drag.y) * .004, .05, 1.1);
+  cam.yaw -= (e.clientX - drag.x) * .006; cam.pitch = THREE.MathUtils.clamp(cam.pitch + (e.clientY - drag.y) * .004, -1.05, 1.1);   // 往上拖到底 = 抬头看天
   drag.x = e.clientX; drag.y = e.clientY;
 });
 renderer.domElement.addEventListener('pointerup', () => drag = null);
@@ -126,7 +126,9 @@ function action() {
 }
 function boardRide(rideObj) {
   queued = null;
-  const ride = rideObj.board();
+  const rideIdx = world.rides.indexOf(rideObj);
+  const ride = rideObj.board(mp ? mp.takenSeats(rideIdx) : []);
+  ride.rideIdx = rideIdx;
   ride.prevCam = { ...cam };
   player.riding = ride; player.vy = 0; sfx.chime([523, 659, 784]);
   if (ride.camDist) cam.dist = ride.camDist;
@@ -478,9 +480,14 @@ function tick() {
     renderFx();
 
     camLook.set(player.pos.x, player.pos.y + 2 * mod.scale, player.pos.z);
-    const cd = cam.dist * (.55 + mod.scale * .45);
-    camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(cam.pitch), camLook.y + Math.sin(cam.pitch) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(cam.pitch));
-    camera.position.lerp(camPos, Math.min(1, dt * 8)); camera.lookAt(camLook);
+    // 抬头：pitch < 0 时相机降到人物身后低处、离得近一点，并且往天上看
+    const up = Math.max(0, -cam.pitch);
+    const cd = cam.dist * (.55 + mod.scale * .45) * (1 - up * .45);
+    const pv = Math.max(cam.pitch, -.12);
+    camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(pv), camLook.y + Math.sin(pv) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(pv));
+    camPos.y = Math.max(camPos.y, .5);
+    camera.position.lerp(camPos, Math.min(1, dt * 8));
+    camera.lookAt(camLook.x, camLook.y + Math.tan(Math.min(up, 1.0) * 1.25) * cd, camLook.z);
 
     near = shopOpen ? null : findNear();
     if (queued && (!near || near.ride !== queued)) queued = null;          // 走开就取消排队
@@ -492,7 +499,7 @@ function tick() {
     if (near) act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : (near.ride.canBoard && !near.ride.canBoard() ? (queued ? '排队中' : '排队') : '乘坐');
   }
 
-  mp && mp.update(dt, t, player.riding ? { speed: 0 } : myMove);
+  mp && mp.update(dt, t, player.riding ? { speed: 0, ride: [player.riding.rideIdx, player.riding.seatIndex ?? 0] } : myMove);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
@@ -513,12 +520,12 @@ async function refreshMe() {
   setCoins(ME ? (ME.profile.coins || 0) : null);
   syncBag.loaded = null; bag = Array(BAG_N).fill(null);
   applyLook(); syncBag();
-  if (!mp) mp = createParkMP({ scene, camera, player, getMe: () => ME, getLook: () => ({ ...INV.equip }), getAvatar: () => me, abil, toast, sfx });
+  if (!mp) mp = createParkMP({ scene, camera, player, getSeat: (ri, si) => { const r = world.rides[ri]; return r && r.seats && r.seats[si]; }, getMe: () => ME, getLook: () => ({ ...INV.equip }), getAvatar: () => me, abil, toast, sfx });
   mp.connect();
 }
 
 async function boot() {
-  if (isTouch) $('hint').textContent = '左下摇杆走路 · 拖动屏幕转视角 · 走到设施和商店门口点按钮';
+  if (isTouch) $('hint').textContent = '左下摇杆走路 · 拖动屏幕转视角（往上拖可以抬头看天） · 走到设施和商店门口点按钮';
   buildDock();
   await refreshMe();
   setLoad(90);

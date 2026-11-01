@@ -6,7 +6,7 @@ import { createAbilities } from './abilities.js';
 
 const LOOK_KEYS = ['skin', 'hand', 'head', 'back', 'pet', 'fx'];
 
-export function createParkMP({ scene, camera, player, getMe, getLook, getAvatar, abil, toast, sfx }) {
+export function createParkMP({ scene, camera, player, getSeat, getMe, getLook, getAvatar, abil, toast, sfx }) {
   const tagsEl = document.getElementById('mpTags');
   const remotes = new Map();
   let net = null;
@@ -73,8 +73,11 @@ export function createParkMP({ scene, camera, player, getMe, getLook, getAvatar,
     net.on('leave', p => { const r = remotes.get(p.id); if (r) removeRemote(r); });
     net.on('st', (d, p) => {
       const r = remotes.get(p.id) || addRemote({ id: p.id, name: p.name });
-      const [x, y, z, face, spd, flags] = d;
+      const [x, y, z, face, spd, flags, ri, si] = d;
+      const wasRiding = !!r.ride;
+      r.ride = (flags & 2) && ri != null ? [ri, si] : null;
       r.tgt.set(x, y, z); r.face = face; r.spd = spd; r.flags = flags;
+      if (wasRiding && !r.ride) { r.p.pos.set(x, y, z); r.petPos.set(x, 0, z); }      // 下车：直接出现在出口
       if (!r.got) { r.p.pos.set(x, y, z); r.got = true; r.av.root.visible = true; }
       r.abil.setRemoteFly(!!(flags & 8));
     });
@@ -97,6 +100,16 @@ export function createParkMP({ scene, camera, player, getMe, getLook, getAvatar,
   const _start = snowSim.start;
   snowSim.start = (k, d) => { snowHit = remoteThrowHitTest(); return _start(k, d); };
 
+  const seatPos = new THREE.Vector3(), seatQ = new THREE.Quaternion();
+  function placeTag(r, scale) {
+    tmp.copy(r.av.root.position); tmp.y += 3.2 * scale; tmp.project(camera);
+    const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.1 && Math.abs(tmp.y) < 1.1 && r.av.root.position.distanceTo(player.pos) < 80;
+    r.tag.style.opacity = vis ? 1 : 0;
+    if (vis) { r.tag.style.transform = `translate(${(tmp.x + 1) / 2 * innerWidth}px, ${(1 - tmp.y) / 2 * innerHeight}px) translate(-50%, -100%)`; r.tag.classList.toggle('ice', r.abil.slowed); }
+  }
+  // 别人正坐在某个设施的哪些座位上（上车时避开）
+  function takenSeats(ri) { return [...remotes.values()].filter(r => r.ride && r.ride[0] === ri).map(r => r.ride[1]); }
+
   // 我用了道具 → 告诉别人
   function usedProp(key, data) { net && net.send('fx', { k: key, ...(data || {}) }); }
   function lookChanged() { net && net.setPresence({ look: getLook() }); }
@@ -108,15 +121,30 @@ export function createParkMP({ scene, camera, player, getMe, getLook, getAvatar,
       const root = getAvatar().root;
       const pos = player.riding ? root.position : player.pos;
       const flags = (player.ground ? 0 : 1) | (player.riding ? 2 : 0) | (my.pose === 'skate' ? 4 : 0) | (my.uniFly ? 8 : 0) | (my.pose === 'fly' ? 16 : 0);
-      const moving = my.speed > .05 || !player.ground || !!player.riding;
-      if (send(performance.now(), moving, flags + ':' + Math.round(pos.x) + ':' + Math.round(pos.z))) {
+      const moving = !my.ride && (my.speed > .05 || !player.ground);
+      const sig = my.ride ? flags + ':r' + my.ride.join(',') : flags + ':' + Math.round(pos.x) + ':' + Math.round(pos.z);
+      if (send(performance.now(), moving, sig)) {
         const yaw = player.riding ? new THREE.Euler().setFromQuaternion(root.quaternion, 'YXZ').y : player.face;
-        net.send('st', [r1(pos.x), r1(pos.y), r1(pos.z), r2(yaw), r2(my.speed), flags]);
+        net.send('st', my.ride ? [r1(pos.x), r1(pos.y), r1(pos.z), r2(yaw), 0, flags, my.ride[0], my.ride[1]] : [r1(pos.x), r1(pos.y), r1(pos.z), r2(yaw), r2(my.speed), flags]);
       }
     }
     snowSim.step(dt, t, { moving: false });
     remotes.forEach(r => {
       if (!r.got) return;
+      // 坐设施：直接放进自己这边同一个设施的同一个座位里（不用网络位置，就不会挂在车外面）
+      const seat = r.ride && getSeat(r.ride[0], r.ride[1]);
+      if (seat) {
+        seat.getWorldPosition(seatPos); seat.getWorldQuaternion(seatQ);
+        r.av.root.position.copy(seatPos).y -= .62; r.av.root.quaternion.copy(seatQ);
+        r.p.pos.copy(r.av.root.position);
+        r.av.rig.shadow.visible = false;
+        r.av.animate(dt, 0, false, true);
+        r.abil.step(dt, t, { moving: false });
+        if (r.pet) r.pet.group.visible = false;
+        placeTag(r, 1);
+        return;
+      }
+      if (r.pet) r.pet.group.visible = true;
       // 平滑移动 + 往前预测一点
       r.p.pos.lerp(r.tgt, Math.min(1, dt * 8));
       let dh = r.face - r.p.face; while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2;
@@ -136,13 +164,9 @@ export function createParkMP({ scene, camera, player, getMe, getLook, getAvatar,
         else if (moving) { const dir = want.clone().sub(r.petPos).normalize(); r.petPos.addScaledVector(dir, Math.min(d, dt * Math.max(4, d * 3))); r.pet.group.rotation.y = Math.atan2(dir.x, dir.z); }
         r.pet.group.position.copy(r.petPos); r.pet.update(dt, t, moving);
       }
-      // 名字
-      tmp.copy(r.av.root.position); tmp.y += 3.2 * mod.scale; tmp.project(camera);
-      const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.1 && Math.abs(tmp.y) < 1.1 && r.p.pos.distanceTo(player.pos) < 80;
-      r.tag.style.opacity = vis ? 1 : 0;
-      if (vis) { r.tag.style.transform = `translate(${(tmp.x + 1) / 2 * innerWidth}px, ${(1 - tmp.y) / 2 * innerHeight}px) translate(-50%, -100%)`; r.tag.classList.toggle('ice', r.abil.slowed); }
+      placeTag(r, mod.scale);
     });
   }
 
-  return { connect, update, usedProp, lookChanged, get remotes() { return remotes; }, get net() { return net; } };
+  return { connect, update, usedProp, lookChanged, takenSeats, get remotes() { return remotes; }, get net() { return net; } };
 }

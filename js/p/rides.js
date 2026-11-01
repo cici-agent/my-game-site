@@ -3,6 +3,9 @@
 // board() 返回 { seat: Object3D, done(): bool, view: 'follow' | 'pov', exitPos:[x,z] }
 import * as THREE from 'three';
 
+// 所有玩家共用同一个时钟（按真实时间算），大家看到的设施转到同一个位置，别人坐的座位才对得上
+export const rideClock = () => Date.now() / 1000;
+
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .5, ...o });
 const RAINBOW = [0xff6b6b, 0xffa94d, 0xffd43b, 0x69db7c, 0x4dabf7, 0x9775fa, 0xf783ac, 0x3bc9db];
 
@@ -55,20 +58,21 @@ export function ferrisWheel(x, z, faceAngle = 0) {
     name: '摩天轮', icon: '🎡', group: g,
     entry: [x + Math.sin(faceAngle) * 6, z + Math.cos(faceAngle) * 6], entryR: 4.5,
     colliders: [[x, z, 5.5]],
-    update(dt) {
-      rot += dt * SPEED; wheel.rotation.z = rot;
+    seats: cabins.map(c => c.seat),
+    update() {
+      rot = (rideClock() * SPEED) % (Math.PI * 2 * 1e4); wheel.rotation.z = rot;
       cabins.forEach(c => { const a = c.pivot.userData.a0;
         c.pivot.position.set(Math.cos(a) * R, Math.sin(a) * R, 0); c.cab.rotation.z = -rot; });
     },
     status() { return '按 E 坐摩天轮'; },
-    board() {
-      // 选当前最低的吊舱，坐满一圈
+    board(taken = []) {
+      // 选当前最低、没人坐的吊舱，坐满一圈
       let best = cabins[0], lowY = Infinity;
-      cabins.forEach(c => { c.seat.getWorldPosition(worldPos); if (worldPos.y < lowY) { lowY = worldPos.y; best = c; } });
+      cabins.forEach((c, k) => { if (taken.includes(k)) return; c.seat.getWorldPosition(worldPos); if (worldPos.y < lowY) { lowY = worldPos.y; best = c; } });
       const start = rot;
       rider = best;
       // 相机放在转轮正面（入口那一侧），不会被支架挡住
-      return { seat: best.seat, view: 'follow', camDist: 15, camYaw: faceAngle + Math.PI, camPitch: .18, exitPos: this.entry, done: () => rot - start >= Math.PI * 2 - .05 };
+      return { seat: best.seat, seatIndex: cabins.indexOf(best), view: 'follow', camDist: 15, camYaw: faceAngle + Math.PI, camPitch: .18, exitPos: this.entry, done: () => rot - start >= Math.PI * 2 - .05 };
     },
   };
 }
@@ -133,7 +137,19 @@ export function rollerCoaster(cx, cz) {
   }
   // 运动：站台停 4 秒，链条匀速拉上坡，然后靠"重力"跑
   const hTop = Math.max(...samples.map(p => p.y));
-  let u = 0, dwell = 4, v = 0, lap = 0, rider = null;
+  // 预先算好跑一圈的时刻表（和以前一样的“重力”速度），之后按共享时钟查表
+  const DWELL = 4, table = [[0, 0]];
+  { let uu = 0, tt = 0; const dtS = 1 / 120, pp = new THREE.Vector3();
+    while (uu < 1) {
+      curve.getPointAt(uu % 1, pp);
+      const lift = uu > .07 && uu < .26;
+      const vv = lift ? 5 : Math.max(4, Math.sqrt(Math.max(0, 2 * 9.8 * (hTop + .8 - pp.y))) * .95);
+      uu += vv * dtS / L; tt += dtS; table.push([tt, Math.min(1, uu)]);
+    } }
+  const LAP = table[table.length - 1][0], CYCLE = DWELL + LAP;
+  function uAt(sec) { let lo = 0, hi = table.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (table[m][0] < sec) lo = m; else hi = m; }
+    const [t0, u0] = table[lo], [t1, u1] = table[hi]; return u0 + (u1 - u0) * ((sec - t0) / Math.max(1e-6, t1 - t0)); }
+  let u = 0, dwell = 4, lap = 0, rider = null;
   const pos = new THREE.Vector3(), look = new THREE.Vector3();
   function place(car, uu) {
     curve.getPointAt(((uu % 1) + 1) % 1, pos); curve.getTangentAt(((uu % 1) + 1) % 1, tan);
@@ -146,22 +162,20 @@ export function rollerCoaster(cx, cz) {
     // 站台是长方形：[x, z, 半宽, 半长, 朝向]；外加顶棚的柱子
     colliders: [{ box: [platPos.x, platPos.z, 1.75, 4, Math.atan2(tan.x, tan.z)] },
       ...[[1, -1], [1, 1]].map(([a, b]) => { const pp = st.clone().addScaledVector(side, 1.3 + a * 2.6).addScaledVector(tan, b * 4); return [pp.x, pp.z, .3]; })],
-    update(dt) {
-      if (dwell > 0) { dwell -= dt; v = 0; }
-      else {
-        curve.getPointAt(u % 1, pos);
-        const lift = (u % 1) > .07 && (u % 1) < .26;
-        v = lift ? 5 : Math.max(4, Math.sqrt(Math.max(0, 2 * 9.8 * (hTop + .8 - pos.y))) * .95);
-        const prev = u; u += v * dt / L;
-        if (Math.floor(u) > Math.floor(prev)) { u = Math.floor(u); dwell = 4; lap++; }
-      }
+    seats: train.map(c => c.userData.seat),
+    update() {
+      const now = rideClock(), c = now % CYCLE;
+      lap = Math.floor(now / CYCLE);
+      if (c < DWELL) { dwell = DWELL - c; u = 0; }
+      else { dwell = 0; u = uAt(c - DWELL); }
       train.forEach((car, k) => place(car, u - k * 2.6 / L));
     },
     status(queued) { return dwell > 0 ? '按 E 坐过山车' : queued ? '排队中，过山车回站就上车…' : '按 E 排队，过山车回站就上车'; },
     canBoard() { return dwell > .3; },
-    board() {
-      const startLap = lap; rider = train[0];
-      return { seat: train[0].userData.seat, view: 'pov', exitPos: this.entry, done: () => lap > startLap && dwell > 0 };
+    board(taken = []) {
+      const k = taken.includes(0) && !taken.includes(1) ? 1 : 0;      // 第一节有人就坐第二节
+      const startLap = lap; rider = train[k];
+      return { seat: train[k].userData.seat, seatIndex: k, view: 'pov', exitPos: this.entry, done: () => lap > startLap && dwell > 0 };
     },
   };
 }
@@ -208,17 +222,19 @@ export function carousel(x, z) {
     name: '旋转木马', icon: '🎠', group: g,
     entry: [x, z + R + 3.5], entryR: 4,
     colliders: [[x, z, R + 1]],
-    update(dt, t) {
-      spin.rotation.y += dt * .5; t0 = t;
-      horses.forEach(h => h.position.y = 2.2 + Math.sin(t * 2.2 + h.userData.phase * 1.3) * .45);
+    seats: horses.map(h => h.userData.seat),
+    update() {
+      const now = rideClock() % 1e5;
+      spin.rotation.y = now * .5; t0 = now;
+      horses.forEach(h => h.position.y = 2.2 + Math.sin(now * 2.2 + h.userData.phase * 1.3) * .45);
     },
     status() { return '按 E 骑旋转木马'; },
-    board() {
+    board(taken = []) {
       let best = horses[0], bd = Infinity;
-      horses.forEach(h => { h.getWorldPosition(wp); const d = Math.hypot(wp.x - this.entry[0], wp.z - this.entry[1]); if (d < bd) { bd = d; best = h; } });
+      horses.forEach((h, k) => { if (taken.includes(k)) return; h.getWorldPosition(wp); const d = Math.hypot(wp.x - this.entry[0], wp.z - this.entry[1]); if (d < bd) { bd = d; best = h; } });
       const start = t0;
       // 相机自动绕到木马外侧、从顶篷下面看进来
-      return { seat: best.userData.seat, view: 'follow', camDist: 10, camPitch: .1, camOutFrom: [x, z], exitPos: this.entry, done: () => t0 - start > 25 };
+      return { seat: best.userData.seat, seatIndex: horses.indexOf(best), view: 'follow', camDist: 10, camPitch: .1, camOutFrom: [x, z], exitPos: this.entry, done: () => t0 - start > 25 };
     },
   };
 }

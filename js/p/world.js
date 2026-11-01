@@ -202,5 +202,5 @@ export function buildWorld(scene) {
   welcome.position.set(0, 9.2, 62); scene.add(welcome);
   [-6.2, 6.2].forEach(x => { const p = new THREE.Mesh(new THREE.CylinderGeometry(.28, .28, 10.4, 8), M(0xffffff)); p.position.set(x, 5.2, 62); scene.add(p); colliders.push([x, 62, .5]);
     const ball = new THREE.Mesh(new THREE.SphereGeometry(.55, 12, 8), M(0xffd23f)); ball.position.set(x, 10.6, 62); scene.add(ball); });
-  return { colliders, interact, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
+  return { colliders, interact, rides, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
 }
