@@ -76,7 +76,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Space' && !e.repeat) abil.onJumpPress();
   if (e.code === 'KeyR' && !e.repeat && player.kart) kartRespawn();
   const dn = /^Digit([1-9])$/.exec(e.code); if (dn && !e.repeat) pressSlot(+dn[1] - 1);
-  if (e.code === 'Escape' && player.riding) leaveRide();
+  if (e.code === 'Escape' && player.riding) tryLeaveRide();
 });
 addEventListener('keyup', e => keys[e.code] = false);
 
@@ -126,7 +126,7 @@ function promptText(it) {
   return '';
 }
 function action() {
-  if (player.riding) { leaveRide(); return; }
+  if (player.riding) { tryLeaveRide(); return; }
   if (player.kart) { stopKart(); return; }
   if (!near) return;
   if (near.type === 'kart') { startKart(); return; }
@@ -135,6 +135,13 @@ function action() {
     boardRide(near.ride);
   } else if (near.type === 'shop') openShop(near.shop.key);
   else if (near.type === 'gate') leave();
+}
+// 项目没到站不能下车：到站以后会自动下来
+let noLeaveT = 0;
+function tryLeaveRide() {
+  const r = player.riding; if (!r) return;
+  if (r.done && !r.done()) { const now = performance.now(); if (now - noLeaveT > 1500) { noLeaveT = now; toast('🎢 还没到站哦，到站会自动下来'); } return; }
+  leaveRide();
 }
 function boardRide(rideObj) {
   queued = null;
@@ -605,7 +612,7 @@ function tick() {
       camPos.set(seatPos.x - Math.sin(cam.yaw) * cam.dist * Math.cos(cam.pitch), seatPos.y + 1.5 + Math.sin(cam.pitch) * cam.dist, seatPos.z - Math.cos(cam.yaw) * cam.dist * Math.cos(cam.pitch));
       camera.position.lerp(camPos, Math.min(1, dt * 6)); camera.lookAt(seatPos.x, seatPos.y + 1.2, seatPos.z);
     }
-    if (player.riding) { promptEl.textContent = isTouch ? '点「下来」离开' : '按 E 下来'; promptEl.classList.add('show'); $('actBtn').textContent = '下来'; $('actBtn').classList.add('show'); }
+    if (player.riding) { promptEl.textContent = '🎢 到站会自动下来'; promptEl.classList.add('show'); $('actBtn').classList.remove('show'); }
   } else if (player.kart) {
     kartTick(dt, t);
     tickSplashes(dt);
