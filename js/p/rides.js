@@ -379,6 +379,8 @@ export function pirateShip(cx, cz) {
     status(queued) { return phase === 'board' ? '按 E 坐海盗船' : queued ? '排队中，海盗船停下就上船…' : '按 E 排队，海盗船停下就上船'; },
     canBoard() { return phase === 'board' && boardLeft > .4; },
     boardTime() { return phase === 'board' ? boardLeft : 0; },
+    // 上海盗船：走到船边的上船台阶（船是吊在半空的，不能走到船底下）
+    boardSpot(k) { const v = new THREE.Vector3(); seats[k].getWorldPosition(v); return [v.x, cz + 5.2 * SC]; },
     board(taken = [], want = null) {
       const k = want != null && seats[want] && !taken.includes(want) ? want : seats.findIndex((_, i) => !taken.includes(i)); if (k < 0) return null;
       const start = cycleN;

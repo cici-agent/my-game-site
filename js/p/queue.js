@@ -62,13 +62,13 @@ export function createQueues({ scene, list, getTaken, sfx }) {
   const api = {
     queues,
     // 玩家 / NPC 进队：member = { pos: Vector3, face, speed, kind, board(ride) => bool }
-    join(qi, m) { const q = queues[qi]; if (!q || q.members.includes(m)) return; q.members.push(m); m.queue = q; },
+    join(qi, m) { const q = queues[qi]; if (!q || q.members.includes(m)) return; q.members.push(m); m.queue = q; m.qk = q.slots.length - 1; },
     leave(m) { const q = m.queue; if (!q) return; const i = q.members.indexOf(m); if (i >= 0) q.members.splice(i, 1); m.queue = null; },
     nearEntrance(x, z, r = 2.6) { let best = null, bd = r; queues.forEach(q => { const d = Math.hypot(q.entrance[0] - x, q.entrance[1] - z); if (d < bd) { bd = d; best = q; } }); return best; },
     // 已经被别人占了 / 预定了的座位
     taken(qi, except) { const q = queues[qi]; return getTaken(qi).concat((q.reserved || []).filter(r => r.member.boarding === r && r.member !== except).map(r => r.k)); },
     // 这一轮没赶上：回到队伍最前面
-    backToFront(m) { const r = m.boarding; if (!r) return; m.boarding = null; const q = queues[r.qi]; q.members.unshift(m); m.queue = q; },
+    backToFront(m) { const r = m.boarding; if (!r) return; m.boarding = null; const q = queues[r.qi]; q.members.unshift(m); m.queue = q; m.qk = 0; },
     done(m) { m.boarding = null; },
     position(m) { return m.queue ? m.queue.members.indexOf(m) : -1; },
     length(qi) { return queues[qi] ? queues[qi].members.length : 0; },
@@ -76,8 +76,13 @@ export function createQueues({ scene, list, getTaken, sfx }) {
       queues.forEach(q => {
         q.cool -= dt;
         q.members.forEach((m, i) => {
-          const s = q.slots[Math.min(i, q.slots.length - 1)], far = i >= q.slots.length;
-          const tx = far ? q.entrance[0] + (i - q.slots.length + 1) * .9 * Math.sin(s[2]) : s[0], tz = far ? q.entrance[1] + (i - q.slots.length + 1) * .9 * Math.cos(s[2]) : s[1];
+          // 沿着排队道一格一格往前走（不会穿过栏杆）
+          if (m.qk == null || m.qk >= q.slots.length) m.qk = q.slots.length - 1;
+          const want = Math.min(i, q.slots.length - 1), far = i >= q.slots.length;
+          let s = q.slots[m.qk];
+          if (m.qk > want && Math.hypot(s[0] - m.pos.x, s[1] - m.pos.z) < .25) { m.qk--; s = q.slots[m.qk]; }
+          const last = q.slots[q.slots.length - 1];
+          const tx = far ? q.entrance[0] + (i - q.slots.length + 1) * .9 * Math.sin(last[2]) : s[0], tz = far ? q.entrance[1] + (i - q.slots.length + 1) * .9 * Math.cos(last[2]) : s[1];
           const dx = tx - m.pos.x, dz = tz - m.pos.z, d = Math.hypot(dx, dz);
           if (d > .08) { const v = Math.min(d / dt, 3.4); m.pos.x += dx / d * v * dt; m.pos.z += dz / d * v * dt; m.face = Math.atan2(dx, dz); m.speed = v; }
           else { m.speed = 0; m.face = s[2]; }                 // 站着的时候面朝前面（朝着项目）

@@ -132,7 +132,7 @@ export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, q
   }
   // 一开场就有很多人在排队
   setTimeout(() => npcs.forEach(n => { if (rnd() < .6) { const sp = pickSpot(); if (sp.kind !== 'ride') return; n.spot = sp; n.state = 'queue'; n.wait = 0; queues.join(sp.idx, n);
-    const q = queues.queues[sp.idx], sl = q.slots[Math.min(q.members.length - 1, q.slots.length - 1)]; n.pos.set(sl[0], 0, sl[1]); } }), 0);
+    const q = queues.queues[sp.idx], qi2 = Math.min(q.members.length - 1, q.slots.length - 1), sl = q.slots[qi2]; n.pos.set(sl[0], 0, sl[1]); n.qk = qi2; } }), 0);
   function decide(n) {
     // 烟花秀快开始了：大部分人去乐园中间看烟花
     if (showSoon() && rnd() < .85) { const a = rnd() * Math.PI * 2, d = 12 + rnd() * 26; n.target = [Math.sin(a) * d, 10 + Math.cos(a) * d]; n.state = 'toWatch'; n.stuckT = 0; n.lastD = 1e9; return; }
@@ -224,7 +224,7 @@ export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, q
           const res = n.boarding; n.seatT += dt;
           if (!res) { n.state = 'idle'; n.timer = 1; }
           else if (!res.ride.canBoard()) { queues.backToFront(n); n.state = 'queue'; }          // 没赶上这一轮：回到队伍最前面
-          else if (Math.hypot(n.target[0] - n.pos.x, n.target[1] - n.pos.z) < 1 || n.seatT > 14) {
+          else if (Math.hypot(n.target[0] - n.pos.x, n.target[1] - n.pos.z) < 1.35 || n.seatT > 12) {
             if (boardNpc(n, res.ride, queues.taken(res.qi, n), res.k)) queues.done(n); else { queues.backToFront(n); n.state = 'queue'; }
           } else { const sp = SPEED; n.stuckT = 0; walkTo(n, dt); }
         } else if (n.state === 'toWatch') {

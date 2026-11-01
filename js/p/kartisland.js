@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { buildKart } from './kart.js';
 import { glowTex } from '../u/tex.js';
 import { kartLayout } from './kartlayout.js';
+import { buildPerson } from './npc.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
 export const KI = { x: 0, z: -1150, R: 380 };          // 岛的位置和大小（离乐园很远，互相看不见）
@@ -237,6 +238,34 @@ export function buildKartIsland(scene) {
     const ti = new THREE.InstancedMesh(new THREE.CylinderGeometry(.25, .35, 2, 6), trunkM, trs.length); trs.forEach((m, k) => ti.setMatrixAt(k, m)); g.add(ti);
     const ci = new THREE.InstancedMesh(new THREE.ConeGeometry(1.6, 3.6, 7), treeM, cns.length); cns.forEach((m, k) => ci.setMatrixAt(k, m)); g.add(ci); }
 
+  // ---------- NPC 开的卡丁车（有的走隧道，有的走湖边近路）+ 看台上的观众 ----------
+  const routeA = pt.map((p, i) => ({ p, t: tan[i], sd: side[i] }));
+  const routeB = []; for (let i = 0; i < N; i++) { if (i === ia) { branch.pt.forEach((p, k) => routeB.push({ p, t: branch.tan[k], sd: branch.side[k] })); i = ib; } routeB.push({ p: pt[i], t: tan[i], sd: side[i] }); }
+  const aiKarts = [];
+  const AI_COL = [0xe64980, 0x15aabf, 0x82c91e, 0xfab005, 0x7950f2, 0xfd7e14, 0x228be6, 0xfa5252];
+  for (let k = 0; k < 8; k++) {
+    const kt = buildKart(AI_COL[k]); g.add(kt.group);
+    const drv = buildPerson(500 + k * 37); kt.seat.add(drv.root); drv.root.position.y = -.62; drv.root.scale.setScalar(.85);
+    const route = k % 3 === 1 ? routeB : routeA;
+    aiKarts.push({ kt, drv, route, s: (k / 8) * route.length, v: 17 + (k % 4) * 2.2 + Math.random() * 2, lane: ((k % 3) - 1) * 4.2, pos: new THREE.Vector3(), tan: new THREE.Vector3(), side: new THREE.Vector3(), bump: 0 });
+  }
+  function moveAI(dt) {
+    for (const a of aiKarts) {
+      a.bump = Math.max(0, a.bump - dt);
+      const v = a.v * (a.bump ? .3 : 1); a.s = (a.s + v * dt) % a.route.length;
+      const i = Math.floor(a.s), u = a.s - i, A = a.route[i], B = a.route[(i + 1) % a.route.length];
+      const inWater = a.route === routeB && branch.water[Math.min(branch.n - 1, Math.max(0, i - ia))] && i >= ia && i < ia + branch.n;
+      a.tan.copy(A.t); a.side.copy(A.sd);
+      a.lane += ((Math.sin(a.s * .01 + a.v) * 4) - a.lane) * Math.min(1, dt * .3);          // 慢慢换车道
+      a.pos.set(A.p.x + (B.p.x - A.p.x) * u + a.side.x * a.lane, A.p.y + (B.p.y - A.p.y) * u + (inWater ? -.2 : 0), A.p.z + (B.p.z - A.p.z) * u + a.side.z * a.lane);
+      a.kt.group.position.copy(a.pos); a.kt.group.rotation.set(-Math.asin(THREE.MathUtils.clamp(a.tan.y, -.5, .5)), Math.atan2(a.tan.x, a.tan.z), 0, 'YXZ');
+      a.kt.update(dt, v, Math.sin(a.s * .05) * .3); a.drv.animate(dt, 0, false, true);
+    }
+  }
+  // 看台上的观众：站着挥手
+  const fans = [];
+  for (let k = 0; k < 10; k++) { const f = buildPerson(800 + k * 13); const row = k % 4; f.root.position.set(-45 - 10 + (k * 2.3) % 20, .6 + row * .6, 212 - row * 1.4); f.root.rotation.y = Math.PI; g.add(f.root); fans.push(f); }
+
   // 走路的时候不能掉进坡道沟：沿着沟放一串圆形障碍
   const colliders = [];
   for (let i = 0; i < N; i += 7) if (main.trench[i] || (main.tunnel[i] && (main.trench[(i + 7) % N] || main.trench[(i - 7 + N) % N]))) colliders.push([KI.x + pt[i].x, KI.z + pt[i].z, W / 2 + .5]);
@@ -277,13 +306,17 @@ export function buildKartIsland(scene) {
       for (const c of cars) { if (Math.abs(c.pos.y - y) > 2) continue; const dx = lx - c.pos.x, dz = lz - c.pos.z; if (dx * dx + dz * dz > 25) continue;
         const lon = dx * c.tan.x + dz * c.tan.z, lat = dx * c.side.x + dz * c.side.z;
         if (Math.abs(lon) < 3.1 && Math.abs(lat) < 2.1) return { lon, lat, tan: c.tan, side: c.side, speed: CAR_V }; }
+      for (const a of aiKarts) { if (Math.abs(a.pos.y - y) > 2) continue; const dx = lx - a.pos.x, dz = lz - a.pos.z; if (dx * dx + dz * dz > 9) continue;
+        const lon = dx * a.tan.x + dz * a.tan.z, lat = dx * a.side.x + dz * a.side.z;
+        if (Math.abs(lon) < 2.2 && Math.abs(lat) < 1.5) { a.bump = 1; return { lon: lon * 1.4, lat: lat * 1.4, tan: a.tan, side: a.side, speed: a.v }; } }
       return null;
     },
     pointAt(i) { const p = pt[((i % N) + N) % N]; return [KI.x + p.x, p.y, KI.z + p.z]; },
     tanAt(i) { return tan[((i % N) + N) % N]; },
     blocks() { return false; },
     debug: { segs, LAKE: lk, ia, ib, cars, tunnel: [c0, c1] },
-    update(dt) { back.userData.spin.rotation.z += dt; placeCars(Date.now() / 1000); },
+    debugAI() { return aiKarts.map(a => [KI.x + a.pos.x, a.pos.y, KI.z + a.pos.z]); },
+    update(dt) { back.userData.spin.rotation.z += dt; placeCars(Date.now() / 1000); if (g.visible) { moveAI(dt); fans.forEach(f => f.animate(dt, 0, false, false)); } },
   };
   placeCars(Date.now() / 1000);
   return api;
