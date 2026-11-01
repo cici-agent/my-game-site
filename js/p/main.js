@@ -5,6 +5,9 @@ import { buildAvatar, buildPet } from './avatar.js';
 import { INV, loadInventory, itemsOf, findItem, slotOf, owns, buy, equip, useItem } from './inventory.js';
 import { createAbilities, DURATION } from './abilities.js';
 import { createParkMP } from './mp.js';
+import { createDayNight } from './daynight.js';
+import { createFireShow } from './fireshow.js';
+import { clockTower, clockText } from './clock.js';
 import { loadPlanets, loadMe } from '../u/data.js';
 import { askLogin } from '../u/login.js';
 import { esc } from '../u/stations.js';
@@ -25,11 +28,14 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xffd6b0, 120, 420);
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 1500);
-scene.add(new THREE.HemisphereLight(0xfff4e0, 0x6b8f3e, 1.3));
+const hemi = new THREE.HemisphereLight(0xfff4e0, 0x6b8f3e, 1.3); scene.add(hemi);
 const sunL = new THREE.DirectionalLight(0xffffff, 1.8); sunL.position.set(60, 120, 40); scene.add(sunL);
 setLoad(20);
 
 const world = buildWorld(scene);
+// 大钟楼：在主路旁边，钟面朝着进来的方向
+const clock = clockTower(scene, -10, 22, 0); world.colliders.push(clock.collider);
+const dayNight = createDayNight({ scene, hemi, sun: sunL, world });
 setLoad(60);
 
 // ---------- 玩家 ----------
@@ -390,6 +396,11 @@ let last = performance.now(), t = 0;
 function tick() {
   const now = performance.now(), dt = Math.min((now - last) / 1000, .05); last = now; t += dt;
   world.update(dt, t);
+  // 白天 / 晚上、钟楼、烟花秀
+  const DI = dayNight.update(dt, camera.position);
+  clock.update(DI);
+  fireShow && fireShow.update(DI);
+  updateDnChip(DI);
 
   if (player.riding) {
     const r = player.riding;
@@ -439,7 +450,7 @@ function tick() {
     }
     // 跳跃 / 重力
     if (mod.gravity) {
-      if ((keys.Space) && player.ground && !shopOpen) { player.vy = JUMP * mod.jumpMul; player.ground = false; }
+      if ((keys.Space) && player.ground && !shopOpen) { player.vy = JUMP * mod.jumpMul * (me.skin === 'bunny' ? 1.22 : 1); player.ground = false; }   // 兔子跳得高一点
       player.vy -= GRAV * dt; player.pos.y += player.vy * dt;
       if (player.pos.y <= 0) { player.pos.y = 0; player.vy = 0; player.ground = true; }
     }
@@ -508,6 +519,15 @@ function tick() {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 let ME = null, mp = null, myMove = { speed: 0 };
+// 左上角的小时钟 + 大横幅提示
+const fireShow = createFireShow({ abil, banner });
+let bannerT = 0, chipSig = '';
+function banner(msg, ms = 4000) { const el = $('dnBanner'); el.textContent = msg; el.classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => el.classList.remove('show'), ms); }
+function updateDnChip(I) {
+  const T = clockText(I), sig = T.icon + T.title + T.line + T.big;
+  if (sig === chipSig) return; chipSig = sig;
+  const el = $('dnChip'); el.innerHTML = `<span>${T.icon}</span> ${T.title} · ${T.line} <b>${T.big}</b>`; el.classList.toggle('hot', !!T.hot);
+}
 function setCoins(n) { $('coinNum').textContent = n == null ? '--' : n; $('loginBtn').hidden = !!ME; }
 $('loginBtn').onclick = async () => {
   const ok = await askLogin(null);

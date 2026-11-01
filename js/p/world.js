@@ -6,29 +6,51 @@ import { ferrisWheel, rollerCoaster, carousel, pirateShip } from './rides.js';
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
 export const ISLAND_R = 92;
 
+// 天空：顶部 / 中间 / 地平线三种颜色的渐变（白天、日落、夜晚的颜色由 daynight.js 每帧调）
 function sky(scene) {
-  // 渐变天空球（站在星球表面看到的宇宙）
-  const tex = canvasTex(4, 256, (g, w, h) => {
-    const gr = g.createLinearGradient(0, 0, 0, h);
-    gr.addColorStop(0, '#120a3a'); gr.addColorStop(.45, '#3b2a8c'); gr.addColorStop(.62, '#ff9a8b'); gr.addColorStop(.7, '#ffcf9e'); gr.addColorStop(1, '#ffcf9e');
-    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  const uniforms = { top: { value: new THREE.Color('#3d8bfd') }, mid: { value: new THREE.Color('#8fd3ff') }, bot: { value: new THREE.Color('#e3f6ff') } };
+  const mat = new THREE.ShaderMaterial({
+    uniforms, side: THREE.BackSide, depthWrite: false, fog: false,
+    vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 bot; varying vec3 vP;
+      void main(){ float h = normalize(vP).y; vec3 c = h > 0.0 ? mix(mid, top, smoothstep(0.0, 0.55, h)) : mix(mid, bot, smoothstep(0.0, -0.25, h));
+        gl_FragColor = vec4(c, 1.0);
+        #include <colorspace_fragment>
+      }`,
   });
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false }));
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), mat); dome.renderOrder = -10;
   scene.add(dome);
-  const N = 1200, pos = new Float32Array(N * 3), r = rand(5);
+  const N = 1400, pos = new Float32Array(N * 3), r = rand(5);
   for (let i = 0; i < N; i++) {
-    const th = r() * Math.PI * 2, ph = r() * Math.PI * .42, R = 560;
+    const th = r() * Math.PI * 2, ph = r() * Math.PI * .45, R = 560;
     pos.set([R * Math.sin(ph) * Math.cos(th), R * Math.cos(ph), R * Math.sin(ph) * Math.sin(th)], i * 3);
   }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ size: 3, map: glowTex(), color: 0xffffff, transparent: true, depthWrite: false, fog: false })));
-  // 天上能看到其他星球
+  const stars = new THREE.Points(geo, new THREE.PointsMaterial({ size: 3, map: glowTex(), color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+  scene.add(stars);
+  // 天上能看到其他星球（白天淡一点，晚上清楚）
+  const planets = [];
   [['#ff6b35', [-260, 230, -330], 38], ['#ffd23f', [300, 180, -260], 26], ['#8b6bff', [-330, 160, 220], 30], ['#2ec4b6', [280, 260, 300], 22]].forEach(([c, p, s]) => {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(s, 24, 16), new THREE.MeshBasicMaterial({ color: c, fog: false }));
+    const m = new THREE.Mesh(new THREE.SphereGeometry(s, 24, 16), new THREE.MeshBasicMaterial({ color: c, fog: false, transparent: true }));
     m.position.set(...p); scene.add(m);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: c, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, fog: false, depthWrite: false }));
     halo.position.copy(m.position); halo.scale.setScalar(s * 3.5); scene.add(halo);
+    planets.push({ m, halo });
   });
+  // 太阳和月亮
+  const sun = new THREE.Group();
+  sun.add(new THREE.Mesh(new THREE.CircleGeometry(26, 32), new THREE.MeshBasicMaterial({ color: 0xfff3bf, fog: false })));
+  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: 0xffd27a, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, fog: false, depthWrite: false }));
+  sunGlow.scale.setScalar(170); sun.add(sunGlow); scene.add(sun);
+  const moonTex = canvasTex(256, 256, (g, w) => {
+    g.fillStyle = '#fff9db'; g.beginPath(); g.arc(w / 2, w / 2, w * .42, 0, 7); g.fill();
+    g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(w * .64, w * .4, w * .36, 0, 7); g.fill();
+  });
+  const moon = new THREE.Group();
+  moon.add(new THREE.Mesh(new THREE.PlaneGeometry(46, 46), new THREE.MeshBasicMaterial({ map: moonTex, transparent: true, fog: false, depthWrite: false })));
+  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: 0xc5d6ff, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, fog: false, depthWrite: false }));
+  moonGlow.scale.setScalar(110); moon.add(moonGlow); scene.add(moon);
+  return { dome, uniforms, stars, planets, sun, moon };
 }
 
 function ground(scene) {
@@ -84,6 +106,10 @@ function lamp(x, z) {
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(.4, 12, 8), new THREE.MeshBasicMaterial({ color: 0xfff3b0 })); bulb.position.y = 4.2; g.add(bulb);
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: 0xffe08a, transparent: true, opacity: .7, blending: THREE.AdditiveBlending, depthWrite: false }));
   glow.position.y = 4.2; glow.scale.setScalar(3); g.add(glow);
+  // 晚上路灯照在地上的一圈光
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(4.5, 32), new THREE.MeshBasicMaterial({ map: glowTex(), color: 0xffd98a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  pool.rotation.x = -Math.PI / 2; pool.position.y = .06; g.add(pool);
+  g.userData = { glow, pool, bulb };
   return g;
 }
 
@@ -173,9 +199,9 @@ export const SHOPS = [
 ];
 
 export function buildWorld(scene) {
-  sky(scene);
   ground(scene);
   const colliders = [], interact = [], updaters = [];
+  const skyRefs = sky(scene);
   // 游乐设施
   const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42), pirateShip(34, 44)];
   rides.forEach(r => { scene.add(r.group); colliders.push(...r.colliders); interact.push({ type: 'ride', ride: r, pos: r.entry, r: r.entryR }); updaters.push((dt, t) => r.update(dt, t)); });
@@ -195,12 +221,17 @@ export function buildWorld(scene) {
     if (Math.abs(x) < 4 && z > 10) continue; // 主路
     const s = .8 + r() * .6; scene.add(tree(x, z, s, r() > .6 ? 1 : 0)); colliders.push([x, z, .7 * s]);
   }
-  [[-5, 25], [5, 25], [-5, 50], [5, 50], [-5, 68], [5, 68], [-14, -50], [14, -50], [16, 2], [-16, 2]].forEach(([x, z]) => { scene.add(lamp(x, z)); colliders.push([x, z, .4]); });
+  const lamps = [];
+  [[-5, 25], [5, 25], [-5, 50], [5, 50], [-5, 68], [5, 68], [-14, -50], [14, -50], [16, 2], [-16, 2], [-30, 0], [30, 22], [-16, 30], [24, 34], [-36, -24], [-12, -30]].forEach(([x, z]) => { const l = lamp(x, z); scene.add(l); lamps.push(l); colliders.push([x, z, .4]); });
   // 欢迎牌
   // 入口拱门：牌子挂得高一点，不挡视线
   const welcome = new THREE.Mesh(new THREE.PlaneGeometry(12, 2.4), new THREE.MeshBasicMaterial({ map: signTexture('🐣', '欢迎来到菜鸟星球', '#ff6b35', 800), transparent: true, side: THREE.DoubleSide }));
   welcome.position.set(0, 9.2, 62); scene.add(welcome);
   [-6.2, 6.2].forEach(x => { const p = new THREE.Mesh(new THREE.CylinderGeometry(.28, .28, 10.4, 8), M(0xffffff)); p.position.set(x, 5.2, 62); scene.add(p); colliders.push([x, 62, .5]);
     const ball = new THREE.Mesh(new THREE.SphereGeometry(.55, 12, 8), M(0xffd23f)); ball.position.set(x, 10.6, 62); scene.add(ball); });
-  return { colliders, interact, rides, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
+  // 晚上会亮的东西：发光材质（白天弱、晚上强）
+  const glowMats = [];
+  scene.traverse(o => { if (o.isMesh && o.material && o.material.emissive && o.material.emissiveIntensity > 0 && !o.material.userData.night) {
+    o.material.userData.night = { day: o.material.emissiveIntensity, night: Math.min(2.2, o.material.emissiveIntensity * 3 + .4) }; glowMats.push(o.material); } });
+  return { colliders, interact, rides, sky: skyRefs, lamps, glowMats, update: (dt, t) => updaters.forEach(u => u(dt, t)) };
 }

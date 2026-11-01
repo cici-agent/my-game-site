@@ -1,6 +1,7 @@
 // ===== 道具效果 + 独角兽飞行 =====
 // 只负责“自己”的效果（多人同步在批次 3）。主程序每帧调用 step()，由这里决定速度、跳跃和上下运动。
 import * as THREE from 'three';
+import * as SFX from '../u/sfx.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .5, ...o });
 const add = (p, geo, mat, pos = [0, 0, 0], rot = null) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); if (rot) m.rotation.set(...rot); p.add(m); return m; };
@@ -171,29 +172,38 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast, remote =
     const seed = d && d.seed != null ? d.seed : Math.floor(Math.random() * 1e9);
     const rnd = seeded(seed);
     const start = d && d.p ? new THREE.Vector3(...d.p) : player.pos.clone().add(fwd().multiplyScalar(1.5)).setY(player.pos.y + 1);
-    const shape = FW_SHAPES[Math.floor(rnd() * FW_SHAPES.length)];
+    const pick = FW_SHAPES[Math.floor(rnd() * FW_SHAPES.length)];
+    const shape = (d && d.shape) || pick;
+    const S = (d && d.scale) || 1;                 // 烟花秀里的烟花更大
     // 颜色：随机一个主色，再配一两个相近 / 对比的颜色
     const h = rnd(), cA = new THREE.Color().setHSL(h, 1, .5).getHex(), cB = new THREE.Color().setHSL((h + .06 + rnd() * .08) % 1, 1, .55).getHex(),
       cC = new THREE.Color().setHSL((h + .5) % 1, 1, .55).getHex();
-    const colors = shape === 'willow' ? [0xffd43b, 0xffc078, 0xfff3bf] : rnd() < .3 ? [cA, cB, cC, 0xffffff] : [cA, cB];
-    const top = 20 + rnd() * 10, drift = new THREE.Vector3((rnd() - .5) * 4, 0, (rnd() - .5) * 4);
+    const rc = rnd() < .3;
+    const colors = (d && d.colors) || (shape === 'willow' ? [0xffd43b, 0xffc078, 0xfff3bf] : rc ? [cA, cB, cC, 0xffffff] : [cA, cB]);
+    const top0 = 20 + rnd() * 10, top = d && d.top != null ? d.top : top0;
+    const drift = new THREE.Vector3((rnd() - .5) * 4, 0, (rnd() - .5) * 4).multiplyScalar(d && d.top != null ? .3 : 1);
+    const vol = () => Math.max(.08, 1 - rocket.position.distanceTo(player.pos) / 220);
+    SFX.fwLaunch(Math.max(.08, 1 - start.distanceTo(player.pos) / 160));
     const rocket = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .5, 8), M(colors[0], { emissive: colors[0], emissiveIntensity: .7 }));
     rocket.position.copy(start); scene.add(rocket);
     let trailT = 0;
     parts.push({ obj: rocket, life: 4, max: 4, step(dt) {
-      rocket.position.y += 24 * dt; rocket.position.addScaledVector(drift, dt); trailT += dt;
+      rocket.position.y += (top > 32 ? 30 : 24) * dt; rocket.position.addScaledVector(drift, dt); trailT += dt;
       if (trailT > .04) { trailT = 0; burst(rocket.position.clone(), [0xffd43b, 0xffa94d], 3, .8, .5, .4, 2); }
       if (rocket.position.y > start.y + top) {
         const at = rocket.position.clone();
-        const dirs = shapeDirs(shape, rnd);
-        if (shape === 'willow') burstDirs(at, dirs, colors, 3.2, 1, 3.5, .975);
-        else if (shape === 'double') { burstDirs(at, dirs.slice(0, 90), [colors[0]], 2.2, 1.1, 3); burstDirs(at, dirs.slice(90), [colors[1] || 0xffffff], 1.8, .9, 3); }
-        else burstDirs(at, dirs, colors, 2.2, 1.1, shape === 'ball' || shape === 'crackle' ? 4 : 1.2, ['heart', 'star', 'smile', 'ring'].includes(shape) ? .97 : .985);
+        // 图形烟花（小菜鸟 / 文字）：平面朝着我这边，大家都能看到正面
+        const faceYaw = Math.atan2(player.pos.x - at.x, player.pos.z - at.z);
+        const dirs = d && d.pts2d ? planeDirs(d.pts2d, 12 * S, faceYaw) : shapeDirs(shape, rnd).map(v => v.multiplyScalar(S));
+        if (d && d.pts2d) burstDirs(at, dirs, colors, 3.4, 1.1 * S, .4, .94);
+        else if (shape === 'willow') burstDirs(at, dirs, colors, 3.2, 1 * S, 3.5, .975);
+        else if (shape === 'double') { burstDirs(at, dirs.slice(0, 90), [colors[0]], 2.2, 1.1 * S, 3); burstDirs(at, dirs.slice(90), [colors[1] || 0xffffff], 1.8, .9 * S, 3); }
+        else burstDirs(at, dirs, colors, 2.2, 1.1 * S, shape === 'ball' || shape === 'crackle' ? 4 : 1.2, ['heart', 'star', 'smile', 'ring'].includes(shape) ? .97 : .985);
+        SFX.boom(vol(), shape === 'crackle');
         if (shape === 'crackle') for (let k = 0; k < 10; k++) {
           const off = new THREE.Vector3((rnd() - .5) * 14, (rnd() - .5) * 10, (rnd() - .5) * 14);
           setTimeout(() => burst(at.clone().add(off), [0xffffff, 0xfff3bf], 14, 3, .5, .5, 2), 600 + k * 70);
         }
-        sfx.chime && sfx.chime([1046, 1318, 1568]);
         this.life = 0;
       }
     } });

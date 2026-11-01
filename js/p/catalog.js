@@ -12,7 +12,7 @@ export const CATALOG = {
     { key: 'knight',   name: '小骑士',   icon: '🛡️', price: 30,  group: '人物' },
     { key: 'wizard',   name: '小魔法师', icon: '🧙', price: 40,  group: '人物' },
     { key: 'chick',    name: '小黄鸡',   icon: '🐣', price: 20,  group: '动物', desc: '网站吉祥物' },
-    { key: 'bunny',    name: '小兔子',   icon: '🐰', price: 25,  group: '动物' },
+    { key: 'bunny',    name: '小兔子',   icon: '🐰', price: 25,  group: '动物', desc: '跳得比别人高一点' },
     { key: 'panda',    name: '熊猫',     icon: '🐼', price: 30,  group: '动物' },
     { key: 'corgi',    name: '柯基',     icon: '🐶', price: 30,  group: '动物' },
     { key: 'dino',     name: '小恐龙',   icon: '🦖', price: 50,  group: '动物' },

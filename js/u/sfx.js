@@ -78,3 +78,33 @@ export function chime(notes = [660, 880, 1320]) {
 }
 
 export function click() { chime([1200]); }
+
+// 烟花：升空的“咻——”和爆炸的“嘭”（distance 越远越小声、越闷）
+export function fwLaunch(vol = 1) {
+  if (!ensure() || ctx.state !== 'running' || vol < .03) return;
+  const src = ctx.createBufferSource(); src.buffer = noiseBuffer();
+  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 6;
+  const g = ctx.createGain(), t = ctx.currentTime;
+  f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(3200, t + .9);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.08 * vol, t + .1); g.gain.linearRampToValueAtTime(0, t + .95);
+  src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t + 1);
+}
+export function boom(vol = 1, crackle = false) {
+  if (!ensure() || ctx.state !== 'running' || vol < .03) return;
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = noiseBuffer();
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(900 * (.5 + vol * .5), t); f.frequency.exponentialRampToValueAtTime(120, t + .8);
+  const g = ctx.createGain(); g.gain.setValueAtTime(.55 * vol, t); g.gain.exponentialRampToValueAtTime(.001, t + 1.2);
+  src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t + 1.3);
+  const o = ctx.createOscillator(), og = ctx.createGain(); o.type = 'sine';
+  o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(40, t + .4);
+  og.gain.setValueAtTime(.35 * vol, t); og.gain.exponentialRampToValueAtTime(.001, t + .5);
+  o.connect(og); og.connect(master); o.start(t); o.stop(t + .55);
+  if (crackle) for (let i = 0; i < 14; i++) {
+    const s2 = ctx.createBufferSource(); s2.buffer = noiseBuffer();
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3000;
+    const g2 = ctx.createGain(), tt = t + .5 + Math.random() * .8;
+    g2.gain.setValueAtTime(0, tt); g2.gain.linearRampToValueAtTime(.12 * vol, tt + .005); g2.gain.exponentialRampToValueAtTime(.001, tt + .06);
+    s2.connect(hp); hp.connect(g2); g2.connect(master); s2.start(tt, Math.random() * .5); s2.stop(tt + .08);
+  }
+}

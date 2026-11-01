@@ -56,6 +56,7 @@
     <div class="admin-tabs">
       <button class="admin-tab active" onclick="switchAdminTab(this, 'gamesPanel')">🎮 游戏管理</button>
       <button class="admin-tab" onclick="switchAdminTab(this, 'usersPanel')">👥 用户管理</button>
+      <button class="admin-tab" onclick="switchAdminTab(this, 'shopPanel')">🛒 商店价格</button>
       <button class="admin-tab" onclick="switchAdminTab(this, 'logPanel')">📋 操作日志</button>
     </div>
 
@@ -98,6 +99,19 @@
           <tbody id="userTableBody">
             <tr><td colspan="5" style="text-align:center;padding:30px;color:#aaa;">加载中...</td></tr>
           </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 商店价格：菜鸟星球三个商店里每样东西的价格、是否上架 -->
+    <div class="admin-panel" id="shopPanel" style="display:none">
+      <div class="panel-header">🛒 商店价格</div>
+      <div class="panel-body">
+        <p style="color:#888;margin-bottom:12px;">改完点「保存」立刻生效（玩家重新打开商店就能看到）。价格为 0 表示免费；取消「上架」后商店里就不卖了（已经买了的人还能用）。</p>
+        <div id="shopMsg" style="min-height:22px;color:#2b8a3e;font-weight:700;margin-bottom:8px;"></div>
+        <table class="admin-table">
+          <thead><tr><th>商店</th><th>商品</th><th>价格（金币）</th><th>上架</th><th></th></tr></thead>
+          <tbody id="shopTableBody"><tr><td colspan="5" style="text-align:center;padding:30px;color:#aaa;">加载中…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -201,7 +215,38 @@
       loadGames();
       loadUsers();
       loadLogs();
+      loadShopItems();
     });
+
+    // ===== 商店价格 =====
+    var SHOP_NAMES = { ship: '🚀 飞船商店', skin: '👕 皮肤商店', prop: '🎒 道具商店' };
+    function escHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    async function loadShopItems() {
+      var sb = getSupabase();
+      var r = await sb.from('shop_items').select('key,kind,name,price,is_active,consumable,slot,sort_order').order('sort_order');
+      var tb = document.getElementById('shopTableBody');
+      if (r.error) { tb.innerHTML = '<tr><td colspan="5" style="color:#e03131;padding:20px;">加载失败：' + escHtml(r.error.message) + '</td></tr>'; return; }
+      tb.innerHTML = r.data.map(function (it) {
+        var type = it.kind === 'prop' ? (it.consumable ? '（用一次）' : '（装饰）') : '';
+        return '<tr data-key="' + escHtml(it.key) + '">' +
+          '<td>' + SHOP_NAMES[it.kind] + '</td>' +
+          '<td><b>' + escHtml(it.name) + '</b> <span style="color:#999">' + type + '</span></td>' +
+          '<td><input type="number" min="0" max="99999" step="1" value="' + it.price + '" class="modal-input" style="width:110px;margin:0;padding:6px 10px;"></td>' +
+          '<td><input type="checkbox" ' + (it.is_active ? 'checked' : '') + ' style="width:18px;height:18px;"></td>' +
+          '<td><button class="btn-modal-confirm" style="padding:6px 14px;" onclick="saveShopItem(this)">保存</button></td></tr>';
+      }).join('');
+    }
+    async function saveShopItem(btn) {
+      var tr = btn.closest('tr'), key = tr.dataset.key;
+      var price = parseInt(tr.querySelector('input[type=number]').value, 10), active = tr.querySelector('input[type=checkbox]').checked;
+      var msg = document.getElementById('shopMsg');
+      if (!(price >= 0 && price <= 99999)) { msg.style.color = '#e03131'; msg.textContent = '价格要是 0 到 99999 之间的整数'; return; }
+      btn.disabled = true; btn.textContent = '保存中…';
+      var r = await getSupabase().from('shop_items').update({ price: price, is_active: active, updated_at: new Date().toISOString() }).eq('key', key).select('key');
+      btn.disabled = false; btn.textContent = '保存';
+      if (r.error || !r.data || !r.data.length) { msg.style.color = '#e03131'; msg.textContent = '保存失败：' + (r.error ? r.error.message : '没有权限'); return; }
+      msg.style.color = '#2b8a3e'; msg.textContent = '✅ 已保存：' + tr.querySelector('b').textContent + ' → ' + price + ' 金币' + (active ? '' : '（已下架）');
+    }
 
     // ===== 统计 =====
     async function loadStats() {

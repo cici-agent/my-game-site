@@ -137,8 +137,9 @@ const BUILD = {
     paws(H, rig, 0xfff4e6, { pawR: .15, sock: 0xfff4e6, legR: .13 });
     [[0, .05, -.8, .25], [.13, -.05, -.84, .18], [-.13, -.05, -.84, .18]].forEach(([x, y, z, r]) => H.add(body, H.sph(r, 12, 10), cream, [x, y, z]));   // 毛茸茸屁股
     // 项圈 + 骨头牌
-    H.add(root(q), new THREE.TorusGeometry(.3, .045, 8, 24), H.M(0x4dabf7), [0, 1.3, .78], null, [Math.PI / 2 - .5, 0, 0]);
-    H.add(root(q), H.cyl(.07, .07, .025, 12), H.M(0xffd43b, { metalness: .5 }), [0, 1.08, .98], null, [Math.PI / 2, 0, 0]);
+    rig.headExtras = new THREE.Group(); root(q).add(rig.headExtras);
+    H.add(rig.headExtras, new THREE.TorusGeometry(.3, .045, 8, 24), H.M(0x4dabf7), [0, 1.3, .78], null, [Math.PI / 2 - .5, 0, 0]);
+    H.add(rig.headExtras, H.cyl(.07, .07, .025, 12), H.M(0xffd43b, { metalness: .5 }), [0, 1.08, .98], null, [Math.PI / 2, 0, 0]);
     // 脸：橙色圆脸 + 白嘴套 + 额头一道白纹
     H.add(head, H.sph(.3, 16, 12), cream, [0, -.2, .3], [1.15, .8, 1]);
     H.add(head, H.sph(.1, 10, 8), cream, [0, .2, .4], [.5, 1.6, .5]);
@@ -173,7 +174,8 @@ const BUILD = {
     const q = quadBody(H, o), { rig, body, head } = q, PW = H.M(0xfff0f6);
     paws(H, rig, 0xf06595, { hoof: true });
     // 脖子
-    H.add(q.root, new THREE.CapsuleGeometry(.27, .5, 4, 12), PW, [0, 1.95, .78], null, [.55, 0, 0]);
+    rig.headExtras = new THREE.Group(); q.root.add(rig.headExtras);
+    H.add(rig.headExtras, new THREE.CapsuleGeometry(.27, .5, 4, 12), PW, [0, 1.95, .78], null, [.55, 0, 0]);
     // 头：长一点的马脸 + 粉色口鼻
     H.add(head, H.sph(.27, 16, 12), H.M(0xffdeeb), [0, -.18, .32], [1, .8, 1.1]);
     [-1, 1].forEach(s => H.add(head, H.sph(.035, 8, 6), H.M(0xe64980), [s * .09, -.12, .6]));
@@ -182,7 +184,7 @@ const BUILD = {
     for (let i = 0; i < 4; i++) H.add(horn, new THREE.TorusGeometry(.065 - i * .013, .011, 6, 14), H.M(0xffffff), [0, -.2 + i * .13, 0], null, [Math.PI / 2, 0, 0]);
     [-1, 1].forEach(s => { const e = H.add(head, H.cone(.09, .24, 8), PW, [s * .2, .38, -.05], null, [0, 0, -s * .25]); rig.ears.push(e); });
     // 彩虹鬃毛：顺着脖子一串
-    RAINBOW.forEach((c, i) => { const k = i / 6; H.add(q.root, H.sph(.14, 10, 8), H.M(c), [0, 2.42 - k * .62, .74 - k * .42], [.75, 1, 1]); });
+    RAINBOW.forEach((c, i) => { const k = i / 6; H.add(rig.headExtras, H.sph(.14, 10, 8), H.M(c), [0, 2.42 - k * .62, .74 - k * .42], [.75, 1, 1]); });
     [0xff6b6b, 0xffd43b, 0x4dabf7].forEach((c, i) => H.add(head, H.sph(.1, 10, 8), H.M(c), [-.12 + i * .12, .34, .24]));
     // 彩虹尾巴：一缕一缕垂下来
     RAINBOW.forEach((c, i) => { const a = (i - 3) * .12; H.add(rig.tail, new THREE.CapsuleGeometry(.07, .75, 4, 8), H.M(c), [Math.sin(a) * .2, -.42, -.12 - Math.abs(a) * .2], null, [.35, 0, a]); });
@@ -236,6 +238,8 @@ export function buildAnimal(skinKey, decor, H) {
   const { root: rootG, rig } = q;
   rootG.traverse(m => { if (m.isMesh) m.castShadow = false; });
   const bodyY = rig.body.position.y;
+  // 坐设施时身体放低到座位上（座位在 root 上方约 0.62）
+  const sitBodyY = q.biped ? .95 : .7 + (rig.torso ? rig.torso.scale.y * .55 : .25);
 
   function setDecor(slot, key) {
     const old = rig.decor[slot]; if (old) old.group.parent && old.group.parent.remove(old.group);
@@ -272,7 +276,7 @@ export function buildAnimal(skinKey, decor, H) {
       w.scale.setScalar(THREE.MathUtils.lerp(.68, 1, wingOpen));        // 收起来时小一点，不会拖到尾巴后面
     });
     let legs = [0, 0, 0, 0], bob = 0;
-    if (sitting) { legs = q.biped ? [-1.2, -1.2] : [-1.25, -1.25, 1.25, 1.25]; rig.body.position.y = bodyY * .62; }
+    if (sitting) { legs = q.biped ? [-1.3, -1.3] : [-.5, -.5, .6, .6]; rig.body.position.y = sitBodyY; }
     else if (flying) { legs = q.biped ? [.5, .5] : [-.9, -.9, .9, .9]; rig.body.position.y = bodyY; }
     else if (pose === 'skate') { rig.body.position.y = bodyY; }
     else if (air) { legs = q.biped ? [.4, -.3] : [-.6, -.6, .6, .6]; rig.body.position.y = bodyY; }
@@ -283,8 +287,15 @@ export function buildAnimal(skinKey, decor, H) {
       bob = Math.abs(Math.sin(phase)) * .06 * speed;
       rig.body.position.y = bodyY + bob;
     }
-    rig.legs.forEach((l, i) => l.rotation.x += (legs[i] - l.rotation.x) * Math.min(1, dt * 14));
-    rig.head.position.y = rig.headBaseY + bob + (sitting ? -(bodyY * .38) : 0);
+    rig.legs.forEach((l, i) => {
+      l.rotation.x += (legs[i] - l.rotation.x) * Math.min(1, dt * 14);
+      // 坐着的时候腿收短（趴坐），不会从座位底下插出来
+      const want = sitting ? (q.biped ? .45 : .32) : 1;
+      l.scale.y += (want - l.scale.y) * Math.min(1, dt * 14); if (sitting && dt === 0) l.scale.y = want;
+    });
+    rig.head.position.y = rig.headBaseY + bob + (sitting ? sitBodyY - bodyY : 0);
+    // 身体上额外挂着的部件（独角兽的脖子、鬃毛）跟着头一起降低
+    if (rig.headExtras) rig.headExtras.position.y = sitting ? sitBodyY - bodyY : 0;
     rig.head.rotation.x = Math.sin(time * 1.5) * .04 + (flying ? -.15 : 0);
   }
   return { root: rootG, rig, animate, setDecor, skin: skinKey, quad: !q.biped, animal: true, height: 2.4 };

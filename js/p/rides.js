@@ -8,6 +8,11 @@ export const rideClock = () => Date.now() / 1000;
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .5, ...o });
 const RAINBOW = [0xff6b6b, 0xffa94d, 0xffd43b, 0x69db7c, 0x4dabf7, 0x9775fa, 0xf783ac, 0x3bc9db];
+// 小灯泡：白天是暗暗的，晚上由 daynight.js 点亮（userData.nightBulb）
+function bulb(parent, x, y, z, color, r = .14) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), new THREE.MeshBasicMaterial({ color }));
+  m.position.set(x, y, z); m.userData.nightBulb = color; parent.add(m); return m;
+}
 
 // ---------------- 摩天轮 ----------------
 export function ferrisWheel(x, z, faceAngle = 0) {
@@ -36,8 +41,9 @@ export function ferrisWheel(x, z, faceAngle = 0) {
   // 彩灯
   for (let k = 0; k < 40; k++) {
     const a = k / 40 * Math.PI * 2;
-    const b = new THREE.Mesh(new THREE.SphereGeometry(.16, 6, 6), new THREE.MeshBasicMaterial({ color: RAINBOW[k % RAINBOW.length] }));
-    b.position.set(Math.cos(a) * R, Math.sin(a) * R, 1.45); wheel.add(b);
+    bulb(wheel, Math.cos(a) * R, Math.sin(a) * R, 1.45, RAINBOW[k % RAINBOW.length], .18);
+    bulb(wheel, Math.cos(a) * R, Math.sin(a) * R, -1.45, RAINBOW[(k + 3) % RAINBOW.length], .18);
+    if (k % 2 === 0) bulb(wheel, Math.cos(a) * R * .55, Math.sin(a) * R * .55, 1.3, 0xfff3bf, .12);
   }
   // 吊舱（始终保持竖直）
   const cabins = [];
@@ -118,6 +124,10 @@ export function rollerCoaster(cx, cz) {
   platform.lookAt(platPos.x + tan.x, .8, platPos.z + tan.z); g.add(platform);
   const roof = new THREE.Mesh(new THREE.BoxGeometry(6, .3, 9), M(0xff6b35)); roof.position.set(st.x + side.x * 1.3, 5, st.z + side.z * 1.3);
   roof.lookAt(roof.position.x + tan.x, 5, roof.position.z + tan.z); g.add(roof);
+  for (let i = -4; i <= 4; i++) [-1, 1].forEach(sd => { const pp = st.clone().addScaledVector(side, 1.3 + sd * 3).addScaledVector(tan, i * 1.05); bulb(g, pp.x, 4.75, pp.z, RAINBOW[(i + 8) % 8], .14); });
+  // 轨道上每隔一段一颗灯
+  for (let i = 0; i < S; i += 10) { const p = samples[i]; curve.getTangentAt(i / S, tan); side.crossVectors(tan, up).normalize(); bulb(g, p.x + side.x * .95, p.y + .05, p.z + side.z * .95, RAINBOW[(i / 10) % 8], .1); }
+  curve.getTangentAt(0, tan); side.crossVectors(tan, up).normalize();
   [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([a, b]) => {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 5, 6), supMat);
     const pp = st.clone().addScaledVector(side, 1.3 + a * 2.6).addScaledVector(tan, b * 4);
@@ -209,6 +219,8 @@ export function carousel(x, z) {
   }
   const skirt = new THREE.Mesh(new THREE.CylinderGeometry(R + 1, R + 1, .8, 32, 1, true), M(0xffd23f, { side: THREE.DoubleSide })); skirt.position.y = 5.7; spin.add(skirt);
   const top = new THREE.Mesh(new THREE.SphereGeometry(.5, 12, 8), M(0xffd23f)); top.position.y = 9.3; spin.add(top);
+  for (let k = 0; k < 32; k++) { const a = k / 32 * Math.PI * 2; bulb(spin, Math.cos(a) * (R + 1.05), 5.7, Math.sin(a) * (R + 1.05), k % 2 ? 0xfff3bf : 0xff8fab, .16); }
+  for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; bulb(spin, Math.cos(a) * 1.2, 4.6, Math.sin(a) * 1.2, 0xffe066, .12); }
   const horses = [];
   for (let k = 0; k < 8; k++) {
     const a = k / 8 * Math.PI * 2;
@@ -265,6 +277,7 @@ export function pirateShip(cx, cz) {
   [-2.6, 2.6].forEach(zz => [-1, 1].forEach(s => {
     const arm = new THREE.Mesh(new THREE.CylinderGeometry(.16, .16, ARM + .6, 8), white);
     arm.position.set(s * 1.6, -ARM / 2, zz); arm.rotation.z = -s * .18; swing.add(arm);
+    for (let i = 1; i < 8; i++) bulb(swing, s * (.0 + i / 8 * 1.6 * 1.05), -i / 8 * ARM, zz + (zz > 0 ? .2 : -.2), RAINBOW[i % 8], .12);
   }));
   const ship = new THREE.Group(); ship.position.y = -ARM - 1.6; swing.add(ship);
   // 船身：侧面轮廓挤出成立体，两头翘起来
@@ -283,6 +296,7 @@ export function pirateShip(cx, cz) {
       const gl = new THREE.Mesh(new THREE.CircleGeometry(.24, 14), M(0x74c0fc, { emissive: 0x1c7ed6, emissiveIntensity: .3 })); gl.position.set(i, .1, s * 2.04); gl.rotation.y = s < 0 ? Math.PI : 0; ship.add(gl);
     }
   });
+  for (let i = -5; i <= 5; i++) [-1.95, 1.95].forEach(zz => bulb(ship, i, 2.1, zz, i % 2 ? 0xffe066 : 0xff6b6b, .13));
   const rail = new THREE.Mesh(new THREE.BoxGeometry(10.4, .18, .18), gold);
   [-1.95, 1.95].forEach(zz => { const r = rail.clone(); r.position.set(0, 1.9, zz); ship.add(r); });
   // 甲板 + 一排排座位（5 排 × 2 个）
