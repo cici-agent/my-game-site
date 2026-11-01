@@ -178,3 +178,23 @@
     .big-card { padding: 16px; } .big-card .ic { font-size: 40px; } .big-card h3 { font-size: 18px; }
     .home-card .acts { margin-left: 0; }
   }
+
+/* ===== 多人：名字标签 / 武器按钮 / 提示条 ===== */
+#mpTags { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
+.mp-tag { position: fixed; left: 0; top: 0; white-space: nowrap; background: rgba(20,16,60,.72); color: #fff; font-weight: 800; font-size: 13px;
+  padding: 3px 10px; border-radius: 999px; border: 1.5px solid var(--c, #fff); opacity: 0; transition: opacity .2s; will-change: transform; }
+.mp-tag.ice::before { content: '❄️ '; }
+.mp-tag.aim { background: #fff; color: #1a1446; box-shadow: 0 0 0 3px rgba(255,255,255,.4); }
+#weaponHud { position: fixed; right: 18px; bottom: calc(var(--dock-h, 96px) + 26px); z-index: 6; display: none; gap: 10px; align-items: flex-end; }
+#weaponHud.show { display: flex; }
+#weaponHud button { position: relative; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: rgba(20,16,60,.7);
+  color: #fff; font-size: 26px; cursor: pointer; font-family: inherit; padding: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+#weaponHud button small { position: absolute; left: 50%; bottom: -18px; transform: translateX(-50%); font-size: 11px; font-weight: 800; white-space: nowrap; color: #fff; text-shadow: 0 1px 3px #000; }
+#weaponHud button.on { border-color: #ffd23f; box-shadow: 0 0 0 3px rgba(255,210,63,.35); }
+#weaponHud #fireBtn { width: 74px; height: 74px; font-size: 32px; background: rgba(224,49,49,.85); border-color: #ffb3b3; }
+#weaponHud #shieldBtn.cd { opacity: .55; }
+body.touch #weaponHud { flex-direction: column-reverse; align-items: center; right: 22px; bottom: 240px; gap: 22px; }
+#toast { position: fixed; left: 50%; top: 30%; transform: translate(-50%, 10px); z-index: 20; background: rgba(26,20,70,.92); color: #fff; padding: 12px 22px; border-radius: 18px;
+  font-weight: 800; font-size: 16px; opacity: 0; pointer-events: none; transition: all .25s; text-align: center; max-width: 86vw; }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (max-width: 640px) { body.touch #weaponHud { bottom: 220px; right: 14px; } #weaponHud button { width: 50px; height: 50px; font-size: 22px; } #weaponHud #fireBtn { width: 64px; height: 64px; } }

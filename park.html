@@ -56,14 +56,28 @@
   .item .buy button.ask { background: #e03131; animation: pulse .6s infinite alternate; }
   .item .buy button.off { background: #868e96; }
   @keyframes pulse { to { transform: scale(1.08); } }
-  #props { position: fixed; right: 12px; top: calc(var(--top-h) + 40px); z-index: 9; display: none; grid-template-columns: repeat(2, 54px); gap: 7px; }
-  #props.show { display: grid; }
-  #props button { position: relative; width: 54px; height: 54px; border-radius: 15px; border: 2px solid #ffd23f; background: rgba(26,20,70,.8); color: #fff; cursor: pointer; font-family: inherit; padding: 0; }
-  #props button .e { font-size: 26px; }
-  #props button b { position: absolute; right: 4px; bottom: 1px; font-size: 12px; }
-  #props button i { position: absolute; left: 5px; top: 1px; font-size: 11px; font-style: normal; opacity: .7; }
-  #props button:active { transform: scale(.92); }
-  @media (max-height: 560px) { #props { grid-template-columns: repeat(3, 46px); } #props button { width: 46px; height: 46px; } #props button .e { font-size: 22px; } }
+  #bag { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--dock-h) + 14px); z-index: 9; display: none; gap: 6px;
+    background: rgba(26,20,70,.55); padding: 6px; border-radius: 16px; }
+  #bag.show { display: flex; }
+  #bag .slot { position: relative; width: 54px; height: 54px; border-radius: 12px; border: 2px solid rgba(255,255,255,.35); background: rgba(255,255,255,.12);
+    color: #fff; cursor: pointer; font-family: inherit; padding: 0; touch-action: manipulation; }
+  #bag .slot .e { font-size: 28px; }
+  #bag .slot b { position: absolute; right: 4px; bottom: 1px; font-size: 12px; text-shadow: 0 1px 2px #000; }
+  #bag .slot i { position: absolute; left: 5px; top: 1px; font-size: 11px; font-style: normal; opacity: .75; }
+  #bag .slot.sel { border-color: #ffd23f; background: rgba(255,210,63,.28); transform: translateY(-4px); box-shadow: 0 0 0 3px rgba(255,210,63,.35); }
+  #bag .slot.on b { color: #8ce99a; }
+  #bag .slot.empty { opacity: .55; }
+  #bagName { position: fixed; left: 50%; bottom: calc(var(--dock-h) + 84px); transform: translateX(-50%); z-index: 9; background: rgba(26,20,70,.85); color: #fff;
+    padding: 5px 14px; border-radius: 999px; font-weight: 800; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+  #bagName.show { opacity: 1; }
+  #prompt { bottom: calc(var(--dock-h) + 120px) !important; } body.touch #prompt { bottom: calc(var(--dock-h) + 175px) !important; }
+  @media (max-width: 640px) {
+    #bag { gap: 3px; padding: 4px; bottom: calc(var(--dock-h) + 8px); } #bag .slot { width: 36px; height: 40px; border-radius: 9px; } #bag .slot .e { font-size: 20px; }
+    #bag .slot i { font-size: 9px; } #bag .slot b { font-size: 10px; } #bagName { bottom: calc(var(--dock-h) + 58px); font-size: 12px; }
+  }
+  body.touch #stick { bottom: calc(var(--dock-h) + 70px) !important; }
+  body.touch #jumpBtn { bottom: calc(var(--dock-h) + 70px); }
+  body.touch #actBtn { bottom: calc(var(--dock-h) + 90px); }
   #fxBar { position: fixed; left: 50%; top: calc(var(--top-h) + 6px); transform: translateX(-50%); z-index: 9; display: flex; gap: 8px; pointer-events: none; }
   #fxBar span { background: rgba(26,20,70,.8); color: #fff; padding: 5px 12px; border-radius: 999px; font-weight: 800; font-size: 14px; }
   #toast { position: fixed; left: 50%; top: 38%; transform: translate(-50%, 10px); z-index: 20; background: rgba(26,20,70,.92); color: #fff; padding: 12px 22px; border-radius: 18px;
@@ -89,10 +103,12 @@
   <div class="brand"><div class="dot">🐣</div>小菜鸟宇宙<span class="where" id="where">· 菜鸟星球</span><button id="mute" title="声音">🔊</button></div>
   <div class="coin-hud">🪙 : <span id="coinNum">--</span></div>
 </div>
-<div class="hint" id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 数字键用道具 · 拖动屏幕转视角 · 走到设施和商店门口按 E</div>
+<div class="hint" id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 数字键选背包格子、再按一次使用 · 拖动屏幕转视角 · 走到设施和商店门口按 E</div>
 
 <div id="prompt"></div>
-<div id="props"></div>
+<div id="bag"></div>
+<div id="bagName"></div>
+<div id="mpTags"></div>
 <div id="fxBar"></div>
 <div id="toast"></div>
 <div class="dock" id="dock"></div>

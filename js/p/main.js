@@ -4,6 +4,7 @@ import { buildWorld, ISLAND_R, SHOPS } from './world.js';
 import { buildAvatar, buildPet } from './avatar.js';
 import { INV, loadInventory, itemsOf, findItem, slotOf, owns, buy, equip, useItem } from './inventory.js';
 import { createAbilities, DURATION } from './abilities.js';
+import { createParkMP } from './mp.js';
 import { loadPlanets, loadMe } from '../u/data.js';
 import { askLogin } from '../u/login.js';
 import { esc } from '../u/stations.js';
@@ -48,6 +49,7 @@ function applyLook() {
   abil.reattach();
   if (pet) { scene.remove(pet.group); pet = null; }
   if (e.pet) { pet = buildPet(e.pet); petPos.copy(player.pos).add(new THREE.Vector3(1.5, 0, 1.5)); petPos.y = 0; scene.add(pet.group); }
+  mp && mp.lookChanged();
 }
 
 // ---------- 提示条 ----------
@@ -65,7 +67,7 @@ addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (e.code === 'KeyE' && !e.repeat) action();
   if (e.code === 'Space' && !e.repeat) abil.onJumpPress();
-  const dn = /^Digit([0-9])$/.exec(e.code); if (dn && !e.repeat) usePropAt((+dn[1] + 9) % 10);
+  const dn = /^Digit([1-9])$/.exec(e.code); if (dn && !e.repeat) pressSlot(+dn[1] - 1);
   if (e.code === 'Escape' && player.riding) leaveRide();
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -214,11 +216,13 @@ async function onShopAction(it, act) {
       confirmKey = null;
       const r = await buy(it.key, 1);
       setCoins(r.coins); sfx.chime([784, 988, 1318]);
-      if (it.kind === 'use') toast(`${it.icon} 买好了！背包里有 ${r.qty} 个，按道具栏使用`);
-      else { await equip(slot, it.key); applyEquip(slot); toast(`${it.icon} ${it.name} 是你的啦！`); }
-      renderProps();
+      if (slot !== 'ship' && !syncBag(it.key)) toast(`${it.icon} 买好了！不过九格背包满了，用掉一些东西就会放进去`);
+      else if (it.kind === 'use') toast(`${it.icon} 买好了！已经放进背包（按格子的数字两次就能用）`);
+      if (it.kind !== 'use') { await equip(slot, it.key); applyEquip(slot); if (slot === 'ship') toast(`${it.icon} ${it.name} 是你的啦！回到宇宙就能开`); else toast(`${it.icon} ${it.name} 是你的啦！已经穿上，也放进了背包`); }
+      renderBag();
     } else if (act === 'on') { await equip(slot, it.key); applyEquip(slot); sfx.click(); }
     else if (act === 'off') { await equip(slot, null); applyEquip(slot); sfx.click(); }
+    renderBag();
   } catch (e) { toast('😅 ' + e.message); }
   finally { busy = false; shopOpen && renderShop(); }
 }
@@ -247,25 +251,76 @@ function openShop(key) {
 function closeShop() { shopOpen = false; $('shop').classList.remove('show'); if (viewer) { viewer.dispose(); viewer = null; } }
 $('shopClose').onclick = closeShop;
 
-// ---------- 道具栏（背包里的能力道具） ----------
-function propList() { return itemsOf('prop').filter(i => i.kind === 'use' && (INV.have[i.key] || 0) > 0); }
-function renderProps() {
-  const list = propList(), bar = $('props');
-  bar.innerHTML = list.map((it, i) => `<button data-k="${it.key}" title="${esc(it.name)}"><span class="e">${it.icon}</span><b>${INV.have[it.key]}</b>${isTouch || i > 9 ? '' : `<i>${(i + 1) % 10}</i>`}</button>`).join('');
-  bar.classList.toggle('show', list.length > 0);
-  bar.querySelectorAll('button').forEach(b => b.onclick = () => usePropKey(b.dataset.k));
+// ---------- 九格背包：按数字选中，再按一次同一个数字就使用 ----------
+const BAG_N = 9;
+let bag = Array(BAG_N).fill(null), bagSel = 0;
+const bagKey = () => 'xcn_bag_' + (ME ? ME.user.id : 'guest');
+function ownedForBag() {
+  // 飞船不放背包；免费的默认皮肤也不放
+  const use = itemsOf('prop').filter(i => i.kind === 'use' && (INV.have[i.key] || 0) > 0);
+  const decor = itemsOf('prop').filter(i => i.kind === 'decor' && owns(i.key));
+  const skins = itemsOf('skin').filter(i => i.price > 0 && owns(i.key));
+  return [...use, ...decor, ...skins].map(i => i.key);
 }
-function usePropAt(i) { const it = propList()[i]; if (it) usePropKey(it.key); }
+function syncBag(newKey) {
+  try { const saved = JSON.parse(localStorage.getItem(bagKey()) || 'null'); if (Array.isArray(saved) && saved.length === BAG_N && !syncBag.loaded) { bag = saved; } } catch (e) {}
+  syncBag.loaded = bagKey();
+  const owned = ownedForBag();
+  bag = bag.map(k => k && owned.includes(k) ? k : null);           // 用完 / 没有了 → 空出格子
+  const order = newKey && owned.includes(newKey) ? [newKey, ...owned.filter(k => k !== newKey)] : owned;
+  let full = false;
+  order.forEach(k => { if (bag.includes(k)) return; const i = bag.indexOf(null); if (i < 0) { if (k === newKey) full = true; return; } bag[i] = k; });
+  try { localStorage.setItem(bagKey(), JSON.stringify(bag)); } catch (e) {}
+  renderBag();
+  return !full;
+}
+function renderBag() {
+  const el = $('bag'); if (!el) return;
+  el.classList.toggle('show', !!ME);
+  el.innerHTML = bag.map((k, i) => {
+    const it = k && findItem(k);
+    if (!it) return `<button class="slot empty ${i === bagSel ? 'sel' : ''}" data-i="${i}"><i>${i + 1}</i></button>`;
+    const on = it.kind !== 'use' && INV.equip[slotOf(it)] === k;
+    return `<button class="slot ${i === bagSel ? 'sel' : ''} ${on ? 'on' : ''}" data-i="${i}" title="${esc(it.name)}"><span class="e">${it.icon}</span>${it.kind === 'use' ? `<b>${INV.have[k]}</b>` : on ? '<b>✔</b>' : ''}<i>${i + 1}</i></button>`;
+  }).join('');
+  const cur = bag[bagSel] && findItem(bag[bagSel]);
+  $('bagName').textContent = cur ? `${cur.icon} ${cur.name} · ${cur.kind === 'use' ? '再按一次使用' : INV.equip[slotOf(cur)] === cur.key ? '再按一次取下' : '再按一次穿戴'}` : '';
+  el.querySelectorAll('.slot').forEach(b => b.onclick = () => pressSlot(+b.dataset.i));
+}
+let bagNameT = 0;
+function pressSlot(i) {
+  if (i < 0 || i >= BAG_N) return;
+  if (i !== bagSel) { bagSel = i; renderBag(); flashBagName(); sfx.click(); return; }
+  useBagItem(bag[i]);
+}
+function flashBagName() { const n = $('bagName'); n.classList.add('show'); clearTimeout(bagNameT); bagNameT = setTimeout(() => n.classList.remove('show'), 2200); }
+async function useBagItem(key) {
+  if (!key) return;
+  const it = findItem(key);
+  if (it.kind === 'use') return usePropKey(key);
+  if (busy) return;
+  const slot = slotOf(it), on = INV.equip[slot] === key;
+  busy = true;
+  try { await equip(slot, on ? (slot === 'skin' ? 'explorer' : null) : key); applyLook(); sfx.click(); toast(`${it.icon} ${on ? '取下了' : '换上了'} ${it.name}`); }
+  catch (e) { toast('😅 ' + e.message); }
+  finally { busy = false; renderBag(); }
+}
+const renderProps = () => syncBag();
 async function usePropKey(key) {
   if (shopOpen || player.riding || busy) return;
   const it = findItem(key); const ok = abil.canUse(key);
   if (ok !== true) { toast(ok); return; }
   busy = true;
-  try { await useItem(key); abil.start(key); toast(`${it.icon} ${it.name}${DURATION[key] ? ` · ${DURATION[key]} 秒` : ''}`); }
+  try {
+    await useItem(key);
+    const data = abil.start(key);
+    mp && mp.usedProp(key, data);
+    toast(`${it.icon} ${it.name}${DURATION[key] ? ` · ${DURATION[key]} 秒` : ''}`);
+  }
   catch (e) { toast('😅 ' + e.message); }
-  finally { busy = false; renderProps(); }
+  finally { busy = false; syncBag(); }
 }
-const FX_ICON = { jetpack: '🎒', copter: '🚁', balloon: '🎈', spring: '👟', skate: '🛹', grow: '🍄', shrink: '🧪', bubble: '🫧', unicorn: '🦄', 'unicorn-cd': '🦄💤' };
+const FX_ICON = { snow: '❄️ 变慢', jetpack: '🎒', copter: '🚁', balloon: '🎈', spring: '👟', skate: '🛹', grow: '🍄', shrink: '🧪', bubble: '🫧', unicorn: '🦄', 'unicorn-cd': '🦄💤' };
 let fxShown = '';
 function renderFx() {
   const st = abil.status(), html = st.map(s => `<span>${FX_ICON[s.key] || '✨'} ${Math.ceil(s.left)}s</span>`).join('');
@@ -373,6 +428,7 @@ function tick() {
     me.root.position.copy(player.pos); me.root.position.y += mod.lift * mod.scale; me.root.rotation.set(0, player.face, 0);
     me.rig.shadow.position.y = (.02 - player.pos.y - mod.lift * mod.scale) / mod.scale; me.rig.shadow.material.opacity = .25 / (1 + player.pos.y * .3);
     me.animate(dt, Math.min(1, speed / WALK), !player.ground, false, mod.pose);
+    myMove = { speed: Math.min(1, speed / WALK) * (len > .05 ? 1 : 0), pose: mod.pose, uniFly: abil.flying && me.skin === 'unicorn' && mod.pose === 'fly' };
     if (pet) {
       const back = new THREE.Vector3(Math.sin(player.face), 0, Math.cos(player.face)).multiplyScalar(-.7 * mod.scale);
       const want = tmp.set(player.pos.x + back.x + Math.cos(player.face) * 1.5 * mod.scale, 0, player.pos.z + back.z - Math.sin(player.face) * 1.5 * mod.scale);
@@ -398,19 +454,23 @@ function tick() {
     if (near) act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : (near.ride.canBoard && !near.ride.canBoard() ? (queued ? '排队中' : '排队') : '乘坐');
   }
 
+  mp && mp.update(dt, t, player.riding ? { speed: 0 } : myMove);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
 
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
-let ME = null;
+let ME = null, mp = null, myMove = { speed: 0 };
 function setCoins(n) { $('coinNum').textContent = n == null ? '--' : n; }
 async function refreshMe() {
   ME = await loadMe();
   await loadInventory(ME && ME.user.id);
   setCoins(ME ? (ME.profile.coins || 0) : null);
-  applyLook(); renderProps();
+  syncBag.loaded = null; bag = Array(BAG_N).fill(null);
+  applyLook(); syncBag();
+  if (!mp) mp = createParkMP({ scene, camera, player, getMe: () => ME, getLook: () => ({ ...INV.equip }), getAvatar: () => me, abil, toast, sfx });
+  mp.connect();
 }
 
 async function boot() {
@@ -433,4 +493,4 @@ async function boot() {
   }
 }
 boot();
-window.__park = { player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, get me() { return me; }, get near() { return near; } };
+window.__park = { player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, pressSlot, get bag() { return bag; }, get mp() { return mp; }, get me() { return me; }, get near() { return near; } };

@@ -7,6 +7,7 @@ import { glowTex, rand } from './tex.js';
 import { renderStation } from './stations.js';
 import { askLogin } from './login.js';
 import * as sfx from './sfx.js';
+import { createUniverseMP } from './mp.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -65,10 +66,11 @@ const gate = createGate(); scene.add(gate);
 // ---------- 飞船 ----------
 // 外层容器负责位置和朝向，里面放当前装备的飞船（换飞船时只换里面）
 const ship = new THREE.Group(); ship.rotation.order = 'YXZ'; scene.add(ship);
-let shipObj, flames, engineLight;
+let shipObj, flames, engineLight, shipKey = 'rookie', mp = null;
 function setShip(key) {
   if (shipObj) ship.remove(shipObj.group);
-  shipObj = buildShip(key); ({ flames, engineLight } = shipObj); ship.add(shipObj.group);
+  shipKey = key; shipObj = buildShip(key); ({ flames, engineLight } = shipObj); ship.add(shipObj.group);
+  mp && mp.shipChanged();
 }
 setShip('rookie');
 const TRAIL = 160;
@@ -116,9 +118,15 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (e.code === 'Escape' && state.mode === 'landed') takeOff();
+  if (!e.repeat && mp) {
+    if (e.code === 'KeyE') mp.triggerDown();
+    if (e.code === 'KeyQ') mp.shield();
+    if (e.code === 'Digit1') mp.setWeapon('bullet');
+    if (e.code === 'Digit2') mp.setWeapon('missile');
+  }
   if (/^(Arrow|Key[WASD])/.test(e.code)) state.target = null;
 });
-addEventListener('keyup', e => keys[e.code] = false);
+addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'KeyE' && mp) mp.triggerUp(); });
 addEventListener('pointerdown', () => sfx.unlock());
 
 const stick = $('stick'), knob = stick.querySelector('.knob');
@@ -207,6 +215,7 @@ async function openStation(p) {
 }
 async function onLogout() {
   ME = null; showCoins();
+  mp && mp.connect();
   takeOff();
 }
 
@@ -225,6 +234,7 @@ function startLanding(p) {
   gate.position.copy(ship.position).addScaledVector(fwd, cine.gateDist);
   gate.lookAt(ship.position); gate.scale.setScalar(.01); gate.visible = true; gate.userData.tint(p.color);
   warpColor = p.color; refreshUI();
+  mp && mp.gateEvent(p.color);
   sfx.whoosh(1.4, true);
 }
 function parkAt(p, inward) {
@@ -254,7 +264,7 @@ async function requireLogin(p) {
   flash(false);
   if (state.mode !== 'landed') { state.mode = 'landed'; state.landed = p; state.speed = 0; state.warp = 0; gate.visible = false; parkAt(p, true); refreshUI(); }
   const ok = await askLogin(p);
-  if (ok) { ME = await loadMe(); showCoins(); if (ME) loadEquipment(ME.user.id).then(eq => { if (eq && eq.ship) setShip(eq.ship); }); return true; }
+  if (ok) { ME = await loadMe(); showCoins(); if (ME) loadEquipment(ME.user.id).then(eq => { if (eq && eq.ship) setShip(eq.ship); mp && mp.connect(); }); return true; }
   takeOff();
   return false;
 }
@@ -265,6 +275,7 @@ function takeOff(next) {
   Object.assign(cine, { t: 0, p, next: next || null, setup: false });
   $('station').classList.remove('show');
   flash(true, p); warpColor = p.color; gate.userData.tint(p.color);
+  mp && mp.gateEvent(p.color);
   markDock(next || null); refreshUI();
   sfx.whoosh(1.6, false);
 }
@@ -302,6 +313,7 @@ function tick() {
     if (keys.ArrowDown || keys.KeyS) thrust = -.5;
     if (joy.id !== null) { turn = joy.x; thrust = Math.max(-.5, joy.y); }
     if (state.boost) thrust = Math.max(thrust, 1);
+    if (mp && mp.frozen) { turn = 0; thrust = 0; state.target = null; }
     if (turn || thrust) hideHint();
     if (state.target) {
       const p = state.target;
@@ -353,7 +365,7 @@ function tick() {
     });
     if (state.cooldown && planetDist(state.cooldown) > 26) state.cooldown = null;
     // 手动开到星球附近、机头正对（±20°）往前飞 → 自动降落；擦边不触发
-    if (nearest && nd < 14 && nearest !== state.cooldown && state.speed > 3) {
+    if (nearest && nd < 14 && nearest !== state.cooldown && state.speed > 3 && !(mp && mp.frozen)) {
       const face = wrapAngle(Math.atan2(nearest.pos[0] - ship.position.x, nearest.pos[2] - ship.position.z) - state.heading);
       if (Math.abs(face) < .35) startLanding(nearest);
     }
@@ -414,6 +426,7 @@ function tick() {
   camera.lookAt(lookAt);
 
   drawWarp(state.warp, dt);
+  mp && mp.update(dt, t);
 
   PLANETS.forEach(p => {
     if (!p.label) return;
@@ -449,12 +462,26 @@ function buildMoons() {
   });
 }
 
+// ---------- 提示条 + 武器按钮 ----------
+let toastT = 0;
+function toast(msg) { const el = $('toast'); if (!el) return; el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600); }
+function setupWeaponHud() {
+  const fire = $('fireBtn');
+  fire.addEventListener('pointerdown', e => { e.preventDefault(); fire.setPointerCapture(e.pointerId); mp.triggerDown(); });
+  ['pointerup', 'pointercancel'].forEach(ev => fire.addEventListener(ev, () => mp.triggerUp()));
+  $('shieldBtn').onclick = () => mp.shield();
+  document.querySelectorAll('#weaponHud [data-w]').forEach(b => b.onclick = () => mp.setWeapon(b.dataset.w));
+}
+
 // ---------- 启动 ----------
 async function boot() {
   setLoad(20);
   const [planets, me] = await Promise.all([loadPlanets(), loadMe()]);
   ME = me; showCoins();
-  if (ME) loadEquipment(ME.user.id).then(eq => { if (eq && eq.ship && eq.ship !== 'rookie') setShip(eq.ship); });
+  mp = createUniverseMP({ scene, camera, ship, state, getShipKey: () => shipKey, getMe: () => ME, sfx, toast, onFreeze: () => {} });
+  setupWeaponHud();
+  if (ME) loadEquipment(ME.user.id).then(eq => { if (eq && eq.ship && eq.ship !== 'rookie') setShip(eq.ship); mp.connect(); });
+  else mp.connect();
   PLANETS = layoutPlanets(planets);
   try { sessionStorage.setItem('xcn_planets', JSON.stringify(Object.fromEntries(planets.map(p => [p.kind, [p.name, p.icon]])))); } catch (e) {}
   PLANETS.forEach((p, i) => { scene.add(buildPlanet(p, i)); p.moons = []; planetMeshes.push(p.mesh); });
@@ -489,4 +516,4 @@ async function boot() {
 boot();
 
 // 自动化测试用
-window.__space = { state, get PLANETS() { return PLANETS; }, flyTo, takeOff, cine, ship };
+window.__space = { get mp() { return mp; }, setShip, state, get PLANETS() { return PLANETS; }, flyTo, takeOff, cine, ship };

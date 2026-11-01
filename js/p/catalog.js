@@ -2,8 +2,8 @@
 export const CATALOG = {
   ship: [
     { key: 'rookie',  name: '小菜鸟号', icon: '🛸', price: 0,   desc: '白身橙翼，人人都有的初始飞船', perks: ['🛡️ 防御盾（Q）'] },
-    { key: 'thunder', name: '雷电号',   icon: '⚡', price: 50,  desc: '红蓝闪电涂装，速度感满满',     perks: ['🛡️ 防御盾（Q）', '🔫 子弹（E）：击中冰冻 3 秒'] },
-    { key: 'starry',  name: '星空号',   icon: '🌌', price: 100, desc: '深蓝机身，星光线条会发光',     perks: ['🛡️ 防御盾（Q）', '🔫 子弹（按 1 切换）', '🚀 追踪导弹（按 2 切换，按住 E 瞄准）'] },
+    { key: 'thunder', name: '雷电号',   icon: '⚡', price: 150, desc: '红蓝闪电涂装，速度感满满',     perks: ['🛡️ 防御盾（Q）', '🔫 子弹（E）：击中冰冻 3 秒'] },
+    { key: 'starry',  name: '星空号',   icon: '🌌', price: 250, desc: '深蓝机身，星光线条会发光',     perks: ['🛡️ 防御盾（Q）', '🔫 子弹（按 1 切换）', '🚀 追踪导弹（按 2 切换，按住 E 瞄准）'] },
   ],
   skin: [
     { key: 'explorer', name: '小探险家', icon: '🧒', price: 0,   group: '人物' },

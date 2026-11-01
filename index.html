@@ -21,9 +21,17 @@
   <div class="brand"><div class="dot">🐣</div>小菜鸟宇宙<span class="where" id="where"></span><button id="mute" title="声音">🔊</button></div>
   <div class="coin-hud">🪙 : <span id="coinNum">--</span></div>
 </div>
-<div class="hint" id="hint">开到星球附近会自动穿过星门降落 · 方向键 / WASD 驾驶 · 也可以点星球自动飞</div>
+<div class="hint" id="hint">开到星球附近会自动穿过星门降落 · 方向键 / WASD 驾驶 · E 发射 · Q 防御盾 · 也可以点星球自动飞</div>
 
 <div id="labels"></div>
+<div id="mpTags"></div>
+<div id="weaponHud">
+  <button data-w="bullet" title="子弹（1）">🔫<small>1</small></button>
+  <button data-w="missile" title="追踪导弹（2）">🚀<small>2</small></button>
+  <button id="shieldBtn" title="防御盾（Q）">🛡️<small>Q</small></button>
+  <button id="fireBtn" title="发射（E）">💥<small>E</small></button>
+</div>
+<div id="toast"></div>
 <div class="dock" id="dock"></div>
 <div id="stick"><div class="knob"></div></div>
 <button id="boost">加速</button>

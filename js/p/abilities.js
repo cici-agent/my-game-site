@@ -16,8 +16,10 @@ export const DURATION = { jetpack: 30, copter: 10, balloon: 8, spring: 30, skate
 const FLY = ['jetpack', 'copter', 'balloon'];
 const UNI_FLY = 8, UNI_CD = 60, UNI_MAX = 14;
 
-export function createAbilities({ scene, player, getAvatar, sfx, toast }) {
-  const A = { timed: {}, fly: null, flyEnd: 0, descend: false, uniCdEnd: 0, lastJump: -9, models: {}, scale: 1, t: 0 };
+// remote=true：别人的效果（只做画面，不管上下移动）；hitTest(pos) 用来判断雪球有没有砸到我
+export function createAbilities({ scene, player, getAvatar, sfx, toast, remote = false, hitTest = null }) {
+  const A = { timed: {}, fly: null, flyEnd: 0, descend: false, uniCdEnd: 0, lastJump: -9, models: {}, scale: 1, t: 0, slowUntil: 0, snowCap: null };
+  if (remote) { sfx = { chime() {}, whoosh() {}, click() {} }; toast = () => {}; }
   const parts = [];      // 粒子 / 投射物
 
   // ---------- 小工具 ----------
@@ -94,18 +96,33 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast }) {
     g.parent && g.parent.remove(g); delete A.models[key];
   }
   // 换皮肤后重新挂上
-  function reattach() { Object.keys(A.models).forEach(k => { detach(k); attach(k); }); }
+  function reattach() { Object.keys(A.models).forEach(k => { detach(k); attach(k); }); if (A.snowCap && A.t < A.slowUntil) getAvatar().rig.headTop.add(A.snowCap); }
 
   // ---------- 一次性道具 ----------
-  function throwSnowball() {
-    const p = handPos(), f = fwd();
+  function throwSnowball(p0, v0) {
+    const p = p0 ? new THREE.Vector3(...p0) : handPos();
+    const v = v0 ? new THREE.Vector3(...v0) : fwd().multiplyScalar(18).setY(6);
     const ball = new THREE.Mesh(new THREE.SphereGeometry(.22, 12, 10), M(0xffffff, { roughness: .9 }));
     ball.position.copy(p); scene.add(ball);
-    const v = f.multiplyScalar(16).setY(6);
     parts.push({ obj: ball, life: 3, max: 3, step(dt) {
       v.y -= 18 * dt; ball.position.addScaledVector(v, dt);
-      if (ball.position.y < .1) { burst(ball.position.clone().setY(.2), [0xffffff, 0xd0ebff], 26, 4, .8, .35, 10); this.life = 0; sfx.click && sfx.click(); }
+      const hit = hitTest && hitTest(ball.position);
+      if (hit || ball.position.y < .1) { burst(ball.position.clone().setY(Math.max(.2, ball.position.y)), [0xffffff, 0xd0ebff], 26, 4, .8, .35, 10); this.life = 0; sfx.click && sfx.click(); }
     } });
+    return { p: [+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2)], v: [+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2)] };
+  }
+  // 被雪球砸中：走路变慢 5 秒，头上一团雪
+  function slow(sec = 5) {
+    A.slowUntil = A.t + sec;
+    const av = getAvatar();
+    if (!A.snowCap) {
+      const g = new THREE.Group();
+      [[0, .1, 0, .32], [.2, 0, .1, .2], [-.22, 0, .05, .22], [0, .05, .25, .18]].forEach(([x, y, z, r]) => add(g, new THREE.SphereGeometry(r, 12, 10), M(0xffffff, { roughness: 1 }), [x, y, z]));
+      A.snowCap = g;
+    }
+    A.snowCap.parent && A.snowCap.parent.remove(A.snowCap);
+    av.rig.headTop.add(A.snowCap);
+    burst(player.pos.clone().setY(player.pos.y + 2.4), [0xffffff, 0xd0ebff], 30, 3, .9, .4, 6);
   }
   function launchFirework() {
     const start = player.pos.clone().add(fwd().multiplyScalar(1.5)).setY(player.pos.y + 1);
@@ -143,9 +160,9 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast }) {
     if (key === 'skate' && A.fly) return '飞行中不能踩滑板';
     return true;
   }
-  function start(key) {
+  function start(key, data) {
     sfx.chime && sfx.chime([659, 880, 1175]);
-    if (key === 'snowball') { throwSnowball(); return; }
+    if (key === 'snowball') return throwSnowball(data && data.p, data && data.v);
     if (key === 'firework') { launchFirework(); return; }
     const now = A.t;
     if (key === 'grow' || key === 'shrink') { delete A.timed[key === 'grow' ? 'shrink' : 'grow']; burst(player.pos.clone().setY(player.pos.y + 1.5), [0xffd43b, 0xffffff, 0xda77f2], 40, 4, 1, .5, 0); }
@@ -213,7 +230,8 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast }) {
       gravity = false; pose = 'fly'; player.vy = -3.2;
       if (A.models.copter) A.models.copter.userData.spin.rotation.y += dt * 25;
     }
-    if (!gravity) {
+    if (A.snowCap && A.snowCap.parent && A.t >= A.slowUntil) A.snowCap.parent.remove(A.snowCap);
+    if (!gravity && !remote) {
       player.pos.y += player.vy * dt;
       if (player.pos.y <= 0) { player.pos.y = 0; player.vy = 0; player.ground = true; if (A.descend) A.descend = false; }
       else player.ground = false;
@@ -242,7 +260,7 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast }) {
     }
 
     return {
-      speedMul: (A.timed.skate ? 1.8 : 1) * (A.timed.grow ? 1.25 : A.timed.shrink ? .85 : 1) * (A.fly === 'jetpack' ? 1.4 : 1),
+      speedMul: (t < A.slowUntil ? .4 : 1) * (A.timed.skate ? 1.8 : 1) * (A.timed.grow ? 1.25 : A.timed.shrink ? .85 : 1) * (A.fly === 'jetpack' ? 1.4 : 1),
       jumpMul: (A.timed.spring ? 1.75 : 1) * (A.timed.grow ? 1.2 : 1),
       gravity, pose, lift, scale: A.scale,
     };
@@ -251,9 +269,12 @@ export function createAbilities({ scene, player, getAvatar, sfx, toast }) {
   // 正在生效的效果（显示倒计时用）
   function status() {
     const out = Object.entries(A.timed).map(([k, end]) => ({ key: k, left: Math.max(0, end - A.t) }));
+    if (A.t < A.slowUntil) out.push({ key: 'snow', left: A.slowUntil - A.t });
     if (A.fly === 'unicorn') out.push({ key: 'unicorn', left: Math.max(0, A.flyEnd - A.t) });
     else if (A.uniCdEnd > A.t) out.push({ key: 'unicorn-cd', left: A.uniCdEnd - A.t });
     return out;
   }
-  return { start, canUse, step, onJumpPress, status, reattach, get flying() { return !!A.fly || A.descend; } };
+  // 别人的独角兽飞行（画面用）
+  function setRemoteFly(on) { A.fly = on ? 'unicorn' : (A.fly === 'unicorn' ? null : A.fly); if (on) A.flyEnd = A.t + 99; }
+  return { start, canUse, step, onJumpPress, status, reattach, slow, setRemoteFly, get flying() { return !!A.fly || A.descend; }, get slowed() { return A.t < A.slowUntil; } };
 }
