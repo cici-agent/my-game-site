@@ -169,6 +169,7 @@ export function hauntedMansion(cx, cz, rotY = 0) {
     name: '鬼屋', icon: '🏚️', group: g, kind: 'mansion', walls,
     // 入口外面一点（提示用）
     entry: toWorld(ex, D / 2 + 2.5), entryR: 3.5,
+    exitOut: toWorld(xx, -D / 2 - 2.5), exitYaw: rotY + Math.PI,
     inside(x, z) { const [lx, lz] = toLocal(x, z); return Math.abs(lx) < W / 2 - .05 && Math.abs(lz) < D / 2 - .05; },
     near(x, z) { const [lx, lz] = toLocal(x, z); return Math.abs(lx) < W / 2 + 3 && Math.abs(lz) < D / 2 + 3; },
     // 把人推出墙外（局部坐标里做长方形碰撞）

@@ -9,6 +9,7 @@ import { createDayNight, jumpTo, isShifted, setGlobalOffset, globalOffset, offse
 import { createFireShow } from './fireshow.js';
 import { clockTower, clockText } from './clock.js';
 import { buildKart, kartColorOf } from './kart.js';
+import { createNPCs } from './npc.js';
 import { loadPlanets, loadMe } from '../u/data.js';
 import { askLogin } from '../u/login.js';
 import { esc } from '../u/stations.js';
@@ -43,6 +44,10 @@ setLoad(60);
 let me = buildAvatar('explorer');
 scene.add(me.root);
 const player = { pos: new THREE.Vector3(0, 0, 80), vy: 0, ground: true, face: Math.PI, riding: null };
+// 乐园里的 NPC 小游客（每个人自己屏幕上的，不联网）
+let npcs = null;
+try { npcs = createNPCs({ scene, world, camera, tagsEl: $('mpTags'), islandR: ISLAND_R, playerRef: player,
+  takenByOthers: ri => (mp ? mp.takenSeats(ri) : []).concat(player.riding && player.riding.rideIdx === ri ? [player.riding.seatIndex ?? 0] : []) }); } catch (e) { console.warn('npc', e); }
 me.root.position.copy(player.pos);
 let pet = null;
 const petPos = new THREE.Vector3(2, 0, 82);
@@ -147,7 +152,7 @@ function boardRide(rideObj) {
   queued = null;
   const rideIdx = world.rides.indexOf(rideObj);
   rideObj.playerPos = [player.pos.x, player.pos.z];
-  const ride = rideObj.board(mp ? mp.takenSeats(rideIdx) : []);
+  const ride = rideObj.board((mp ? mp.takenSeats(rideIdx) : []).concat(npcs ? npcs.takenSeats(rideIdx) : []));
   ride.rideIdx = rideIdx;
   ride.prevCam = { ...cam };
   player.riding = ride; player.vy = 0; sfx.chime([523, 659, 784]);
@@ -743,6 +748,7 @@ function tick() {
     if (near && near.type !== 'mansion') act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : near.type === 'kart' ? '开车' : near.ride ? (near.ride.canBoard && !near.ride.canBoard() ? (queued ? '排队中' : '排队') : '乘坐') : '';
   }
 
+  npcs && npcs.update(dt);
   mp && mp.update(dt, t, player.riding ? { speed: 0, ride: [player.riding.rideIdx, player.riding.seatIndex ?? 0] } : myMove);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
@@ -837,4 +843,4 @@ async function boot() {
   }
 }
 boot();
-window.__park = { K, kartTick, renderer, startKart, stopKart, player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, pressSlot, get bag() { return bag; }, get mp() { return mp; }, get me() { return me; }, get near() { return near; } };
+window.__park = { get npcs() { return npcs; }, K, kartTick, renderer, startKart, stopKart, player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, pressSlot, get bag() { return bag; }, get mp() { return mp; }, get me() { return me; }, get near() { return near; } };

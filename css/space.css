@@ -184,6 +184,7 @@
 .mp-tag { position: fixed; left: 0; top: 0; white-space: nowrap; background: rgba(20,16,60,.72); color: #fff; font-weight: 800; font-size: 13px;
   padding: 3px 10px; border-radius: 999px; border: 1.5px solid var(--c, #fff); opacity: 0; transition: opacity .2s; will-change: transform; }
 .mp-tag.ice::before { content: '❄️ '; }
+.mp-tag.npc { background: rgba(25,95,150,.6); font-size: 12px; font-weight: 700; }
 .mp-tag.aim { background: #fff; color: #1a1446; box-shadow: 0 0 0 3px rgba(255,255,255,.4); }
 #weaponHud { position: fixed; right: 18px; bottom: calc(var(--dock-h, 96px) + 26px); z-index: 6; display: none; gap: 10px; align-items: flex-end; }
 #weaponHud.show { display: flex; }
