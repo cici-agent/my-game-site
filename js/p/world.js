@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { glowTex, canvasTex, rand, swirlTex } from '../u/tex.js';
 import { ferrisWheel, rollerCoaster, carousel, pirateShip } from './rides.js';
 import { kartTrack } from './kart.js';
+import { hauntedHouse } from './haunted.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
 export const ISLAND_R = 92;
@@ -204,7 +205,7 @@ export function buildWorld(scene) {
   const colliders = [], interact = [], updaters = [];
   const skyRefs = sky(scene);
   // 游乐设施
-  const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42), pirateShip(34, 44)];
+  const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42), pirateShip(34, 44), hauntedHouse(62, 30, -Math.PI / 2)];
   // 卡丁车赛道（摩天轮西边）
   const kart = kartTrack(-63, 22); scene.add(kart.group); colliders.push(...kart.colliders);
   interact.push({ type: 'kart', kart, pos: kart.entry, r: kart.entryR });
@@ -218,7 +219,7 @@ export function buildWorld(scene) {
   const f = fountain(0, 10); scene.add(f.group); colliders.push([0, 10, 5.6]); updaters.push(dt => f.update(dt));
   const gate = arrivalGate(0, 80); scene.add(gate.group); interact.push({ type: 'gate', pos: gate.entry, r: 5 }); updaters.push(dt => gate.update(dt));
   // 树、路灯、花
-  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [34, 44, 14], [-63, 22, 27], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
+  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [34, 44, 14], [-63, 22, 27], [62, 30, 15], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
   for (let i = 0; i < 70; i++) {
     const a = r() * Math.PI * 2, d = 20 + r() * 66, x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (blocked.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br)) continue;

@@ -234,6 +234,7 @@ function kartTick(dt, t) {
 
 function leaveRide() {
   const r = player.riding; if (!r) return;
+  if (r.cancel) r.cancel();
   player.riding = null; cam.dist = r.prevCam.dist; cam.pitch = r.prevCam.pitch;
   me.root.visible = true; camera.up.set(0, 1, 0);
   player.pos.set(r.exitPos[0], 0, r.exitPos[1]); player.vy = 0; player.ground = true;
@@ -487,7 +488,7 @@ function tick() {
   const now = performance.now(), dt = Math.min((now - last) / 1000, .05); last = now; t += dt;
   world.update(dt, t);
   // 白天 / 晚上、钟楼、烟花秀
-  const DI = dayNight.update(dt, camera.position);
+  const DI = dayNight.update(dt, camera.position, !!(player.riding && player.riding.dark));
   clock.update(DI);
   fireShow && fireShow.update(DI);
   updateDnChip(DI);

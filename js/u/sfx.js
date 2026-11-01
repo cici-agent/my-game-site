@@ -108,3 +108,30 @@ export function boom(vol = 1, crackle = false) {
     s2.connect(hp); hp.connect(g2); g2.connect(master); s2.start(tt, Math.random() * .5); s2.stop(tt + .08);
   }
 }
+
+// 鬼屋：呜——（幽灵）、吱吱（蝙蝠）、Boo!
+export function woo() {
+  if (!ensure() || ctx.state !== 'running') return;
+  const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime, v = ctx.createOscillator(), vg = ctx.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(300, t); o.frequency.linearRampToValueAtTime(520, t + .7); o.frequency.linearRampToValueAtTime(260, t + 1.6);
+  v.frequency.value = 6; vg.gain.value = 18; v.connect(vg); vg.connect(o.frequency);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.12, t + .3); g.gain.linearRampToValueAtTime(0, t + 1.7);
+  o.connect(g); g.connect(master); o.start(t); v.start(t); o.stop(t + 1.8); v.stop(t + 1.8);
+}
+export function squeak() {
+  if (!ensure() || ctx.state !== 'running') return;
+  for (let i = 0; i < 6; i++) {
+    const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + i * .13 + Math.random() * .05;
+    o.type = 'triangle'; o.frequency.setValueAtTime(2400 + Math.random() * 800, t); o.frequency.exponentialRampToValueAtTime(1500, t + .07);
+    g.gain.setValueAtTime(.06, t); g.gain.exponentialRampToValueAtTime(.001, t + .08); o.connect(g); g.connect(master); o.start(t); o.stop(t + .1);
+  }
+}
+export function boo() {
+  if (!ensure() || ctx.state !== 'running') return;
+  const t = ctx.currentTime, o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+  o.type = 'sawtooth'; o2.type = 'sawtooth'; o2.detune.value = 12; f.type = 'lowpass'; f.frequency.value = 900;
+  o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(110, t + .8); o2.frequency.setValueAtTime(180, t); o2.frequency.exponentialRampToValueAtTime(110, t + .8);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.2, t + .05); g.gain.linearRampToValueAtTime(0, t + .9);
+  o.connect(f); o2.connect(f); f.connect(g); g.connect(master); o.start(t); o2.start(t); o.stop(t + 1); o2.stop(t + 1);
+  setTimeout(() => chime([523, 659, 784]), 900);
+}

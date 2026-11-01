@@ -79,7 +79,7 @@ export function createDayNight({ scene, hemi, sun, world }) {
   }
 
   const sunDir = new THREE.Vector3();
-  function update(dt, player) {
+  function update(dt, player, dark = false) {
     const I = dayInfo();
     const { night, dusk } = I;
     // 天空
@@ -116,6 +116,8 @@ export function createDayNight({ scene, hemi, sun, world }) {
     }
     ffGeo.attributes.position.needsUpdate = true;
     ffMat.size = .25 + Math.abs(Math.sin(I.t * 2.3)) * .15;
+    // 在鬼屋里：外面的光几乎全关掉，只剩屋里的彩色灯
+    if (dark) { hemi.intensity = .06; sun.intensity = 0; if (scene.fog) scene.fog.color.set(0x05030c); }
     return I;
   }
   return { update };
