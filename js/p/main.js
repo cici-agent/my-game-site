@@ -155,7 +155,7 @@ function startKart() {
   kartObj = buildKart(kartColorOf(ME ? ME.user.id : 'me')); scene.add(kartObj.group);
   player.kart = true; player.vy = 0; player.ground = true;
   player.pos.set(k.start.x, 0, k.start.z); player.face = K.heading = k.start.heading;
-  Object.assign(K, { speed: 0, steer: 0, started: false, lap: 0, lastS: k.track(player.pos.x, player.pos.z).s, cp: false, last: null });
+  Object.assign(K, { y: null, pitch: 0, speed: 0, steer: 0, started: false, lap: 0, lastS: k.track(player.pos.x, player.pos.z).s, cp: false, last: null });
   cam.yaw = K.heading; cam.pitch = .25;
   if (pet) pet.group.visible = false;
   $('kartHud').classList.add('show'); document.body.classList.add('karting'); renderKartHud(0);
@@ -166,7 +166,7 @@ function stopKart() {
   if (!kartObj) return;
   scene.remove(kartObj.group); kartObj = null; player.kart = false;
   const e = world.kart.entry; player.pos.set(e[0] + 1.5, 0, e[1]);
-  me.root.rotation.set(0, player.face, 0); me.root.visible = true;
+  me.root.rotation.set(0, player.face, 0, 'XYZ'); me.root.visible = true; player.pos.y = 0;
   if (pet) { pet.group.visible = true; petPos.copy(player.pos); }
   $('kartHud').classList.remove('show'); document.body.classList.remove('karting'); sfx.engineLevel(0);
 }
@@ -187,7 +187,11 @@ function kartTick(dt, t) {
   if (keys.KeyD || keys.ArrowRight) st -= 1;
   if (joy.id !== null) { thr = Math.abs(joy.y) > .15 ? joy.y : 0; st = -joy.x; }
   const T = k.track(player.pos.x, player.pos.z);
-  const onRoad = T.off < k.W / 2 + .3, maxV = onRoad ? 17 : 6.5;
+  const onRoad = T.off < k.W / 2 + .3, maxV = onRoad ? 20 : 7;
+  // 坡度：沿车头方向的高度变化。上坡变慢、下坡变快
+  const fwdDot = Math.sin(K.heading) * T.tan.x + Math.cos(K.heading) * T.tan.z;
+  const slope = onRoad ? T.tan.y / Math.max(.2, Math.hypot(T.tan.x, T.tan.z)) * Math.sign(fwdDot || 1) : 0;
+  K.speed -= slope * 9.8 * .7 * dt;
   K.speed += thr * (thr * K.speed < 0 ? 22 : thr > 0 ? 11 : 8) * dt;       // 反方向按 = 刹车（更快）
   K.speed -= K.speed * (onRoad ? .3 : 1.4) * dt;                          // 空气阻力 / 草地更慢
   if (!thr) K.speed -= Math.sign(K.speed) * Math.min(Math.abs(K.speed), 2.5 * dt);
@@ -196,8 +200,8 @@ function kartTick(dt, t) {
   K.steer += (st - K.steer) * Math.min(1, dt * 8);
   K.heading += K.steer * dt * 2.1 * THREE.MathUtils.clamp(K.speed / 7, -1, 1);
   player.pos.x += Math.sin(K.heading) * K.speed * dt; player.pos.z += Math.cos(K.heading) * K.speed * dt;
-  // 不能开出赛道太远：推回来并减速
-  const T2 = k.track(player.pos.x, player.pos.z), lim = k.W / 2 + 2.6;
+  // 不能开出赛道太远：推回来并减速（高架上有护栏，不能开出路面）
+  const T2 = k.track(player.pos.x, player.pos.z), lim = T2.y > .8 ? k.W / 2 - .6 : k.W / 2 + 3;
   if (T2.off > lim) { const f = (T2.off - lim) / T2.off; player.pos.x += (T2.cx - player.pos.x) * f; player.pos.z += (T2.cz - player.pos.z) * f; K.speed *= .6; }
   player.face = K.heading;
   // 计圈：开过起点线（s 从接近 1 变到接近 0）；中途要经过对面（防止倒着开刷圈）
@@ -215,21 +219,26 @@ function kartTick(dt, t) {
   if (K.lastS < .15 && s > .85) K.cp = false;             // 倒着开过线不算
   K.lastS = s;
   // 小车和人
-  kartObj.group.position.copy(player.pos); kartObj.group.rotation.y = K.heading; kartObj.update(dt, K.speed, K.steer);
+  // 车贴着路面：高度跟路面走，车头跟着坡度抬起 / 低下
+  const roadY = T2.off < k.W / 2 + .5 ? T2.y : 0;
+  K.y = K.y == null ? roadY : K.y + (roadY - K.y) * Math.min(1, dt * 12);
+  player.pos.y = K.y;
+  K.pitch = (K.pitch || 0) + (-Math.atan(slope) - (K.pitch || 0)) * Math.min(1, dt * 8);
+  kartObj.group.position.copy(player.pos); kartObj.group.rotation.set(K.pitch, K.heading, 0, 'YXZ'); kartObj.update(dt, K.speed, K.steer);
   kartObj.seat.getWorldPosition(kartSeat);
-  me.root.position.copy(kartSeat).y -= .62; me.root.rotation.set(0, K.heading, 0); me.root.scale.setScalar(1);
+  me.root.position.copy(kartSeat).y -= .62; me.root.rotation.set(K.pitch, K.heading, 0, 'YXZ'); me.root.scale.setScalar(1);
   me.rig.shadow.visible = false;
   me.animate(dt, 0, false, true);
-  sfx.engineLevel(.25 + Math.abs(K.speed) / 17 * .9);
+  sfx.engineLevel(.25 + Math.abs(K.speed) / 20 * .9);
   // 追尾视角
   const fx = Math.sin(K.heading), fz = Math.cos(K.heading);
-  camPos.set(player.pos.x - fx * 8, 3.8, player.pos.z - fz * 8);
+  camPos.set(player.pos.x - fx * 10, player.pos.y + 4.6, player.pos.z - fz * 10);
   camera.position.lerp(camPos, Math.min(1, dt * 5));
-  camera.lookAt(player.pos.x + fx * 4, 1.2, player.pos.z + fz * 4);
+  camera.lookAt(player.pos.x + fx * 5, player.pos.y + 1.6, player.pos.z + fz * 5);
   if (Math.floor(t * 10) !== K.last) { K.last = Math.floor(t * 10); renderKartHud(t); }
   promptEl.textContent = isTouch ? '点「下车」离开' : '按 E 下车'; promptEl.classList.add('show');
   $('actBtn').textContent = '下车'; $('actBtn').classList.add('show');
-  myMove = { speed: Math.abs(K.speed) / 17, kart: true };
+  myMove = { speed: Math.abs(K.speed) / 20, kart: true };
 }
 
 function leaveRide() {

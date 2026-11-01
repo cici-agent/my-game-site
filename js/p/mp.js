@@ -156,7 +156,7 @@ export function createParkMP({ scene, camera, player, getSeat, onTime, getMe, ge
       // 开卡丁车：在他的位置放一辆小车，人坐在车里
       if (r.flags & 32) {
         if (!r.kartM) { r.kartM = buildKart(kartColorOf(r.id)); scene.add(r.kartM.group); }
-        r.p.pos.y = 0; r.kartM.group.position.copy(r.p.pos); r.kartM.group.rotation.y = r.p.face; r.kartM.update(dt, r.spd * 17, 0);
+        r.kartM.group.position.copy(r.p.pos); r.kartM.group.rotation.y = r.p.face; r.kartM.update(dt, r.spd * 20, 0);
         r.kartM.seat.getWorldPosition(seatPos);
         r.av.root.position.copy(seatPos).y -= .62; r.av.root.rotation.set(0, r.p.face, 0); r.av.rig.shadow.visible = false;
         r.av.animate(dt, 0, false, true);

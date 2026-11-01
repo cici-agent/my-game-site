@@ -6,7 +6,7 @@ import { kartTrack } from './kart.js';
 import { hauntedHouse } from './haunted.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
-export const ISLAND_R = 92;
+export const ISLAND_R = 150;
 
 // 天空：顶部 / 中间 / 地平线三种颜色的渐变（白天、日落、夜晚的颜色由 daynight.js 每帧调）
 function sky(scene) {
@@ -61,8 +61,8 @@ function ground(scene) {
     const r = rand(9);
     for (let i = 0; i < 2600; i++) { g.fillStyle = r() > .5 ? '#6ec25c' : '#8ad877'; g.fillRect(r() * w, r() * w, 3, 6); }
   });
-  grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping; grassTex.repeat.set(14, 14);
-  const top = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_R, 96), M(0xffffff, { map: grassTex }));
+  grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping; grassTex.repeat.set(23, 23);
+  const top = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_R, 128), M(0xffffff, { map: grassTex }));
   top.rotation.x = -Math.PI / 2; scene.add(top);
   // 浮空岛的岩石底
   const rock = new THREE.Mesh(new THREE.ConeGeometry(ISLAND_R, 60, 48, 6, true), M(0x9c7a5b, { flatShading: true, side: THREE.DoubleSide }));
@@ -77,11 +77,11 @@ function ground(scene) {
     m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(x2 - x1, z2 - z1);
     m.position.set((x1 + x2) / 2, .025, (z1 + z2) / 2); scene.add(m);
   };
-  road(0, 10, 0, 74); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6);
+  road(0, 10, 0, 74); road(-40, -6, -62, 2); road(0, 10, -40, -6); road(0, 10, 38, -2); road(0, 10, -22, 38); road(0, 10, 0, -52); road(-24, -52, 24, -52, 6);
   // 边缘的栏杆
   const postMat = M(0xffffff), railMat = M(0xff9f43);
-  for (let k = 0; k < 120; k++) {
-    const a = k / 120 * Math.PI * 2, rr = ISLAND_R - 1.2;
+  for (let k = 0; k < 200; k++) {
+    const a = k / 200 * Math.PI * 2, rr = ISLAND_R - 1.2;
     const post = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 1.3, 6), postMat); post.position.set(Math.cos(a) * rr, .65, Math.sin(a) * rr); scene.add(post);
   }
   const rail = new THREE.Mesh(new THREE.TorusGeometry(ISLAND_R - 1.2, .08, 6, 160), railMat); rail.rotation.x = Math.PI / 2; rail.position.y = 1.2; scene.add(rail);
@@ -207,7 +207,7 @@ export function buildWorld(scene) {
   // 游乐设施
   const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42), pirateShip(34, 44), hauntedHouse(62, 30, -Math.PI / 2)];
   // 卡丁车赛道（摩天轮西边）
-  const kart = kartTrack(-63, 22); scene.add(kart.group); colliders.push(...kart.colliders);
+  const kart = kartTrack(-104, 6); scene.add(kart.group); colliders.push(...kart.colliders);
   interact.push({ type: 'kart', kart, pos: kart.entry, r: kart.entryR });
   rides.forEach(r => { scene.add(r.group); colliders.push(...r.colliders); interact.push({ type: 'ride', ride: r, pos: r.entry, r: r.entryR }); updaters.push((dt, t) => r.update(dt, t)); });
   // 商店一排在北边
@@ -219,9 +219,10 @@ export function buildWorld(scene) {
   const f = fountain(0, 10); scene.add(f.group); colliders.push([0, 10, 5.6]); updaters.push(dt => f.update(dt));
   const gate = arrivalGate(0, 80); scene.add(gate.group); interact.push({ type: 'gate', pos: gate.entry, r: 5 }); updaters.push(dt => gate.update(dt));
   // 树、路灯、花
-  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [34, 44, 14], [-63, 22, 27], [62, 30, 15], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
-  for (let i = 0; i < 70; i++) {
-    const a = r() * Math.PI * 2, d = 20 + r() * 66, x = Math.cos(a) * d, z = Math.sin(a) * d;
+  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [34, 44, 14], [62, 30, 15], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
+  for (let i = 0; i < 170; i++) {
+    const a = r() * Math.PI * 2, d = 20 + r() * 122, x = Math.cos(a) * d, z = Math.sin(a) * d;
+    if (kart.blocks(x, z)) continue;
     if (blocked.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br)) continue;
     if (Math.abs(x) < 4 && z > 10) continue; // 主路
     const s = .8 + r() * .6; scene.add(tree(x, z, s, r() > .6 ? 1 : 0)); colliders.push([x, z, .7 * s]);
