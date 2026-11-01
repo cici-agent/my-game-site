@@ -1,7 +1,7 @@
 // ===== 菜鸟星球游乐园：场景（地面、天空、装饰、商店建筑、星门） =====
 import * as THREE from 'three';
 import { glowTex, canvasTex, rand, swirlTex } from '../u/tex.js';
-import { ferrisWheel, rollerCoaster, carousel } from './rides.js';
+import { ferrisWheel, rollerCoaster, carousel, pirateShip } from './rides.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .7, ...o });
 export const ISLAND_R = 92;
@@ -177,7 +177,7 @@ export function buildWorld(scene) {
   ground(scene);
   const colliders = [], interact = [], updaters = [];
   // 游乐设施
-  const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42)];
+  const rides = [ferrisWheel(-46, -8, Math.PI / 2.6), rollerCoaster(40, -14), carousel(-24, 42), pirateShip(34, 44)];
   rides.forEach(r => { scene.add(r.group); colliders.push(...r.colliders); interact.push({ type: 'ride', ride: r, pos: r.entry, r: r.entryR }); updaters.push((dt, t) => r.update(dt, t)); });
   // 商店一排在北边
   const shopPos = [[-24, -62, 0], [0, -66, 0], [24, -62, 0]];
@@ -188,7 +188,7 @@ export function buildWorld(scene) {
   const f = fountain(0, 10); scene.add(f.group); colliders.push([0, 10, 5.6]); updaters.push(dt => f.update(dt));
   const gate = arrivalGate(0, 80); scene.add(gate.group); interact.push({ type: 'gate', pos: gate.entry, r: 5 }); updaters.push(dt => gate.update(dt));
   // 树、路灯、花
-  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
+  const r = rand(21), blocked = [[0, 10, 16], [-46, -8, 16], [40, -14, 34], [-24, 42, 11], [34, 44, 14], [0, -62, 34], [0, 80, 9], [0, 40, 5]];
   for (let i = 0; i < 70; i++) {
     const a = r() * Math.PI * 2, d = 20 + r() * 66, x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (blocked.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br)) continue;

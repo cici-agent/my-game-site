@@ -127,6 +127,7 @@ function action() {
 function boardRide(rideObj) {
   queued = null;
   const rideIdx = world.rides.indexOf(rideObj);
+  rideObj.playerPos = [player.pos.x, player.pos.z];
   const ride = rideObj.board(mp ? mp.takenSeats(rideIdx) : []);
   ride.rideIdx = rideIdx;
   ride.prevCam = { ...cam };

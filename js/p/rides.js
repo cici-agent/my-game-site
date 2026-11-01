@@ -220,7 +220,8 @@ export function carousel(x, z) {
   const wp = new THREE.Vector3();
   return {
     name: '旋转木马', icon: '🎠', group: g,
-    entry: [x, z + R + 3.5], entryR: 4,
+    // 圆形的设施：走到一圈任何地方都能上（以前只有南边一个点，很难找到）
+    entry: [x, z], entryR: R + 3.6, exit: [x, z + R + 3.5],
     colliders: [[x, z, R + 1]],
     seats: horses.map(h => h.userData.seat),
     update() {
@@ -231,10 +232,119 @@ export function carousel(x, z) {
     status() { return '按 E 骑旋转木马'; },
     board(taken = []) {
       let best = horses[0], bd = Infinity;
-      horses.forEach((h, k) => { if (taken.includes(k)) return; h.getWorldPosition(wp); const d = Math.hypot(wp.x - this.entry[0], wp.z - this.entry[1]); if (d < bd) { bd = d; best = h; } });
+      const me = this.playerPos || [x, z + R + 3.5];
+      horses.forEach((h, k) => { if (taken.includes(k)) return; h.getWorldPosition(wp); const d = Math.hypot(wp.x - me[0], wp.z - me[1]); if (d < bd) { bd = d; best = h; } });
+      // 从哪边上就从哪边下
+      const ang = Math.atan2(me[0] - x, me[1] - z), exitPos = [x + Math.sin(ang) * (R + 3.2), z + Math.cos(ang) * (R + 3.2)];
       const start = t0;
       // 相机自动绕到木马外侧、从顶篷下面看进来
-      return { seat: best.userData.seat, seatIndex: horses.indexOf(best), view: 'follow', camDist: 10, camPitch: .1, camOutFrom: [x, z], exitPos: this.entry, done: () => t0 - start > 25 };
+      return { seat: best.userData.seat, seatIndex: horses.indexOf(best), view: 'follow', camDist: 10, camPitch: .1, camOutFrom: [x, z], exitPos, done: () => t0 - start > 25 };
+    },
+  };
+}
+
+// ---------------- 海盗船 ----------------
+// 大家共用同一个时钟：上船 8 秒 → 摆 26 秒（越摆越高再慢慢停下）→ 再上船……
+export function pirateShip(cx, cz) {
+  const g = new THREE.Group(); g.position.set(cx, 0, cz);
+  const AXLE = 14, ARM = 9, BOARD = 8, SWING = 26, PERIOD = 4.2, CYCLE = BOARD + SWING, AMAX = 1.05;
+  const white = M(0xffffff, { metalness: .3 }), gold = M(0xffd23f, { metalness: .5, roughness: .3 });
+  // 两个 A 字形支架 + 横轴
+  [-3.4, 3.4].forEach(zz => [-1, 1].forEach(s => {
+    const len = Math.hypot(7.5, AXLE), leg = new THREE.Mesh(new THREE.CylinderGeometry(.28, .4, len, 10), M(0x4dabf7, { metalness: .3 }));
+    leg.position.set(s * 3.75, AXLE / 2, zz); leg.rotation.z = s * Math.atan2(7.5, AXLE); g.add(leg);
+  }));
+  const axle = new THREE.Mesh(new THREE.CylinderGeometry(.35, .35, 7.6, 12), gold); axle.rotation.x = Math.PI / 2; axle.position.y = AXLE; g.add(axle);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(17, .4, 8.6), M(0xffe3c2)); base.position.y = .2; g.add(base);
+  // 上船的台子 + 台阶
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(10, 1.2, 2.2), M(0xc8a165)); deck.position.set(0, .6, 5.2); g.add(deck);
+  for (let i = 0; i < 3; i++) { const st = new THREE.Mesh(new THREE.BoxGeometry(3, .4, .7), M(0xb08a55)); st.position.set(0, .2 + i * .4 - .2, 7 - i * .6); g.add(st); }
+
+  // 会摆动的部分：从横轴挂下来
+  const swing = new THREE.Group(); swing.position.y = AXLE; g.add(swing);
+  [-2.6, 2.6].forEach(zz => [-1, 1].forEach(s => {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(.16, .16, ARM + .6, 8), white);
+    arm.position.set(s * 1.6, -ARM / 2, zz); arm.rotation.z = -s * .18; swing.add(arm);
+  }));
+  const ship = new THREE.Group(); ship.position.y = -ARM - 1.6; swing.add(ship);
+  // 船身：侧面轮廓挤出成立体，两头翘起来
+  const hull = new THREE.Shape();
+  hull.moveTo(-8.2, 2.6); hull.quadraticCurveTo(-7.4, .2, -5.2, -.6); hull.lineTo(5.2, -.6); hull.quadraticCurveTo(7.4, .2, 8.2, 2.6);
+  hull.lineTo(7.2, 2.2); hull.quadraticCurveTo(6.4, 1.2, 5, 1.1); hull.lineTo(-5, 1.1); hull.quadraticCurveTo(-6.4, 1.2, -7.2, 2.2); hull.closePath();
+  const hullGeo = new THREE.ExtrudeGeometry(hull, { depth: 3.6, bevelEnabled: true, bevelSize: .2, bevelThickness: .2, bevelSegments: 2 });
+  hullGeo.translate(0, 0, -1.8);
+  ship.add(new THREE.Mesh(hullGeo, M(0x8b5a2b)));
+  // 红色腰线 + 金边 + 圆窗
+  const band = new THREE.Shape(); band.moveTo(-6.6, .55); band.lineTo(6.6, .55); band.lineTo(6.9, .95); band.lineTo(-6.9, .95); band.closePath();
+  [-1, 1].forEach(s => {
+    const b = new THREE.Mesh(new THREE.ExtrudeGeometry(band, { depth: .08, bevelEnabled: false }), M(0xe03131)); b.position.z = s * 2.02 - (s < 0 ? .08 : 0); ship.add(b);
+    for (let i = -4; i <= 4; i += 2) {
+      const ph = new THREE.Mesh(new THREE.TorusGeometry(.28, .07, 6, 14), gold); ph.position.set(i, .1, s * 2.05); ship.add(ph);
+      const gl = new THREE.Mesh(new THREE.CircleGeometry(.24, 14), M(0x74c0fc, { emissive: 0x1c7ed6, emissiveIntensity: .3 })); gl.position.set(i, .1, s * 2.04); gl.rotation.y = s < 0 ? Math.PI : 0; ship.add(gl);
+    }
+  });
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(10.4, .18, .18), gold);
+  [-1.95, 1.95].forEach(zz => { const r = rail.clone(); r.position.set(0, 1.9, zz); ship.add(r); });
+  // 甲板 + 一排排座位（5 排 × 2 个）
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(10.4, .2, 3.6), M(0xd9a35b)); floor.position.y = .9; ship.add(floor);
+  const seats = [];
+  [-4, -2, 0, 2, 4].forEach(xx => {
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(.9, .45, 3.2), M(0x1c7ed6)); bench.position.set(xx, 1.25, 0); ship.add(bench);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(.15, .8, 3.2), M(0x1971c2)); back.position.set(xx - Math.sign(xx || 1) * .45, 1.75, 0); ship.add(back);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 3.2, 6), M(0xdddddd, { metalness: .6 })); bar.rotation.x = Math.PI / 2; bar.position.set(xx + Math.sign(xx || 1) * .55, 1.9, 0); ship.add(bar);
+    [-.85, .85].forEach(zz => {
+      const seat = new THREE.Object3D(); seat.position.set(xx, 1.85, zz);
+      seat.rotation.y = (xx < 0 || (xx === 0 && zz < 0)) ? Math.PI / 2 : -Math.PI / 2;      // 两边的人面朝船中间
+      ship.add(seat); seats.push(seat);
+    });
+  });
+  // 船头像：一只金色小鸡；桅杆 + 条纹帆 + 海盗旗（笑脸骷髅）
+  const fig = new THREE.Mesh(new THREE.SphereGeometry(.55, 14, 10), gold); fig.position.set(8.4, 2.9, 0); ship.add(fig);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(.18, .4, 8), M(0xff922b)); beak.rotation.z = -Math.PI / 2; beak.position.set(9, 2.95, 0); ship.add(beak);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.16, .2, 6.5, 8), M(0x6b3e26)); mast.position.set(-6.2, 4.6, 0); ship.add(mast);
+  const sailTex = (() => { const c = document.createElement('canvas'); c.width = 128; c.height = 128; const x = c.getContext('2d');
+    for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? '#ffffff' : '#ff6b6b'; x.fillRect(0, i * 16, 128, 16); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const sail = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3, 6, 4), new THREE.MeshStandardMaterial({ map: sailTex, side: THREE.DoubleSide, roughness: .7 }));
+  sail.position.set(-6.2, 4.8, 0); sail.rotation.y = Math.PI / 2; ship.add(sail);
+  { const p = sail.geometry.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, Math.cos(p.getX(i) / 1.7 * Math.PI / 2) * .5); sail.geometry.computeVertexNormals(); }
+  const flagTex = (() => { const c = document.createElement('canvas'); c.width = 128; c.height = 80; const x = c.getContext('2d');
+    x.fillStyle = '#212529'; x.fillRect(0, 0, 128, 80); x.fillStyle = '#fff';
+    x.beginPath(); x.arc(64, 34, 18, 0, 7); x.fill(); x.fillRect(54, 44, 20, 12);
+    x.fillStyle = '#212529'; x.beginPath(); x.arc(57, 32, 5, 0, 7); x.arc(71, 32, 5, 0, 7); x.fill();
+    x.strokeStyle = '#212529'; x.lineWidth = 3; x.beginPath(); x.arc(64, 40, 7, .2, Math.PI - .2); x.stroke();
+    x.strokeStyle = '#fff'; x.lineWidth = 6; x.beginPath(); x.moveTo(38, 60); x.lineTo(90, 74); x.moveTo(90, 60); x.lineTo(38, 74); x.stroke();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.1, 6, 1), new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide }));
+  flag.position.set(-6.2 + .95, 7.4, 0); flag.rotation.y = 0; ship.add(flag);
+  const flagBase = flag.geometry.attributes.position.array.slice();
+
+  let theta = 0, phase = 'board', boardLeft = BOARD, cycleN = 0;
+  return {
+    name: '海盗船', icon: '🏴‍☠️', group: g, seats,
+    entry: [cx, cz + 7.2], entryR: 4.5,
+    colliders: [{ box: [cx, cz, 9.2, 3.6, 0] }, { box: [cx, cz + 5.2, 5, 1.1, 0] }],
+    update() {
+      const now = rideClock(), c = now % CYCLE;
+      cycleN = Math.floor(now / CYCLE);
+      if (c < BOARD) { phase = 'board'; boardLeft = BOARD - c; theta = 0; }
+      else {
+        phase = 'swing'; const s = c - BOARD;
+        const amp = AMAX * Math.pow(Math.sin(Math.PI * s / SWING), .8);
+        theta = amp * Math.sin(2 * Math.PI * s / PERIOD);
+      }
+      swing.rotation.z = theta;
+      const a = flag.geometry.attributes.position.array;
+      for (let i = 0; i < a.length; i += 3) a[i + 2] = Math.sin(now * 6 + flagBase[i] * 3) * .08 * (flagBase[i] + .9);
+      flag.geometry.attributes.position.needsUpdate = true;
+    },
+    status(queued) { return phase === 'board' ? '按 E 坐海盗船' : queued ? '排队中，海盗船停下就上船…' : '按 E 排队，海盗船停下就上船'; },
+    canBoard() { return phase === 'board' && boardLeft > .4; },
+    board(taken = []) {
+      let k = 0; while (taken.includes(k) && k < seats.length - 1) k++;
+      const start = cycleN;
+      return { seat: seats[k], seatIndex: k, view: 'follow', camDist: 22, camYaw: Math.PI, camPitch: .15, exitPos: this.entry,
+        done: () => cycleN > start && phase === 'board' };
     },
   };
 }
