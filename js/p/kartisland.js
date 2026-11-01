@@ -21,7 +21,7 @@ export function buildKartIsland(scene) {
   const rail = new THREE.Mesh(new THREE.TorusGeometry(KI.R - 1.2, .08, 6, 280), M(0xff9f43)); rail.rotation.x = Math.PI / 2; rail.position.y = 1.2; g.add(rail);
 
   // ---------- 主赛道：8 字形 ----------
-  const N = 1500, W = 12, A = 205, B = 300, H = 10;
+  const N = 1500, W = 18, A = 205, B = 300, H = 10;
   const T = i => i / N * Math.PI * 2;
   const GAPS = [[2.4, 2.46], [3.86, 3.92]];                     // 两个断桥
   const TUNNEL = [.3, .78];                                       // 隧道
