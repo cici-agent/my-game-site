@@ -6,7 +6,7 @@ import { createAbilities } from './abilities.js';
 
 const LOOK_KEYS = ['skin', 'hand', 'head', 'back', 'pet', 'fx'];
 
-export function createParkMP({ scene, camera, player, getSeat, getMe, getLook, getAvatar, abil, toast, sfx }) {
+export function createParkMP({ scene, camera, player, getSeat, onTime, getMe, getLook, getAvatar, abil, toast, sfx }) {
   const tagsEl = document.getElementById('mpTags');
   const remotes = new Map();
   let net = null;
@@ -89,6 +89,7 @@ export function createParkMP({ scene, camera, player, getSeat, getMe, getLook, g
         snowSim.start('snowball', d);
       } else r.abil.start(d.k, d);
     });
+    net.on('time', d => { if (onTime) onTime(d.o); });
     net.on('hit', (d, p) => {
       const r = remotes.get(p.id); if (r) r.abil.slow(5);
       if (net.me && d.by === net.me.id) { toast(`🎯 雪球砸中了${r ? ' ' + r.name : ''}！`); sfx.chime && sfx.chime([880, 1175, 1568]); }

@@ -5,7 +5,7 @@ import { buildAvatar, buildPet } from './avatar.js';
 import { INV, loadInventory, itemsOf, findItem, slotOf, owns, buy, equip, useItem } from './inventory.js';
 import { createAbilities, DURATION } from './abilities.js';
 import { createParkMP } from './mp.js';
-import { createDayNight, jumpTo, isShifted, T_DAY, T_SUNSET, T_NIGHT, SHOW_START, SHOW_LEN, DAY_LEN } from './daynight.js';
+import { createDayNight, jumpTo, isShifted, setGlobalOffset, globalOffset, offsetFor, T_DAY, T_SUNSET, T_NIGHT, SHOW_START, SHOW_LEN, DAY_LEN } from './daynight.js';
 import { createFireShow } from './fireshow.js';
 import { clockTower, clockText } from './clock.js';
 import { loadPlanets, loadMe } from '../u/data.js';
@@ -523,7 +523,24 @@ let ME = null, mp = null, myMove = { speed: 0 };
 const fireShow = createFireShow({ abil, banner });
 let bannerT = 0, chipSig = '';
 function banner(msg, ms = 4000) { const el = $('dnBanner'); el.textContent = msg; el.classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => el.classList.remove('show'), ms); }
-// 管理员测试时间（只改自己这边看到的时间）
+// ---------- 乐园时间：管理员可以给所有人一起切换（存在 shop_items 里一条隐藏记录 __park_time，价格字段 = 偏移秒数） ----------
+const TIME_KEY = '__park_time';
+async function loadGlobalTime() {
+  try {
+    const { data } = await getSupabase().from('shop_items').select('price').eq('key', TIME_KEY).maybeSingle();
+    setGlobalOffset(data ? data.price : 0);
+  } catch (e) {}
+}
+setInterval(loadGlobalTime, 20000);                    // 每 20 秒同步一次（管理员改了会马上广播，这里是保险）
+async function saveGlobalTime(offset) {
+  const { error } = await getSupabase().from('shop_items').upsert({ key: TIME_KEY, kind: 'prop', name: '乐园时间（系统用，勿删）', price: offset, consumable: false, is_active: false, sort_order: 9999 });
+  if (error) { toast('😅 保存失败：' + error.message); return false; }
+  setGlobalOffset(offset);
+  mp && mp.net && mp.net.send('time', { o: offset });    // 通知在线的人马上切换
+  return true;
+}
+
+// 管理员的「测试时间」面板：上面一组只改自己看到的；下面一组所有人一起切换
 function setupTimeTest() {
   const el = $('timeTest'); if (!el) return;
   const isAdmin = ME && (ME.profile.role === 'admin' || ME.profile.is_admin);
@@ -531,10 +548,20 @@ function setupTimeTest() {
   if (!isAdmin || el.dataset.ready) return; el.dataset.ready = 1;
   const N0 = T_DAY + T_SUNSET, S0 = N0 + SHOW_START;
   const opts = [['🌇 日落', T_DAY - 3], ['🌙 刚天黑', N0], ['⏱ 烟花秀前 10 秒', S0 - 10], ['🎆 烟花秀开始', S0], ['💥 大结局', S0 + 148], ['🐣 结尾小菜鸟', S0 + SHOW_LEN - 8], ['🌅 日出', DAY_LEN - 90 - 3], ['☀️ 白天', 60]];
-  el.innerHTML = `<button class="tt-head">⏱ 测试时间</button><div class="tt-body"><p>只改你自己看到的时间，别的玩家不受影响</p>
-    ${opts.map(([n, s]) => `<button data-s="${s}">${n}</button>`).join('')}<button data-s="" class="tt-reset">↩ 恢复正常时间</button></div>`;
+  const allOpts = [['🌙 天黑（1 分钟后烟花秀）', N0], ['⏱ 烟花秀前 10 秒', S0 - 10], ['🎆 马上开始烟花秀', S0], ['🌇 日落', T_DAY - 3], ['☀️ 天亮', 60]];
+  el.innerHTML = `<button class="tt-head">⏱ 测试时间</button><div class="tt-body">
+    <h6>👤 只改我自己看到的</h6>
+    ${opts.map(([n, s]) => `<button data-s="${s}">${n}</button>`).join('')}<button data-s="" class="tt-reset">↩ 我这边恢复</button>
+    <h6 class="all">🌍 所有人一起切换</h6><p>在线的人会马上一起变；刷新页面也保持</p>
+    ${allOpts.map(([n, s]) => `<button data-a="${s}" class="all">${n}</button>`).join('')}<button data-a="" class="tt-reset">↩ 所有人恢复正常时间</button></div>`;
   el.querySelector('.tt-head').onclick = () => el.classList.toggle('open');
-  el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { el.classList.remove('open'); jumpTo(b.dataset.s === '' ? null : +b.dataset.s); el.classList.toggle('shifted', isShifted()); toast(b.dataset.s === '' ? '已恢复正常时间' : '⏱ 已跳到：' + b.textContent); });
+  el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { el.classList.remove('open'); jumpTo(b.dataset.s === '' ? null : +b.dataset.s); el.classList.toggle('shifted', isShifted()); toast(b.dataset.s === '' ? '已恢复正常时间' : '⏱ 我这边跳到：' + b.textContent); });
+  el.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => {
+    const all = b.dataset.a === '' ? null : +b.dataset.a;
+    if (!confirm(all == null ? '让所有人恢复正常时间？' : `让所有人一起切换到「${b.textContent}」？\n正在玩的小朋友都会看到。`)) return;
+    el.classList.remove('open'); jumpTo(null); el.classList.remove('shifted');
+    if (await saveGlobalTime(all == null ? 0 : offsetFor(all))) toast(all == null ? '🌍 所有人已恢复正常时间' : '🌍 所有人已切换到：' + b.textContent);
+  });
 }
 function updateDnChip(I) {
   const T = clockText(I), sig = T.icon + T.title + T.line + T.big;
@@ -553,8 +580,8 @@ async function refreshMe() {
   await loadInventory(ME && ME.user.id);
   setCoins(ME ? (ME.profile.coins || 0) : null);
   syncBag.loaded = null; bag = Array(BAG_N).fill(null);
-  applyLook(); syncBag(); setupTimeTest();
-  if (!mp) mp = createParkMP({ scene, camera, player, getSeat: (ri, si) => { const r = world.rides[ri]; return r && r.seats && r.seats[si]; }, getMe: () => ME, getLook: () => ({ ...INV.equip }), getAvatar: () => me, abil, toast, sfx });
+  applyLook(); syncBag(); setupTimeTest(); loadGlobalTime();
+  if (!mp) mp = createParkMP({ scene, camera, player, onTime: o => setGlobalOffset(o), getSeat: (ri, si) => { const r = world.rides[ri]; return r && r.seats && r.seats[si]; }, getMe: () => ME, getLook: () => ({ ...INV.equip }), getAvatar: () => me, abil, toast, sfx });
   mp.connect();
 }
 

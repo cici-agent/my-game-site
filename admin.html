@@ -226,7 +226,7 @@
       var r = await sb.from('shop_items').select('key,kind,name,price,is_active,consumable,slot,sort_order').order('sort_order');
       var tb = document.getElementById('shopTableBody');
       if (r.error) { tb.innerHTML = '<tr><td colspan="5" style="color:#e03131;padding:20px;">加载失败：' + escHtml(r.error.message) + '</td></tr>'; return; }
-      tb.innerHTML = r.data.map(function (it) {
+      tb.innerHTML = r.data.filter(function (it) { return it.key.indexOf('__') !== 0; }).map(function (it) {
         var type = it.kind === 'prop' ? (it.consumable ? '（用一次）' : '（装饰）') : '';
         return '<tr data-key="' + escHtml(it.key) + '">' +
           '<td>' + SHOP_NAMES[it.kind] + '</td>' +

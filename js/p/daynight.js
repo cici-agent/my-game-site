@@ -9,12 +9,17 @@ export const T_DAY = 1140, T_SUNSET = 90, T_NIGHT = 480, T_SUNRISE = 90;
 export const DAY_LEN = T_DAY + T_SUNSET + T_NIGHT + T_SUNRISE;
 export const SHOW_START = 60, SHOW_LEN = 180;
 // 时间偏移只能由管理员的「测试时间」面板设置（jumpTo），普通玩家改不了
-let OFFSET = 0;
-export const now = () => rideClock() + OFFSET;
+let OFFSET = 0, GLOBAL = 0;
+export const now = () => rideClock() + GLOBAL + OFFSET;
+// 管理员给“所有人”设置的时间偏移（存在数据库里，大家一起用）
+export function setGlobalOffset(sec) { if (sec === GLOBAL) return; GLOBAL = sec || 0; dispatchEvent(new Event('xcn-time-jump')); }
+export const globalOffset = () => GLOBAL;
+// 要让“现在”变成一天里的第 target 秒，需要的总偏移
+export function offsetFor(target) { const c = ((rideClock() % DAY_LEN) + DAY_LEN) % DAY_LEN; return Math.round(((target - c) % DAY_LEN + DAY_LEN) % DAY_LEN); }
 // 管理员测试：把“我这边”的时间跳到一天里的某一秒（别人不受影响）；target = null 恢复正常
 export function jumpTo(target) {
   if (target == null) OFFSET = 0;
-  else { const c = ((rideClock() % DAY_LEN) + DAY_LEN) % DAY_LEN; OFFSET = ((target - c) % DAY_LEN + DAY_LEN) % DAY_LEN; }
+  else { const c = (((rideClock() + GLOBAL) % DAY_LEN) + DAY_LEN) % DAY_LEN; OFFSET = ((target - c) % DAY_LEN + DAY_LEN) % DAY_LEN; }
   dispatchEvent(new Event('xcn-time-jump'));
 }
 export const isShifted = () => OFFSET !== 0;
