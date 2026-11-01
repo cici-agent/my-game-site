@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { nameTag } from '../net.js';
 import { dayInfo, mmss, SHOW_START } from './daynight.js';
 
-const NAMES = ['小美', '阿乐', '豆豆', '小虎', '糖糖', '乐乐', '星星', '果果', '小鹿', '团团', '小宇', '朵朵', '毛毛', '天天', '笑笑', '可可'];
+const NAMES = ['小美', '阿乐', '豆豆', '小虎', '糖糖', '乐乐', '星星', '果果', '小鹿', '团团', '小宇', '朵朵', '毛毛', '天天', '笑笑', '可可', '小雨', '阳阳', '多多', '甜甜', '皮皮', '妞妞', '贝贝', '欢欢', '小树', '月月', '圆圆', '壮壮', '小船', '芊芊', '浩浩', '安安', '琪琪', '牛牛', '晴晴', '宝宝'];
 const FAVS = ['过山车', '摩天轮', '旋转木马', '海盗船', '鬼屋', '碰碰车', '卡丁车', '烟花秀', '喷泉', '摩天轮'];
 const HOBBY = ['吃冰淇淋', '收集金币', '看星星', '画画', '跑步', '拍照', '唱歌', '搭积木', '养小猫', '讲笑话'];
 const SPEED = 3.2;
@@ -15,6 +15,18 @@ const HAIR_C = [0x2b1d14, 0x4a2f1b, 0x8b5a2b, 0xd9a441, 0x111111, 0xb5651d, 0xe8
 const SHIRT_C = [0xff6b6b, 0x4dabf7, 0x69db7c, 0xffd43b, 0xda77f2, 0xff922b, 0x22b8cf, 0xf783ac, 0xffffff, 0x845ef7];
 const PANTS_C = [0x364fc7, 0x495057, 0x2b8a3e, 0x862e9c, 0xe8590c, 0x1c7ed6, 0xf1f3f5];
 function personRand(seed) { let a = seed >>> 0 || 1; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+// 把一个小组里的零件合成一个网格（颜色写进顶点），一个人只要画几次，人多也不卡
+const NPC_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, side: THREE.DoubleSide });
+function mergeGroup(group) {
+  const meshes = group.children.filter(o => o.isMesh); if (meshes.length < 2) return;
+  const pos = [], nor = [], col = [], c = new THREE.Color();
+  meshes.forEach(m => { m.updateMatrix(); let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(); g.applyMatrix4(m.matrix);
+    const p = g.attributes.position.array, n = g.attributes.normal.array; c.copy(m.material.color);
+    for (let i = 0; i < p.length; i++) { pos.push(p[i]); nor.push(n[i]); } for (let i = 0; i < p.length / 3; i++) col.push(c.r, c.g, c.b);
+    group.remove(m); });
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  group.add(new THREE.Mesh(geo, NPC_MAT));
+}
 export function buildPerson(seed) {
   const r = personRand(seed * 9973 + 7), pk = a => a[Math.floor(r() * a.length)];
   const Ms = c => new THREE.MeshStandardMaterial({ color: c, roughness: .65 });
@@ -60,6 +72,7 @@ export function buildPerson(seed) {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(.07, .2, 10), Ms(0xd9a441)); cone.rotation.x = Math.PI; cone.position.y = .02; ic.add(cone);
     const sc = new THREE.Mesh(new THREE.SphereGeometry(.08, 10, 8), Ms(pk([0xffc9de, 0xfff3bf, 0x8b5a2b, 0xb2f2bb]))); sc.position.y = .15; ic.add(sc); }
   else if (hold < .55) { const bp = add(body, new THREE.BoxGeometry(.4, .45, .2), Ms(pk([0xff922b, 0x1c7ed6, 0xe64980])), 0, 1.25, -.28); }   // 小书包
+  [body, head, ...legs, ...arms].forEach(mergeGroup); arms.forEach(A => A.children.forEach(ch => ch.isGroup && mergeGroup(ch)));
   let t = r() * 10;
   return { root, skin: 'npc', rig: {}, animate(dt, speed = 0, air = false, sitting = false) {
     t += dt;
@@ -74,14 +87,14 @@ export function buildPerson(seed) {
 }
 
 
-export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, queues, qRides, count = 16 }) {
+export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, queues, qRides, count = 36 }) {
   const rnd = Math.random;
   const npcs = [];
   const tmp = new THREE.Vector3(), seatPos = new THREE.Vector3(), seatQ = new THREE.Quaternion();
   const mansion = world.mansion;
   // 能去玩的项目：所有有座位的游乐设施 + 鬼屋
   // 能去玩的项目：每个项目的排队区入口（碰碰车的权重大一点，大家都爱玩）+ 鬼屋
-  const spots = qRides.map((r, i) => ({ kind: 'ride', ride: r, idx: i, pos: queues.queues[i].entrance, w: r === world.bumper ? 2.5 : 1 })).concat(mansion ? [{ kind: 'mansion', pos: mansion.entry, w: .5 }] : []);
+  const spots = qRides.map((r, i) => ({ kind: 'ride', ride: r, idx: i, pos: queues.queues[i].entrance, w: r === world.bumper ? 3 : [1.2, 1.5, 1, 2, 1][i] || 1 })).concat(mansion ? [{ kind: 'mansion', pos: mansion.entry, w: .5 }] : []);
   const pickSpot = () => { const tot = spots.reduce((a, s) => a + s.w, 0); let x = rnd() * tot; for (const s of spots) { x -= s.w; if (x <= 0) return s; } return spots[0]; };
 
   function blocked(x, z, pad = .6) {
@@ -97,6 +110,7 @@ export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, q
   function push(n) {          // 把人推出障碍物
     const p = n.pos;
     for (const c of world.colliders) {
+      if (n.state === 'toSeat' && (c.queueArea || (n.ignore && n.ignore.includes(c)))) continue;
       if (c.box) { const [bx, bz, hw, hl, yaw] = c.box, co = Math.cos(yaw), si = Math.sin(yaw), dx = p.x - bx, dz = p.z - bz; let lx = dx * co - dz * si, lz = dx * si + dz * co;
         const ox = hw + .5 - Math.abs(lx), oz = hl + .5 - Math.abs(lz); if (ox > 0 && oz > 0) { if (ox < oz) lx = Math.sign(lx) * (hw + .5); else lz = Math.sign(lz) * (hl + .5); p.x = bx + lx * co + lz * si; p.z = bz - lx * si + lz * co; } }
       else { const dx = p.x - c[0], dz = p.z - c[1], d = Math.hypot(dx, dz), r = c[2] + .5; if (d < r && d > 1e-4) { p.x = c[0] + dx / d * r; p.z = c[1] + dz / d * r; } }
@@ -112,10 +126,13 @@ export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, q
       fav: FAVS[k % FAVS.length], hobby: HOBBY[k % HOBBY.length], chatT: 0, followT: 0, bubble: null, bubbleT: 0,
       target: null, spot: null, ride: null, wait: 0, stuckT: 0, lastD: 1e9, inMansion: false, tag: nameTag(tagsEl, NAMES[k % NAMES.length], '#a5d8ff') };
     n.tag.classList.add('npc');
-    n.board = (ride, taken) => boardNpc(n, ride, taken);
+    n.release = res => { n.state = 'toSeat'; n.target = res.spot; n.ignore = res.ride.colliders || []; n.seatT = 0; n.stuckT = 0; n.lastD = 1e9; };
     n.bubble = document.createElement('div'); n.bubble.className = 'npc-bubble'; tagsEl.appendChild(n.bubble);
     npcs.push(n);
   }
+  // 一开场就有很多人在排队
+  setTimeout(() => npcs.forEach(n => { if (rnd() < .6) { const sp = pickSpot(); if (sp.kind !== 'ride') return; n.spot = sp; n.state = 'queue'; n.wait = 0; queues.join(sp.idx, n);
+    const q = queues.queues[sp.idx], sl = q.slots[Math.min(q.members.length - 1, q.slots.length - 1)]; n.pos.set(sl[0], 0, sl[1]); } }), 0);
   function decide(n) {
     // 烟花秀快开始了：大部分人去乐园中间看烟花
     if (showSoon() && rnd() < .85) { const a = rnd() * Math.PI * 2, d = 12 + rnd() * 26; n.target = [Math.sin(a) * d, 10 + Math.cos(a) * d]; n.state = 'toWatch'; n.stuckT = 0; n.lastD = 1e9; return; }
@@ -135,9 +152,9 @@ export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, q
     return false;
   }
   // 排到了：上车（碰碰车会玩 1~2 轮）
-  function boardNpc(n, r, taken) {
+  function boardNpc(n, r, taken, want) {
     const prev = r.playerPos; r.playerPos = [n.pos.x, n.pos.z];
-    const ride = r === world.bumper ? r.board(taken, 'npc', rnd() < .5 ? 1 : 2) : r.board(taken); r.playerPos = prev;
+    const ride = r === world.bumper ? r.board(taken, 'npc', rnd() < .5 ? 1 : 2, want) : r.board(taken, want); r.playerPos = prev;
     if (!ride) return false;
     ride.rideIdx = n.spot.idx; n.ride = ride; n.state = 'ride'; return true;
   }
@@ -203,6 +220,13 @@ export function createNPCs({ scene, world, camera, tagsEl, islandR, playerRef, q
         } else if (n.state === 'queue') {
           n.wait += dt;                                   // 排队区自己会让人往前挪；排到了会调 n.board()
           if (n.wait > 240) { queues.leave(n); n.state = 'idle'; n.timer = 1; n.spot = null; }
+        } else if (n.state === 'toSeat') {                 // 排到了：自己走到空位，坐上去
+          const res = n.boarding; n.seatT += dt;
+          if (!res) { n.state = 'idle'; n.timer = 1; }
+          else if (!res.ride.canBoard()) { queues.backToFront(n); n.state = 'queue'; }          // 没赶上这一轮：回到队伍最前面
+          else if (Math.hypot(n.target[0] - n.pos.x, n.target[1] - n.pos.z) < 1 || n.seatT > 14) {
+            if (boardNpc(n, res.ride, queues.taken(res.qi, n), res.k)) queues.done(n); else { queues.backToFront(n); n.state = 'queue'; }
+          } else { const sp = SPEED; n.stuckT = 0; walkTo(n, dt); }
         } else if (n.state === 'toWatch') {
           if (walkTo(n, dt) || n.stuckT > 2.4) { n.state = 'watch'; }
         } else if (n.state === 'watch') {                 // 看烟花：面朝乐园中间

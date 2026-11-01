@@ -154,6 +154,14 @@
   #npcChat form button { border: 0; border-radius: 12px; background: #ffd23f; color: #1a1446; font-weight: 800; padding: 0 14px; cursor: pointer; }
   #npcChat .quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 10px; }
   #npcChat .quick button { border: 0; border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; font-size: 12px; padding: 5px 10px; cursor: pointer; }
+  #stallHud { position: fixed; left: 50%; top: 74px; transform: translateX(-50%); z-index: 12; display: none; background: rgba(26,20,70,.9); color: #fff; font-weight: 800; font-size: 15px;
+    padding: 10px 18px; border-radius: 16px; border: 2px solid #ffd23f; text-align: center; max-width: calc(100vw - 24px); }
+  #stallHud.show { display: block; }
+  #stallBar { height: 10px; border-radius: 6px; background: rgba(255,255,255,.15); margin-top: 8px; overflow: hidden; display: none; }
+  #stallBar i { display: block; height: 100%; background: linear-gradient(90deg, #69db7c, #ffd43b, #ff6b6b); width: 0; }
+  #aimDot { position: fixed; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,0,0,.6); pointer-events: none; z-index: 11; display: none; }
+  body.in-stall #aimDot.on { display: block; }
+  body.in-stall #bag, body.in-stall #ward, body.in-stall .dock, body.in-stall #stick, body.in-stall #jumpBtn { display: none !important; }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
@@ -170,6 +178,8 @@
 <div class="hint" id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 数字键选背包格子、再按一次使用 · 拖动屏幕转视角（往上拖可以抬头看天）· 走到设施和商店门口按 E</div>
 
 <div id="prompt"></div>
+<div id="stallHud"><div id="stallTxt"></div><div id="stallBar"><i></i></div></div>
+<div id="aimDot"></div>
 <div id="npcChat"><div class="hd"><span id="npcName">💬</span><button id="npcClose" title="关闭">×</button></div>
   <div id="npcLog"></div>
   <div class="quick"><button>你好</button><button>你在干嘛？</button><button>推荐玩什么？</button><button>烟花秀什么时候？</button><button>一起玩吧</button><button>讲个笑话</button></div>

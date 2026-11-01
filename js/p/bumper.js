@@ -88,7 +88,7 @@ export function bumperArena(cx, cz) {
 
   // 一步物理（只算有人开的车）
   function physics(dt, others) {
-    let myHit = 0; const active = cars.filter(c => c.driver);
+    let myHit = 0; const active = cars.filter(c => c.driver && !c.pending);
     for (const c of active) {
       if (phase !== 'run') { c.thr = 0; c.steer = 0; }
       else if (c.ai) {                                 // NPC 开车：找个地方开过去，时不时去撞别人
@@ -140,10 +140,13 @@ export function bumperArena(cx, cz) {
     get phase() { return phase; }, get left() { return left; },
     status() { return phase === 'board' ? '按 E 开碰碰车' : '碰碰车开着呢，等下一轮'; },
     canBoard() { clock(); return phase === 'board' && left > 1.5 && cars.some(c => !c.driver); },
+    boardTime() { clock(); return phase === 'board' ? left : 0; },
+    freeSeat(taken = []) { const c = cars.find(c => !c.driver && !taken.includes(c.k)); return c ? c.k : -1; },
+    boardSpot(k) { const c = cars[k]; return [cx + c.x, cz + c.z]; },
     // 上车（NPC 或玩家）：从车库里拿一辆空车开到场子里；坐 rounds 轮
-    board(taken = [], who = 'npc', rounds = 1) {
-      const c = cars.find(c => !c.driver); if (!c) return null;
-      c.driver = who; c.ai = who !== 'player'; c.startRound = roundN; c.rounds = rounds; toStart(c);
+    board(taken = [], who = 'npc', rounds = 1, want = null) {
+      const c = want != null && cars[want] && !cars[want].driver && !taken.includes(want) ? cars[want] : cars.find(c => !c.driver && !taken.includes(c.k)); if (!c) return null;
+      c.driver = who; c.ai = who !== 'player'; c.startRound = roundN; c.rounds = rounds; c.pending = true;          // 先坐在车库里，开始的时候再开出来
       if (who === 'player') mine = c;
       return { seat: c.m.seat, seatIndex: c.k, view: 'bumper', car: c, exitPos: [cx + 3 + (rnd() - .5) * 4, cz + HZ + 3.2],
         done: () => phase === 'board' && roundN >= c.startRound + c.rounds, release() { if (mine === c) mine = null; toPark(c); } };
@@ -153,7 +156,8 @@ export function bumperArena(cx, cz) {
     update(dt, others = []) {
       clock();
       cars.forEach(c => c.driver && c.m.update(dt));
-      if (phase !== lastPhase) { lastPhase = phase; }
+      if (phase === 'run') cars.forEach(c => { if (c.driver && c.pending) { c.pending = false; toStart(c); } });
+      if (phase !== lastPhase) { lastPhase = phase; if (phase === 'run') cars.forEach(c => { if (c.driver && c.pending) { c.pending = false; toStart(c); } }); }
       drawCd(phase === 'board' ? `上车中 · ${Math.ceil(left)} 秒后开始` : `还剩 ${Math.ceil(left)} 秒`);
       return physics(Math.min(dt, .05), others);
     },

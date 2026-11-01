@@ -78,8 +78,11 @@ export function ferrisWheel(x, z, faceAngle = 0) {
     status() { return '按 E 坐摩天轮'; },
     capacity: N,
     canBoard() { return phase === 'board' && boardLeft > 1; },
-    board(taken = []) {
-      const bk = cabins.findIndex((_, k) => !taken.includes(k)); if (bk < 0) return null;      // 坐满了：等下一轮
+    boardTime() { return phase === 'board' ? boardLeft : 0; },
+    // 上摩天轮：都走到最下面那个吊舱的门口
+    boardSpot() { let lo = null; cabins.forEach(c => { c.seat.getWorldPosition(worldPos); if (!lo || worldPos.y < lo.y) lo = worldPos.clone(); }); return [lo.x, lo.z]; },
+    board(taken = [], want = null) {
+      const bk = want != null && cabins[want] && !taken.includes(want) ? want : cabins.findIndex((_, k) => !taken.includes(k)); if (bk < 0) return null;      // 坐满了：等下一轮
       const best = cabins[bk];
       const start = cycleN;
       rider = best;
@@ -143,7 +146,7 @@ export function rollerCoaster(cx, cz) {
   const train = [], cSeats = [];
   for (let k = 0; k < 4; k++) {
     const car = new THREE.Group();
-    const cc = [0xffd23f, 0x4dabf7, 0xff6b6b, 0x69db7c][k];
+    const cc = [0xffd23f, 0x4dabf7, 0xff6b6b, 0x69db7c, 0xda77f2, 0xff922b][k];
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, .8, 2.2), M(cc)); body.position.y = .5; car.add(body);
     const front = new THREE.Mesh(new THREE.SphereGeometry(.85, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), M(cc));
     front.rotation.x = Math.PI / 2; front.position.set(0, .5, 1.1); front.scale.set(1, .6, .5); car.add(front);
@@ -189,8 +192,9 @@ export function rollerCoaster(cx, cz) {
     },
     status(queued) { return dwell > 0 ? '按 E 坐过山车' : queued ? '排队中，过山车回站就上车…' : '按 E 排队，过山车回站就上车'; },
     canBoard() { return dwell > 1; },
-    board(taken = []) {
-      const k = cSeats.findIndex((_, i) => !taken.includes(i)); if (k < 0) return null;      // 坐满了：等下一趟
+    boardTime() { return dwell; },
+    board(taken = [], want = null) {
+      const k = want != null && cSeats[want] && !taken.includes(want) ? want : cSeats.findIndex((_, i) => !taken.includes(i)); if (k < 0) return null;      // 坐满了：等下一趟
       const startLap = lap; rider = train[k >> 1];
       return { seat: cSeats[k], seatIndex: k, view: 'pov', exitPos: this.entry, done: () => lap > startLap && dwell > 0 };
     },
@@ -258,11 +262,13 @@ export function carousel(x, z) {
     },
     status() { return '按 E 骑旋转木马'; },
     canBoard() { return phase === 'board' && boardLeft > 1; },
-    board(taken = []) {
+    boardTime() { return phase === 'board' ? boardLeft : 0; },
+    board(taken = [], want = null) {
       if (horses.every((_, k) => taken.includes(k))) return null;
       let best = null, bd = Infinity;
       const me = this.playerPos || [x, z + R + 3.5];
       horses.forEach((h, k) => { if (taken.includes(k)) return; h.getWorldPosition(wp); const d = Math.hypot(wp.x - me[0], wp.z - me[1]); if (d < bd) { bd = d; best = h; } });
+      if (want != null && horses[want] && !taken.includes(want)) best = horses[want];
       // 从哪边上就从哪边下
       const ang = Math.atan2(me[0] - x, me[1] - z), exitPos = [x + Math.sin(ang) * (R + 3.2), z + Math.cos(ang) * (R + 3.2)];
       const start = cycleN;
@@ -324,9 +330,9 @@ export function pirateShip(cx, cz) {
     const bench = new THREE.Mesh(new THREE.BoxGeometry(.9, .45, 3.2), M(0x1c7ed6)); bench.position.set(xx, 1.25, 0); ship.add(bench);
     const back = new THREE.Mesh(new THREE.BoxGeometry(.15, .8, 3.2), M(0x1971c2)); back.position.set(xx - Math.sign(xx || 1) * .45, 1.75, 0); ship.add(back);
     const bar = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 3.2, 6), M(0xdddddd, { metalness: .6 })); bar.rotation.x = Math.PI / 2; bar.position.set(xx + Math.sign(xx || 1) * .55, 1.9, 0); ship.add(bar);
-    [-.85, .85].forEach(zz => {
+    [-1.15, 0, 1.15].forEach(zz => {
       const seat = new THREE.Object3D(); seat.position.set(xx, 1.85, zz);
-      seat.rotation.y = (xx < 0 || (xx === 0 && zz < 0)) ? Math.PI / 2 : -Math.PI / 2;      // 两边的人面朝船中间
+      seat.rotation.y = (xx < 0 || (xx === 0 && zz <= 0)) ? Math.PI / 2 : -Math.PI / 2;      // 两边的人面朝船中间
       ship.add(seat); seats.push(seat);
     });
   });
@@ -372,8 +378,9 @@ export function pirateShip(cx, cz) {
     },
     status(queued) { return phase === 'board' ? '按 E 坐海盗船' : queued ? '排队中，海盗船停下就上船…' : '按 E 排队，海盗船停下就上船'; },
     canBoard() { return phase === 'board' && boardLeft > .4; },
-    board(taken = []) {
-      const k = seats.findIndex((_, i) => !taken.includes(i)); if (k < 0) return null;
+    boardTime() { return phase === 'board' ? boardLeft : 0; },
+    board(taken = [], want = null) {
+      const k = want != null && seats[want] && !taken.includes(want) ? want : seats.findIndex((_, i) => !taken.includes(i)); if (k < 0) return null;
       const start = cycleN;
       return { seat: seats[k], seatIndex: k, view: 'follow', camDist: 30, camYaw: Math.PI, camPitch: .15, exitPos: this.entry,
         done: () => cycleN > start && phase === 'board' };

@@ -6,7 +6,7 @@ const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 
 const SLOT = 1.15;
 
 // 从上车点 gate 往外（out 方向）做一条 Z 字形的道
-function lanePath(gate, out, rows = 3, rowLen = 9, gap = 1.9, lead = 2.4) {
+function lanePath(gate, out, rows = 4, rowLen = 11, gap = 1.9, lead = 2.4) {
   const o = new THREE.Vector2(out[0], out[1]).normalize(), p = new THREE.Vector2(-o.y, o.x);
   const P = (a, b) => [gate[0] + o.x * a + p.x * b, gate[1] + o.y * a + p.y * b];
   const pts = [P(0, 0), P(lead, 0)]; let dist = lead, side = 1;
@@ -27,7 +27,7 @@ export function createQueues({ scene, list, getTaken, sfx }) {
   const queues = [], postPts = [];
   const postM = M(0xdee2e6, { metalness: .6, roughness: .3 }), ropeM = M(0xe03131), baseM = M(0x495057);
   list.forEach((it, idx) => {
-    const pts = lanePath(it.gate, it.out, it.rows || 3, it.rowLen || 9);
+    const pts = lanePath(it.gate, it.out, it.rows || 4, it.rowLen || 11);
     const slots = sample(pts, SLOT);
     // 地面 + 栏杆
     const g = new THREE.Group(); scene.add(g);
@@ -49,7 +49,10 @@ export function createQueues({ scene, list, getTaken, sfx }) {
     const sg = new THREE.Mesh(new THREE.PlaneGeometry(2.6, .78), new THREE.MeshBasicMaterial({ map: t, side: THREE.DoubleSide }));
     const ang = Math.atan2(end[0] - prev[0], end[1] - prev[1]); sg.position.set(end[0] + Math.sin(ang) * .3, 2.3, end[1] + Math.cos(ang) * .3); sg.rotation.y = ang; g.add(sg);
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 2.3, 6), postM); pole.position.set(sg.position.x, 1.15, sg.position.z); g.add(pole);
-    queues.push({ idx, ride: it.ride, slots, members: [], cool: 0, entrance: [end[0], end[1]] });
+    // 整个排队区当成一个长方形障碍物：不在队伍里的人走不进去（只能从入口排进来）
+    const rows = it.rows || 4, rowLen = it.rowLen || 11, depth = 2.4 + (rows - 1) * 1.9 + .95, o = new THREE.Vector2(it.out[0], it.out[1]).normalize();
+    const area = { box: [it.gate[0] + o.x * depth / 2, it.gate[1] + o.y * depth / 2, rowLen / 2 + 1.0, depth / 2, Math.atan2(o.x, o.y)], queueArea: true };
+    queues.push({ idx, ride: it.ride, slots, members: [], cool: 0, entrance: [end[0], end[1]], area });
   });
 
   // 所有排队区的柱子一起画（省力气）
@@ -62,6 +65,11 @@ export function createQueues({ scene, list, getTaken, sfx }) {
     join(qi, m) { const q = queues[qi]; if (!q || q.members.includes(m)) return; q.members.push(m); m.queue = q; },
     leave(m) { const q = m.queue; if (!q) return; const i = q.members.indexOf(m); if (i >= 0) q.members.splice(i, 1); m.queue = null; },
     nearEntrance(x, z, r = 2.6) { let best = null, bd = r; queues.forEach(q => { const d = Math.hypot(q.entrance[0] - x, q.entrance[1] - z); if (d < bd) { bd = d; best = q; } }); return best; },
+    // 已经被别人占了 / 预定了的座位
+    taken(qi, except) { const q = queues[qi]; return getTaken(qi).concat((q.reserved || []).filter(r => r.member.boarding === r && r.member !== except).map(r => r.k)); },
+    // 这一轮没赶上：回到队伍最前面
+    backToFront(m) { const r = m.boarding; if (!r) return; m.boarding = null; const q = queues[r.qi]; q.members.unshift(m); m.queue = q; },
+    done(m) { m.boarding = null; },
     position(m) { return m.queue ? m.queue.members.indexOf(m) : -1; },
     length(qi) { return queues[qi] ? queues[qi].members.length : 0; },
     update(dt) {
@@ -72,13 +80,20 @@ export function createQueues({ scene, list, getTaken, sfx }) {
           const tx = far ? q.entrance[0] + (i - q.slots.length + 1) * .9 * Math.sin(s[2]) : s[0], tz = far ? q.entrance[1] + (i - q.slots.length + 1) * .9 * Math.cos(s[2]) : s[1];
           const dx = tx - m.pos.x, dz = tz - m.pos.z, d = Math.hypot(dx, dz);
           if (d > .08) { const v = Math.min(d / dt, 3.4); m.pos.x += dx / d * v * dt; m.pos.z += dz / d * v * dt; m.face = Math.atan2(dx, dz); m.speed = v; }
-          else { m.speed = 0; m.face = s[2] + Math.PI; }
+          else { m.speed = 0; m.face = s[2]; }                 // 站着的时候面朝前面（朝着项目）
         });
-        // 最前面的人到了门口：能上客、有空位就上去
+        // 最前面的人到了门口：能上客、有空位，就放他进去，自己走到一个空位坐上
+        q.reserved = (q.reserved || []).filter(r => r.member.boarding === r);
         const f = q.members[0];
-        if (f && q.cool <= 0 && Math.hypot(f.pos.x - q.slots[0][0], f.pos.z - q.slots[0][1]) < .6 && q.ride.canBoard && q.ride.canBoard()) {
-          const taken = getTaken(q.idx);
-          if (taken.length < (q.ride.capacity || 99) && f.board(q.ride, taken)) { q.members.shift(); f.queue = null; q.cool = .45; }
+        if (f && q.cool <= 0 && Math.hypot(f.pos.x - q.slots[0][0], f.pos.z - q.slots[0][1]) < .6 && q.ride.canBoard && q.ride.canBoard() && (!q.ride.boardTime || q.ride.boardTime() > 5)) {          // 剩的时间太少就不放进去了（走不到座位）
+          const taken = api.taken(q.idx);
+          const k = q.ride.freeSeat ? q.ride.freeSeat(taken) : (q.ride.seats || []).findIndex((_, i) => !taken.includes(i));
+          if (k >= 0 && taken.length < (q.ride.capacity || 99)) {
+            const sp = q.ride.boardSpot ? q.ride.boardSpot(k) : (() => { const v = new THREE.Vector3(); q.ride.seats[k].getWorldPosition(v); return [v.x, v.z]; })();
+            const res = { member: f, k, spot: sp, ride: q.ride, qi: q.idx };
+            q.members.shift(); f.queue = null; f.boarding = res; q.reserved.push(res); q.cool = .7;
+            f.release(res);
+          }
         }
       });
     },

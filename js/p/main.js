@@ -12,6 +12,7 @@ import { buildKart, kartColorOf } from './kart.js';
 import { createNPCs } from './npc.js';
 import { BUMPER_COLORS } from './bumper.js';
 import { createQueues } from './queue.js';
+import { createStallGame } from './stalls.js';
 import { loadPlanets, loadMe } from '../u/data.js';
 import { askLogin } from '../u/login.js';
 import { esc } from '../u/stations.js';
@@ -54,10 +55,29 @@ function getTaken(qi) {
   if (qi === BUMPER_Q && player.bumper) out.push(-1);
   return out;
 }
-const queues = createQueues({ scene, getTaken, list: qRides.map((r, i) => ({ ride: r, gate: r.gate || r.entry, out: r.out, rows: i === BUMPER_Q ? 3 : 3, rowLen: i === 1 ? 7 : 9 })) });
+const queues = createQueues({ scene, getTaken, list: qRides.map((r, i) => ({ ride: r, gate: r.gate || r.entry, out: r.out, rows: 4, rowLen: i === 1 ? 8 : 11 })) });
+queues.queues.forEach(q => world.colliders.push(q.area));
 // 玩家在队伍里的样子：位置就是玩家自己的位置，排到了就上
-const pq = { kind: 'player', pos: player.pos, face: 0, speed: 0, queue: null,
-  board(ride, taken) { if (ride === world.bumper) { const ret = ride.board(taken, 'player', 1); if (!ret) return false; startBumper(ret); return true; } return boardRide(ride, taken); } };
+const pq = { kind: 'player', pos: player.pos, face: 0, speed: 0, queue: null, boarding: null,
+  board(ride, taken, want) { if (ride === world.bumper) { const ret = ride.board(taken, 'player', 1, want); if (!ret) return false; startBumper(ret); return true; } return boardRide(ride, taken, want); },
+  release(res) { toast(`🎟️ 轮到你了！走过去找个空位，按 E 坐上去`); sfx.chime([659, 880]); } };
+// 轮到你的时候：头顶上有个小箭头指着给你留的座位
+const seatArrow = new THREE.Mesh(new THREE.ConeGeometry(.35, .7, 12), new THREE.MeshBasicMaterial({ color: 0xffd23f })); seatArrow.rotation.x = Math.PI; seatArrow.visible = false; scene.add(seatArrow);
+function seatSpots(res) {          // 这个项目现在空着的座位（和它们在地上的位置）
+  const R = res.ride, taken = queues.taken(res.qi, pq), out = [], v = new THREE.Vector3();
+  const n = R === world.bumper ? R.capacity : (R.seats || []).length;
+  for (let k = 0; k < n; k++) { if (taken.includes(k) && k !== res.k) continue;
+    const sp = R.boardSpot ? R.boardSpot(k) : (R.seats[k].getWorldPosition(v), [v.x, v.z]); out.push({ k, sp }); }
+  return out;
+}
+function boardingTick(dt) {
+  const res = pq.boarding; if (!res) { seatArrow.visible = false; return null; }
+  if (!res.ride.canBoard()) { queues.backToFront(pq); seatArrow.visible = false; toast('😅 这一轮没赶上，排在最前面等下一轮'); return null; }
+  const sp = res.ride.boardSpot ? res.ride.boardSpot(res.k) : (() => { const v = new THREE.Vector3(); res.ride.seats[res.k].getWorldPosition(v); return [v.x, v.z, v.y]; })();
+  seatArrow.visible = true; seatArrow.position.set(sp[0], (sp[2] || 0) + 3.2 + Math.sin(performance.now() / 200) * .25, sp[1]);
+  let best = null, bd = 1.9; seatSpots(res).forEach(o => { const d = Math.hypot(o.sp[0] - player.pos.x, o.sp[1] - player.pos.z); if (d < bd) { bd = d; best = o; } });
+  return best;
+}
 // 乐园里的 NPC 小游客（每个人自己屏幕上的，不联网）
 let npcs = null;
 try { npcs = createNPCs({ scene, world, camera, tagsEl: $('mpTags'), islandR: ISLAND_R, playerRef: player, queues, qRides }); } catch (e) { console.warn('npc', e); }
@@ -90,6 +110,7 @@ addEventListener('keydown', e => {
   if (chatNpc) { if (e.code === 'Escape' || (e.code === 'KeyE' && !e.repeat && document.activeElement !== $('npcInput'))) closeChat(); return; }
   if (shopOpen) { if (e.code === 'Escape') closeShop(); return; }
   keys[e.code] = true;
+  if (player.stall) { if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) stallGame.key('Space', true); } if ((e.code === 'KeyE' || e.code === 'Escape') && !e.repeat) exitStall(); return; }
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (e.code === 'KeyE' && !e.repeat) action();
   if (e.code === 'Space' && !e.repeat) abil.onJumpPress();
@@ -97,17 +118,19 @@ addEventListener('keydown', e => {
   const dn = /^Digit([1-9])$/.exec(e.code); if (dn && !e.repeat) pressSlot(+dn[1] - 1);
   if (e.code === 'Escape' && player.riding) tryLeaveRide();
 });
-addEventListener('keyup', e => keys[e.code] = false);
+addEventListener('keyup', e => { keys[e.code] = false; if (player.stall && e.code === 'Space') stallGame.key('Space', false); });
 
 // 拖动屏幕转视角（鼠标左键 / 单指）
 let drag = null;
-renderer.domElement.addEventListener('pointerdown', e => { sfx.unlock(); drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId); });
+const ndc = e => [e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1];
+renderer.domElement.addEventListener('pointerdown', e => { sfx.unlock(); if (player.stall) { stallGame.pointer('down', ...ndc(e)); return; } drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId); });
 renderer.domElement.addEventListener('pointermove', e => {
+  if (player.stall) { stallGame.pointer('move', ...ndc(e)); return; }
   if (!drag || drag.id !== e.pointerId) return;
   cam.yaw -= (e.clientX - drag.x) * .006; cam.pitch = THREE.MathUtils.clamp(cam.pitch + (e.clientY - drag.y) * .004, -1.05, 1.1);   // 往上拖到底 = 抬头看天
   drag.x = e.clientX; drag.y = e.clientY;
 });
-renderer.domElement.addEventListener('pointerup', () => drag = null);
+renderer.domElement.addEventListener('pointerup', e => { if (player.stall) stallGame.pointer('up', ...ndc(e)); drag = null; });
 renderer.domElement.addEventListener('wheel', e => { cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * .01, 5, 22); }, { passive: true });
 
 // 触屏：摇杆 + 跳跃 + 动作键
@@ -145,19 +168,23 @@ function promptText(it) {
   if (it.type === 'kart') return '🏎️ 按 E 开卡丁车';
   if (it.type === 'bumper') return '🚗 按 E 开碰碰车';
   if (it.type === 'npc') return `💬 按 E 和 ${it.npc.name} 说话`;
+  if (it.type === 'stall') return stallsOpen ? `${it.icon} 按 E 玩${it.name}` : `🌙 ${it.name}晚上收摊了，白天再来`;
   if (it.type === 'queue') { const n = it.q.members.length; return `${it.q.ride.icon} 按 E 排队玩${it.q.ride.name}${n ? `（现在有 ${n} 人在排）` : ''}`; }
   if (it.type === 'mansion') return '🏚️ 鬼屋：直接走进去，找到出口（很黑哦）';
   return '';
 }
 function action() {
+  if (player.stall) { exitStall(); return; }
   if (player.riding) { tryLeaveRide(); return; }
   if (player.kart) { stopKart(); return; }
   if (player.bumper) { tryLeaveBumper(); return; }
   if (pq.queue) { queues.leave(pq); toast('👋 离开了队伍'); return; }
+  if (pq.boarding) { const best = boardingTick(0); if (best) { const res = pq.boarding; if (pq.board(res.ride, queues.taken(res.qi, pq), best.k)) { queues.done(pq); seatArrow.visible = false; } } else toast('走到空位旁边再按 E 哦（跟着黄色箭头）'); return; }
   if (!near) return;
   if (near.type === 'kart') { startKart(); return; }
   if (near.type === 'queue') { if (abil.flying) { toast('先落地再排队哦'); return; } queues.join(near.q.idx, pq); sfx.click(); toast(`${near.q.ride.icon} 排进${near.q.ride.name}的队伍啦，前面还有 ${queues.position(pq)} 人`); return; }
   if (near.type === 'npc') { openChat(near.npc); return; }
+  if (near.type === 'stall') { enterStall(near); return; }
   if (near.type === 'ride') {
     if (near.ride.canBoard && !near.ride.canBoard()) { queued = near.ride; return; }   // 排队，回站自动上车
     boardRide(near.ride);
@@ -171,11 +198,11 @@ function tryLeaveRide() {
   if (r.done && !r.done()) { const now = performance.now(); if (now - noLeaveT > 1500) { noLeaveT = now; toast('🎢 还没到站哦，到站会自动下来'); } return; }
   leaveRide();
 }
-function boardRide(rideObj, taken) {
+function boardRide(rideObj, taken, want) {
   queued = null;
   const rideIdx = world.rides.indexOf(rideObj);
   rideObj.playerPos = [player.pos.x, player.pos.z];
-  const ride = rideObj.board(taken || getTaken(rideIdx));
+  const ride = rideObj.board(taken || getTaken(rideIdx), want);
   if (!ride) return false;
   ride.rideIdx = rideIdx;
   ride.prevCam = { ...cam };
@@ -274,6 +301,23 @@ setTimeout(() => {
   document.querySelectorAll('#npcChat .quick button').forEach(b => b.addEventListener('click', () => sendChat(b.textContent)));
   $('npcInput').addEventListener('keydown', e => { e.stopPropagation(); if (e.code === 'Escape' || (e.code === 'KeyE' && !e.isComposing && !e.target.value)) { e.preventDefault(); closeChat(); } });
 });
+// ---------- 摆摊小游戏 ----------
+const stallGame = createStallGame({ scene, camera, stalls: world.stalls, sfx,
+  hud(text, charge) { const h = $('stallHud'); if (text == null) { h.classList.remove('show'); return; } h.classList.add('show'); $('stallTxt').textContent = text;
+    const bar = $('stallBar'); bar.style.display = charge == null ? 'none' : 'block'; if (charge != null) bar.firstElementChild.style.width = Math.round(charge * 100) + '%'; } });
+let stallsOpen = true;
+function enterStall(it) {
+  if (!stallsOpen) { toast('🌙 晚上小摊都收摊啦，白天再来玩～'); return; }
+  if (abil.flying) { toast('先落地再玩哦'); return; }
+  player.stall = it.game; Object.keys(keys).forEach(k => keys[k] = false);
+  document.body.classList.add('in-stall'); if (pet) pet.group.visible = false;
+  stallGame.start(it.game); sfx.chime([659, 784, 988]);
+}
+function exitStall() {
+  if (!player.stall) return;
+  stallGame.stop(); player.stall = null; document.body.classList.remove('in-stall'); $('aimDot').classList.remove('on');
+  me.root.visible = true; if (pet) { pet.group.visible = true; petPos.copy(player.pos); }
+}
 // ---------- 碰碰车 ----------
 function startBumper(ret) {
   const B = world.bumper;
@@ -707,6 +751,7 @@ function tick() {
   const DI = dayNight.update(dt, camera.position, inMansion || !!(player.riding && player.riding.dark) || !!(player.kart && K.tunnel));
   clock.update(DI);
   fireShow && fireShow.update(DI);
+  stallsOpen = DI.phase === 'day' || DI.phase === 'sunrise';
   queues.update(dt);
   updateDnChip(DI);
 
@@ -730,6 +775,12 @@ function tick() {
       camera.position.lerp(camPos, Math.min(1, dt * 6)); camera.lookAt(seatPos.x, seatPos.y + 1.2, seatPos.z);
     }
     if (player.riding) { promptEl.textContent = '🎢 到站会自动下来'; promptEl.classList.add('show'); $('actBtn').classList.remove('show'); }
+  } else if (player.stall) {
+    me.root.visible = false;
+    const r = stallGame.update(dt, keys);
+    if (r && stallGame.kind === 'balloon') { const a = r.aim, el = $('aimDot'); el.classList.add('on'); el.style.left = ((a.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - a.y) / 2 * innerHeight) + 'px'; } else $('aimDot').classList.remove('on');
+    promptEl.classList.remove('show'); $('actBtn').textContent = '离开'; $('actBtn').classList.add('show');
+    myMove = { speed: 0 };
   } else if (player.bumper) {
     bumperTick(dt, t);
   } else if (player.kart) {
@@ -775,7 +826,7 @@ function tick() {
     if (world.mansion.near(player.pos.x, player.pos.z)) world.mansion.collide(player.pos, .45 * mod.scale);
     // 碰撞：圆形障碍物 + 岛边缘
     world.colliders.forEach(c => {
-      if (player.pos.y > 7) return;                       // 飞得够高就越过障碍物
+      if (player.pos.y > 7 || (c.queueArea && (pq.queue || pq.boarding)) || (pq.boarding && pq.boarding.ride.colliders && pq.boarding.ride.colliders.includes(c))) return;                       // 飞得够高就越过障碍物
       const pr = .55 * mod.scale;
       if (c.box) {
         // 长方形障碍物：换到它自己的坐标里，推到最近的那条边外面
@@ -843,14 +894,17 @@ function tick() {
 
     near = shopOpen ? null : findNear();
     const txt = isTouch ? promptText(near).replace(/按 E ?/, '点按钮') : promptText(near);
-    if (pq.queue) { const n = queues.position(pq); const r = pq.queue.ride; const tx2 = n > 0 ? `⏳ 排队中：前面还有 ${n} 人 · ${isTouch ? '点按钮' : '按 E'}离开队伍` : (r.canBoard && r.canBoard() ? '⏳ 马上就到你啦！' : `⏳ 你是第一个！等${r.name}这一轮结束就能上`);
+    const seatNear = pq.boarding ? boardingTick(dt) : (seatArrow.visible = false, null);
+    if (pq.boarding) { promptEl.textContent = seatNear ? `💺 ${isTouch ? '点按钮' : '按 E'}坐上去！` : `🎟️ 轮到你啦！跟着黄色箭头找个空位${pq.boarding.ride.left != null ? `（还有 ${Math.ceil(pq.boarding.ride.left)} 秒）` : ''}`; promptEl.classList.add('show'); $('actBtn').textContent = '坐上去'; $('actBtn').classList.toggle('show', !!seatNear); }
+    else if (pq.queue) { const n = queues.position(pq); const r = pq.queue.ride; const tx2 = n > 0 ? `⏳ 排队中：前面还有 ${n} 人 · ${isTouch ? '点按钮' : '按 E'}离开队伍` : (r.canBoard && r.canBoard() ? '⏳ 马上就到你啦！' : `⏳ 你是第一个！等${r.name}这一轮结束就能上`);
       promptEl.textContent = tx2; promptEl.classList.add('show'); $('actBtn').textContent = '离开队伍'; $('actBtn').classList.add('show'); }
     else { promptEl.textContent = txt; promptEl.classList.toggle('show', !!txt); }
     const act = $('actBtn');
-    if (!pq.queue) act.classList.toggle('show', !!near && near.type !== 'mansion');
-    if (!pq.queue && near && near.type !== 'mansion') act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : near.type === 'kart' ? '开车' : near.type === 'queue' ? '排队' : near.type === 'npc' ? '说话' : '';
+    if (!pq.queue && !pq.boarding) act.classList.toggle('show', !!near && near.type !== 'mansion');
+    if (!pq.queue && !pq.boarding && near && near.type !== 'mansion') act.textContent = near.type === 'shop' ? '进入' : near.type === 'gate' ? '起飞' : near.type === 'kart' ? '开车' : near.type === 'queue' ? '排队' : near.type === 'stall' ? '开始玩' : near.type === 'npc' ? '说话' : '';
   }
 
+  { const onK = Math.hypot(player.pos.x - world.KI.x, player.pos.z - world.KI.z) < world.KI.R + 60; world.kart.group.visible = onK; }     // 看不见的岛就不画
   npcs && npcs.update(dt);
   if (chatNpc && chatNpc.pos.distanceTo(player.pos) > 9) closeChat();
   mp && mp.update(dt, t, player.riding ? { speed: 0, ride: [player.riding.rideIdx, player.riding.seatIndex ?? 0] } : myMove);
@@ -947,4 +1001,4 @@ async function boot() {
   }
 }
 boot();
-window.__park = { queues, pq, get npcs() { return npcs; }, K, kartTick, renderer, startKart, stopKart, player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, pressSlot, get bag() { return bag; }, get mp() { return mp; }, get me() { return me; }, get near() { return near; } };
+window.__park = { queues, pq, stallGame, exitStall, get npcs() { return npcs; }, K, kartTick, renderer, startKart, stopKart, player, world, cam, action, INV, abil, openShop, usePropKey, refreshMe, pressSlot, get bag() { return bag; }, get mp() { return mp; }, get me() { return me; }, get near() { return near; } };
