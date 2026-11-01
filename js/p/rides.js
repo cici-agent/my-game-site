@@ -141,8 +141,11 @@ export function rollerCoaster(cx, cz) {
   }
   return {
     name: '过山车', icon: '🎢', group: g, curve,
-    entry: [platPos.x + side.x * 1.6, platPos.z + side.z * 1.6], entryR: 4.5,
-    colliders: [[platPos.x, platPos.z, 2.8]],
+    // 上下车的位置在站台外侧，不会卡进站台里
+    entry: [platPos.x + side.x * 3.1, platPos.z + side.z * 3.1], entryR: 4.5,
+    // 站台是长方形：[x, z, 半宽, 半长, 朝向]；外加顶棚的柱子
+    colliders: [{ box: [platPos.x, platPos.z, 1.75, 4, Math.atan2(tan.x, tan.z)] },
+      ...[[1, -1], [1, 1]].map(([a, b]) => { const pp = st.clone().addScaledVector(side, 1.3 + a * 2.6).addScaledVector(tan, b * 4); return [pp.x, pp.z, .3]; })],
     update(dt) {
       if (dwell > 0) { dwell -= dt; v = 0; }
       else {

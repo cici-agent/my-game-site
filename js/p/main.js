@@ -417,9 +417,23 @@ function tick() {
       if (player.pos.y <= 0) { player.pos.y = 0; player.vy = 0; player.ground = true; }
     }
     // 碰撞：圆形障碍物 + 岛边缘
-    world.colliders.forEach(([cx, cz, cr]) => {
+    world.colliders.forEach(c => {
       if (player.pos.y > 7) return;                       // 飞得够高就越过障碍物
-      const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + .55 * mod.scale;
+      const pr = .55 * mod.scale;
+      if (c.box) {
+        // 长方形障碍物：换到它自己的坐标里，推到最近的那条边外面
+        const [bx, bz, hw, hl, yaw] = c.box, co = Math.cos(yaw), si = Math.sin(yaw);
+        const dx = player.pos.x - bx, dz = player.pos.z - bz;
+        let lx = dx * co - dz * si, lz = dx * si + dz * co;
+        const ox = hw + pr - Math.abs(lx), oz = hl + pr - Math.abs(lz);
+        if (ox > 0 && oz > 0) {
+          if (ox < oz) lx = Math.sign(lx || 1) * (hw + pr); else lz = Math.sign(lz || 1) * (hl + pr);
+          player.pos.x = bx + lx * co + lz * si; player.pos.z = bz - lx * si + lz * co;
+        }
+        return;
+      }
+      const [cx, cz, cr] = c;
+      const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
       if (d < min && d > 1e-4) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
     });
     const R = Math.hypot(player.pos.x, player.pos.z), maxR = ISLAND_R - 2.5 * mod.scale;
