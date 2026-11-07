@@ -1,0 +1,85 @@
+#campusHud { pointer-events: none; }
+#campusHud[hidden], #castleAtlas:not([open]) { display: none; }
+body.on-campus #story, body.on-campus #map { display: none; }
+#openAtlas, #lakeStart, #castleAtlas button, #castleAtlas select { cursor: pointer; }
+#lakeStart { background: none; border: 0; color: #f0d795; font-size: 12px; font-weight: 650; padding: 6px 0; }
+body.crossing #lakeStart { display: none; }
+#openAtlas { position: fixed; z-index: 16; top: 82px; right: 19px; pointer-events: auto; display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 5px 12px 5px 6px; background: #142522e8; border: 1px solid #b39d70a8; border-radius: 3px; color: #f3e6c7; font-size: 13px; letter-spacing: .08em; box-shadow: 0 5px 16px #050e1399; }
+.compass-seal { display: grid; place-items: center; height: 32px; width: 32px; font: 30px/1 Georgia, serif; color: #dec485; border-radius: 100%; border: 1px solid #a69269; }
+#openAtlas kbd { margin-left: 4px; padding: 1px 4px; font: 10px Georgia,serif; border: 1px solid #978970; }
+#placePanel { position: fixed; left: 25px; bottom: 34px; z-index: 13; width: min(335px, 42vw); padding: 13px 20px 14px 15px; border-left: 2px solid #c6a56a; background: linear-gradient(90deg,#0e1c20ed,#111e24be 68%,transparent); color: #f4ead6; text-shadow: 0 2px 4px #0c171e; }
+#placePanel small { color: #e2c995; font-size: 10px; letter-spacing: .16em; }
+#placePanel h1 { font: 600 clamp(20px,2vw,29px)/1.4 Georgia,'Songti SC','STSong',serif; letter-spacing: .07em; }
+#placePanel p { margin-top: 4px; color: #e2ded1; font-size: 12px; line-height: 1.55; }
+body.on-campus.touch #stick { display: block; left: 21px; bottom: 26px; }
+body.on-campus.touch #actBtn { bottom: 34px; }
+body.on-campus.touch #placePanel { top: 82px; bottom: auto; width: min(280px,52vw); }
+#castleAtlas { --ink: #263e35; color: var(--ink); position: fixed; inset: 0; margin: auto; width: min(900px,calc(100% - 50px)); max-width: none; max-height: min(730px,calc(100dvh - 42px)); padding: 0; overflow: auto; border: 1px solid #bcad85; border-radius: 5px; background: #ebe1c8; box-shadow: 0 28px 100px #030e11a8; touch-action: pan-y; }
+#castleAtlas::backdrop { background: #091515b3; backdrop-filter: blur(4px); }
+.atlas-header, .atlas-footer { display:flex; align-items:center; justify-content:space-between; }
+.atlas-header { padding: 19px 26px; color: #f3e6c8; border-bottom: 3px double #bda66d; background: linear-gradient(115deg,#142c27,#28453b); }
+.atlas-header small { color: #ddc38c; font: 500 10px/1.4 Georgia,serif; letter-spacing: .28em; }
+.atlas-header h2 { font: 600 25px/1.5 Georgia,'Songti SC','STSong',serif; letter-spacing: .12em; }
+#closeAtlas { background: transparent; color: #e6d8b7; border: 1px solid #a79d759e; width: 34px; height: 34px; border-radius: 50%; font-size: 23px; line-height:1; }
+.atlas-layout { display:grid; grid-template-columns: minmax(0,1.6fr) minmax(230px,1fr); min-height: 320px; }
+.atlas-chart { padding: 18px; min-width: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 49% 40%,#f8efd6,#eadfc1 70%,#d9ccac); border-right: 1px solid #a89973; }
+.atlas-chart-head { display:flex; align-items:center; gap:8px; font-size:12px; }
+#atlasFloor { font: inherit; color: #2b443a; padding: 5px 9px; max-width: 84%; border: 1px solid #ad9c76; border-radius: 2px; background: #f8f1dd; }
+#atlasPlan { display:block; width:100%; height:clamp(210px,42vh,360px); margin:auto 0; touch-action: manipulation; }
+.atlas-legend { border-top: 1px solid #aa977452; padding-top: 8px; display:flex; gap:19px; font-size:10px; color:#8f452f; }
+.atlas-legend span + span { color:#226d71; }
+.atlas-directory { display:flex; flex-direction:column; min-width:0; padding:17px 18px 15px; background:#f5eedb; }
+#atlasSearch { width: 100%; border: 1px solid #beaf8e; border-radius:2px; padding:9px 10px; color:#2a443b; background:#fcf7e9; font: inherit; font-size:13px; user-select:text; }
+#atlasList { height: clamp(105px,25vh,205px); overflow-y: auto; margin:8px 0 11px; touch-action:pan-y; }
+#atlasList button { display:flex; align-items:center; justify-content:space-between; width:100%; padding:8px; color:#2d4338; background:transparent; border:0; border-bottom:1px solid #bdaf8c57; text-align:left; font-size:13px; }
+#atlasList button[aria-pressed=true] { background:#d9dfca; box-shadow: inset 2px 0 #52684e; }
+#atlasList button:hover { background:#e5e4d0; }
+#atlasList small, #atlasSection { color:#75623c; font-size:10px; }
+#atlasList > p { padding:12px 5px; color:#685d47;font-size:13px; }
+.atlas-destination { margin-top:auto; }
+.atlas-destination h3 { font:600 20px/1.5 Georgia,'Songti SC','STSong',serif; margin:3px 0; }
+.atlas-destination p { font-size:12px; line-height:1.55; color:#5c5849; min-height:34px; }
+#atlasTravel { display:flex; justify-content:space-between; width:100%; margin-top:10px; padding:9px 13px; border:1px solid #3f5a4b; background:#29473b; color:#fff3d3; font-size:13px; }
+#atlasTravel:disabled { opacity:.45;cursor:default; }
+.atlas-footer { padding:10px 22px; color:#6b604a; border-top:1px solid #ac9a76; font-size:11px; }
+#atlasRestart { color:#5b5748; border:0; background:none; font-size:11px; padding:5px; }
+#castleAtlas :focus-visible, #openAtlas:focus-visible { outline: 2px solid #b58037; outline-offset:2px; }
+@media(max-width:700px) {
+  #openAtlas { right:9px; top:68px; min-height:37px; font-size:11px; gap:6px; }
+  #openAtlas kbd { display:none; } .compass-seal { width:25px; height:25px; font-size:23px; }
+  body.on-campus #prompt { bottom:116px; }
+  body.on-campus.touch #placePanel { left:10px; top:68px; padding:7px 8px; }
+  #placePanel p { display:none; }
+  #placePanel h1 { font-size:18px; }
+  #castleAtlas { width:calc(100% - 14px); max-height:calc(100dvh - 18px); }
+  .atlas-header { padding:9px 15px; } .atlas-header h2 { font-size:21px; }
+  .atlas-layout { grid-template-columns:1fr; }
+  .atlas-chart { padding:8px 12px; border-right:0; border-bottom:1px solid #ad9d76; }
+  #atlasPlan { height:clamp(100px,23dvh,215px); }
+  .atlas-directory { padding:9px 12px; } #atlasList { height:clamp(66px,15vh,130px); margin:4px 0; }
+  .atlas-footer { padding:5px 12px; } .atlas-destination p { min-height:0; }
+}
+@media(max-height:500px) and (min-width:560px) {
+  .atlas-layout { grid-template-columns:1fr 1fr; } #atlasPlan { height:150px; }
+  .atlas-header { padding:4px 12px; } #atlasList { height:62px; }
+  .atlas-directory,.atlas-chart { padding:6px 10px; } .atlas-layout { min-height:0; }
+  .atlas-destination p { min-height:0; } .atlas-footer { padding:2px 10px; }
+}
+/* Leave the skyline in view during the crossing. */
+body.lake-crossing #map, body.lake-crossing .help, body.lake-crossing #stick,
+body.lake-crossing .story-top b, body.lake-crossing .objective, body.lake-crossing .story-bottom,
+body.lake-crossing .collapse, body.lake-crossing #toast { display:none; }
+body.lake-crossing .story-card { bottom:24px; left:24px; width:min(340px,calc(100vw - 48px)); padding:9px 15px; border:0; border-left:2px solid #c6a56a; border-radius:0; background:linear-gradient(90deg,#102329e6,#111e2466,transparent); backdrop-filter:none; box-shadow:none; }
+body.lake-crossing .story-card::before { display:none; }
+body.lake-crossing .story-card h1 { font-size:22px; margin-top:3px; }
+body.lake-crossing .story-card>p { display:none; }
+body.on-campus .brand-mark, body.lake-crossing .brand-mark { background:#203a32; box-shadow:none; }
+body.on-campus .hud-actions button, body.on-campus .hud-actions a,
+body.lake-crossing .hud-actions button, body.lake-crossing .hud-actions a { border-color:#ad955f8c; background:#172825d4; }
+@media(max-width:450px) {
+  .hud { gap:5px; padding:7px; justify-content:space-between; }
+  .hud .brand { gap:5px; } .hud .brand-mark { width:28px; height:28px; font-size:16px; flex-shrink:0; }
+  .hud .brand b { white-space:nowrap; font-size:12px; } .hud .hud-actions { gap:4px; }
+  .hud .hud-actions .universe { font-size:10px; padding:0 7px; height:32px; white-space:nowrap; }
+  .hud .hud-actions .round { width:30px;height:30px;flex-shrink:0; }
+}

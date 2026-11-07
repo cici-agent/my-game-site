@@ -3,7 +3,7 @@
 (function () {
   if (window.top !== window.self) return; // 在 game.html 的 iframe 里运行的游戏不处理
 
-  var DEFAULT = { plaza: ['菜鸟星球', '🐣'], games: ['游戏星球', '🎮'], coins: ['金币星球', '🪙'], create: ['创作星球', '🎨'], home: ['我的星球', '🏠'], homestead: ['菜鸟家园', '🏡'] };
+  var DEFAULT = { plaza: ['菜鸟星球', '🐣'], games: ['游戏星球', '🎮'], coins: ['金币星球', '🪙'], create: ['创作星球', '🎨'], home: ['我的星球', '🏠'], magic: ['魔法学院星球', '🦉'], homestead: ['菜鸟家园', '🏡'] };
   var names = DEFAULT;
   try { var cached = JSON.parse(sessionStorage.getItem('xcn_planets') || 'null'); if (cached) names = Object.assign({}, DEFAULT, cached); } catch (e) {}
 
@@ -13,6 +13,7 @@
     /\/games\/(typing-challenge|typing-rank|math-challenge|spelling-bee|grammar-challenge|listening-challenge)\//.test(path) ? 'coins' :
     /\/games\//.test(path) ? 'games' :
     /learn\.html$/.test(path) ? 'coins' :
+    /magic-academy\.html$/.test(path) ? 'magic' :
     /(editor|upload)\.html$/.test(path) ? 'create' :
     /(admin|profile)\.html$/.test(path) ? 'home' :
     /game\.html$/.test(path) ? 'games' : '';

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#11172b">
+<title>魔法学院星球 · 小菜鸟宇宙</title>
+<link rel="icon" href="assets/logo.jpg" type="image/jpeg">
+<link rel="stylesheet" href="css/magic-academy.css">
+<link rel="stylesheet" href="css/castle-atlas.css">
+<link rel="stylesheet" href="css/magic-wardrobe.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="scene" tabindex="-1" aria-label="魔法学院游戏场景"></canvas>
+<div id="transition"><div class="transition-star">✦</div></div>
+
+<header class="hud">
+  <div class="brand"><span class="brand-mark">🦉</span><div><b>魔法学院星球</b><small>小菜鸟宇宙 · 入学序章</small></div></div>
+  <div class="hud-actions">
+    <button type="button" id="openWardrobe" class="universe" aria-haspopup="dialog" aria-controls="wardrobe">角色衣装室</button>
+    <button id="mute" class="round" title="声音">🔊</button>
+    <a class="universe" href="index.html?takeoff=magic">🚀 返回宇宙</a>
+  </div>
+</header>
+
+<aside id="map" class="map-panel">
+  <div class="map-title">魔法地图 <span>完成序章后解锁</span></div>
+  <div class="map-buttons">
+    <button data-jump="station">🚉<span>车站</span></button>
+    <button data-jump="lake">🌊<span>黑湖</span></button>
+    <button data-jump="castle">🏰<span>城堡</span></button>
+    <button data-jump="willow">🌳<span>打人柳</span></button>
+  </div>
+</aside>
+
+<aside id="campusHud" hidden aria-label="校园探索">
+  <button id="openAtlas" type="button" aria-haspopup="dialog" aria-controls="castleAtlas">
+    <span class="compass-seal" aria-hidden="true">✥</span><span>校园地图</span><kbd>M</kbd>
+  </button>
+  <div id="placePanel"><small id="placeFloor"></small><h1 id="placeName"></h1><p id="placeDetail"></p></div>
+</aside>
+
+<dialog id="castleAtlas" aria-labelledby="atlasTitle">
+  <header class="atlas-header">
+    <div><small>HOGWARTS</small><h2 id="atlasTitle">霍格沃茨地图</h2></div>
+    <button id="closeAtlas" type="button" aria-label="合上地图">×</button>
+  </header>
+  <div class="atlas-layout">
+    <section class="atlas-chart" aria-label="平面图">
+      <div class="atlas-chart-head"><label for="atlasFloor">图层</label><select id="atlasFloor"></select></div>
+      <canvas id="atlasPlan" aria-label="楼层或校园平面图，地点也可在目录中选择"></canvas>
+      <div class="atlas-legend"><span>◆ 所选地点</span><span>● 你的位置</span></div>
+    </section>
+    <section class="atlas-directory" aria-label="地点目录">
+      <input id="atlasSearch" type="search" placeholder="搜索全校地点" aria-label="搜索全校地点" autocomplete="off">
+      <div id="atlasList" aria-label="地点"></div>
+      <div class="atlas-destination"><small id="atlasSection"></small><h3 id="atlasPlace"></h3><p id="atlasNote"></p></div>
+      <button type="button" id="atlasTravel">前往此处 <span aria-hidden="true">→</span></button>
+    </section>
+  </div>
+  <footer class="atlas-footer"><span id="atlasProgress"></span><button type="button" id="atlasRestart">重走入学序章</button></footer>
+</dialog>
+
+<section id="story" class="story-card">
+  <button id="collapseStory" class="collapse" title="收起故事卡">⌄</button>
+  <div class="story-top"><span id="chapterEyebrow"></span><b id="chapterNum"></b></div>
+  <h1 id="chapterTitle"></h1>
+  <p id="chapterText"></p>
+  <div class="objective"><span>当前任务</span><b id="objective"></b></div>
+  <div class="story-bottom">
+    <div class="story-progress" aria-label="故事进度">
+      <i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i>
+    </div>
+    <button id="lakeStart" type="button">从黑湖乘船入学 →</button>
+    <progress id="expressProgress" max="1" value="0" aria-label="列车行程" hidden></progress>
+    <button id="skipExpress" type="button" hidden>直接到站</button>
+    <button id="restart">↻ 从头开始</button>
+  </div>
+</section>
+
+<div id="prompt"></div>
+<div id="toast"></div>
+
+<div id="stick" aria-label="移动摇杆"><div class="knob"></div></div>
+<button id="actBtn" aria-label="互动">E<small>互动</small></button>
+
+<div class="help">WASD / 方向键移动 · 拖动画面转视角 · E 互动 · Shift 加速</div>
+<div class="fan-note">非官方同人互动体验 · 3D 场景与模型为原创制作</div>
+
+<dialog id="wardrobe" aria-labelledby="wardrobeTitle">
+  <div class="wardrobe-layout">
+    <header class="wardrobe-header">
+      <div><span class="wardrobe-academy">霍格沃茨魔法学校</span><h2 id="wardrobeTitle" tabindex="-1">角色衣装室</h2></div>
+      <button type="button" id="wardrobeClose" class="wardrobe-close" aria-label="关闭衣装室" title="关闭衣装室">×</button>
+    </header>
+    <div class="wardrobe-main">
+      <section class="wardrobe-preview" aria-label="角色模型预览">
+        <div class="wardrobe-model" id="wardrobeViewport">
+          <div class="wardrobe-arch" aria-hidden="true"></div>
+          <canvas id="wardrobeCanvas" tabindex="0" aria-label="三维角色预览，可拖动或用左右方向键旋转"></canvas>
+          <div class="wardrobe-shot" role="group" aria-label="预览距离">
+            <button type="button" data-shot="full" aria-pressed="true">全身</button>
+            <button type="button" data-shot="portrait" aria-pressed="false">面部</button>
+          </div>
+          <div class="wardrobe-notice" id="wardrobeNotice" hidden>
+            <p id="wardrobeStatus" role="status" aria-live="polite"></p>
+            <button type="button" id="wardrobeRetry" hidden>重新加载</button>
+          </div>
+        </div>
+        <footer class="wardrobe-caption">
+          <div class="wardrobe-identity"><span id="wardrobeEnglish" lang="en"></span><h3 id="wardrobeName"></h3></div>
+          <div class="wardrobe-turn" role="group" aria-label="旋转角色">
+            <button type="button" data-turn="-1" aria-label="向左旋转" title="向左旋转">‹</button>
+            <span aria-hidden="true">旋转</span>
+            <button type="button" data-turn="1" aria-label="向右旋转" title="向右旋转">›</button>
+          </div>
+        </footer>
+      </section>
+      <div class="wardrobe-panel" id="wardrobeOptions">
+        <fieldset><legend>人物</legend><div class="wardrobe-choices" id="wardrobeHeroes"></div><p class="wardrobe-detail" id="wardrobeHeroDetail"></p></fieldset>
+        <fieldset><legend>着装</legend><div class="wardrobe-choices" id="wardrobeOutfits"></div><p class="wardrobe-detail" id="wardrobeOutfitDetail"></p></fieldset>
+        <fieldset><legend>随身魔杖</legend><div class="wardrobe-choices" id="wardrobeWands"></div><p class="wardrobe-detail" id="wardrobeWandDetail"></p></fieldset>
+      </div>
+    </div>
+    <footer class="wardrobe-footer">
+      <button type="button" id="wardrobeBack" class="wardrobe-back">取消</button>
+      <button type="button" id="wardrobeApply" class="wardrobe-apply" disabled><span id="wardrobeApplyLabel">穿戴并进入学院</span> <span aria-hidden="true">→</span></button>
+    </footer>
+  </div>
+</dialog>
+
+<div id="loading">
+  <div class="loading-crest">🦉</div>
+  <div class="loading-title">魔法学院星球</div>
+  <div class="loading-line"><i></i></div>
+  <p>猫头鹰正在送来入学车票……</p>
+</div>
+
+<script>
+if (location.protocol === 'file:') {
+  const loading = document.getElementById('loading');
+  loading.classList.add('error');
+  loading.querySelector('p').innerHTML = '当前打开的是电脑里的本地文件，3D 场景无法启动。<br>请从网站的在线预览地址进入。';
+}
+</script>
+<script type="module" src="js/magic/main.js"></script>
+</body>
+</html>

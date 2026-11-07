@@ -164,7 +164,7 @@
     .coin-hud { font-size: 15px; padding: 6px 12px; }
     .hint { font-size: 12px; white-space: normal; width: max-content; max-width: 92vw; text-align: center; border-radius: 14px; }
     .dock { gap: 4px; padding: 6px; bottom: 10px; }
-    .dock button { min-width: 0; flex: 1; padding: 6px 3px; font-size: 11px; white-space: nowrap; }
+    .dock button { min-width: 32px; flex: 1; padding: 6px 3px; font-size: 0; white-space: nowrap; }
     .dock button .e { font-size: 19px; } .dock .sep { display: none; }
     #stick { bottom: 108px; width: 104px; height: 104px; } #boost { bottom: 118px; width: 72px; height: 72px; }
     #station { left: 8px; right: 8px; bottom: calc(var(--dock-h) + 4px); border-radius: 20px; }

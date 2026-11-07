@@ -176,11 +176,13 @@ function buildUI() {
   dock.innerHTML = '';
   PLANETS.forEach(p => {
     const b = document.createElement('button'); b.dataset.k = p.kind; b.style.setProperty('--c', p.color);
+    b.title = p.name; b.setAttribute('aria-label', p.name);
     b.innerHTML = `<span class="e">${p.icon}</span>${p.name}`; b.onclick = () => flyTo(p); dock.appendChild(b);
   });
   const sep = document.createElement('div'); sep.className = 'sep'; dock.appendChild(sep);
   takeoffBtn = document.createElement('button');
   takeoffBtn.className = 'takeoff'; takeoffBtn.disabled = true;
+  takeoffBtn.title = '起飞'; takeoffBtn.setAttribute('aria-label', '起飞');
   takeoffBtn.innerHTML = '<span class="e">🚀</span>起飞';
   takeoffBtn.onclick = () => takeOff();
   dock.appendChild(takeoffBtn);
@@ -214,6 +216,10 @@ paintMute();
 
 // ---------- 星球广场 ----------
 async function openStation(p) {
+  if (p.kind === 'magic') {
+    location.href = 'magic-academy.html';
+    return;
+  }
   const st = $('station'); st.style.setProperty('--c', p.color);
   $('stEmoji').textContent = p.icon; $('stTitle').textContent = p.name; $('stDesc').textContent = p.description || '';
   $('stCount').textContent = '';
