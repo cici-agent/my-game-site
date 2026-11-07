@@ -16,6 +16,14 @@
   #hint { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 9; background: rgba(30,70,30,.55); color: #fff;
     padding: 8px 16px; border-radius: 999px; font-size: 13px; white-space: nowrap; transition: opacity .6s; }
   #hint.hide { opacity: 0; }
+  body.touch #hint { display: none; }
+  canvas#scene { cursor: grab; touch-action: none; } canvas#scene:active { cursor: grabbing; }
+  body.touch #stick { display: block; bottom: 30px; }
+  .round-btn { position: fixed; z-index: 9; width: 78px; height: 78px; border-radius: 50%; border: 0; color: #fff; font-weight: 900; font-size: 15px;
+    font-family: inherit; display: none; box-shadow: 0 6px 18px rgba(0,0,0,.3); }
+  body.touch .round-btn { display: block; }
+  #jumpBtn { right: 22px; bottom: 30px; background: rgba(77,171,247,.9); }
+  body.touch #takeoff { bottom: auto; top: calc(var(--top-h) + 52px); left: auto; right: 14px; transform: none; padding: 9px 16px; font-size: 14px; }
   #loading { position: fixed; inset: 0; z-index: 20; background: #bfe6ff; display: flex; align-items: center; justify-content: center;
     color: #2f5d2f; font-weight: 800; font-size: 18px; transition: opacity .5s; }
   #loading.hide { opacity: 0; pointer-events: none; }
@@ -32,7 +40,9 @@
 </div>
 <div id="devTag">🚧 建设中 · 只有管理员能看到</div>
 <button id="takeoff">🚀 起飞</button>
-<div id="hint">拖动转视角 · 滚轮 / 双指缩放 · 右键拖动平移</div>
+<div id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 拖动屏幕转视角 · 滚轮缩放</div>
+<div id="stick"><div class="knob"></div></div>
+<button class="round-btn" id="jumpBtn">跳</button>
 <div id="loading"><div>🏡 正在降落到菜鸟家园…</div></div>
 
 <script src="assets/js/supabase.min.js"></script>
@@ -44,7 +54,7 @@ document.getElementById('takeoff').onclick = () => location.href = 'index.html?t
 // 只有管理员能进；其他人送回宇宙（落在菜鸟家园，看到"正在开发中"）
 const me = await loadMe().catch(() => null);
 if (!me || me.profile.role !== 'admin') location.replace('index.html?land=homestead');
-else import('./js/h/main.js');
+else { window.__ME = me; import('./js/h/main.js'); }
 </script>
 </body>
 </html>

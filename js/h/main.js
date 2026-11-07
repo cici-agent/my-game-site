@@ -1,7 +1,8 @@
 // ===== 菜鸟家园：大致布局（中心广场 + 小路 + 空地块 + 花草树木），还没有房子 =====
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { buildAvatar, buildPet } from '../p/avatar.js';
+import { INV, loadInventory } from '../p/inventory.js';
 
 // ---------- 布局参数 ----------
 export const LAYOUT = {
@@ -46,7 +47,9 @@ const pick = arr => arr[Math.floor(rnd() * arr.length)];
 
 // ---------- 渲染器 / 相机 / 灯光 ----------
 const canvas = document.getElementById('scene');
-const isTouch = matchMedia('(pointer: coarse)').matches;
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+if (isTouch) document.body.classList.add('touch');
+const colliders = [];   // 圆形障碍物 [x, z, r]：树、灌木、花坛
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.5 : 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -123,6 +126,7 @@ for (let k = 0; k < 16; k++) {   // 放射状石板缝
   const ring = new THREE.Mesh(new THREE.TorusGeometry(2.6, .32, 8, 40), mat(0xbdb3a2, { roughness: .8 }));
   ring.rotation.x = Math.PI / 2; ring.position.y = .25; ring.castShadow = ring.receiveShadow = true; scene.add(ring);
   flat(new THREE.CircleGeometry(2.5, 40), flatMat(0x6b4a2e, 6)).position.y = .18;
+  colliders.push([0, 0, 2.95]);
 }
 
 // ---------- 空地块：浅一点的草坪 + 四角木桩 + 门口踏脚石，以后在这里盖小屋 ----------
@@ -216,6 +220,7 @@ for (let k = 0; k < 60; k++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd(
     const a = rnd() * Math.PI * 2, r = range(15, 115), x = Math.sin(a) * r, z = Math.cos(a) * r;
     if (blocked(x, z, 2)) continue;
     const base = range(.7, 1.3), hue = range(.26, .33);
+    colliders.push([x, z, base * 1.4]);
     for (let j = 0; j < 3 && n < N * 3; j++) {
       const sc = base * range(.6, 1);
       bush.setMatrixAt(n, m4.compose(v.set(x + range(-.9, .9), sc * .7, z + range(-.9, .9)), q.setFromAxisAngle(up, rnd() * 6), s.set(sc, sc * .85, sc)));
@@ -236,6 +241,7 @@ for (let k = 0; k < 60; k++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd(
     const a = rnd() * Math.PI * 2, r = range(104, 175), x = Math.sin(a) * r, z = Math.cos(a) * r;
     if (blocked(x, z, 3)) continue;
     const sc = range(.8, 1.5);
+    colliders.push([x, z, .55 * sc]);
     m4.compose(v.set(x, 0, z), q.setFromAxisAngle(up, rnd() * 6), s.set(sc, sc * range(.9, 1.2), sc));
     trunk.setMatrixAt(n, m4); crown.setMatrixAt(n, m4); crown2.setMatrixAt(n, m4);
     col.setHSL(range(.25, .32), .5, range(.28, .38)); crown.setColorAt(n, col); crown2.setColorAt(n, col.offsetHSL(0, 0, .05));
@@ -266,29 +272,118 @@ const clouds = [];
   }
 }
 
-// ---------- 镜头：拖动旋转、滚轮/双指缩放、右键/三指平移 ----------
-const controls = new OrbitControls(camera, canvas);
-controls.target.set(0, 0, 0);
-controls.enableDamping = true; controls.dampingFactor = .08;
-controls.minDistance = 12; controls.maxDistance = 190;
-controls.maxPolarAngle = Math.PI * .47;     // 不能钻到地下
-controls.autoRotate = true; controls.autoRotateSpeed = .35;
-controls.addEventListener('start', () => { controls.autoRotate = false; document.getElementById('hint')?.classList.add('hide'); });
-const limit = new THREE.Vector3();
-controls.addEventListener('change', () => {   // 平移不能出界
-  limit.copy(controls.target); limit.y = 0;
-  if (limit.length() > 110) { limit.setLength(110); controls.target.set(limit.x, 0, limit.z); }
-  controls.target.y = 0;
+// ---------- 玩家：用自己的皮肤和装饰在家园里走（和游乐园一样） ----------
+const $ = id => document.getElementById(id);
+let me = buildAvatar('explorer'), pet = null;
+scene.add(me.root);
+const player = { pos: new THREE.Vector3(0, 0, 22), vy: 0, ground: true, face: Math.PI };
+const petPos = new THREE.Vector3(1.5, 0, 23.5);
+const ME = window.__ME;
+if (ME) loadInventory(ME.user.id).then(() => {
+  const e = INV.equip;
+  scene.remove(me.root);
+  me = buildAvatar(e.skin || 'explorer', { hand: e.hand, head: e.head, back: e.back });
+  scene.add(me.root);
+  if (e.pet) { pet = buildPet(e.pet); scene.add(pet.group); }
+}).catch(() => {});
+
+const keys = {};
+const cam = { yaw: Math.PI, pitch: .32, dist: 11 };   // 相机在玩家南边，看向北边的广场
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+  if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
 });
+addEventListener('keyup', e => keys[e.code] = false);
+addEventListener('blur', () => Object.keys(keys).forEach(k => keys[k] = false));
+
+// 拖动屏幕转视角、滚轮缩放
+let drag = null;
+canvas.addEventListener('pointerdown', e => { drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', e => {
+  if (!drag || drag.id !== e.pointerId) return;
+  cam.yaw -= (e.clientX - drag.x) * .006; cam.pitch = THREE.MathUtils.clamp(cam.pitch + (e.clientY - drag.y) * .004, -1.05, 1.1);
+  drag.x = e.clientX; drag.y = e.clientY;
+});
+['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => drag = null));
+canvas.addEventListener('wheel', e => { cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * .01, 5, 30); }, { passive: true });
+
+// 触屏：摇杆 + 跳跃键
+const stick = $('stick'), knob = stick.querySelector('.knob'), joy = { x: 0, y: 0, id: null };
+stick.addEventListener('pointerdown', e => { joy.id = e.pointerId; stick.setPointerCapture(e.pointerId); moveJoy(e); $('hint')?.classList.add('hide'); });
+stick.addEventListener('pointermove', e => { if (e.pointerId === joy.id) moveJoy(e); });
+const endJoy = e => { if (e.pointerId !== joy.id) return; joy.id = null; joy.x = joy.y = 0; knob.style.transform = ''; };
+stick.addEventListener('pointerup', endJoy); stick.addEventListener('pointercancel', endJoy);
+function moveJoy(e) {
+  const r = stick.getBoundingClientRect(), R = r.width / 2;
+  let dx = e.clientX - r.left - R, dy = e.clientY - r.top - R;
+  const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
+  joy.x = dx / R; joy.y = -dy / R; knob.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+$('jumpBtn').addEventListener('pointerdown', e => { keys.Space = true; $('jumpBtn').setPointerCapture(e.pointerId); });
+['pointerup', 'pointercancel'].forEach(ev => $('jumpBtn').addEventListener(ev, () => keys.Space = false));
+
+const WALK = 7.5, RUN = 12, GRAV = 26, JUMP = 9.5, EDGE = 120;
+const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
+camera.position.set(0, 8, 34);
+function step(dt, t) {
+  let mx = 0, my = 0;
+  if (keys.KeyW || keys.ArrowUp) my += 1;
+  if (keys.KeyS || keys.ArrowDown) my -= 1;
+  if (keys.KeyA || keys.ArrowLeft) mx -= 1;
+  if (keys.KeyD || keys.ArrowRight) mx += 1;
+  if (joy.id !== null) { mx = joy.x; my = joy.y; }
+  const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
+  const running = keys.ShiftLeft || keys.ShiftRight;
+  const speed = (running ? RUN : WALK) * Math.min(1, len);
+  const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
+  const vx = (fx * my - fz * mx) * speed, vz = (fz * my + fx * mx) * speed;
+  player.pos.x += vx * dt; player.pos.z += vz * dt;
+  if (len > .05) {
+    let d = Math.atan2(vx, vz) - player.face; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+    player.face += d * Math.min(1, dt * 12);
+    if (my > .3 && !drag) { let dy = player.face - cam.yaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2; cam.yaw += dy * dt * 1.2; }
+  }
+  // 跳跃 / 重力
+  if (keys.Space && player.ground) { player.vy = JUMP; player.ground = false; }
+  player.vy -= GRAV * dt; player.pos.y += player.vy * dt;
+  if (player.pos.y <= 0) { player.pos.y = 0; player.vy = 0; player.ground = true; }
+  // 碰撞：树、灌木、花坛；走到边上就停住
+  const pr = .55;
+  colliders.forEach(([cx, cz, cr]) => {
+    const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
+    if (d < min && d > 1e-4 && player.pos.y < 1.5) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
+  });
+  const r = Math.hypot(player.pos.x, player.pos.z); if (r > EDGE) { player.pos.x *= EDGE / r; player.pos.z *= EDGE / r; }
+
+  me.root.position.copy(player.pos); me.root.rotation.set(0, player.face, 0);
+  if (me.rig.shadow) { me.rig.shadow.position.y = .02 - player.pos.y; me.rig.shadow.material.opacity = .25 / (1 + player.pos.y * .3); }
+  me.animate(dt, Math.min(1, speed / WALK), !player.ground, false);
+  if (pet) {
+    const want = tmp.set(player.pos.x - Math.sin(player.face) * .7 + Math.cos(player.face) * 1.5, 0, player.pos.z - Math.cos(player.face) * .7 - Math.sin(player.face) * 1.5);
+    const d = want.distanceTo(petPos), moving = d > .25;
+    if (d > 30) petPos.copy(want);
+    else if (moving) { const dir = want.clone().sub(petPos).normalize(); petPos.addScaledVector(dir, Math.min(d, dt * Math.max(4, d * 3))); pet.group.rotation.y = Math.atan2(dir.x, dir.z); }
+    pet.group.position.copy(petPos); pet.update(dt, t, moving);
+  }
+  // 第三人称镜头：在人物身后，可以抬头看天
+  camLook.set(player.pos.x, player.pos.y + 2, player.pos.z);
+  const upk = Math.max(0, -cam.pitch), cd = cam.dist * (1 - upk * .45), pv = Math.max(cam.pitch, -.12);
+  camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(pv), camLook.y + Math.sin(pv) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(pv));
+  camPos.y = Math.max(camPos.y, .5);
+  camera.position.lerp(camPos, Math.min(1, dt * 8));
+  if (upk > 0) camLook.y += upk * 12;
+  camera.lookAt(camLook);
+}
 
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
-  const dt = Math.min(clock.getDelta(), .05);
+  const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
   clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 240) c.position.x = -240; });
-  controls.update();
+  step(dt, t);
   renderer.render(scene, camera);
 });
 document.getElementById('loading')?.classList.add('hide');
