@@ -5,6 +5,8 @@ import { buildMagicWorld } from './world.js';
 import { moveInStation, cameraFraction, canCrossBarrier, canBoardTrain, platformHeight, platformEdgeZ } from './station-navigation.js';
 import { onBridge, onWestPier, onEastPier, bridgeStepAllowed, bridgeHeight, pierHeight, landingHeight } from './lakeshore.js';
 import { lakesidePlatformHeight } from './railway.js';
+import { rideSeconds, rideSceneAt, routeProgress } from './express-ride.js';
+import { arrivalGreeting, buildWelcomeParty } from './welcome.js';
 import { buildAvatar } from '../p/avatar.js';
 import * as sfx from '../u/sfx.js';
 
@@ -37,6 +39,9 @@ moon.shadow.mapSize.set(2048, 2048); moon.shadow.camera.left = moon.shadow.camer
 const fill = new THREE.DirectionalLight(0x718bd2, .8); fill.position.set(100, 50, -80); scene.add(fill);
 
 const world = buildMagicWorld(scene);
+const welcomeParty = buildWelcomeParty(scene);
+let rideShot = null, lastTrainTick = 0, cutToShot = false;
+document.addEventListener('visibilitychange', () => { lastTrainTick = performance.now(); });
 let stationAsset = null;
 let trainAsset = null;
 const stationLoad = loadHighFidelityStation();
@@ -48,8 +53,8 @@ avatar.root.position.copy(player.pos);
 const chapters = [
   { eyebrow: '第一章 · 入学来信后的清晨', title: '国王十字车站', text: '九号和十号站台之间只有一堵再普通不过的砖墙。知道秘密的人，才会鼓起勇气径直走向它。', objective: '靠近 9 和 10 号牌正中间的砖墙，互动穿墙' },
   { eyebrow: '第二章 · 隐藏的站台', title: '霍格沃茨特快', text: '蒸汽在站台上升起，红色列车已经准备出发。', objective: '沿站台走到第一节客车的后门，互动上车' },
-  { eyebrow: '第三章 · 北行列车', title: '窗外的魔法世界', text: '列车离开伦敦，穿过山谷、森林和暮色。', objective: '欣赏沿途风景，等待列车抵达湖畔' },
-  { eyebrow: '第四章 · 黑湖岸边', title: '第一次看见城堡', text: '远处的塔楼亮起灯火。新生将从湖面抵达学校。', objective: '沿湖岸走到小船旁，按 E 上船' },
+  { eyebrow: '第三章 · 霍格沃茨特快', title: '北上霍格莫德', text: '列车驶出伦敦。', objective: '欣赏沿线风景' },
+  { eyebrow: '第四章 · 新生到站', title: '霍格莫德车站', text: '', objective: '与站台上的海格交谈，或沿坡道去码头乘船' },
   { eyebrow: '第五章 · 渡过黑湖', title: '城堡越来越近', text: '小船划开水面，宏伟的城堡在夜色中升起。', objective: '乘船前往城堡码头' },
   { eyebrow: '序章完成 · 自由探索', title: '欢迎来到霍格沃茨', text: '城堡、黑湖、禁林和打人柳区域已经开放。后续章节将在这里继续。', objective: '自由探索；靠近打人柳、城堡正门可以触发场景' },
 ];
@@ -129,6 +134,10 @@ function loadHighFidelityTrain() {
 
 function setChapter(index) {
   state.chapter = index;
+  $('story').classList.toggle('aboard-express', index === 2);
+  document.body.classList.toggle('riding-express', index === 2);
+  $('skipExpress').hidden = index !== 2;
+  $('expressProgress').hidden = index !== 2;
   const c = chapters[index];
   $('chapterEyebrow').textContent = c.eyebrow; $('chapterTitle').textContent = c.title;
   $('chapterText').textContent = c.text; $('objective').textContent = c.objective;
@@ -173,15 +182,30 @@ function crossBarrier() {
 
 function boardTrain() {
   if (state.transition) return;
+  rideShot = null;
+  lastTrainTick = performance.now();
+  $('expressProgress').value = 0;
   state.train = 0; state.cinematic = true; avatar.root.visible = false; setChapter(2);
   sfx.chime([392, 523, 659]); toast('🚂 霍格沃茨特快出发！', 3200);
 }
 
 function finishTrain() {
+  state.train = 1;
+  world.train.setProgress(1);
   state.cinematic = false; avatar.root.visible = true; player.pos.copy(world.points.arrival);
-  // Look over the parked coach so the player can see the ramp and boat on arrival.
-  cam.yaw = Math.PI / 2; cam.pitch = .70; setChapter(3); updateCamera(1); sfx.chime([523, 659, 784]);
-  toast('🏰 穿过薄雾，城堡的灯火出现了');
+  avatar.root.position.copy(player.pos);
+  cam.yaw = 2.32; cam.pitch = .54; player.face = -.14; avatar.root.rotation.y = player.face;
+  setChapter(3); updateCamera(1); sfx.chime([523, 659, 784]);
+  showWelcomeLine(arrivalGreeting);
+}
+
+function showWelcomeLine(line) {
+  if (!line) return;
+  const speech = line.name + '：“' + line.text + '”';
+  if (state.chapter === 3) {
+    $('chapterText').textContent = speech;
+    if ($('story').classList.contains('collapsed')) toast(speech, 5500);
+  } else toast(speech, 5500);
 }
 
 function boardBoat() {
@@ -198,6 +222,7 @@ function finishBoat() {
 
 function restartStory() {
   if (state.transition) return;
+  welcomeParty.reset();
   state.train = state.boat = 0; state.cinematic = false; state.transition = false;
   world.train.setProgress(0); world.boat.setProgress(0); avatar.root.visible = true;
   player.pos.copy(world.points.start); cam.yaw = 0; cam.pitch = .32; cam.dist = 12;
@@ -224,6 +249,10 @@ function findNear() {
   if (canCrossBarrier(player.pos, state.chapter)) return { type: 'barrier', text: `🧱 ${interact}穿过砖墙` };
   if (canBoardTrain(player.pos, world.points.board, state.chapter)) return { type: 'train', text: `🚂 ${interact}登上霍格沃茨特快` };
   if (state.chapter === 3 && onEastPier(player.pos.x, player.pos.z) && dist(world.points.boat) < 3) return { type: 'boat', text: `🚣 ${interact}乘船渡过黑湖` };
+  if (state.chapter === 3 || state.chapter === 5) {
+    const person = welcomeParty.nearby(player.pos);
+    if (person) return { type: 'talk', id: person.id, text: `${interact}与${person.name}交谈` };
+  }
   if (state.chapter === 5 && dist(world.points.willow) < 13) return { type: 'willow', text: '🌳 按 E 观察打人柳' };
   if (state.chapter === 5 && dist(world.points.castle) < 3) return { type: 'castle', text: `🏰 ${interact}轻叩城堡正门` };
   return null;
@@ -237,6 +266,7 @@ function action() {
   if (near.type === 'barrier') crossBarrier();
   else if (near.type === 'train') boardTrain();
   else if (near.type === 'boat') boardBoat();
+  else if (near.type === 'talk') showWelcomeLine(welcomeParty.talk(near.id));
   else if (near.type === 'willow') {
     state.willowUntil = elapsed + 5; sfx.whoosh(.8, false); toast('🌿 小心！树枝猛地挥了过来！');
   } else if (near.type === 'castle') {
@@ -278,6 +308,9 @@ stick.addEventListener('pointermove', event => { if (event.pointerId === joy.id)
 function endJoy(event) { if (event.pointerId !== joy.id) return; joy.id = null; joy.x = joy.y = 0; knob.style.transform = ''; }
 stick.addEventListener('pointerup', endJoy); stick.addEventListener('pointercancel', endJoy);
 $('actBtn').onclick = action; $('restart').onclick = restartStory;
+$('skipExpress').onclick = () => {
+  if (state.chapter === 2 && !state.transition) flash(finishTrain);
+};
 $('collapseStory').onclick = () => $('story').classList.toggle('collapsed');
 document.querySelectorAll('[data-jump]').forEach(button => button.onclick = () => jumpTo(button.dataset.jump));
 
@@ -286,6 +319,7 @@ function paintMute() { mute.textContent = sfx.isMuted() ? '🔇' : '🔊'; }
 mute.onclick = () => { sfx.setMuted(!sfx.isMuted()); paintMute(); }; paintMute();
 
 function canWalkOutsideStation(x, z) {
+  if (welcomeParty.blocks(x, z)) return false;
   if (Math.abs(x) < 52 && z > 70 && z < 149) return true;
   if (onBridge(x, z) || onWestPier(x, z) || onEastPier(x, z)) return true;
   if (((x - world.lake.x) / world.lake.rx) ** 2 + ((z - world.lake.z) / world.lake.rz) ** 2 < 1) return false;
@@ -338,15 +372,34 @@ function updatePlayer(dt) {
 
 function updateStory(dt) {
   if (state.chapter === 2) {
-    state.train = Math.min(1, state.train + dt / 18); const eased = THREE.MathUtils.smootherstep(state.train, 0, 1);
-    world.train.setProgress(eased);
-    if (state.train >= 1) finishTrain();
+    const now = performance.now();
+    const step = document.hidden ? 0 : (now - lastTrainTick) / 1000;
+    lastTrainTick = now;
+    state.train = Math.min(1, state.train + step / rideSeconds);
+    const distance = routeProgress(state.train);
+    world.train.setProgress(distance);
+    $('expressProgress').value = distance;
+    const shot = rideSceneAt(distance);
+    if (rideShot !== shot) {
+      rideShot = shot; cutToShot = true;
+      $('chapterTitle').textContent = shot.title;
+      $('chapterText').textContent = shot.text;
+    }
+    if (state.train >= 1 && !state.transition) finishTrain();
   }
   if (state.chapter === 4) {
     state.boat = Math.min(1, state.boat + dt / 13); world.boat.setProgress(state.boat);
     if (state.boat >= 1) finishBoat();
   }
   near = findNear();
+  const onPlatformChapter = state.chapter === 3 || state.chapter === 5;
+  // The two stations share one world. Show London only while it is within the player's region.
+  const inLondon = state.chapter < 2 || (state.chapter === 2 && state.train < .19) ||
+    (state.chapter === 5 && player.pos.z > 45 && Math.abs(player.pos.x) < 105);
+  if (stationAsset) stationAsset.visible = inLondon;
+  world.station.visible = !stationAsset && inLondon;
+  world.platformOwl.visible = !stationAsset && inLondon;
+  welcomeParty.update(dt, elapsed, onPlatformChapter && !state.cinematic ? player.pos : null);
   $('prompt').textContent = near ? near.text : '';
   $('prompt').classList.toggle('show', !!near);
   $('actBtn').classList.toggle('show', !!near && !state.cinematic);
@@ -355,8 +408,18 @@ function updateStory(dt) {
 function updateCamera(dt) {
   if (state.chapter === 2) {
     const train = world.train.group;
-    tmp.set(-15, 9, -19).applyAxisAngle(new THREE.Vector3(0, 1, 0), train.rotation.y).add(train.position);
-    camera.position.lerp(tmp, Math.min(1, dt * 2.3)); target.copy(train.position).add(new THREE.Vector3(0, 3, 0));
+    const shot = rideShot ?? rideSceneAt(0);
+    if (shot.lake) {
+      // Orbit on the landward side so the water stays behind the engine around the bend.
+      target.set(shot.lake.x - train.position.x, 0, shot.lake.z - train.position.z).normalize();
+      tmp.set(0, 12, -11).applyQuaternion(train.quaternion).add(train.position).addScaledVector(target, -24);
+      target.multiplyScalar(10).add(train.position).y += 2;
+    } else {
+      tmp.fromArray(shot.eye).applyQuaternion(train.quaternion).add(train.position);
+      target.fromArray(shot.look).applyQuaternion(train.quaternion).add(train.position);
+    }
+    camera.position.lerp(tmp, cutToShot ? 1 : 1 - Math.exp(-dt * 8));
+    cutToShot = false;
   } else if (state.chapter === 4) {
     const boat = world.boat.group;
     tmp.set(12, 7, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), boat.rotation.y).add(boat.position);
@@ -392,6 +455,8 @@ if (state.completed) $('map').classList.add('unlocked');
 camera.position.set(0, 8, 145); camera.lookAt(0, 2, 132);
 Promise.all([stationLoad, trainLoad, new Promise(resolve => setTimeout(resolve, 650))]).then(() => {
   $('loading').classList.add('done');
+  if (debugChapter === 2) boardTrain();
+  if (debugChapter === 3) finishTrain();
   setTimeout(() => $('loading').remove(), 800);
 });
 tick();

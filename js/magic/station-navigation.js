@@ -1,5 +1,7 @@
 // World coordinates shared by the fallback station, player and chase camera.
 // The editable station uses Blender (x, y, z) -> world (x, z, 112 - y).
+import { arrivalWalkingSolids, arrivalCameraSolids } from './lakeside-layout.js';
+
 export const platformHeight = 1.45;
 export const platformEdgeZ = 92.25;
 const bodyRadius = .72;
@@ -56,7 +58,7 @@ const arrivalRails = [
   box(80.65, 80.85, -115, -80.5, 0, 2.55),
   box(80.65, 80.85, -75.5, -47, 0, 2.55),
 ];
-const walkingSolids = [...solids, railBed, islandFace, lakesideRailBed, ...arrivalRails];
+const walkingSolids = [...solids, railBed, islandFace, lakesideRailBed, ...arrivalRails, ...arrivalWalkingSolids];
 
 // Sweep each axis to the nearest face. This preserves sliding and never steps over
 // a thin wall, even when a frame spans the entire wall thickness.
@@ -117,6 +119,7 @@ export function cameraFraction(target, desired, trainAtStation = true) {
     let fraction = clipBox(target, desired, castleFront, 1);
     if (!trainAtStation) fraction = clipBox(target, desired, arrivedTrain, fraction);
     for (const b of arrivalRails) fraction = clipBox(target, desired, b, fraction);
+    for (const b of arrivalCameraSolids) fraction = clipBox(target, desired, b, fraction);
     return fraction;
   }
   if (Math.max(target.z, desired.z) < 69 || Math.min(target.z, desired.z) > 150 ||

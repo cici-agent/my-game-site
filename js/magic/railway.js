@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { buildCountryside } from './countryside.js';
+import { buildLakesideStation } from './lakeside-station.js';
 
 export const trainStop = { x: 8, y: .51, z: 90.2 };
 export const vehicleOffsets = { VEH_Engine: 0, VEH_Tender: 6.65, VEH_Coach_1: 14.7, VEH_Coach_2: 25.7, VEH_Coach_3: 36.7 };
@@ -12,9 +14,12 @@ export const railOffset = .7925; // 1.435 clear gauge between 0.15-wide heads
 // The geometry and all moving vehicles use this same centre line.
 const p = (x, z) => new THREE.Vector3(x, trainStop.y, z);
 const path = new THREE.CurvePath();
-path.add(new THREE.LineCurve3(p(lineStartX, trainStop.z), p(85, trainStop.z)));
-path.add(new THREE.CubicBezierCurve3(p(85, trainStop.z), p(111, trainStop.z), p(132, 72), p(132, 48)));
-path.add(new THREE.CubicBezierCurve3(p(132, 48), p(132, 10), p(arrivalTrackX, -12), p(arrivalTrackX, -54)));
+path.add(new THREE.LineCurve3(p(lineStartX, trainStop.z), p(145, trainStop.z)));
+path.add(new THREE.CubicBezierCurve3(p(145, trainStop.z), p(217, trainStop.z), p(258, 145), p(338, 145)));
+path.add(new THREE.CubicBezierCurve3(p(338, 145), p(461, 145), p(540, 111), p(540, 28)));
+path.add(new THREE.CubicBezierCurve3(p(540, 28), p(540, -62), p(494, -109), p(415, -109)));
+path.add(new THREE.CubicBezierCurve3(p(415, -109), p(303, -109), p(267, 8), p(167, 8)));
+path.add(new THREE.CubicBezierCurve3(p(167, 8), p(120, 8), p(arrivalTrackX, -16), p(arrivalTrackX, -54)));
 path.add(new THREE.LineCurve3(p(arrivalTrackX, -54), p(arrivalTrackX, lineEndZ)));
 const length = path.getLength();
 const departure = trainStop.x - lineStartX;
@@ -60,9 +65,29 @@ export function placeBogie(bogie, progress, offset, car) {
 }
 
 const samples = Array.from({ length: Math.ceil(length / 2) + 1 }, (_, i) => sample(Math.min(i * 2, length), new THREE.Vector3()));
+// Populate local buckets once. Terrain and forest generation query thousands of
+// nearby points; the grid keeps those queries independent of total route length.
+const cells = new Map();
+const cellSize = 24;
+for (const point of samples) {
+  const cx = Math.floor(point.x / cellSize), cz = Math.floor(point.z / cellSize);
+  for (let i = cx - 1; i <= cx + 1; i++) {
+    for (let j = cz - 1; j <= cz + 1; j++) {
+      const key = i + ',' + j;
+      if (!cells.has(key)) cells.set(key, []);
+      cells.get(key).push(point);
+    }
+  }
+}
+function clearance(x, z) {
+  const nearby = cells.get(Math.floor(x / cellSize) + ',' + Math.floor(z / cellSize));
+  let nearest = cellSize * cellSize;
+  if (nearby) for (const p of nearby) nearest = Math.min(nearest, (p.x - x) ** 2 + (p.z - z) ** 2);
+  return Math.sqrt(nearest);
+}
 export function inRailwayClearing(x, z) {
-  if (x >= 74 && x <= 88 && z >= -116 && z <= -44) return true;
-  return samples.some(point => (point.x - x) ** 2 + (point.z - z) ** 2 < 8 ** 2);
+  if (x >= 72 && x <= 88 && z >= -116 && z <= -44) return true;
+  return clearance(x, z) < 8;
 }
 
 export function lakesidePlatformHeight(x, z) {
@@ -100,6 +125,7 @@ function ribbon(group, from, to, section, mat) {
 }
 
 export function buildRailway(scene) {
+  buildCountryside(scene, clearance);
   const group = new THREE.Group(); scene.add(group);
   const mat = (color, options = {}) => new THREE.MeshStandardMaterial({ color, roughness: .82, ...options });
   const iron = mat(0x6a6e72, { metalness: .58 }), wood = mat(0x574438), gravel = mat(0x554d46);
@@ -137,7 +163,7 @@ export function buildRailway(scene) {
     for (const y of [2, 2.55]) box(4.5, .08, .1, iron, 83, y, z);
     for (const x of [80.8, 83, 85.2]) box(.12, 1.12, .12, iron, x, 2.01, z);
   }
-  for (const [start, end] of [[-115, -80.5], [-75.5, -47]]) {
+  for (const [start, end] of [[-115, -80.5], [-75.5, -73], [-53, -47]]) {
     for (const y of [2, 2.55]) box(.1, .08, end - start, iron, 80.8, y, (start + end) / 2);
     const intervals = Math.ceil((end - start) / 3.5);
     for (let i = 1; i < intervals; i++) box(.12, 1.12, .12, iron, 80.8, 2.01, start + i / intervals * (end - start));
@@ -148,4 +174,5 @@ export function buildRailway(scene) {
   ramp.moveTo(76.25, 0); ramp.lineTo(80.75, 0); ramp.lineTo(80.75, 1.45); ramp.closePath();
   const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(ramp, { depth: 5, bevelEnabled: false }), stone);
   mesh.position.z = -80.5; mesh.receiveShadow = true; group.add(mesh);
+  buildLakesideStation(group);
 }

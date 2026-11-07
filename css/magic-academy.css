@@ -55,6 +55,14 @@ button, a { font-family: inherit; }
 .story-dot.done { background: #8a78d9; }.story-dot.on { width: 22px; border-radius: 5px; background: var(--gold); box-shadow: 0 0 10px rgba(229,196,107,.65); }
 #restart { border: 0; background: none; color: #aaa5b7; font-size: 10px; cursor: pointer; position: relative; z-index: 2; }
 #restart:hover { color: #fff4d1; }
+.aboard-express .objective, .aboard-express .story-progress { display: none; }
+.riding-express .map-panel { display: none; }
+.aboard-express .story-bottom { gap: 12px; }
+#expressProgress { flex: 1; min-width: 20px; height: 4px; border: 0; border-radius: 4px; appearance: none; background: #454354; overflow: hidden; }
+#expressProgress::-webkit-progress-bar { background: #454354; }
+#expressProgress::-webkit-progress-value { background: #e5c46b; }
+#expressProgress::-moz-progress-bar { background: #e5c46b; }
+#skipExpress { position: relative; z-index: 2; border: 1px solid rgba(229,196,107,.45); border-radius: 6px; padding: 4px 8px; color: #f2dfac; background: transparent; cursor: pointer; font-size: 12px; }
 .story-card.collapsed { transform: translateY(calc(100% - 48px)); opacity: .86; }
 .story-card.collapsed .collapse { transform: rotate(180deg); }
 
