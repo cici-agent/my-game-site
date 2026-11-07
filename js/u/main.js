@@ -216,6 +216,10 @@ paintMute();
 
 // ---------- 星球广场 ----------
 async function openStation(p) {
+  if (p.kind === 'magic') {
+    location.href = 'magic-academy.html';
+    return;
+  }
   const st = $('station'); st.style.setProperty('--c', p.color);
   $('stEmoji').textContent = p.icon; $('stTitle').textContent = p.name; $('stDesc').textContent = p.description || '';
   $('stCount').textContent = '';
@@ -263,16 +267,15 @@ async function finishLanding() {
     location.href = 'park.html';
     return;
   }
-  // 魔法学院星球：进入独立的剧情式 3D 世界。
-  if (p.kind === 'magic') {
-    if (!ME && !(await requireLogin(p))) return;
-    location.href = 'magic-academy.html';
+  // 菜鸟家园：开发中，只有管理员能进去（其他人看到"正在开发中"）
+  if (p.kind === 'homestead' && ME && ME.profile.role === 'admin') {
+    location.href = 'homestead.html';
     return;
   }
   state.mode = 'landed'; state.landed = p; state.speed = 0; state.warp = 0;
   gate.visible = false; parkAt(p, true);
   flash(false); refreshUI();
-  if (!ME && !(await requireLogin(p))) return;
+  if (!ME && !p.coming_soon && !(await requireLogin(p))) return;
   sfx.chime();
   openStation(p);
 }
@@ -520,7 +523,7 @@ async function boot() {
     ship.position.set(p.pos[0], p.pos[1], p.pos[2] - p.radius - 14);
     state.mode = 'landed'; state.landed = p; parkAt(p, true); refreshUI(); markDock(p);
     camera.position.set(p.pos[0], p.pos[1] + p.radius * 1.2, p.pos[2] - p.radius * 3.6); lookAt.set(...p.pos);
-    if (land) { if (ME) openStation(p); else requireLogin(p).then(ok => ok && openStation(p)); }
+    if (land) { if (ME || p.coming_soon) openStation(p); else requireLogin(p).then(ok => ok && openStation(p)); }
     else takeOff(PLANETS.find(x => x.kind === params.get('next')));
     hintEl.style.opacity = 0; hintHidden = true;
     history.replaceState(null, '', location.pathname);

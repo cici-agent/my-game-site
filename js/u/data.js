@@ -11,6 +11,7 @@ export const DEFAULT_PLANETS = [
   { kind: 'create', name: '创作星球', icon: '🎨', color: '#8b6bff', description: '说出点子，AI 帮你做游戏',      sort_order: 4 },
   { kind: 'home',   name: '我的星球', icon: '🏠', color: '#2ec4b6', description: '我的金币、头像和作品',         sort_order: 5 },
   { kind: 'magic',  name: '魔法学院星球', icon: '🦉', color: '#6f5bd3', description: '穿过站台，坐上列车，前往魔法城堡', sort_order: 6 },
+  { kind: 'homestead', name: '菜鸟家园', icon: '🏡', color: '#7bc950', description: '每个人都有一个自己的小家', sort_order: 7, coming_soon: true },
 ];
 
 // 赚金币的挑战：识别方式 = 游戏文件路径。数学/拼写/语法/听力 4 个目前不在 games 表里，这里补上
@@ -37,9 +38,9 @@ export async function loadPlanets() {
       // 新功能先随前端上线；数据库迁移尚未执行时也要能看到新星球。
       // 迁移完成后按 kind 去重，数据库中的展示配置优先。
       const rows = r.data.map(p => ({ ...p }));
-      DEFAULT_PLANETS.forEach(p => {
-        if (!rows.some(row => row.kind === p.kind)) rows.push({ ...p });
-      });
+      if (!rows.some(row => row.kind === 'magic')) {
+        rows.push({ ...DEFAULT_PLANETS.find(p => p.kind === 'magic') });
+      }
       return rows.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     }
   } catch (e) { /* 表还不存在 */ }

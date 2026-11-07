@@ -318,14 +318,17 @@ function enterTrain(st) {
   if (abil.flying) { toast('先落地再上车哦'); return; }
   // 找离站台最近的那节车厢，从中间的门上去
   let best = 0, bd = Infinity; for (let k = 0; k < T.NCAR; k++) { const w = T.carToWorld(k, 0, 0); const d = Math.hypot(w.x - player.pos.x, w.z - player.pos.z); if (d < bd) { bd = d; best = k; } }
-  player.train = { k: best, lx: 0, lz: 0, lf: Math.PI / 2, yaw: T.carYaw(best) };
+  player.train = { k: best, lx: -1.0, lz: 0, lf: Math.PI / 2, yaw: T.carYaw(best), sit: -1 };
   if (pet) pet.group.visible = false;
-  sfx.chime([659, 784, 988]); toast('🚂 上车啦！可以在车厢里走来走去，到站按 E 下车');
+  sfx.chime([659, 784, 988]); toast('🚂 上车啦！可以走来走去，走到空座位旁边按 E 坐下；到站按 E 下车');
 }
 function exitTrain() {
   const T = world.train, S = T.state, P = player.train; if (!P) return;
+  // 坐着：先站起来；站着在空座位旁边：坐下
+  if (P.sit >= 0) { P.sit = -1; T.setPlayerSeat(-1); P.lx = 0; return; }
+  const sn = T.seatNear(P.k, P.lx, P.lz); if (sn >= 0 && !(S.phase === 'dwell' && Math.abs(P.lz) < 1.3)) { P.sit = sn; T.setPlayerSeat(sn); return; }
   if (S.phase !== 'dwell') { const now = performance.now(); if (now - noLeaveT > 1500) { noLeaveT = now; toast('🚂 火车开着呢，到站才能下车'); } return; }
-  const st = T.stations[S.at]; player.train = null; player.pos.set(st.board[0], 0, st.board[1]);
+  const st = T.stations[S.at]; T.setPlayerSeat(-1); player.train = null; player.pos.set(st.board[0], 0, st.board[1]);
   if (pet) { pet.group.visible = true; petPos.copy(player.pos); }
   toast(`🚂 到${st.name}啦`);
 }
@@ -338,13 +341,13 @@ function trainTick(dt, t) {
   if (keys.KeyW || keys.ArrowUp) my += 1; if (keys.KeyS || keys.ArrowDown) my -= 1;
   if (keys.KeyA || keys.ArrowLeft) mx -= 1; if (keys.KeyD || keys.ArrowRight) mx += 1;
   if (joy.id !== null) { mx = joy.x; my = joy.y; }
-  const len = Math.min(1, Math.hypot(mx, my)), speed = 3.2 * len;
+  const len = P.sit >= 0 ? 0 : Math.min(1, Math.hypot(mx, my)), speed = 3.2 * len;
   const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
   const vx = (fx * my - fz * mx) * speed, vz = (fz * my + fx * mx) * speed;
   if (len > .05) {
     // 世界方向 → 车厢自己的方向
     const c = Math.cos(-yaw), s = Math.sin(-yaw), lvx = vx * c + vz * s, lvz = -vx * s + vz * c;
-    P.lx += lvx * dt; P.lz += lvz * dt;
+    P.lx += lvx * dt / T.TS; P.lz += lvz * dt / T.TS;
     const want = Math.atan2(lvx, lvz); let d = want - P.lf; d = Math.atan2(Math.sin(d), Math.cos(d)); P.lf += d * Math.min(1, dt * 12);
   }
   // 车厢里能走的地方：中间的过道；门口（中间）可以走到边上
@@ -353,20 +356,31 @@ function trainTick(dt, t) {
   // 走到车厢头 / 尾：走到下一节车厢（车厢 0 在最前面，挨着车头）
   if (P.lz > L / 2 - .25) { if (P.k > 0) { P.k--; P.lz -= L + .5; P.lx = THREE.MathUtils.clamp(P.lx, -.42, .42); } else P.lz = L / 2 - .25; }
   if (P.lz < -L / 2 + .25) { if (P.k < T.NCAR - 1) { P.k++; P.lz += L + .5; P.lx = THREE.MathUtils.clamp(P.lx, -.42, .42); } else P.lz = -L / 2 + .25; }
-  T.carToWorld(P.k, P.lx, P.lz, trainV);
-  player.pos.copy(trainV); player.face = P.lf + T.carYaw(P.k);
-  me.root.position.copy(player.pos); me.root.rotation.set(0, player.face, 0); me.root.visible = true; me.root.scale.setScalar(1);
-  me.rig.shadow.visible = false;
-  me.animate(dt, len, false, false);
+  if (P.sit >= 0) {                     // 坐在座位上
+    const si = T.seatInfo[P.sit]; P.k = si.k; P.lx = si.lx * .6; P.lz = si.lz;
+    T.carToWorld(si.k, si.lx, si.lz, trainV); trainV.y = .3 + si.ly * T.TS - .62;
+    player.pos.copy(trainV); player.face = T.carYaw(si.k) + si.yaw; me.root.position.copy(trainV);
+    me.root.rotation.set(0, player.face, 0); me.root.visible = true; me.rig.shadow.visible = false; me.animate(dt, 0, false, true);
+  } else {
+    T.carToWorld(P.k, P.lx, P.lz, trainV);
+    player.pos.copy(trainV); player.face = P.lf + T.carYaw(P.k);
+    me.root.position.copy(player.pos); me.root.rotation.set(0, player.face, 0); me.root.visible = true; me.root.scale.setScalar(1);
+    me.rig.shadow.visible = false;
+    me.animate(dt, len, false, false);
+  }
   if (len > .05) { stepT -= dt * .7; if (stepT <= 0) { stepT = .45; sfx.step(); } }
   // 镜头
   camLook.set(player.pos.x, player.pos.y + 2, player.pos.z);
-  const cd = Math.min(cam.dist, 8), pv = Math.max(cam.pitch, -.1);
+  const cd = Math.min(cam.dist, 6.5), pv = THREE.MathUtils.clamp(cam.pitch, -.1, Math.asin(2.2 / cd));        // 镜头别跑到车顶上面去
   camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(pv), camLook.y + Math.sin(pv) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(pv));
   camera.position.lerp(camPos, Math.min(1, dt * 8)); camera.lookAt(camLook);
   const S = T.state;
-  promptEl.textContent = S.phase === 'dwell' ? `🚂 ${T.stations[S.at].name} · ${isTouch ? '点按钮' : '按 E'}下车（${Math.ceil(S.left)} 秒后开车）` : `🚂 开往${T.stations[(S.stop + 1) % 2].name}… 还有 ${Math.ceil(S.left)} 秒`;
-  promptEl.classList.add('show'); $('actBtn').textContent = '下车'; $('actBtn').classList.toggle('show', S.phase === 'dwell');
+  const seatHere = P.sit < 0 ? T.seatNear(P.k, P.lx, P.lz) : -1, atDoor = S.phase === 'dwell' && Math.abs(P.lz) < 1.3 && P.sit < 0;
+  const key = isTouch ? '点按钮' : '按 E';
+  const where = S.phase === 'dwell' ? `🚂 ${T.stations[S.at].name}（${Math.ceil(S.left)} 秒后开车）` : `🚂 开往${T.stations[(S.stop + 1) % 2].name}… 还有 ${Math.ceil(S.left)} 秒`;
+  const act = P.sit >= 0 ? '站起来' : atDoor ? '下车' : seatHere >= 0 ? '坐下' : S.phase === 'dwell' ? '下车' : '';
+  promptEl.textContent = act ? `${where} · ${key}${act}` : where;
+  promptEl.classList.add('show'); $('actBtn').textContent = act || '下车'; $('actBtn').classList.toggle('show', !!act);
   myMove = { speed: len };
 }
 // ---------- 摆摊小游戏 ----------

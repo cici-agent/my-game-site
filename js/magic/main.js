@@ -632,7 +632,10 @@ let sceneReady = false;
 function tick() {
   requestAnimationFrame(tick);
   const now = performance.now(), dt = Math.min((now - last) / 1000, .05); last = now;
-  if (!sceneReady || wardrobe.isOpen || atlas.isOpen) return;
+  if (!sceneReady || wardrobe.isOpen || atlas.isOpen) {
+    lastTrainTick = now;
+    return;
+  }
   elapsed += dt;
   updatePlayer(dt); updateStory(dt); updateCamera(dt);
   if (state.area === 'castle') interior.update(player.pos, elapsed);

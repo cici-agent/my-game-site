@@ -4,7 +4,7 @@
 alter table public.planets drop constraint if exists planets_kind_valid;
 alter table public.planets
   add constraint planets_kind_valid
-  check (kind in ('plaza','games','coins','create','home','magic'));
+  check (kind in ('plaza','games','coins','create','home','magic','homestead'));
 
 update public.planets
    set name = '魔法学院星球',
