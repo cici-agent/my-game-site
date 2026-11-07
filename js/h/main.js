@@ -379,7 +379,7 @@ function step(dt, t) {
 }
 
 function resize() {
-  renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight;
+  renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight;
   camera.fov = camera.aspect < 1 ? 62 : 50;   // 竖屏手机视野放宽，人物不会被切掉
   camera.updateProjectionMatrix();
 }
