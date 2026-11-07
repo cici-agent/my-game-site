@@ -171,7 +171,7 @@ function promptText(it) {
   if (it.type === 'bumper') return '🚗 按 E 开碰碰车';
   if (it.type === 'npc') return `💬 按 E 和 ${it.npc.name} 说话`;
   if (it.type === 'train') { const S = world.train.state; return S.phase === 'dwell' && world.train.stations[S.at] === it.station ? `🚂 按 E 上火车（${Math.ceil(S.left)} 秒后开车）` : `🚂 ${it.station.name} · 火车还有 ${Math.ceil(trainEta(it.station))} 秒到站`; }
-  if (it.type === 'stall') return stallsOpen ? `${it.icon} 按 E 玩${it.name}` : `🌙 ${it.name}晚上收摊了，白天再来`;
+  if (it.type === 'stall') return stallsOpen ? `${it.icon} 按 E 玩${it.name}（${stallPrice[it.game]} 金币一局）` : `🌙 ${it.name}晚上收摊了，白天再来`;
   if (it.type === 'queue') { const n = it.q.members.length; return `${it.q.ride.icon} 按 E 排队玩${it.q.ride.name}${n ? `（现在有 ${n} 人在排）` : ''}`; }
   if (it.type === 'mansion') return '🏚️ 鬼屋：直接走进去，找到出口（很黑哦）';
   return '';
@@ -384,7 +384,26 @@ function trainTick(dt, t) {
   myMove = { speed: len };
 }
 // ---------- 摆摊小游戏 ----------
-const stallGame = createStallGame({ scene, camera, stalls: world.stalls, sfx,
+// 摆摊：花金币玩一局、玩得好领奖（服务器算）
+const stallPrice = { balloon: 10, pot: 10, ring: 10, mole: 10, duck: 10, wheel: 15 };
+setTimeout(async () => { try { const { data } = await getSupabase().from('shop_items').select('key,price').like('key', '__stall_%'); (data || []).forEach(r => stallPrice[r.key.slice(8)] = r.price); } catch (e) {} }, 1500);
+async function stallPay(kind) {
+  if (!ME) { const ok = await askLogin({ icon: '🎪', name: '摆摊小游戏', color: '#ff6b6b' }); if (!ok) return { ok: false, msg: '🔒 要先登录才能玩哦（玩一局要花金币）' }; await refreshMe(); }
+  const { data, error } = await getSupabase().rpc('stall_play', { p_game: kind });
+  if (error) {
+    if (/not_enough_coins/.test(error.message)) return { ok: false, msg: `🪙 金币不够啦（玩一局要 ${stallPrice[kind]} 金币）` };
+    if (error.code === 'PGRST202' || /Could not find the function/i.test(error.message)) return { ok: true, free: true };      // 服务器还没准备好：先免费玩
+    return { ok: false, msg: '出错了：' + error.message };
+  }
+  setCoins(data.coins); if (ME) ME.profile.coins = data.coins;
+  return { ok: true, play: data.play, wheel: data.wheel, cost: data.cost };
+}
+async function stallClaim(play, score) {
+  const { data, error } = await getSupabase().rpc('stall_claim', { p_play: play, p_score: Math.round(score) });
+  if (error) return { prize: 0, err: error.message };
+  setCoins(data.coins); if (ME) ME.profile.coins = data.coins; return data;
+}
+const stallGame = createStallGame({ scene, camera, stalls: world.stalls, sfx, pay: stallPay, claim: stallClaim,
   hud(text, charge) { const h = $('stallHud'); if (text == null) { h.classList.remove('show'); return; } h.classList.add('show'); $('stallTxt').textContent = text;
     const bar = $('stallBar'); bar.style.display = charge == null ? 'none' : 'block'; if (charge != null) bar.firstElementChild.style.width = Math.round(charge * 100) + '%'; } });
 let stallsOpen = true;

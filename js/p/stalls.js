@@ -176,7 +176,7 @@ export function buildStalls(scene, cx, cz) {
 }
 
 // ---------------- 玩游戏（镜头固定，鼠标瞄准） ----------------
-export function createStallGame({ scene, camera, stalls, sfx, hud }) {
+export function createStallGame({ scene, camera, stalls, sfx, hud, pay, claim }) {
   let G = null;
   const ray = new THREE.Raycaster(), v = new THREE.Vector3(), aim = { x: 0, y: 0 };
   const best = k => +(localStorage.getItem('stallBest_' + k) || 0);
@@ -205,10 +205,17 @@ export function createStallGame({ scene, camera, stalls, sfx, hud }) {
   function makeRing() { const r = new THREE.Mesh(new THREE.TorusGeometry(.2, .035, 8, 24), M([0xff6b6b, 0xffd43b, 0x4dabf7, 0xda77f2][Math.floor(Math.random() * 4)])); const g = new THREE.Group(); r.rotation.x = Math.PI / 2; g.add(r); return g; }
   const flying = [];
   const TOTAL = { balloon: 10, pot: 5, ring: 5, mole: 30, duck: 6, wheel: 1 };
-  function start(kind) {
+  let paying = false;
+  async function start(kind) {
+    if (paying) return;
     clear();
     const st = stalls.byKind[kind];
-    G = { kind, st, left: TOTAL[kind], score: 0, t: 0, over: 0, charge: 0, charging: false, yaw: 0 };
+    // 先付钱（服务器扣金币）；转盘的结果也是服务器开局时就定好的
+    let paid = { ok: true, free: true };
+    if (pay) { paying = true; G = null; hud('🪙 付钱中…', null); paid = await pay(kind); paying = false;
+      if (!paid.ok) { hud(`${paid.msg || '现在玩不了'}　按 E 离开`, null); return; } }
+    G = { kind, st, left: TOTAL[kind], score: 0, t: 0, over: 0, charge: 0, charging: false, yaw: 0, play: paid.play, wheelTarget: paid.wheel, cost: paid.cost, free: paid.free };
+    if (paid.cost) { sfx.click && sfx.click(); }
     if (kind === 'balloon') st.balloons.forEach(b => { b.userData.alive = true; b.visible = true; });
     if (kind === 'ring') st.rings = [];
     if (kind === 'mole') { st.moles.forEach(m => { m.up = 0; m.until = 0; m.hit = 0; m.m.position.y = m.baseY; }); G.next = .8; }
@@ -223,11 +230,20 @@ export function createStallGame({ scene, camera, stalls, sfx, hud }) {
     const unit = { balloon: '支飞镖', pot: '支箭', ring: '个圈', duck: '次', wheel: '次' }[k];
     const how = { balloon: '点气球扔飞镖', pot: '左右瞄准 · 按住蓄力 · 松开扔', ring: '左右瞄准 · 按住蓄力 · 松开扔', mole: '地鼠冒出来就点它！', duck: '点一只小鸭子捞上来', wheel: '点一下转盘开始转' }[k];
     if (G.over) { const extra = k === 'wheel' ? `转到了：${WHEEL_PRIZES[G.score]}` : `得分 ${G.score}${G.score >= b && G.score > 0 ? ' · ⭐ 新纪录！' : ` · 最高 ${b}`}`;
-      hud(`🎉 ${extra}　点一下 / 按空格再玩一局 · 按 E 离开`, null); return; }
+      const prize = G.claiming ? ' · 🎁 领奖中…' : G.claimErr ? ` · 领奖出错：${G.claimErr}` : G.play ? (G.prize > 0 ? ` · 🎁 奖励 ${G.prize} 金币！` : ' · 这次没有奖励，再接再厉') : '';
+      hud(`🎉 ${extra}${prize}　点一下 / 按空格再玩一局${G.cost ? `（${G.cost} 金币）` : ''} · 按 E 离开`, null); return; }
     const head = k === 'mole' ? `⏱ 还剩 ${Math.ceil(G.left)} 秒 · 打中 ${G.score} 只` : k === 'wheel' ? '🎡 幸运大转盘' : `剩 ${G.left} ${unit} · 得分 ${G.score}`;
     hud(`${head}${k !== 'wheel' ? ` · 最高 ${b}` : ''}　${how}`, (k === 'pot' || k === 'ring') && G.charging ? G.charge : null);
   }
-  function finish() { if (!G || G.over) return; G.over = 1; if (G.kind !== 'wheel' && G.score > best(G.kind)) localStorage.setItem('stallBest_' + G.kind, G.score); sfx.chime && sfx.chime(G.score > 0 ? [784, 988, 1318] : [440, 392]); updHud(); }
+  async function finish() {
+    if (!G || G.over) return; G.over = 1; if (G.kind !== 'wheel' && G.score > best(G.kind)) localStorage.setItem('stallBest_' + G.kind, G.score);
+    sfx.chime && sfx.chime(G.score > 0 ? [784, 988, 1318] : [440, 392]); updHud();
+    // 领奖：服务器按分数发金币
+    if (G.play && claim) { const g0 = G; g0.claiming = true; updHud(); const r = await claim(g0.play, g0.score); g0.claiming = false; g0.prize = r.prize || 0; g0.claimErr = r.err;
+      if (r.again && G === g0) { g0.over = 0; g0.play = r.again; g0.wheelTarget = r.wheel; g0.spin = null; g0.left = 1; hud('🎁 再转一次！（免费）点一下转盘', null); return; }
+      if (g0.prize > 0) { sfx.chime && sfx.chime([988, 1318, 1568, 2093]); pop(camera.position.clone().add(new THREE.Vector3(0, 0, -3).applyQuaternion(camera.quaternion)), 0xffd43b, 40); }
+      if (G === g0) updHud(); }
+  }
   // ---- 射气球 ----
   function throwDart(nx, ny) {
     if (G.left <= 0) return; G.left--; sfx.whoosh && sfx.whoosh(.3, true);
@@ -331,7 +347,7 @@ export function createStallGame({ scene, camera, stalls, sfx, hud }) {
     const prev = G.st.disc.rotation.z; G.st.disc.rotation.z = S.from + (S.to - S.from) * e;
     if (Math.floor(G.st.disc.rotation.z / (Math.PI / 4)) !== Math.floor(prev / (Math.PI / 4))) sfx.click && sfx.click();
     if (u >= 1) { S.done = true; G.score = S.k; G.left = 0;
-      if (WHEEL_PRIZES[S.k].includes('再转')) { setTimeout(() => { if (G && G.kind === 'wheel') { G.spin = null; G.left = 1; updHud(); } }, 1200); sfx.chime && sfx.chime([784, 988, 1318]); hud('🎁 再转一次！点一下转盘', null); }
+      if (WHEEL_PRIZES[S.k].includes('再转') && !G.play) { setTimeout(() => { if (G && G.kind === 'wheel') { G.spin = null; G.left = 1; updHud(); } }, 1200); sfx.chime && sfx.chime([784, 988, 1318]); hud('🎁 再转一次！点一下转盘', null); }
       else finish(); }
   }
   return {
@@ -341,22 +357,22 @@ export function createStallGame({ scene, camera, stalls, sfx, hud }) {
     pointer(type, nx, ny) {
       if (!G) return;
       aim.x = nx; aim.y = ny;
-      if (G.over) { if (type === 'down') start(G.kind); return; }
+      if (G.over) { if (type === 'down' && !G.claiming) start(G.kind); return; }
       const k = G.kind;
       if (k === 'balloon') { if (type === 'down') throwDart(nx, ny); }
       else if (k === 'mole') { if (type === 'down') whack(nx, ny); }
       else if (k === 'duck') { if (type === 'down') catchDuck(nx, ny); }
-      else if (k === 'wheel') { if (type === 'down') spinWheel(); }
+      else if (k === 'wheel') { if (type === 'down') spinWheel(G.wheelTarget); }
       else { G.yaw = THREE.MathUtils.clamp(-nx * .75, -.7, .7); if (type === 'down' && G.left > 0) { G.charging = true; G.charge = 0; G.dir = 1; } if (type === 'up' && G.charging) throwArc(); }
     },
     key(code, down) {
       if (!G || code !== 'Space') return;
-      if (G.over) { if (down) start(G.kind); return; }
+      if (G.over) { if (down && !G.claiming) start(G.kind); return; }
       const k = G.kind;
       if (k === 'balloon') { if (down) throwDart(aim.x, aim.y); }
       else if (k === 'mole') { if (down) whack(aim.x, aim.y); }
       else if (k === 'duck') { if (down) catchDuck(aim.x, aim.y); }
-      else if (k === 'wheel') { if (down) spinWheel(); }
+      else if (k === 'wheel') { if (down) spinWheel(G.wheelTarget); }
       else { if (down && !G.charging && G.left > 0) { G.charging = true; G.charge = 0; G.dir = 1; } else if (!down && G.charging) throwArc(); }
     },
     update(dt, keys) {
