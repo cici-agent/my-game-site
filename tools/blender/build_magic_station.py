@@ -332,27 +332,12 @@ def build_floor_and_walls():
     box("ENV_Platform_Safety_Edge_B", (0, 30.28, 0.45), (104, 0.55, 0.12), MAT_EDGE, bevel=0.02)
     box("ENV_Back_Wall", (0, -36.0, 5.0), (104, 0.85, 10.0), MAT_BRICK, bevel=0.08)
 
-    # Entrance wall has a real, walkable opening instead of an opaque portal.
-    box("ARC_Barrier_Left", (-28.0, 0, 5.4), (48.0, 0.9, 10.8), MAT_BRICK, bevel=0.07)
-    box("ARC_Barrier_Right", (28.0, 0, 5.4), (48.0, 0.9, 10.8), MAT_BRICK, bevel=0.07)
-    box("ARC_Barrier_Upper", (0, 0, 12.5), (104, 0.9, 3.4), MAT_BRICK, bevel=0.07)
-    for x in (-49, -4.9, 4.9, 49):
-        box(f"ARC_Barrier_Pilaster_{x:+.1f}", (x, -0.52, 5.8), (1.15, 0.55, 11.6), MAT_STONE, bevel=0.09)
-    box("ARC_Portal_Left", (-4.65, -0.58, 4.4), (0.8, 0.62, 8.8), MAT_STONE_LIGHT, bevel=0.09)
-    box("ARC_Portal_Right", (4.65, -0.58, 4.4), (0.8, 0.62, 8.8), MAT_STONE_LIGHT, bevel=0.09)
-    arch_points = []
-    for i in range(25):
-        theta = math.pi * i / 24
-        arch_points.append((4.65 * math.cos(theta), -0.58, 4.4 + 4.65 * math.sin(theta)))
-    tube("ARC_Portal_Arch", arch_points, 0.42, MAT_STONE_LIGHT)
-
-    # Voussoirs give the arch readable close-up depth.
-    for i in range(13):
-        theta = math.pi * (i + 0.5) / 13
-        x = 5.05 * math.cos(theta)
-        z = 4.4 + 5.05 * math.sin(theta)
-        stone = box(f"ARC_Arch_Block_{i:02d}", (x, -0.94, z), (0.9, 0.24, 0.68), MAT_STONE, bevel=0.04)
-        stone.rotation_euler[1] = math.pi / 2 - theta
+    # To ordinary travellers this is just a solid barrier between platforms.
+    # The game teleports the player through it during the magical transition;
+    # there is deliberately no doorway, seam or arch on the concourse side.
+    box("ARC_Platform_Barrier", (0, 0, 7.0), (104, 0.9, 14.0), MAT_BRICK, bevel=0.07)
+    for x in range(-48, 49, 16):
+        box(f"ARC_Barrier_Pilaster_{x:+03d}", (x, -0.52, 5.8), (0.85, 0.5, 11.6), MAT_STONE, bevel=0.07)
 
     # Wall panels and base trim create a human-scale concourse facade.
     box("ARC_Back_Wall_Base", (0, -35.54, 0.72), (104, 0.28, 1.35), MAT_STONE, bevel=0.04)
@@ -407,17 +392,37 @@ def build_roof():
 
 
 def build_track():
-    box("RAIL_Ballast_Bed", (0, 24.0, -0.08), (104, 12.0, 0.35), MAT_BALLAST, bevel=0.06)
-    for x in np.arange(-50, 50.1, 1.45):
-        box(f"RAIL_Sleeper_{x:+05.1f}", (float(x), 24.0, 0.16), (0.32, 10.4, 0.3), MAT_WOOD, bevel=0.045)
-    for y in (21.2, 23.0, 25.0, 26.8):
-        box(f"RAIL_Steel_{y:04.1f}", (0, y, 0.49), (104, 0.14, 0.22), MAT_STEEL, bevel=0.035)
+    sleeper_positions = np.arange(-50, 50.1, 1.22)
+    for track_index, center_y in enumerate((21.8, 26.2), start=1):
+        box(f"RAIL_{track_index}_Ballast", (0, center_y, -0.08), (104, 3.55, 0.38), MAT_BALLAST, bevel=0.08)
+        for x in sleeper_positions:
+            box(
+                f"RAIL_{track_index}_Sleeper_{x:+05.1f}",
+                (float(x), center_y, 0.17),
+                (0.27, 2.55, 0.2),
+                MAT_WOOD,
+                bevel=0.035,
+            )
+        for rail_index, rail_y in enumerate((center_y - 0.718, center_y + 0.718), start=1):
+            box(f"RAIL_{track_index}_{rail_index}_Foot", (0, rail_y, 0.34), (104, 0.22, 0.07), MAT_STEEL, bevel=0.018)
+            box(f"RAIL_{track_index}_{rail_index}_Web", (0, rail_y, 0.45), (104, 0.07, 0.18), MAT_STEEL, bevel=0.012)
+            box(f"RAIL_{track_index}_{rail_index}_Head", (0, rail_y, 0.58), (104, 0.15, 0.1), MAT_STEEL, bevel=0.025)
+            for x in sleeper_positions[::2]:
+                for side in (-1, 1):
+                    box(
+                        f"RAIL_{track_index}_{rail_index}_Clip_{x:+05.1f}_{side:+d}",
+                        (float(x), rail_y + side * 0.15, 0.34),
+                        (0.12, 0.11, 0.09),
+                        MAT_IRON,
+                        bevel=0.015,
+                    )
 
 
-def build_sign_disc(name, location, radius, label, *, label_size=1.25):
-    cylinder(name + "_Disc", location, radius, 0.18, MAT_ENAMEL, vertices=48, rotation=(math.radians(90), 0, 0), bevel=0.08)
-    cylinder(name + "_Rim", (location[0], location[1] - 0.11, location[2]), radius + 0.12, 0.08, MAT_BRASS, vertices=48, rotation=(math.radians(90), 0, 0), bevel=0.05)
-    text_mesh(name + "_Text", label, (location[0], location[1] - 0.23, location[2]), label_size, 0.055, MAT_WHITE)
+def build_sign_disc(name, location, radius, label, *, label_size=1.25, side=-1):
+    rotation = (math.radians(90 if side < 0 else -90), 0, 0)
+    cylinder(name + "_Disc", location, radius, 0.18, MAT_ENAMEL, vertices=48, rotation=rotation, bevel=0.08)
+    cylinder(name + "_Rim", (location[0], location[1] + side * 0.11, location[2]), radius + 0.12, 0.08, MAT_BRASS, vertices=48, rotation=rotation, bevel=0.05)
+    text_mesh(name + "_Text", label, (location[0], location[1] + side * 0.23, location[2]), label_size, 0.055, MAT_WHITE, rotation=rotation)
 
 
 def build_bench(x, y, facing=0.0):
@@ -488,8 +493,8 @@ def build_clock():
 
 
 def build_dressing():
-    # Platform identity and station name are modeled geometry, not screen-space sprites.
-    build_sign_disc("SGN_Platform_934", (0, -0.72, 11.3), 2.2, "9¾", label_size=1.65)
+    # The 9¾ marker exists only on the magical platform side of the solid wall.
+    build_sign_disc("SGN_Platform_934", (0, 0.72, 11.3), 2.2, "9¾", label_size=1.65, side=1)
     box("SGN_KingsCross_Board", (18.5, -35.47, 7.3), (23.0, 0.16, 2.15), MAT_ENAMEL, bevel=0.15)
     text_mesh("SGN_KingsCross_Text", "KING'S CROSS", (18.5, -35.31, 7.3), 1.15, 0.055, MAT_WHITE, rotation=(math.radians(-90), 0, 0))
 

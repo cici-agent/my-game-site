@@ -1,4 +1,4 @@
-// 魔法学院星球：全部使用 Three.js 基础几何体程序化搭建，不依赖影视素材。
+// 魔法学院星球的轻量程序化世界；车站和列车会由 main.js 加载的原创 Blender GLB 替换。
 import * as THREE from 'three';
 
 const M = (color, options = {}) => new THREE.MeshStandardMaterial({ color, roughness: .72, ...options });
@@ -49,17 +49,8 @@ function buildStation(scene) {
   const glass = add(group, new THREE.BoxGeometry(110, .12, 76), M(0xa8d8e8, { transparent: true, opacity: .12, depthWrite: false }), [0, 16.4, 117]);
   glass.castShadow = false;
 
-  // 九又四分之三站台的砖墙与拱门
-  // 中间留出真正可以穿过的隐藏入口。
-  add(group, new THREE.BoxGeometry(51, 12, 2.5), brick, [-33.5, 6, 112]);
-  add(group, new THREE.BoxGeometry(51, 12, 2.5), brick, [33.5, 6, 112]);
-  add(group, new THREE.BoxGeometry(16, 2.5, 2.5), brick, [0, 11.7, 112]);
-  add(group, new THREE.BoxGeometry(9, 10, 3.2), darkStone, [-7, 5, 110.5]);
-  add(group, new THREE.BoxGeometry(9, 10, 3.2), darkStone, [7, 5, 110.5]);
-  add(group, new THREE.BoxGeometry(23, 2, 3.2), darkStone, [0, 10, 110.5]);
-  const arch = add(group, new THREE.TorusGeometry(7, 1.15, 10, 32, Math.PI), darkStone, [0, 9.3, 110.2], [0, 0, 0]);
-  arch.rotation.z = 0;
-  const platformLabel = label('9 ¾ 站台', '#e7bd5b', 320); platformLabel.position.set(0, 12.5, 108.5); group.add(platformLabel);
+  // 九又四分之三站台是一堵外观完全普通的实墙；穿越由剧情转场完成。
+  add(group, new THREE.BoxGeometry(118, 14, 2.5), brick, [0, 7, 112]);
   const stationLabel = label('国王十字车站', '#c98b6b', 420); stationLabel.position.set(0, 11.5, 154.4); group.add(stationLabel);
   const warmA = new THREE.PointLight(0xffc77a, 24, 60, 1.6); warmA.position.set(-22, 12, 126); group.add(warmA);
   const warmB = new THREE.PointLight(0xffd69b, 22, 55, 1.6); warmB.position.set(22, 10, 101); group.add(warmB);
@@ -88,8 +79,9 @@ function wheel(parent, x, z, radius = .65) {
 
 function buildTrain(scene) {
   const train = new THREE.Group(); scene.add(train);
+  const fallback = new THREE.Group(); fallback.name = 'Train_Procedural_Fallback'; train.add(fallback);
   const red = M(0x7d1f2c), red2 = M(0x4d1620), black = M(0x15171c, { metalness: .35 }), glass = M(0x9ed2e3, { emissive: 0x234c62, emissiveIntensity: .25 });
-  const engine = new THREE.Group(); train.add(engine);
+  const engine = new THREE.Group(); fallback.add(engine);
   add(engine, new THREE.CylinderGeometry(1.7, 1.7, 6.8, 20), red, [0, 2.25, 0], [Math.PI / 2, 0, 0]);
   add(engine, new THREE.BoxGeometry(3.7, 3.8, 3.5), red2, [0, 2.2, -4.7]);
   add(engine, new THREE.BoxGeometry(4.1, .3, 11), black, [0, .75, -1.8]);
@@ -100,7 +92,7 @@ function buildTrain(scene) {
   lamp.castShadow = false;
 
   for (let i = 0; i < 3; i++) {
-    const car = new THREE.Group(); car.position.z = -9.2 - i * 8.2; train.add(car);
+    const car = new THREE.Group(); car.position.z = -9.2 - i * 8.2; fallback.add(car);
     add(car, new THREE.BoxGeometry(4.2, 3.7, 7.4), red, [0, 2.4, 0]);
     add(car, new THREE.BoxGeometry(4.45, .5, 7.7), black, [0, 4.45, 0]);
     for (let z = -2.3; z <= 2.3; z += 2.3) {
@@ -111,11 +103,11 @@ function buildTrain(scene) {
 
   const smoke = [];
   for (let i = 0; i < 9; i++) {
-    const puff = add(train, new THREE.SphereGeometry(.45 + i * .04, 10, 8), M(0xe8edf2, { transparent: true, opacity: .42, depthWrite: false }), [0, 5, 1.1]);
+    const puff = add(train, new THREE.SphereGeometry(.45 + i * .04, 10, 8), M(0xe8edf2, { transparent: true, opacity: .42, depthWrite: false }), [0, 5, 3.5]);
     puff.castShadow = false; puff.userData.phase = i / 9; smoke.push(puff);
   }
   const curve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 0, 84), new THREE.Vector3(55, 1, 70), new THREE.Vector3(112, 4, 18),
+    new THREE.Vector3(0, 0, 90.2), new THREE.Vector3(55, 1, 76), new THREE.Vector3(112, 4, 18),
     new THREE.Vector3(112, 2, -44), new THREE.Vector3(82, 0, -84), new THREE.Vector3(70, 0, -91),
   ], false, 'catmullrom', .18);
   function setProgress(value) {
@@ -123,7 +115,7 @@ function buildTrain(scene) {
     train.position.copy(point); train.rotation.y = Math.atan2(tangent.x, tangent.z);
   }
   setProgress(0);
-  return { group: train, curve, smoke, setProgress };
+  return { group: train, fallback, curve, smoke, setProgress };
 }
 
 function tower(parent, x, z, h, radius, sides = 10) {
@@ -255,7 +247,7 @@ export function buildMagicWorld(scene) {
     stars.rotation.y = time * .004;
     train.smoke.forEach((p, i) => {
       const phase = (time * .14 + p.userData.phase) % 1;
-      p.position.set(Math.sin(i) * phase * .5, 4.7 + phase * 7, 1.1 - phase * 1.5);
+      p.position.set(Math.sin(i) * phase * .5, 5 + phase * 7, 3.5 - phase * 1.5);
       p.scale.setScalar(.5 + phase * 2.1); p.material.opacity = (1 - phase) * .36;
     });
     const willowPower = options.willowActive ? 1 : .12;

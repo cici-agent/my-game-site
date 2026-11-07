@@ -33,13 +33,17 @@ const fill = new THREE.DirectionalLight(0x718bd2, .8); fill.position.set(100, 50
 
 const world = buildMagicWorld(scene);
 let stationAsset = null;
+let trainAsset = null;
+const trainWheels = [];
+let trainWheelAngle = 0;
 const stationLoad = loadHighFidelityStation();
+const trainLoad = loadHighFidelityTrain();
 const avatar = buildAvatar('wizard', { hand: 'wand' }); avatar.root.scale.setScalar(1.04); scene.add(avatar.root);
 const player = { pos: world.points.start.clone(), face: Math.PI, moving: false };
 avatar.root.position.copy(player.pos);
 
 const chapters = [
-  { eyebrow: '第一章 · 入学来信后的清晨', title: '国王十字车站', text: '推着行李向前走，寻找藏在砖墙后的九又四分之三站台。', objective: '走到发光的拱门前，按 E 穿过砖墙' },
+  { eyebrow: '第一章 · 入学来信后的清晨', title: '国王十字车站', text: '九号和十号站台之间只有一堵再普通不过的砖墙。知道秘密的人，才会鼓起勇气径直走向它。', objective: '走到九、十号站台之间的砖墙前，按 E 穿过去' },
   { eyebrow: '第二章 · 隐藏的站台', title: '霍格沃茨特快', text: '蒸汽在站台上升起，红色列车已经准备出发。', objective: '走到列车旁，按 E 登上列车' },
   { eyebrow: '第三章 · 北行列车', title: '窗外的魔法世界', text: '列车离开伦敦，穿过山谷、森林和暮色。', objective: '欣赏沿途风景，等待列车抵达湖畔' },
   { eyebrow: '第四章 · 黑湖岸边', title: '第一次看见城堡', text: '远处的塔楼亮起灯火。新生将从湖面抵达学校。', objective: '沿湖岸走到小船旁，按 E 上船' },
@@ -93,6 +97,35 @@ function loadHighFidelityStation() {
   });
 }
 
+function loadHighFidelityTrain() {
+  const loadingText = $('loading').querySelector('p');
+  return new Promise(resolve => {
+    new GLTFLoader().load(
+      'assets/3d/magic/train/hogwarts_express.glb',
+      gltf => {
+        trainAsset = gltf.scene;
+        trainAsset.name = 'Hogwarts_Express_High_Fidelity';
+        trainAsset.traverse(object => {
+          if (object.name.startsWith('WHL_Rotor_')) trainWheels.push(object);
+          if (!object.isMesh) return;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          object.castShadow = !materials.some(material => material && material.transparent);
+          object.receiveShadow = true;
+        });
+        world.train.group.add(trainAsset);
+        world.train.fallback.visible = false;
+        loadingText.textContent = '霍格沃茨特快已经进站……';
+        resolve(true);
+      },
+      undefined,
+      error => {
+        console.warn('高精度列车加载失败，继续使用轻量列车。', error);
+        resolve(false);
+      },
+    );
+  });
+}
+
 function setChapter(index) {
   state.chapter = index;
   const c = chapters[index];
@@ -124,7 +157,7 @@ function flash(callback) {
 function crossBarrier() {
   flash(() => {
     player.pos.copy(world.points.platform); cam.yaw = 0; cam.pitch = .28;
-    setChapter(1); sfx.chime([523, 659, 784, 1047]); toast('✨ 砖墙像水面一样打开了！');
+    setChapter(1); sfx.chime([523, 659, 784, 1047]); toast('✨ 砖墙没有撞上你，世界在另一侧展开了！');
   });
 }
 
@@ -170,7 +203,7 @@ function jumpTo(where) {
 
 function findNear() {
   const dist = point => Math.hypot(player.pos.x - point.x, player.pos.z - point.z);
-  if (state.chapter === 0 && dist(world.points.barrier) < 6) return { type: 'barrier', text: '✨ 按 E 穿过九又四分之三站台' };
+  if (state.chapter === 0 && dist(world.points.barrier) < 6) return { type: 'barrier', text: '🧱 按 E 鼓起勇气穿过这堵墙' };
   if (state.chapter === 1 && dist(world.points.board) < 8) return { type: 'train', text: '🚂 按 E 登上霍格沃茨特快' };
   if (state.chapter === 3 && dist(world.points.boat) < 7) return { type: 'boat', text: '🚣 按 E 乘船渡过黑湖' };
   if (state.chapter === 5 && dist(world.points.willow) < 13) return { type: 'willow', text: '🌳 按 E 观察打人柳' };
@@ -261,7 +294,10 @@ function updatePlayer(dt) {
 function updateStory(dt) {
   if (state.chapter === 2) {
     state.train = Math.min(1, state.train + dt / 18); const eased = THREE.MathUtils.smootherstep(state.train, 0, 1);
-    world.train.setProgress(eased); if (state.train >= 1) finishTrain();
+    world.train.setProgress(eased);
+    trainWheelAngle -= dt * 7.5;
+    trainWheels.forEach(wheel => wheel.rotation.x = trainWheelAngle);
+    if (state.train >= 1) finishTrain();
   }
   if (state.chapter === 4) {
     state.boat = Math.min(1, state.boat + dt / 13); world.boat.setProgress(state.boat);
@@ -309,10 +345,15 @@ else setChapter(0);
 if (state.completed) $('map').classList.add('unlocked');
 
 camera.position.set(0, 8, 145); camera.lookAt(0, 2, 132);
-Promise.all([stationLoad, new Promise(resolve => setTimeout(resolve, 650))]).then(() => {
+Promise.all([stationLoad, trainLoad, new Promise(resolve => setTimeout(resolve, 650))]).then(() => {
   $('loading').classList.add('done');
   setTimeout(() => $('loading').remove(), 800);
 });
 tick();
 
-window.__magic = { state, player, world, get stationAsset() { return stationAsset; }, restartStory, jumpTo };
+window.__magic = {
+  state, player, world,
+  get stationAsset() { return stationAsset; },
+  get trainAsset() { return trainAsset; },
+  restartStory, jumpTo,
+};
