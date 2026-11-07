@@ -2,6 +2,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { buildMagicWorld } from './world.js';
+import { CASTLE_ENTRY, castleLocation, castleCameraFraction, castlePassageAt, moveInCastle, nearCastleExit } from './castle-layout.js';
+import { buildCastleInterior } from './castle-interior.js';
+import { createCastleAtlas } from './castle-atlas.js';
 import { moveInStation, cameraFraction, canCrossBarrier, canBoardTrain, platformHeight, platformEdgeZ } from './station-navigation.js';
 import { onBridge, onWestPier, onEastPier, bridgeStepAllowed, bridgeHeight, pierHeight, landingHeight } from './lakeshore.js';
 import { lakesidePlatformHeight } from './railway.js';
@@ -31,22 +34,28 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1d2942); scene.fog = new THREE.FogExp2(0x24334d, .0038);
 const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, .1, 900);
-scene.add(new THREE.HemisphereLight(0xc3d5f0, 0x35452b, 1.75));
+const ambientSky = new THREE.HemisphereLight(0xc3d5f0, 0x35452b, 1.75);
+scene.add(ambientSky);
 const moon = new THREE.DirectionalLight(0xffe6ba, 2.25); moon.position.set(-70, 130, 55); moon.castShadow = true;
 moon.shadow.normalBias = .06;
 moon.shadow.bias = -.0004;
 moon.shadow.mapSize.set(2048, 2048); moon.shadow.camera.left = moon.shadow.camera.bottom = -150; moon.shadow.camera.right = moon.shadow.camera.top = 150; scene.add(moon);
 const fill = new THREE.DirectionalLight(0x718bd2, .8); fill.position.set(100, 50, -80); scene.add(fill);
 
-const world = buildMagicWorld(scene);
-const welcomeParty = buildWelcomeParty(scene);
+const outdoors = new THREE.Group();
+scene.add(outdoors);
+const world = buildMagicWorld(outdoors);
+const welcomeParty = buildWelcomeParty(outdoors);
 let rideShot = null, lastTrainTick = 0, cutToShot = false;
 document.addEventListener('visibilitychange', () => { lastTrainTick = performance.now(); });
+const outdoorFog = scene.fog, outdoorSky = scene.background;
+const indoorFog = new THREE.FogExp2(0x45403e, .011);
+let interior;
 let stationAsset = null;
 let trainAsset = null;
 const stationLoad = loadHighFidelityStation();
 const trainLoad = loadHighFidelityTrain();
-const avatar = buildAvatar('wizard', { hand: 'wand' }); avatar.root.scale.setScalar(1.04); scene.add(avatar.root);
+const avatar = buildAvatar('hogwarts-student', { hand: 'wand' }); avatar.root.scale.setScalar(1.04); scene.add(avatar.root);
 const player = { pos: world.points.start.clone(), face: Math.PI, moving: false };
 avatar.root.position.copy(player.pos);
 
@@ -56,17 +65,20 @@ const chapters = [
   { eyebrow: '第三章 · 霍格沃茨特快', title: '北上霍格莫德', text: '列车驶出伦敦。', objective: '欣赏沿线风景' },
   { eyebrow: '第四章 · 新生到站', title: '霍格莫德车站', text: '', objective: '与站台上的海格交谈，或沿坡道去码头乘船' },
   { eyebrow: '第五章 · 渡过黑湖', title: '城堡越来越近', text: '小船划开水面，宏伟的城堡在夜色中升起。', objective: '乘船前往城堡码头' },
-  { eyebrow: '序章完成 · 自由探索', title: '欢迎来到霍格沃茨', text: '城堡、黑湖、禁林和打人柳区域已经开放。后续章节将在这里继续。', objective: '自由探索；靠近打人柳、城堡正门可以触发场景' },
+  { eyebrow: '序章完成 · 自由探索', title: '欢迎来到霍格沃茨', text: '小船靠岸了。沿桥走向城堡正门，或从西码头踏上校地的小径。', objective: '靠近正门互动，进入城堡门厅' },
 ];
 
 const state = {
   chapter: 0, train: 0, boat: 0, cinematic: false, completed: localStorage.getItem('xcn_magic_intro_done') === '1',
-  willowUntil: 0, transition: false,
+  willowUntil: 0, transition: false, area: 'grounds',
 };
 const keys = {};
 const cam = { yaw: 0, pitch: .32, dist: 12 };
 let drag = null, near = null, toastTimer = 0, elapsed = 0, last = performance.now();
 const tmp = new THREE.Vector3(), prev = new THREE.Vector3(), move = new THREE.Vector3(), target = new THREE.Vector3();
+
+const entry = new URLSearchParams(location.search);
+const arrival = entry.get('arrival');
 
 function loadHighFidelityStation() {
   const loadingText = $('loading').querySelector('p');
@@ -85,7 +97,7 @@ function loadHighFidelityStation() {
           object.castShadow = !transparent && !materials.every(material => material?.name === 'MAT_Platform_Stone');
           object.receiveShadow = true;
         });
-        scene.add(stationAsset);
+        outdoors.add(stationAsset);
         world.station.visible = false;
         if (world.platformOwl) world.platformOwl.visible = false;
         loadingText.textContent = '站台已经准备好，列车即将进站……';
@@ -138,6 +150,11 @@ function setChapter(index) {
   document.body.classList.toggle('riding-express', index === 2);
   $('skipExpress').hidden = index !== 2;
   $('expressProgress').hidden = index !== 2;
+  document.body.classList.toggle('on-campus', index === 5);
+  document.body.classList.toggle('crossing', index >= 2 && index <= 4);
+  document.body.classList.toggle('lake-crossing', index === 4);
+  document.querySelector('.brand small').textContent = index === 5 ? '小菜鸟宇宙 · 校园探索' : '小菜鸟宇宙 · 入学序章';
+  $('campusHud').hidden = index !== 5;
   const c = chapters[index];
   $('chapterEyebrow').textContent = c.eyebrow; $('chapterTitle').textContent = c.title;
   $('chapterText').textContent = c.text; $('objective').textContent = c.objective;
@@ -210,19 +227,79 @@ function showWelcomeLine(line) {
 
 function boardBoat() {
   if (state.transition) return;
-  state.boat = 0; state.cinematic = true; avatar.root.visible = false; setChapter(4);
+  state.boat = 0; state.cinematic = true;
+  world.boat.setProgress(0);
+  avatar.root.visible = true; setChapter(4);
   sfx.whoosh(.9, true); toast('🚣 小船离开湖岸……');
+}
+
+function startAtLake() {
+  if (state.transition || state.cinematic) return;
+  setArea('grounds');
+  state.train = 1; world.train.setProgress(1);
+  boardBoat();
+  updateStory(0); updateCamera(1);
 }
 
 function finishBoat() {
   state.cinematic = false; avatar.root.visible = true; player.pos.set(-42, landingHeight, -95.9);
-  cam.yaw = 0; cam.pitch = .16; setChapter(5); updateCamera(1); sfx.chime([523, 659, 784, 1047, 1319]);
-  toast('🦉 入学序章完成！欢迎来到魔法学院', 4200);
+  placePlayer(player.pos, 0, .16);
+  setChapter(5); sfx.chime([523, 659, 784, 1047, 1319]);
+  updateCamera(1);
+  toast('小船已经靠岸。沿石桥前行，到正门按互动进入城堡。', 4400);
+}
+
+function setArea(area) {
+  if (state.area === area) return;
+  state.area = area;
+  const inside = area === 'castle';
+  if (inside && !interior) {
+    interior = buildCastleInterior();
+    scene.add(interior.group);
+  }
+  if (interior) interior.group.visible = inside;
+  outdoors.visible = !inside;
+  scene.fog = inside ? indoorFog : outdoorFog;
+  scene.background = inside ? indoorFog.color : outdoorSky;
+  moon.castShadow = !inside;
+  moon.intensity = inside ? .28 : 2.25;
+  ambientSky.intensity = inside ? .42 : 1.75;
+  fill.intensity = inside ? .22 : .8;
+}
+
+function placePlayer(point, yaw = 0, pitch = .14) {
+  player.pos.copy(point);
+  player.face = yaw + Math.PI;
+  avatar.root.rotation.y = player.face;
+  avatar.root.position.copy(player.pos);
+  avatar.root.visible = true;
+  cam.yaw = yaw; cam.pitch = pitch;
+}
+
+function travelTo(place) {
+  if (state.chapter !== 5 || state.cinematic || state.transition) return;
+  flash(() => {
+    setArea(place.area);
+    placePlayer(place.point, place.yaw);
+    if (state.area === 'castle') interior.update(player.pos, elapsed);
+    updateCamera(1);
+    updateCampusLocation();
+  });
+}
+
+function enterCastle() {
+  travelTo({ area: 'castle', point: CASTLE_ENTRY, yaw: 0 });
+}
+
+function leaveCastle() {
+  const z = -131.7;
+  travelTo({ area: 'grounds', point: {x: -42, y: bridgeHeight(z), z}, yaw: Math.PI });
 }
 
 function restartStory() {
   if (state.transition) return;
   welcomeParty.reset();
+  setArea('grounds');
   state.train = state.boat = 0; state.cinematic = false; state.transition = false;
   world.train.setProgress(0); world.boat.setProgress(0); avatar.root.visible = true;
   player.pos.copy(world.points.start); cam.yaw = 0; cam.pitch = .32; cam.dist = 12;
@@ -236,6 +313,7 @@ function jumpTo(where) {
   };
   const p = points[where]; if (!p) return;
   flash(() => {
+    setArea('grounds');
     state.cinematic = false; state.train = state.boat = 1;
     world.train.setProgress(1); world.boat.setProgress(1);
     avatar.root.visible = true; player.pos.set(p[0], p[1], p[2]); avatar.root.position.copy(player.pos);
@@ -244,8 +322,18 @@ function jumpTo(where) {
 }
 
 function findNear() {
+  if (state.cinematic || state.transition) return null;
   const dist = point => Math.hypot(player.pos.x - point.x, player.pos.z - point.z);
   const interact = isTouch ? '点互动' : '按 E';
+  if (state.area === 'castle') {
+    if (nearCastleExit(player.pos)) return {type: 'exit', text: `${interact}走出城堡`};
+    const passage = castlePassageAt(player.pos);
+    if (passage) return {type: 'passage', text: `${interact}${passage.label}`, passage};
+    const room = castleLocation(player.pos).room;
+    if (room?.id === 'owlery' && Math.hypot(player.pos.x-room.doorX,player.pos.z-room.z2+2) < 3.2)
+      return {type: 'tower-down', text: `${interact}沿西塔楼梯回到校地`};
+    return null;
+  }
   if (canCrossBarrier(player.pos, state.chapter)) return { type: 'barrier', text: `🧱 ${interact}穿过砖墙` };
   if (canBoardTrain(player.pos, world.points.board, state.chapter)) return { type: 'train', text: `🚂 ${interact}登上霍格沃茨特快` };
   if (state.chapter === 3 && onEastPier(player.pos.x, player.pos.z) && dist(world.points.boat) < 3) return { type: 'boat', text: `🚣 ${interact}乘船渡过黑湖` };
@@ -253,12 +341,15 @@ function findNear() {
     const person = welcomeParty.nearby(player.pos);
     if (person) return { type: 'talk', id: person.id, text: `${interact}与${person.name}交谈` };
   }
-  if (state.chapter === 5 && dist(world.points.willow) < 13) return { type: 'willow', text: '🌳 按 E 观察打人柳' };
-  if (state.chapter === 5 && dist(world.points.castle) < 3) return { type: 'castle', text: `🏰 ${interact}轻叩城堡正门` };
+  if (state.chapter === 5 && dist(world.points.willow) < 13) return { type: 'willow', text: `${interact}观察打人柳` };
+  if (state.chapter === 5 && dist(world.points.castle) < 3 && onBridge(player.pos.x, player.pos.z)) return { type: 'castle', text: `${interact}推开城堡正门` };
+  if (state.chapter === 5 && dist(world.grounds.places.find(p => p.id === 'owlery')) < 3)
+    return {type: 'tower-up', text: `${interact}登上西塔猫头鹰棚屋`};
   return null;
 }
 
 function action() {
+  if (atlas.isOpen) return;
   sfx.unlock();
   if (state.cinematic || state.transition) return;
   near = findNear();
@@ -269,12 +360,18 @@ function action() {
   else if (near.type === 'talk') showWelcomeLine(welcomeParty.talk(near.id));
   else if (near.type === 'willow') {
     state.willowUntil = elapsed + 5; sfx.whoosh(.8, false); toast('🌿 小心！树枝猛地挥了过来！');
-  } else if (near.type === 'castle') {
-    sfx.chime([659, 784, 988]); toast('🚪 城堡内部将在下一章开放：分院仪式与大礼堂');
-  }
+  } else if (near.type === 'castle') enterCastle();
+  else if (near.type === 'exit') leaveCastle();
+  else if (near.type === 'passage') travelTo({area:'castle', point:near.passage.destination, yaw:0});
+  else if (near.type === 'tower-up') travelTo(atlas.getPlace('castle', 'owlery'));
+  else if (near.type === 'tower-down') travelTo(atlas.getPlace('grounds', 'owlery'));
 }
 
 addEventListener('keydown', event => {
+  if (atlas.isOpen || event.defaultPrevented) return;
+  if (event.code === 'KeyM' && state.chapter === 5 && !state.transition) {
+    event.preventDefault(); if (!event.repeat) atlas.open(); return;
+  }
   sfx.unlock(); keys[event.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) event.preventDefault();
   if (event.code === 'KeyE' && !event.repeat) action();
@@ -289,7 +386,7 @@ renderer.domElement.addEventListener('pointerdown', event => {
 renderer.domElement.addEventListener('pointermove', event => {
   if (!drag || drag.id !== event.pointerId || state.cinematic) return;
   cam.yaw -= (event.clientX - drag.x) * .006;
-  cam.pitch = THREE.MathUtils.clamp(cam.pitch + (event.clientY - drag.y) * .004, -.05, .95);
+  cam.pitch = THREE.MathUtils.clamp(cam.pitch + (event.clientY - drag.y) * .004, -.58, .95);
   drag.x = event.clientX; drag.y = event.clientY;
 });
 renderer.domElement.addEventListener('pointerup', () => drag = null);
@@ -308,6 +405,7 @@ stick.addEventListener('pointermove', event => { if (event.pointerId === joy.id)
 function endJoy(event) { if (event.pointerId !== joy.id) return; joy.id = null; joy.x = joy.y = 0; knob.style.transform = ''; }
 stick.addEventListener('pointerup', endJoy); stick.addEventListener('pointercancel', endJoy);
 $('actBtn').onclick = action; $('restart').onclick = restartStory;
+$('lakeStart').onclick = startAtLake;
 $('skipExpress').onclick = () => {
   if (state.chapter === 2 && !state.transition) flash(finishTrain);
 };
@@ -324,11 +422,7 @@ function canWalkOutsideStation(x, z) {
   if (onBridge(x, z) || onWestPier(x, z) || onEastPier(x, z)) return true;
   if (((x - world.lake.x) / world.lake.rx) ** 2 + ((z - world.lake.z) / world.lake.rz) ** 2 < 1) return false;
   if (((x + 42) / 40.7) ** 2 + ((z + 153) / 20) ** 2 < 1) return false;
-  if (Math.hypot(x + 92, z + 108) < 4.2) return false;
-  for (const tree of world.forest.children) {
-    if (Math.abs(x - tree.position.x) < 1.1 && Math.hypot(x - tree.position.x, z - tree.position.z) < 1.1) return false;
-  }
-  return true;
+  return Math.hypot(x + 92, z + 108) >= 4.2 && world.grounds.canWalk(x, z);
 }
 
 function floorAt(x, z) {
@@ -339,8 +433,23 @@ function floorAt(x, z) {
   return lakesidePlatformHeight(x, z);
 }
 
+function moveOutdoors(dx, dz) {
+  moveInStation(player.pos, dx, dz);
+  if (!bridgeStepAllowed(prev.x, prev.z, player.pos.x, prev.z) ||
+      !canWalkOutsideStation(player.pos.x, prev.z)) player.pos.x = prev.x;
+  if (!bridgeStepAllowed(player.pos.x, prev.z, player.pos.x, player.pos.z) ||
+      !canWalkOutsideStation(player.pos.x, player.pos.z)) player.pos.z = prev.z;
+  player.pos.x = THREE.MathUtils.clamp(player.pos.x, -190, 190);
+  player.pos.z = THREE.MathUtils.clamp(player.pos.z, -190, 152);
+  player.pos.y = floorAt(player.pos.x, player.pos.z);
+}
+
 function updatePlayer(dt) {
-  if (state.cinematic || state.transition) { player.moving = false; avatar.animate(dt, 0, false, false); return; }
+  if (state.cinematic || state.transition) {
+    player.moving = false;
+    avatar.animate(dt, 0, false, state.chapter === 4);
+    return;
+  }
   let forward = 0, side = 0;
   if (keys.KeyW || keys.ArrowUp) forward += 1;
   if (keys.KeyS || keys.ArrowDown) forward -= 1;
@@ -353,17 +462,13 @@ function updatePlayer(dt) {
     prev.copy(player.pos);
     const speed = keys.ShiftLeft || keys.ShiftRight ? 11 : 7;
     move.normalize();
-    moveInStation(player.pos, move.x * speed * dt * amount, move.z * speed * dt * amount);
-    if (!bridgeStepAllowed(prev.x, prev.z, player.pos.x, prev.z) ||
-        !canWalkOutsideStation(player.pos.x, prev.z)) player.pos.x = prev.x;
-    if (!bridgeStepAllowed(player.pos.x, prev.z, player.pos.x, player.pos.z) ||
-        !canWalkOutsideStation(player.pos.x, player.pos.z)) player.pos.z = prev.z;
-    player.pos.y = floorAt(player.pos.x, player.pos.z);
+    const distance = speed * dt * amount;
+    if (state.area === 'castle') moveInCastle(player.pos, move.x * distance, move.z * distance, interior.solids);
+    else moveOutdoors(move.x * distance, move.z * distance);
     player.face = Math.atan2(move.x, move.z);
     amount = Math.min(1, Math.hypot(player.pos.x - prev.x, player.pos.z - prev.z) / Math.max(.001, speed * dt));
     player.moving = amount > .01;
   }
-  player.pos.x = THREE.MathUtils.clamp(player.pos.x, -190, 190); player.pos.z = THREE.MathUtils.clamp(player.pos.z, -190, 152);
   avatar.root.position.copy(player.pos);
   const turn = player.face - avatar.root.rotation.y;
   avatar.root.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt * 12);
@@ -389,10 +494,13 @@ function updateStory(dt) {
   }
   if (state.chapter === 4) {
     state.boat = Math.min(1, state.boat + dt / 13); world.boat.setProgress(state.boat);
+    avatar.root.position.set(0, -.32, -.88);
+    world.boat.group.localToWorld(avatar.root.position);
+    avatar.root.rotation.y = world.boat.group.rotation.y;
     if (state.boat >= 1) finishBoat();
   }
   near = findNear();
-  const onPlatformChapter = state.chapter === 3 || state.chapter === 5;
+  const onPlatformChapter = state.area === 'grounds' && (state.chapter === 3 || state.chapter === 5);
   // The two stations share one world. Show London only while it is within the player's region.
   const inLondon = state.chapter < 2 || (state.chapter === 2 && state.train < .19) ||
     (state.chapter === 5 && player.pos.z > 45 && Math.abs(player.pos.x) < 105);
@@ -403,6 +511,28 @@ function updateStory(dt) {
   $('prompt').textContent = near ? near.text : '';
   $('prompt').classList.toggle('show', !!near);
   $('actBtn').classList.toggle('show', !!near && !state.cinematic);
+}
+
+const atlas = createCastleAtlas({
+  grounds: world.grounds.places, gate: world.points.castle,
+  context: () => ({ area:state.area, position:player.pos, yaw:cam.yaw }),
+  onTravel: travelTo, onRestart: restartStory,
+  onOpen() {
+    for (const key of Object.keys(keys)) keys[key] = false;
+    drag = null; joy.id = null; joy.x = joy.y = 0; knob.style.transform = '';
+  },
+});
+let lastLocation = '';
+function updateCampusLocation() {
+  if (state.chapter !== 5) return;
+  const current = atlas.locate();
+  const key = `${current.layer}/${current.id}`;
+  if (lastLocation === key) return;
+  lastLocation = key;
+  $('placeFloor').textContent = current.layer;
+  $('placeName').textContent = current.name;
+  $('placeDetail').textContent = current.description;
+  atlas.visit(current);
 }
 
 function updateCamera(dt) {
@@ -422,24 +552,47 @@ function updateCamera(dt) {
     cutToShot = false;
   } else if (state.chapter === 4) {
     const boat = world.boat.group;
-    tmp.set(12, 7, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), boat.rotation.y).add(boat.position);
-    camera.position.lerp(tmp, Math.min(1, dt * 2.5)); target.copy(boat.position).add(new THREE.Vector3(0, 1.4, 0));
+    // Keep the castle above the bow throughout the crossing, including portrait screens.
+    const dx = -42 - boat.position.x, dz = -159 - boat.position.z;
+    const range = Math.hypot(dx, dz);
+    const nx = dx / range, nz = dz / range;
+    tmp.copy(boat.position);
+    tmp.x -= nx * 9 + nz * 1.25; tmp.z -= nz * 9 - nx * 1.25; tmp.y += 3.5;
+    camera.position.lerp(tmp, Math.min(1, dt * 2.5));
+    target.copy(boat.position); target.x += nx * 22; target.z += nz * 22; target.y += 6.8;
   } else {
-    target.copy(player.pos); target.y += 1.8;
-    const horizontal = Math.cos(cam.pitch) * cam.dist;
-    tmp.set(Math.sin(cam.yaw) * horizontal, Math.sin(cam.pitch) * cam.dist + 2.2, Math.cos(cam.yaw) * horizontal).add(target);
+    const inside = state.area === 'castle';
+    target.copy(player.pos); target.y += inside ? 1.68 : 1.8;
+    const onApproach = !inside && state.chapter === 5 && Math.abs(player.pos.x + 42) < 6 &&
+      (onWestPier(player.pos.x, player.pos.z) || onBridge(player.pos.x, player.pos.z));
+    const lookUp = onApproach ? 2.7 * Math.max(0, Math.cos(cam.yaw)) : 0;
+    target.y += lookUp;
+    const distance = inside ? Math.min(cam.dist * .55, 6.5) : cam.dist;
+    const horizontal = Math.cos(cam.pitch) * distance;
+    tmp.set(Math.sin(cam.yaw) * horizontal, Math.sin(cam.pitch) * distance + (inside ? .62 : 2.2), Math.cos(cam.yaw) * horizontal).add(target);
+    tmp.y -= lookUp * 1.9;
+    if (!inside) tmp.y = Math.max(tmp.y, floorAt(tmp.x, tmp.z) + .5);
     camera.position.lerp(tmp, Math.min(1, dt * 7));
-    const fraction = cameraFraction(target, camera.position, state.train === 0);
+    const fraction = inside ? castleCameraFraction(target, camera.position, interior.solids) :
+      Math.min(cameraFraction(target, camera.position, state.train === 0), world.grounds.cameraFraction(target, camera.position));
     camera.position.lerpVectors(target, camera.position, fraction);
+    avatar.root.visible = camera.position.distanceToSquared(target) > 1.1;
+    if (fraction < .001) camera.position.lerpVectors(target, tmp, .004);
   }
   camera.lookAt(target);
 }
 
+let sceneReady = false;
 function tick() {
-  const now = performance.now(), dt = Math.min((now - last) / 1000, .05); last = now; elapsed += dt;
+  requestAnimationFrame(tick);
+  const now = performance.now(), dt = Math.min((now - last) / 1000, .05); last = now;
+  if (!sceneReady || atlas.isOpen) return;
+  elapsed += dt;
   updatePlayer(dt); updateStory(dt); updateCamera(dt);
-  world.update(dt, elapsed, { willowActive: elapsed < state.willowUntil });
-  renderer.render(scene, camera); requestAnimationFrame(tick);
+  if (state.area === 'castle') interior.update(player.pos, elapsed);
+  else world.update(dt, elapsed, { willowActive: elapsed < state.willowUntil });
+  updateCampusLocation();
+  renderer.render(scene, camera);
 }
 
 addEventListener('resize', () => {
@@ -447,16 +600,22 @@ addEventListener('resize', () => {
 });
 
 // 支持测试和后续章节直接定位；普通访问始终从故事开端开始。
-const debugChapter = Number(new URLSearchParams(location.search).get('chapter'));
-if (debugChapter === 5) { state.completed = true; state.train = state.boat = 1; player.pos.set(-42, landingHeight, -95.9); world.train.setProgress(1); world.boat.setProgress(1); setChapter(5); }
+const debugChapter = Number(entry.get('chapter'));
+if (debugChapter === 5 || arrival === 'castle') {
+  state.train = state.boat = 1; world.train.setProgress(1); world.boat.setProgress(1); setChapter(5);
+  if (arrival === 'castle') { setArea('castle'); placePlayer(CASTLE_ENTRY); }
+  else placePlayer({x:-42, y:landingHeight, z:-95.9});
+}
 else setChapter(0);
 if (state.completed) $('map').classList.add('unlocked');
 
-camera.position.set(0, 8, 145); camera.lookAt(0, 2, 132);
+camera.position.set(0, 8, 145); updateCamera(1);
 Promise.all([stationLoad, trainLoad, new Promise(resolve => setTimeout(resolve, 650))]).then(() => {
+  sceneReady = true;
   $('loading').classList.add('done');
   if (debugChapter === 2) boardTrain();
   if (debugChapter === 3) finishTrain();
+  if (arrival === 'lake') startAtLake();
   setTimeout(() => $('loading').remove(), 800);
 });
 tick();

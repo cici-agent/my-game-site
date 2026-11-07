@@ -7,6 +7,7 @@
 <title>魔法学院星球 · 小菜鸟宇宙</title>
 <link rel="icon" href="assets/logo.jpg" type="image/jpeg">
 <link rel="stylesheet" href="css/magic-academy.css">
+<link rel="stylesheet" href="css/castle-atlas.css">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
@@ -15,7 +16,7 @@
 </script>
 </head>
 <body>
-<canvas id="scene"></canvas>
+<canvas id="scene" tabindex="-1" aria-label="魔法学院游戏场景"></canvas>
 <div id="transition"><div class="transition-star">✦</div></div>
 
 <header class="hud">
@@ -36,6 +37,34 @@
   </div>
 </aside>
 
+<aside id="campusHud" hidden aria-label="校园探索">
+  <button id="openAtlas" type="button" aria-haspopup="dialog" aria-controls="castleAtlas">
+    <span class="compass-seal" aria-hidden="true">✥</span><span>校园地图</span><kbd>M</kbd>
+  </button>
+  <div id="placePanel"><small id="placeFloor"></small><h1 id="placeName"></h1><p id="placeDetail"></p></div>
+</aside>
+
+<dialog id="castleAtlas" aria-labelledby="atlasTitle">
+  <header class="atlas-header">
+    <div><small>HOGWARTS</small><h2 id="atlasTitle">霍格沃茨地图</h2></div>
+    <button id="closeAtlas" type="button" aria-label="合上地图">×</button>
+  </header>
+  <div class="atlas-layout">
+    <section class="atlas-chart" aria-label="平面图">
+      <div class="atlas-chart-head"><label for="atlasFloor">图层</label><select id="atlasFloor"></select></div>
+      <canvas id="atlasPlan" aria-label="楼层或校园平面图，地点也可在目录中选择"></canvas>
+      <div class="atlas-legend"><span>◆ 所选地点</span><span>● 你的位置</span></div>
+    </section>
+    <section class="atlas-directory" aria-label="地点目录">
+      <input id="atlasSearch" type="search" placeholder="搜索全校地点" aria-label="搜索全校地点" autocomplete="off">
+      <div id="atlasList" aria-label="地点"></div>
+      <div class="atlas-destination"><small id="atlasSection"></small><h3 id="atlasPlace"></h3><p id="atlasNote"></p></div>
+      <button type="button" id="atlasTravel">前往此处 <span aria-hidden="true">→</span></button>
+    </section>
+  </div>
+  <footer class="atlas-footer"><span id="atlasProgress"></span><button type="button" id="atlasRestart">重走入学序章</button></footer>
+</dialog>
+
 <section id="story" class="story-card">
   <button id="collapseStory" class="collapse" title="收起故事卡">⌄</button>
   <div class="story-top"><span id="chapterEyebrow"></span><b id="chapterNum"></b></div>
@@ -46,6 +75,7 @@
     <div class="story-progress" aria-label="故事进度">
       <i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i>
     </div>
+    <button id="lakeStart" type="button">从黑湖乘船入学 →</button>
     <progress id="expressProgress" max="1" value="0" aria-label="列车行程" hidden></progress>
     <button id="skipExpress" type="button" hidden>直接到站</button>
     <button id="restart">↻ 从头开始</button>

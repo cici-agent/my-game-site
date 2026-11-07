@@ -71,6 +71,29 @@ export const SKINS = {
 // ---------- 各皮肤专属部件 ----------
 function hatGroup(ctx) { const g = new THREE.Group(); ctx.head.add(g); ctx.rig.hat = g; return g; }
 
+// Lightweight Harry for the academy when the detailed student model is unavailable.
+// Keep this out of the park's selectable skin catalogue.
+const schoolStudent = {
+  shirt: 0x272832, pants: 0x292b32, shoes: 0x211e21, head: SKIN_TONE, hair: 0x241c19,
+  extra({ root, head, r }) {
+    const frame = M(0x231f1b), red = M(0x822a31), brass = M(0xd2a450);
+    for (const sign of [-1, 1]) {
+      add(head, new THREE.TorusGeometry(r * .265, r * .028, 6, 26), frame,
+        [sign * r * .32, r * .08, r * .956], null, [0, sign * .17, 0]);
+    }
+    add(head, new THREE.BoxGeometry(r * .15, r * .043, r * .04), frame, [0, r * .095, r * .99]);
+    for (let i = 0; i < 5; i++) {
+      const x = (i - 2) * r * .25;
+      add(head, sph(r * .27, 10, 8), M(0x241c19), [x, r * (.60 + .09 * Math.cos(i)), r * .70],
+        [1, 1.36, .58], [0, 0, -.39 + .14 * i]);
+    }
+    add(root, cyl(.38, .51, .72, 20), M(0x24242c), [0, .69, 0]);
+    add(root, cyl(.36, .36, .13, 18), red, [0, 1.51, 0]);
+    add(root, new THREE.BoxGeometry(.16, .46, .08), red, [.16, 1.30, .39], null, [0, 0, -.12]);
+    for (const y of [1.2, 1.33]) add(root, new THREE.BoxGeometry(.166, .044, .084), brass, [.16, y, .393]);
+  }
+};
+
 function explorerExtra(ctx) {
   const { r } = ctx, h = hatGroup(ctx), tan = M(0xe8c98a);
   add(h, cyl(r * 1.25, r * 1.25, r * .08, 24), tan, [0, r * .55, 0]);
@@ -332,7 +355,7 @@ export function buildPet(key) {
 export function buildAvatar(skinKey = 'explorer', decor = {}) {
   // 动物皮肤用四条腿（小黄鸡两条腿）的身体
   if (ANIMAL_KEYS.includes(skinKey)) return buildAnimal(skinKey, decor, { M, METAL, GLOW, add, sph, cone, cyl, face, buildDecor, star3D, canvasTex });
-  const S = SKINS[skinKey] || SKINS.explorer;
+  const S = skinKey === 'hogwarts-student' ? schoolStudent : (SKINS[skinKey] || SKINS.explorer);
   const root = new THREE.Group();
   const rig = { blink: [], ears: [], tails: [], decor: {} };
   const mk = S.metal ? METAL : M;

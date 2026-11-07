@@ -2,12 +2,16 @@
 import * as THREE from 'three';
 import { bridgeHeight, bridgeEnd, bridgeStart, gateHeight, landingHeight, pierHeight } from './lakeshore.js';
 import { platformEdgeZ, platformHeight, stationFixtures } from './station-navigation.js';
-import { buildRailway, inRailwayClearing, placeBogie, placeTrainPart, railOffset, trainStop, travelledDistance, vehicleOffsets } from './railway.js';
+import { buildRailway, placeBogie, placeTrainPart, railOffset, trainStop, travelledDistance, vehicleOffsets } from './railway.js';
+
+import { buildCastleShell, buildViaduct, buildLakeSkiff } from './castle-exterior.js';
+import { buildGrounds } from './castle-grounds.js';
+import { buildHighlands, lakeSurface } from './highlands.js';
 
 const firstCoachRearDoor = 14.7 + 4.7;
 
 const M = (color, options = {}) => new THREE.MeshStandardMaterial({ color, roughness: .72, ...options });
-const stone = M(0x686579), darkStone = M(0x3f4053), roof = M(0x17233a, { roughness: .65 });
+const stone = M(0x686579), darkStone = M(0x3f4053);
 const gold = M(0xe7bd5b, { emissive: 0x7a4d12, emissiveIntensity: .35, metalness: .25 });
 
 function add(parent, geometry, material, position = [0, 0, 0], rotation = null, scale = null) {
@@ -216,38 +220,11 @@ function buildTrain(scene) {
   return { group: train, fallback, smoke, setProgress, attachAsset };
 }
 
-function tower(parent, x, z, h, radius, sides = 10) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); parent.add(g);
-  add(g, new THREE.CylinderGeometry(radius * .92, radius, h, sides), stone, [0, h / 2, 0]);
-  add(g, new THREE.ConeGeometry(radius * 1.28, radius * 2.2, sides), roof, [0, h + radius * 1.1, 0]);
-  for (let y = 4; y < h - 2; y += 4.2) {
-    [0, Math.PI / 2, Math.PI, -Math.PI / 2].forEach(a => {
-      const win = add(g, new THREE.PlaneGeometry(.45, 1.15), M(0xffdc83, { emissive: 0xffad33, emissiveIntensity: .9 }), [Math.sin(a) * (radius + .02), y, Math.cos(a) * (radius + .02)]);
-      win.rotation.y = a; win.castShadow = false;
-    });
-  }
-  return g;
-}
-
 function buildCastle(scene) {
   const castle = new THREE.Group(); castle.position.set(-42, 2, -145); scene.add(castle);
-  // 岩壁与城堡地基
-  add(castle, new THREE.CylinderGeometry(34, 40, 12, 14), M(0x454653), [0, 4, -8], null, [1, 1, .48]);
-  add(castle, new THREE.BoxGeometry(34, 16, 23), stone, [0, 18, 0]);
-  add(castle, new THREE.BoxGeometry(25, 11, 31), darkStone, [12, 15, -13]);
-  add(castle, new THREE.BoxGeometry(42, 2, 27), roof, [0, 27, 0]);
-  tower(castle, -18, 8, 31, 4.2); tower(castle, 18, 8, 34, 4.5); tower(castle, -15, -15, 28, 3.8); tower(castle, 22, -20, 39, 5.2);
-  tower(castle, 4, -20, 46, 5.8, 12);
+  buildCastleShell(castle);
 
-  // 大礼堂高窗
-  for (let x = -12; x <= 12; x += 4) {
-    const w = add(castle, new THREE.PlaneGeometry(1.1, 4.5), M(0xffd97a, { emissive: 0xff9d2e, emissiveIntensity: 1.1 }), [x, 19, 11.53]);
-    w.castShadow = false;
-  }
-  add(castle, new THREE.BoxGeometry(6, 8, .3), M(0x241b18), [0, 14, 11.65]);
-  add(castle, new THREE.TorusGeometry(3, .55, 10, 24, Math.PI), stone, [0, 18, 11.8]);
-  const castleLabel = label('霍格沃茨魔法学校', '#d7b968', 520); castleLabel.position.set(0, 37, 13); castle.add(castleLabel);
-
+  buildViaduct(scene,bridgeStart,bridgeEnd,bridgeHeight);
   // 通向正门的石桥和火把
   const rise = gateHeight - landingHeight, run = bridgeStart - bridgeEnd;
   const span = Math.hypot(run, rise), tilt = Math.atan2(rise, run);
@@ -275,9 +252,9 @@ function buildCastle(scene) {
 }
 
 function buildLake(scene) {
-  const waterMat = new THREE.MeshPhysicalMaterial({ color: 0x244a68, roughness: .18, metalness: .05, transparent: true, opacity: .86, transmission: .08, side: THREE.DoubleSide });
+  const waterMat = lakeSurface();
   const water = add(scene, new THREE.CircleGeometry(54, 80), waterMat, [5, .08, -87], [-Math.PI / 2, 0, 0], [1.35, 1, 1]);
-  water.receiveShadow = true;
+  water.castShadow = false;
   const shore = add(scene, new THREE.RingGeometry(53, 58, 80), M(0x5a5948), [5, .01, -87], [-Math.PI / 2, 0, 0], [1.35, 1, 1]);
   shore.receiveShadow = true;
   return water;
@@ -285,12 +262,7 @@ function buildLake(scene) {
 
 function buildBoat(scene) {
   const boat = new THREE.Group(); boat.position.set(73, .25, -82); scene.add(boat);
-  const wood = M(0x5b3425), trim = M(0xc59b55);
-  const hull = new THREE.SphereGeometry(1, 32, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-  wood.side = THREE.DoubleSide;
-  add(boat, hull, wood, [0, .65, 0], null, [1.35, .98, 2.75]);
-  for (const z of [-.95, .85]) add(boat, new THREE.BoxGeometry(2.45, .12, .34), trim, [0, .48, z]);
-  [-1, 1].forEach(s => add(boat, new THREE.CylinderGeometry(.07, .1, 3.8, 8), trim, [s * 1.6, .8, 0], [0, 0, s * 1.2]));
+  buildLakeSkiff(boat);
   const start = new THREE.Vector3(73, .25, -82.4), end = new THREE.Vector3(-42, .25, -91.4);
   function setProgress(value) {
     const k = THREE.MathUtils.smoothstep(THREE.MathUtils.clamp(value, 0, 1), 0, 1);
@@ -316,24 +288,6 @@ function buildWillow(scene) {
   return { group: willow, branches, activeUntil: 0 };
 }
 
-function buildForest(scene) {
-  const forest = new THREE.Group(); scene.add(forest);
-  const rand = seeded(31), trunk = M(0x493326), needles = [M(0x173f31, { flatShading: true }), M(0x214c38, { flatShading: true }), M(0x2b563d, { flatShading: true })];
-  let made = 0;
-  while (made < 180) {
-    const x = rand() * 330 - 165, z = rand() * 330 - 170;
-    const inLake = Math.pow((x - 5) / 76, 2) + Math.pow((z + 87) / 58, 2) < 1;
-    const nearStation = z > 72 && Math.abs(x) < 72;
-    const nearCastle = Math.abs(x + 42) < 52 && Math.abs(z + 145) < 48;
-    if (inLake || nearStation || nearCastle || inRailwayClearing(x,z) || Math.hypot(x + 92, z + 108) < 14) continue;
-    const h = 5 + rand() * 8, tree = new THREE.Group(); tree.position.set(x, 0, z); tree.rotation.y = rand() * Math.PI; forest.add(tree);
-    add(tree, new THREE.CylinderGeometry(.22, .38, h * .5, 7), trunk, [0, h * .25, 0]);
-    for (let i = 0; i < 3; i++) add(tree, new THREE.ConeGeometry(h * (.24 - i * .025), h * .48, 8), needles[(made + i) % needles.length], [0, h * (.42 + i * .18), 0]);
-    made++;
-  }
-  return forest;
-}
-
 function buildSky(scene) {
   const count = 900, positions = new Float32Array(count * 3), rand = seeded(7);
   for (let i = 0; i < count; i++) {
@@ -347,17 +301,18 @@ function buildSky(scene) {
 
 export function buildMagicWorld(scene) {
   add(scene, new THREE.PlaneGeometry(430, 430), M(0x334b32), [0, -.04, -35], [-Math.PI / 2, 0, 0]);
+  buildHighlands(scene);
   buildRailway(scene);
   const station = buildStation(scene), train = buildTrain(scene), water = buildLake(scene), castle = buildCastle(scene);
-  const boat = buildBoat(scene), willow = buildWillow(scene), forest = buildForest(scene), stars = buildSky(scene);
+  const boat = buildBoat(scene), willow = buildWillow(scene), grounds = buildGrounds(scene), stars = buildSky(scene);
   const platformOwl = label('霍格沃茨特快', '#b73f4d', 420); platformOwl.position.set(-12, 9, 96); scene.add(platformOwl);
 
   const flameMeshes = [];
   scene.traverse(o => { if (o.userData && o.userData.flame) flameMeshes.push(o); });
   function update(dt, time, options = {}) {
     water.position.y = .08 + Math.sin(time * .7) * .035;
-    water.material.opacity = .82 + Math.sin(time * .45) * .04;
-    stars.rotation.y = time * .004;
+    water.material.uniforms.time.value = time;
+    stars.rotation.y = time * .0004;
     train.smoke.forEach((p, i) => {
       const phase = (time * .14 + p.userData.phase) % 1;
       p.position.set(Math.sin(i) * phase * .5, 5 + phase * 7, 3.5 - phase * 1.5);
@@ -371,7 +326,7 @@ export function buildMagicWorld(scene) {
     flameMeshes.forEach((f, i) => { f.scale.y = .8 + Math.sin(time * 9 + i) * .25; f.rotation.y = time * 4 + i; });
   }
   return {
-    station, train, water, castle, boat, willow, forest, stars, platformOwl, update,
+    station, train, water, castle, boat, willow, grounds, forest: grounds.forest, stars, platformOwl, update,
     lake: { x: 5, z: -87, rx: 73, rz: 54 },
     points: {
       start: new THREE.Vector3(0, 0, 132), barrier: new THREE.Vector3(0, 0, 114), platform: new THREE.Vector3(0, platformHeight, 100),
