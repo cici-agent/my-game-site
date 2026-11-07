@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildAvatar, buildPet } from '../p/avatar.js';
 import { INV, loadInventory } from '../p/inventory.js';
 import { L, createLayout, ribbon } from './layout.js';
+import { createGarden, CROPS, LEVELS, itemInfo } from './garden.js';
 
 // ---------- 布局：弯弯的主路 + 零零散散的大空地 + 弯弯的小道（见 layout.js） ----------
 // 固定种子的随机数：每次打开布局都一样
@@ -242,6 +243,13 @@ const clouds = [];
 
 // ---------- 玩家：用自己的皮肤和装饰在家园里走（和游乐园一样） ----------
 const $ = id => document.getElementById(id);
+// ---------- 我的菜园：先放在离出生点最近的那块空地上（以后改成在镇政府领到的那块） ----------
+const homePlot = PLOTS.slice().sort((a, b) => Math.hypot(a.x - LAY.spawn.x, a.z - LAY.spawn.z) - Math.hypot(b.x - LAY.spawn.x, b.z - LAY.spawn.z))[0];
+const garden = createGarden({ scene, plot: homePlot });
+// 出生在自家空地门口外面，面朝菜园
+LAY.spawn.x = homePlot.gate.x + homePlot.face[0] * 5; LAY.spawn.z = homePlot.gate.z + homePlot.face[1] * 5;
+LAY.spawn.yaw = Math.atan2(-homePlot.face[0], -homePlot.face[1]);
+
 // 在菜鸟家园里默认是小农民的样子；买了别的皮肤的照样穿自己的皮肤
 const homeSkin = k => (!k || k === 'explorer') ? 'farmer' : k;
 let me = buildAvatar('farmer'), pet = null;
@@ -261,7 +269,9 @@ const keys = {};
 let overview = false;
 const cam = { yaw: LAY.spawn.yaw, pitch: .3, dist: 13 };   // 离得远一点：整个人从头到脚都看得见   // 相机在玩家南边，看向北边的广场
 addEventListener('keydown', e => {
+  if (pickOpen) { pickKey(e); return; }
   keys[e.code] = true;
+  if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) doAction();
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
   if (e.code === 'KeyM' && !e.repeat) overview = !overview;   // M：俯瞰整个小镇
@@ -295,6 +305,61 @@ function moveJoy(e) {
 $('jumpBtn').addEventListener('pointerdown', e => { keys.Space = true; $('jumpBtn').setPointerCapture(e.pointerId); });
 ['pointerup', 'pointercancel'].forEach(ev => $('jumpBtn').addEventListener(ev, () => keys.Space = false));
 
+// ---------- 菜园操作：走到田边按 E（触屏点按钮） ----------
+let nearBed = null, pickOpen = false, toastT = 0;
+function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2400); }
+function doAction() {
+  if (!nearBed) return;
+  const r = garden.act(nearBed);
+  if (!r) return;
+  if (r.pick) return openPick();
+  if (r.msg) toast(r.msg);
+  renderBag();
+}
+$('actBtn').addEventListener('click', () => doAction());
+// 选种子
+function seedChoices() { return Object.keys(CROPS).filter(k => CROPS[k].lv <= garden.level); }
+function openPick() {
+  const list = seedChoices();
+  $('pickList').innerHTML = list.map((k, i) => { const n = garden.bag.count('seed_' + k), C = CROPS[k];
+    return `<button data-k="${k}" ${n ? '' : 'disabled'}><b>${i + 1}</b><span class="e">${C.icon}</span>${C.name}<small>${n ? '种子 ×' + n : '没有种子'} · ${C.kind === 'pull' ? '拔' : '摘'} · ${fmtT(C.grow)}</small></button>`; }).join('');
+  $('pickList').querySelectorAll('button').forEach(b => b.onclick = () => choose(b.dataset.k));
+  $('pick').classList.add('show'); pickOpen = true; Object.keys(keys).forEach(k => keys[k] = false);
+}
+function closePick() { $('pick').classList.remove('show'); pickOpen = false; }
+function choose(k) { closePick(); if (!nearBed) return; const r = garden.act(nearBed, k); if (r && r.msg) toast(r.msg); renderBag(); }
+function pickKey(e) {
+  if (e.code === 'Escape' || e.code === 'KeyE') return closePick();
+  const m = /^Digit(\d)$/.exec(e.code); if (!m) return;
+  const k = seedChoices()[+m[1] - 1]; if (k && garden.bag.count('seed_' + k)) choose(k);
+}
+$('pickClose').onclick = closePick;
+const fmtT = sec => sec < 3600 ? Math.round(sec / 60) + ' 分钟' : (sec / 3600) + ' 小时';
+// 背包栏
+function renderBag() {
+  const b = garden.bag, cells = [];
+  for (let i = 0; i < b.cap; i++) { const sl = b.slots[i];
+    if (!sl) { cells.push('<div class="slot"></div>'); continue; }
+    const it = itemInfo(sl.key); cells.push(`<div class="slot${it.seed ? ' seed' : ''}" title="${it.name}"><span>${it.seed ? it.sub : it.icon}</span><i>${sl.n}</i>${it.seed ? '<em>种子</em>' : ''}</div>`); }
+  $('bag').innerHTML = cells.join('');
+}
+renderBag();
+garden.on(ev => { if (ev === 'allEaten') toast('😱 有一块田的菜被虫子吃光了！'); });
+// 管理员测试面板：切换菜园等级、加快生长、送种子、重置
+function renderDbg() {
+  $('dbgLv').innerHTML = Object.keys(LEVELS).map(l => `<button class="${+l === garden.level ? 'on' : ''}" data-l="${l}">${l} 级 · ${LEVELS[l]} 块</button>`).join('');
+  $('dbgSp').innerHTML = [1, 10, 60, 600].map(v => `<button class="${v === garden.speed ? 'on' : ''}" data-v="${v}">${v}×</button>`).join('');
+  $('dbgLv').querySelectorAll('button').forEach(b => b.onclick = () => { garden.debug.setLevel(+b.dataset.l); renderDbg(); toast(`菜园变成 ${b.dataset.l} 级：${LEVELS[b.dataset.l]} 块田`); });
+  $('dbgSp').querySelectorAll('button').forEach(b => b.onclick = () => { garden.debug.setSpeed(+b.dataset.v); renderDbg(); toast(`生长速度 ${b.dataset.v} 倍`); });
+}
+renderDbg();
+$('dbgSeeds').onclick = () => { garden.debug.giveSeeds(); renderBag(); toast('🎁 每种能种的种子各送 5 颗'); };
+$('dbgReset').onclick = () => { if (confirm('把菜园和背包都清空，重新开始？')) garden.debug.reset(); };
+$('dbgToggle').onclick = () => $('dbg').classList.toggle('open');
+setInterval(renderBag, 1500);
+// 自动测试用（只有网址带 ?test 才有）
+if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, homePlot, act: () => doAction(), choose: k => choose(k) };
+
 const WALK = 7.5, RUN = 12, GRAV = 26, JUMP = 9.5, EDGE = WR - 6;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
 camera.position.set(LAY.spawn.x - Math.sin(LAY.spawn.yaw) * 13, 5.5, LAY.spawn.z - Math.cos(LAY.spawn.yaw) * 13);
@@ -305,6 +370,7 @@ function step(dt, t) {
   if (keys.KeyA || keys.ArrowLeft) mx -= 1;
   if (keys.KeyD || keys.ArrowRight) mx += 1;
   if (joy.id !== null) { mx = joy.x; my = joy.y; }
+  if (pickOpen) mx = my = 0;
   const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
   const running = keys.ShiftLeft || keys.ShiftRight;
   const speed = (running ? RUN : WALK) * Math.min(1, len);
@@ -322,6 +388,7 @@ function step(dt, t) {
   if (player.pos.y <= 0) { player.pos.y = 0; player.vy = 0; player.ground = true; }
   // 碰撞：树、灌木、花坛；走到边上就停住
   const pr = .55;
+  garden.collide(player.pos);
   colliders.forEach(([cx, cz, cr]) => {
     const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
     if (d < min && d > 1e-4 && player.pos.y < 1.5) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
@@ -360,7 +427,13 @@ const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
   clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 560) c.position.x = -560; });
+  garden.update(dt);
   step(dt, t);
+  // 站在哪块田旁边：显示能做什么
+  nearBed = overview ? null : garden.nearest(player.pos.x, player.pos.z);
+  const pr = $('prompt');
+  if (nearBed) { const a = garden.actionFor(nearBed); pr.innerHTML = `<b>${isTouch ? '点「' + a.label + '」' : 'E · ' + a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
+  else { pr.classList.remove('show'); $('actBtn').classList.remove('show'); }
   renderer.render(scene, camera);
 });
 document.getElementById('loading')?.classList.add('hide');
