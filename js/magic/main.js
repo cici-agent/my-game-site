@@ -11,6 +11,9 @@ import { lakesidePlatformHeight } from './railway.js';
 import { rideSeconds, rideSceneAt, routeProgress } from './express-ride.js';
 import { arrivalGreeting, buildWelcomeParty } from './welcome.js';
 import { buildAvatar } from '../p/avatar.js';
+import { loadCharacter, releaseModel } from './characters.js';
+import { normalizeSelection, readSelection, writeSelection } from './character-catalog.js';
+import { createWardrobe } from './wardrobe.js';
 import * as sfx from '../u/sfx.js';
 
 const $ = id => document.getElementById(id);
@@ -55,7 +58,8 @@ let stationAsset = null;
 let trainAsset = null;
 const stationLoad = loadHighFidelityStation();
 const trainLoad = loadHighFidelityTrain();
-const avatar = buildAvatar('hogwarts-student', { hand: 'wand' }); avatar.root.scale.setScalar(1.04); scene.add(avatar.root);
+const avatar = { root: new THREE.Group(), model: null };
+scene.add(avatar.root);
 const player = { pos: world.points.start.clone(), face: Math.PI, moving: false };
 avatar.root.position.copy(player.pos);
 
@@ -79,6 +83,48 @@ const tmp = new THREE.Vector3(), prev = new THREE.Vector3(), move = new THREE.Ve
 
 const entry = new URLSearchParams(location.search);
 const arrival = entry.get('arrival');
+const directSceneEntry = arrival === 'lake' || arrival === 'castle' || ['2', '3'].includes(entry.get('chapter'));
+let equipped = readSelection() ?? (directSceneEntry ? normalizeSelection() : null);
+function wearModel(model) {
+  model.root.rotation.y = 0;
+  avatar.root.add(model.root);
+  avatar.model?.dispose();
+  avatar.model = model;
+}
+
+function useFallbackIfNeeded() {
+  if (avatar.model) return;
+  const fallback = buildAvatar('hogwarts-student', { hand: 'wand' });
+  fallback.dispose = () => releaseModel(fallback.root);
+  wearModel(fallback);
+}
+
+const wardrobe = createWardrobe({
+  getSelection: () => equipped ?? normalizeSelection(),
+  onOpen() {
+    for (const key of Object.keys(keys)) keys[key] = false;
+    drag = null;
+    joy.id = null; joy.x = joy.y = 0; knob.style.transform = '';
+    player.moving = false;
+  },
+  onApply(selection, model) {
+    wearModel(model);
+    equipped = normalizeSelection(selection);
+    if (!writeSelection(equipped)) toast('本次装扮已穿戴。浏览器暂时无法保存选择。');
+  },
+  onClose: useFallbackIfNeeded,
+});
+async function restoreCharacter() {
+  if (!equipped) return false;
+  try {
+    wearModel(await loadCharacter(equipped));
+    return true;
+  } catch (error) {
+    console.warn('已保存的人物暂时无法加载，重新打开衣装室。', error);
+    return false;
+  }
+}
+const characterLoad = restoreCharacter();
 
 function loadHighFidelityStation() {
   const loadingText = $('loading').querySelector('p');
@@ -349,7 +395,7 @@ function findNear() {
 }
 
 function action() {
-  if (atlas.isOpen) return;
+  if (wardrobe.isOpen || atlas.isOpen) return;
   sfx.unlock();
   if (state.cinematic || state.transition) return;
   near = findNear();
@@ -368,7 +414,7 @@ function action() {
 }
 
 addEventListener('keydown', event => {
-  if (atlas.isOpen || event.defaultPrevented) return;
+  if (wardrobe.isOpen || atlas.isOpen || event.defaultPrevented) return;
   if (event.code === 'KeyM' && state.chapter === 5 && !state.transition) {
     event.preventDefault(); if (!event.repeat) atlas.open(); return;
   }
@@ -447,7 +493,7 @@ function moveOutdoors(dx, dz) {
 function updatePlayer(dt) {
   if (state.cinematic || state.transition) {
     player.moving = false;
-    avatar.animate(dt, 0, false, state.chapter === 4);
+    avatar.model?.animate(dt, 0, false, state.chapter === 4);
     return;
   }
   let forward = 0, side = 0;
@@ -472,7 +518,7 @@ function updatePlayer(dt) {
   avatar.root.position.copy(player.pos);
   const turn = player.face - avatar.root.rotation.y;
   avatar.root.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt * 12);
-  avatar.animate(dt, amount, false, false);
+  avatar.model?.animate(dt, player.moving && (keys.ShiftLeft || keys.ShiftRight) ? amount * 1.5 : amount);
 }
 
 function updateStory(dt) {
@@ -586,7 +632,7 @@ let sceneReady = false;
 function tick() {
   requestAnimationFrame(tick);
   const now = performance.now(), dt = Math.min((now - last) / 1000, .05); last = now;
-  if (!sceneReady || atlas.isOpen) return;
+  if (!sceneReady || wardrobe.isOpen || atlas.isOpen) return;
   elapsed += dt;
   updatePlayer(dt); updateStory(dt); updateCamera(dt);
   if (state.area === 'castle') interior.update(player.pos, elapsed);
@@ -610,11 +656,15 @@ else setChapter(0);
 if (state.completed) $('map').classList.add('unlocked');
 
 camera.position.set(0, 8, 145); updateCamera(1);
-Promise.all([stationLoad, trainLoad, new Promise(resolve => setTimeout(resolve, 650))]).then(() => {
+const choosingOnArrival = !equipped;
+if (choosingOnArrival) wardrobe.open({ firstTime: true });
+Promise.all([characterLoad, stationLoad, trainLoad, new Promise(resolve => setTimeout(resolve, 650))]).then(([restored]) => {
   sceneReady = true;
   $('loading').classList.add('done');
   if (debugChapter === 2) boardTrain();
   if (debugChapter === 3) finishTrain();
+  if (directSceneEntry && !restored) useFallbackIfNeeded();
+  if (!choosingOnArrival && ((!restored && !directSceneEntry) || entry.has('wardrobe'))) wardrobe.open({ firstTime: !restored });
   if (arrival === 'lake') startAtLake();
   setTimeout(() => $('loading').remove(), 800);
 });
@@ -622,6 +672,8 @@ tick();
 
 window.__magic = {
   state, player, world,
+  get character() { return avatar.model?.root; },
+  get equipment() { return equipped && { ...equipped }; },
   get stationAsset() { return stationAsset; },
   get trainAsset() { return trainAsset; },
   restartStory, jumpTo,

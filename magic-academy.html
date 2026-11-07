@@ -8,6 +8,7 @@
 <link rel="icon" href="assets/logo.jpg" type="image/jpeg">
 <link rel="stylesheet" href="css/magic-academy.css">
 <link rel="stylesheet" href="css/castle-atlas.css">
+<link rel="stylesheet" href="css/magic-wardrobe.css">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
@@ -22,6 +23,7 @@
 <header class="hud">
   <div class="brand"><span class="brand-mark">🦉</span><div><b>魔法学院星球</b><small>小菜鸟宇宙 · 入学序章</small></div></div>
   <div class="hud-actions">
+    <button type="button" id="openWardrobe" class="universe" aria-haspopup="dialog" aria-controls="wardrobe">角色衣装室</button>
     <button id="mute" class="round" title="声音">🔊</button>
     <a class="universe" href="index.html?takeoff=magic">🚀 返回宇宙</a>
   </div>
@@ -90,6 +92,48 @@
 
 <div class="help">WASD / 方向键移动 · 拖动画面转视角 · E 互动 · Shift 加速</div>
 <div class="fan-note">非官方同人互动体验 · 3D 场景与模型为原创制作</div>
+
+<dialog id="wardrobe" aria-labelledby="wardrobeTitle">
+  <div class="wardrobe-layout">
+    <header class="wardrobe-header">
+      <div><span class="wardrobe-academy">霍格沃茨魔法学校</span><h2 id="wardrobeTitle" tabindex="-1">角色衣装室</h2></div>
+      <button type="button" id="wardrobeClose" class="wardrobe-close" aria-label="关闭衣装室" title="关闭衣装室">×</button>
+    </header>
+    <div class="wardrobe-main">
+      <section class="wardrobe-preview" aria-label="角色模型预览">
+        <div class="wardrobe-model" id="wardrobeViewport">
+          <div class="wardrobe-arch" aria-hidden="true"></div>
+          <canvas id="wardrobeCanvas" tabindex="0" aria-label="三维角色预览，可拖动或用左右方向键旋转"></canvas>
+          <div class="wardrobe-shot" role="group" aria-label="预览距离">
+            <button type="button" data-shot="full" aria-pressed="true">全身</button>
+            <button type="button" data-shot="portrait" aria-pressed="false">面部</button>
+          </div>
+          <div class="wardrobe-notice" id="wardrobeNotice" hidden>
+            <p id="wardrobeStatus" role="status" aria-live="polite"></p>
+            <button type="button" id="wardrobeRetry" hidden>重新加载</button>
+          </div>
+        </div>
+        <footer class="wardrobe-caption">
+          <div class="wardrobe-identity"><span id="wardrobeEnglish" lang="en"></span><h3 id="wardrobeName"></h3></div>
+          <div class="wardrobe-turn" role="group" aria-label="旋转角色">
+            <button type="button" data-turn="-1" aria-label="向左旋转" title="向左旋转">‹</button>
+            <span aria-hidden="true">旋转</span>
+            <button type="button" data-turn="1" aria-label="向右旋转" title="向右旋转">›</button>
+          </div>
+        </footer>
+      </section>
+      <div class="wardrobe-panel" id="wardrobeOptions">
+        <fieldset><legend>人物</legend><div class="wardrobe-choices" id="wardrobeHeroes"></div><p class="wardrobe-detail" id="wardrobeHeroDetail"></p></fieldset>
+        <fieldset><legend>着装</legend><div class="wardrobe-choices" id="wardrobeOutfits"></div><p class="wardrobe-detail" id="wardrobeOutfitDetail"></p></fieldset>
+        <fieldset><legend>随身魔杖</legend><div class="wardrobe-choices" id="wardrobeWands"></div><p class="wardrobe-detail" id="wardrobeWandDetail"></p></fieldset>
+      </div>
+    </div>
+    <footer class="wardrobe-footer">
+      <button type="button" id="wardrobeBack" class="wardrobe-back">取消</button>
+      <button type="button" id="wardrobeApply" class="wardrobe-apply" disabled><span id="wardrobeApplyLabel">穿戴并进入学院</span> <span aria-hidden="true">→</span></button>
+    </footer>
+  </div>
+</dialog>
 
 <div id="loading">
   <div class="loading-crest">🦉</div>
