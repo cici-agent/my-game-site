@@ -10,7 +10,7 @@ export const DEFAULT_PLANETS = [
   { kind: 'coins',  name: '金币星球', icon: '🪙', color: '#ffd23f', description: '闯关学习，赚金币',             sort_order: 3 },
   { kind: 'create', name: '创作星球', icon: '🎨', color: '#8b6bff', description: '说出点子，AI 帮你做游戏',      sort_order: 4 },
   { kind: 'home',   name: '我的星球', icon: '🏠', color: '#2ec4b6', description: '我的金币、头像和作品',         sort_order: 5 },
-  { kind: 'homestead', name: '菜鸟家园', icon: '🏡', color: '#7bc950', description: '自己的小屋、菜园和小动物（开发中）', sort_order: 7, coming_soon: true },
+  { kind: 'homestead', name: '菜鸟家园', icon: '🏡', color: '#7bc950', description: '每个人都有一个自己的小家', sort_order: 7, coming_soon: true },
 ];
 
 // 赚金币的挑战：识别方式 = 游戏文件路径。数学/拼写/语法/听力 4 个目前不在 games 表里，这里补上

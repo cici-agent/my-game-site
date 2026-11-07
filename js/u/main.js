@@ -261,6 +261,11 @@ async function finishLanding() {
     location.href = 'park.html';
     return;
   }
+  // 菜鸟家园：开发中，只有管理员能进去（其他人看到"正在开发中"）
+  if (p.kind === 'homestead' && ME && ME.profile.role === 'admin') {
+    location.href = 'homestead.html';
+    return;
+  }
   state.mode = 'landed'; state.landed = p; state.speed = 0; state.warp = 0;
   gate.visible = false; parkAt(p, true);
   flash(false); refreshUI();

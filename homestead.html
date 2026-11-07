@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#7bc950">
+<title>菜鸟家园 · 小菜鸟宇宙</title>
+<link rel="stylesheet" href="css/space.css">
+<style>
+  html, body { background: #bfe6ff; }
+  .hud-top .brand { text-shadow: 0 2px 8px rgba(20,60,20,.45); }
+  #devTag { position: fixed; top: calc(var(--top-h) + 4px); left: 50%; transform: translateX(-50%); z-index: 9;
+    background: rgba(30,70,30,.7); color: #fff; padding: 8px 18px; border-radius: 999px; font-weight: 800; font-size: 14px; white-space: nowrap; }
+  #takeoff { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 9; border: 0; border-radius: 18px;
+    background: #FF6B35; color: #fff; font: 800 16px inherit; font-family: inherit; padding: 12px 26px; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="hud-top">
+  <div class="brand"><div class="dot">🐣</div>小菜鸟宇宙<span class="where">· 菜鸟家园</span></div>
+</div>
+<div id="devTag">🚧 建设中 · 只有管理员能看到</div>
+<button id="takeoff">🚀 起飞</button>
+
+<script src="assets/js/supabase.min.js"></script>
+<script src="supabase.js"></script>
+<script src="auth.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { loadMe } from './js/u/data.js';
+
+// 只有管理员能进；其他人送回宇宙（落在菜鸟家园，看到"正在开发中"）
+const me = await loadMe().catch(() => null);
+if (!me || me.profile.role !== 'admin') location.replace('index.html?land=homestead');
+
+document.getElementById('takeoff').onclick = () => location.href = 'index.html?takeoff=homestead';
+
+// 空白场景：一片草地 + 天空，之后在这里搭建家园
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xbfe6ff);
+scene.fog = new THREE.Fog(0xbfe6ff, 80, 260);
+const camera = new THREE.PerspectiveCamera(55, 1, .1, 500);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x6a9a4a, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(30, 50, 20); scene.add(sun);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(300, 64), new THREE.MeshStandardMaterial({ color: 0x7bc950, roughness: 1 }));
+ground.rotation.x = -Math.PI / 2; scene.add(ground);
+
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+const t0 = performance.now();
+renderer.setAnimationLoop(() => {
+  const a = (performance.now() - t0) / 1000 * .05;
+  camera.position.set(Math.sin(a) * 40, 14, Math.cos(a) * 40); camera.lookAt(0, 0, 0);
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

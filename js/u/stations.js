@@ -136,7 +136,7 @@ function renderComingSoon(el) {
   el.innerHTML = `<div class="empty" style="padding:40px 16px;line-height:1.9">
     <div style="font-size:64px">🏡🚧</div>
     <div style="font-size:22px;font-weight:700;margin:8px 0">菜鸟家园正在开发中</div>
-    <div>以后每个人在这里都会有自己的小屋、菜园和小动物。<br>敬请期待！</div></div>`;
+    <div>以后每个人在这里都会有一个自己的小家。<br>敬请期待！</div></div>`;
   return '';
 }
 
