@@ -179,7 +179,8 @@ function boardTrain() {
 
 function finishTrain() {
   state.cinematic = false; avatar.root.visible = true; player.pos.copy(world.points.arrival);
-  cam.yaw = Math.PI / 2; cam.pitch = .24; setChapter(3); updateCamera(1); sfx.chime([523, 659, 784]);
+  // Look over the parked coach so the player can see the ramp and boat on arrival.
+  cam.yaw = Math.PI / 2; cam.pitch = .70; setChapter(3); updateCamera(1); sfx.chime([523, 659, 784]);
   toast('🏰 穿过薄雾，城堡的灯火出现了');
 }
 
@@ -213,7 +214,7 @@ function jumpTo(where) {
     state.cinematic = false; state.train = state.boat = 1;
     world.train.setProgress(1); world.boat.setProgress(1);
     avatar.root.visible = true; player.pos.set(p[0], p[1], p[2]); avatar.root.position.copy(player.pos);
-    cam.yaw = p[3]; setChapter(5); updateCamera(1);
+    cam.yaw = p[3]; cam.pitch = where === 'lake' ? .70 : .26; setChapter(5); updateCamera(1);
   });
 }
 
