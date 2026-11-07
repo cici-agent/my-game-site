@@ -99,6 +99,9 @@ button, a { font-family: inherit; }
 .loading-line i { display: block; height: 100%; width: 45%; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: load 1.2s infinite; }
 @keyframes load { from { transform: translateX(-110%); } to { transform: translateX(240%); } }
 #loading p { color: #aaa4bc; font-size: 12px; }
+#loading.error .loading-crest { animation: none; }
+#loading.error .loading-line { display: none; }
+#loading.error p { max-width: 360px; margin: 18px auto 0; padding: 0 20px; color: #fff4d1; font-size: 14px; line-height: 1.8; }
 
 @media (max-width: 760px) {
   .hud { height: 62px; padding: 9px 11px; }.brand-mark { width: 38px; height: 38px; font-size: 21px; }.brand b { font-size: 14px; }.brand small { font-size: 9px; }

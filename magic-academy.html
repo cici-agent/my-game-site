@@ -65,6 +65,13 @@
   <p>猫头鹰正在送来入学车票……</p>
 </div>
 
+<script>
+if (location.protocol === 'file:') {
+  const loading = document.getElementById('loading');
+  loading.classList.add('error');
+  loading.querySelector('p').innerHTML = '当前打开的是电脑里的本地文件，3D 场景无法启动。<br>请从网站的在线预览地址进入。';
+}
+</script>
 <script type="module" src="js/magic/main.js"></script>
 </body>
 </html>
