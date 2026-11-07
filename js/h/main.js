@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildAvatar, buildPet } from '../p/avatar.js';
 import { INV, loadInventory } from '../p/inventory.js';
 import { L, createLayout, ribbon } from './layout.js';
-import { createGarden, CROPS, LEVELS, itemInfo } from './garden.js';
+import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden } from './garden.js';
 
 // ---------- 布局：弯弯的主路 + 零零散散的大空地 + 弯弯的小道（见 layout.js） ----------
 // 固定种子的随机数：每次打开布局都一样
@@ -14,7 +14,10 @@ const range = (a, b) => a + rnd() * (b - a);
 const pick = arr => arr[Math.floor(rnd() * arr.length)];
 const LAY = createLayout(rnd), PLOTS = LAY.plots;
 const { onPath, onPlot } = LAY;
-const blocked = (x, z, m = .4) => onPath(x, z, m) || onPlot(x, z, m);
+// 我的空地：先用离出生点最近的那块（以后改成在镇政府领到的那块）；菜园围在它旁边
+const homePlot = PLOTS.slice().sort((a, b) => Math.hypot(a.x - LAY.spawn.x, a.z - LAY.spawn.z) - Math.hypot(b.x - LAY.spawn.x, b.z - LAY.spawn.z))[0];
+const gardenSide = chooseSide(homePlot, (x, z) => onPath(x, z, 1.5) || onPlot(x, z, 1));
+const blocked = (x, z, m = .4) => onPath(x, z, m) || onPlot(x, z, m) || inGarden(homePlot, gardenSide, x, z, m);
 const WR = L.worldR;
 
 // ---------- 渲染器 / 相机 / 灯光 ----------
@@ -174,6 +177,7 @@ for (let k = 0; k < 140; k++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd
     const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * (WR + 6), x = Math.sin(a) * r, z = Math.cos(a) * r;
     if (onPath(x, z, .2)) continue;
     if (onPlot(x, z, -.3) && rnd() < .8) continue;   // 空地上草少一点
+    if (inGarden(homePlot, gardenSide, x, z, .3)) continue;   // 菜园里没有野草
     const sc = range(.6, 1.4);
     tufts.setMatrixAt(n, m4.compose(v.set(x, 0, z), q.setFromAxisAngle(up, rnd() * 6.28), s.set(sc, sc * range(.7, 1.4), sc)));
     tufts.setColorAt(n++, col.setHSL(range(.24, .3), range(.45, .6), range(.32, .45)));
@@ -244,10 +248,9 @@ const clouds = [];
 // ---------- 玩家：用自己的皮肤和装饰在家园里走（和游乐园一样） ----------
 const $ = id => document.getElementById(id);
 // ---------- 我的菜园：先放在离出生点最近的那块空地上（以后改成在镇政府领到的那块） ----------
-const homePlot = PLOTS.slice().sort((a, b) => Math.hypot(a.x - LAY.spawn.x, a.z - LAY.spawn.z) - Math.hypot(b.x - LAY.spawn.x, b.z - LAY.spawn.z))[0];
-const garden = createGarden({ scene, plot: homePlot });
-// 出生在自家空地门口外面，面朝菜园
-LAY.spawn.x = homePlot.gate.x + homePlot.face[0] * 5; LAY.spawn.z = homePlot.gate.z + homePlot.face[1] * 5;
+const garden = createGarden({ scene, plot: homePlot, side: gardenSide });
+// 出生在菜园门口外面，面朝菜园
+[LAY.spawn.x, LAY.spawn.z] = garden.gateWorld();
 LAY.spawn.yaw = Math.atan2(-homePlot.face[0], -homePlot.face[1]);
 
 // 在菜鸟家园里默认是小农民的样子；买了别的皮肤的照样穿自己的皮肤

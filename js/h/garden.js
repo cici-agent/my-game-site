@@ -200,60 +200,140 @@ function buildBug() {
   return g;
 }
 
+// ---------- 菜园的位置：在自家空地旁边多围出来的一块地（空地本身留着盖房子） ----------
+const BED_W = 2.6, BED_D = 1.3, GAP_X = .7, GAP_Z = .8, COLS = 4, MARGIN = 1.3, SIDE_GAP = 3;
+const rowsOf = level => LEVELS[level] / COLS;
+export const gardenSize = level => ({ w: COLS * BED_W + (COLS - 1) * GAP_X + MARGIN * 2, d: rowsOf(level) * BED_D + (rowsOf(level) - 1) * GAP_Z + MARGIN * 2 });
+// 菜园这块地在空地的哪一边（-1 左 / 1 右），以空地自己的坐标算
+export function gardenRect(plot, side, level = 4) {
+  const { w, d } = gardenSize(level), h = plot.size / 2;
+  const x0 = side > 0 ? h + SIDE_GAP : -h - SIDE_GAP - w;
+  return { x0, x1: x0 + w, z1: h, z0: h - d, cx: x0 + w / 2 };   // 前边（z1）和空地门口那边对齐
+}
+export function plotToWorld(plot, lx, lz) { const c = Math.cos(plot.rot), s = Math.sin(plot.rot); return [plot.x + lx * c + lz * s, plot.z - lx * s + lz * c]; }
+export function worldToPlot(plot, x, z) { const dx = x - plot.x, dz = z - plot.z, c = Math.cos(plot.rot), s = Math.sin(plot.rot); return [dx * c - dz * s, dx * s + dz * c]; }
+// 选一边：最大的菜园（4 级）也不会压到路、别人的空地
+export function chooseSide(plot, isBlocked) {
+  for (const side of [1, -1]) {
+    const r = gardenRect(plot, side, 4); let ok = true;
+    for (let lx = r.x0 - 1; lx <= r.x1 + 1 && ok; lx += 1.5) for (let lz = r.z0 - 1; lz <= r.z1 + 1 && ok; lz += 1.5) {
+      const [x, z] = plotToWorld(plot, lx, lz); if (isBlocked(x, z)) ok = false;
+    }
+    if (ok) return side;
+  }
+  return 1;
+}
+// 某个世界坐标点是不是在菜园范围里（种花种草时避开）
+export function inGarden(plot, side, x, z, m = 0) {
+  const r = gardenRect(plot, side, 4), [lx, lz] = worldToPlot(plot, x, z);
+  return lx > r.x0 - m && lx < r.x1 + m && lz > r.z0 - m && lz < r.z1 + m + 2.5;
+}
+
+// 飘在田上面的小图标（💧 要浇水 / 🐛 有虫 / ✨ 熟了）
+const iconTex = {};
+function iconSprite(ch) {
+  if (!iconTex[ch]) {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    g.fillStyle = 'rgba(255,255,255,.92)'; g.beginPath(); g.arc(64, 60, 50, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.moveTo(50, 104); g.lineTo(78, 104); g.lineTo(64, 124); g.fill();
+    g.font = '64px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 64, 64);
+    iconTex[ch] = new THREE.CanvasTexture(c); iconTex[ch].colorSpace = THREE.SRGBColorSpace;
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: iconTex[ch], depthTest: false, transparent: true }));
+  sp.scale.setScalar(.85); sp.renderOrder = 5; return sp;
+}
+function textSprite(text) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 96; const g = c.getContext('2d');
+  g.font = 'bold 56px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 10; g.strokeStyle = 'rgba(60,40,10,.85)'; g.strokeText(text, 128, 50); g.fillStyle = '#fff6c8'; g.fillText(text, 128, 50);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); sp.scale.set(2.2, .82, 1); sp.renderOrder = 6; return sp;
+}
+
 // ---------- 菜园 ----------
-// plot：所在的空地（中心、大小、朝向）；菜园放在空地靠门口的一半
-export function createGarden({ scene, plot, rnd = Math.random, save = true }) {
-  const BED_W = 2.6, BED_D = 1.2, GAP_X = .9, GAP_Z = 1.1, COLS = 4;
-  const c = Math.cos(plot.rot), s = Math.sin(plot.rot);
-  const toWorld = (lx, lz) => [plot.x + lx * c + lz * s, plot.z - lx * s + lz * c];
-  const toLocal = (x, z) => { const dx = x - plot.x, dz = z - plot.z; return [dx * c - dz * s, dx * s + dz * c]; };
+export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = true }) {
+  const toWorld = (lx, lz) => plotToWorld(plot, lx, lz);
+  const toLocal = (x, z) => worldToPlot(plot, x, z);
   const group = new THREE.Group(); group.position.set(plot.x, 0, plot.z); group.rotation.y = plot.rot; scene.add(group);
 
   const KEY = 'xcn_garden_v1';
   let st = null;
   try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
-  if (!st || !st.beds) st = { level: 1, speed: 1, coins: 0, beds: [], bag: null, t: Date.now() };
+  if (!st || !st.beds) st = { level: 1, speed: 1, beds: [], bag: null, t: Date.now() };
   while (st.beds.length < LEVELS[4]) st.beds.push({ crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, moist: 0, bugs: 0, eat: 0 });
   const bag = createBag();
   if (st.bag) bag.slots = st.bag; else { bag.add('seed_radish', 6); bag.add('seed_lettuce', 4); bag.add('seed_carrot', 2); }   // 刚领到菜园送的种子
   function persist() { if (!save) return; st.bag = bag.slots; st.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
 
-  // 小牌子
-  {
-    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96; const g = cv.getContext('2d');
-    g.fillStyle = '#c99a5b'; g.fillRect(0, 0, 256, 96); g.strokeStyle = '#7a5230'; g.lineWidth = 8; g.strokeRect(4, 4, 248, 88);
-    g.fillStyle = '#4a2e14'; g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🥕 我的菜园', 128, 50);
+  // ---------- 围起来的菜地：踩实的土地 + 一圈木栅栏（前面留门） + 小路连到空地门口 ----------
+  const yard = new THREE.Group(); group.add(yard);
+  const FLAT = (color, layer) => M(color, { roughness: 1, polygonOffset: true, polygonOffsetFactor: -layer, polygonOffsetUnits: -layer * 4 });
+  const groundMat = FLAT(0xc7a678, 2), pathMat = FLAT(0xe2c696, 3), fenceMat = M(0xa8784a), railMat = M(0xc49766);
+  const GATE_W = 2.4;
+  let rect = null;
+  function buildYard() {
+    yard.clear();
+    rect = gardenRect(plot, side, st.level);
+    const w = rect.x1 - rect.x0, d = rect.z1 - rect.z0;
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(w, d), groundMat); g.rotation.x = -Math.PI / 2; g.position.set(rect.cx, .02, (rect.z0 + rect.z1) / 2); g.receiveShadow = true; yard.add(g);
+    // 栅栏：四边每 1.6 米一根桩 + 两道横杆；前边中间留门
+    const edges = [[rect.x0, rect.z0, rect.x1, rect.z0], [rect.x1, rect.z0, rect.x1, rect.z1], [rect.x1, rect.z1, rect.x0, rect.z1], [rect.x0, rect.z1, rect.x0, rect.z0]];
+    edges.forEach(([ax, az, bx, bz], ei) => {
+      const len = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(len / 1.6));
+      const segs = ei === 2 ? [[0, (len - GATE_W) / 2], [(len + GATE_W) / 2, len]] : [[0, len]];
+      segs.forEach(([t0, t1]) => {
+        const k0 = Math.ceil(t0 / (len / n) - 1e-6), k1 = Math.floor(t1 / (len / n) + 1e-6);
+        for (let k = k0; k <= k1; k++) { const t = Math.min(t1, Math.max(t0, k * len / n)) / len; part(yard, G.box, fenceMat, [ax + (bx - ax) * t, .45, az + (bz - az) * t], [.12, .9, .12]); }
+        if (t0 === (len - GATE_W) / 2 || t1 === (len + GATE_W) / 2) { const t = (t0 === 0 ? t1 : t0) / len; part(yard, G.box, fenceMat, [ax + (bx - ax) * t, .55, az + (bz - az) * t], [.16, 1.1, .16]); }
+        const ang = Math.atan2(bz - az, bx - ax), l = t1 - t0, m = (t0 + t1) / 2 / len;
+        [.35, .7].forEach(y => part(yard, G.box, railMat, [ax + (bx - ax) * m, y, az + (bz - az) * m], [l, .07, .05], [0, -ang, 0]));
+      });
+    });
+    // 门口到空地门口的小路
+    const pathPts = [[rect.cx, rect.z1 + .3], [rect.cx, rect.z1 + 1.8], [0, rect.z1 + 1.8], [0, rect.z1 + .6]];
+    for (let k = 0; k < pathPts.length - 1; k++) {
+      const [ax, az] = pathPts[k], [bx, bz] = pathPts[k + 1], l = Math.hypot(bx - ax, bz - az);
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(1.6, l + 1.6), pathMat); p.rotation.set(-Math.PI / 2, 0, Math.atan2(bx - ax, bz - az)); p.position.set((ax + bx) / 2, .025, (az + bz) / 2); p.receiveShadow = true; yard.add(p);
+    }
+    // 小牌子
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96; const cg = cv.getContext('2d');
+    cg.fillStyle = '#c99a5b'; cg.fillRect(0, 0, 256, 96); cg.strokeStyle = '#7a5230'; cg.lineWidth = 8; cg.strokeRect(4, 4, 248, 88);
+    cg.fillStyle = '#4a2e14'; cg.font = 'bold 40px sans-serif'; cg.textAlign = 'center'; cg.textBaseline = 'middle'; cg.fillText(`🥕 我的菜园 Lv${st.level}`, 128, 50);
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
-    const sign = new THREE.Group(); sign.position.set(-COLS * (BED_W + GAP_X) / 2 - .8, 0, plot.size / 2 - 2.2); group.add(sign);
-    part(sign, G.cyl, MAT.wood, [0, .6, 0], [.06, 1.2, .06]);
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(1.4, .52), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide })); board.position.y = 1.25; sign.add(board);
+    const sign = new THREE.Group(); sign.position.set(rect.cx - GATE_W / 2 - 1, 0, rect.z1 + .5); yard.add(sign);
+    part(sign, G.cyl, M(0x9b6a3c), [0, .65, 0], [.06, 1.3, .06]);
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(1.5, .56), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide })); board.position.y = 1.35; sign.add(board);
+    beds.forEach((bd, i) => placeBed(bd, i));
   }
 
-  // 每块田：木框 + 土（颜色跟着水分变） + 5 棵菜 + 虫子
-  const frameMat = M(0x8b5a2b), DRY = new THREE.Color(0xc29a66), WET = new THREE.Color(0x4a2c17);
+  // ---------- 每块田：平地上一块深色的土 + 一道道垄（颜色跟着水分变）+ 5 棵菜 + 虫子 ----------
+  const DRY = new THREE.Color(0xb48d5c), WET = new THREE.Color(0x3f2614);
   const beds = st.beds.map((b, i) => {
-    const col = i % COLS, row = Math.floor(i / COLS);
-    const lx = (col - (COLS - 1) / 2) * (BED_W + GAP_X), lz = plot.size / 2 - 4 - row * (BED_D + GAP_Z);
-    const g = new THREE.Group(); g.position.set(lx, 0, lz); group.add(g);
-    const soilMat = M(0xc29a66, { roughness: 1 });
-    const soil = part(g, G.box, soilMat, [0, .14, 0], [BED_W - .16, .2, BED_D - .16]); soil.castShadow = false; soil.receiveShadow = true;
-    [[0, BED_D / 2 - .05, BED_W, .1], [0, -BED_D / 2 + .05, BED_W, .1]].forEach(([x, z, w, d]) => part(g, G.box, frameMat, [x, .14, z], [w, .28, d]));
-    [[BED_W / 2 - .05, 0], [-BED_W / 2 + .05, 0]].forEach(([x, z]) => part(g, G.box, frameMat, [x, .14, z], [.1, .28, BED_D - .2]));
-    // 土上面一道道小沟
-    for (let k = 0; k < 3; k++) { const r = part(g, G.box, M(0x000000, { transparent: true, opacity: .08 }), [0, .245, (k - 1) * .3], [BED_W - .3, .005, .06]); r.castShadow = false; }
-    const plantsG = new THREE.Group(); plantsG.position.y = .24; g.add(plantsG);
-    const bugsG = new THREE.Group(); bugsG.position.y = .24; g.add(bugsG);
-    const [wx, wz] = toWorld(lx, lz);
-    return { i, st: b, g, soilMat, plantsG, bugsG, plants: [], bugs: [], key: null, lx, lz, wx, wz };
+    const g = new THREE.Group(); group.add(g);
+    const soilMat = FLAT(0xb48d5c, 4), ridgeMat = M(0xb48d5c, { roughness: 1 });
+    const soil = new THREE.Mesh(new THREE.PlaneGeometry(BED_W, BED_D), soilMat); soil.rotation.x = -Math.PI / 2; soil.position.y = .03; soil.receiveShadow = true; g.add(soil);
+    // 两道垄：菜种在垄上
+    [-.28, .28].forEach(z => { const r = part(g, G.box, ridgeMat, [0, .05, z], [BED_W - .2, .07, .32]); r.castShadow = false; r.receiveShadow = true; });
+    const plantsG = new THREE.Group(); plantsG.position.y = .08; g.add(plantsG);
+    const bugsG = new THREE.Group(); bugsG.position.y = .08; g.add(bugsG);
+    const icon = new THREE.Group(); icon.position.y = 2.1; g.add(icon);
+    return { i, st: b, g, soilMat, ridgeMat, plantsG, bugsG, icon, iconCh: null, plants: [], bugs: [], key: null, lx: 0, lz: 0, wx: 0, wz: 0 };
   });
+  function placeBed(bd, i) {
+    const col = i % COLS, row = Math.floor(i / COLS);
+    bd.lx = rect.cx + (col - (COLS - 1) / 2) * (BED_W + GAP_X);
+    bd.lz = rect.z1 - MARGIN - BED_D / 2 - row * (BED_D + GAP_Z);
+    bd.g.position.set(bd.lx, 0, bd.lz);
+    [bd.wx, bd.wz] = toWorld(bd.lx, bd.lz);
+  }
 
   function rebuildPlants(bd) {
     bd.plantsG.clear(); bd.plants = [];
     const b = bd.st; bd.key = b.crop;
     if (!b.crop) return;
     for (let k = 0; k < PER_BED; k++) {
-      const p = buildPlant(b.crop); p.root.position.set((k - 2) * .48, 0, (k % 2 ? .12 : -.12)); p.root.rotation.y = k * 1.3;
-      p.root.scale.setScalar(b.crop === 'pumpkin' || b.crop === 'watermelon' ? 1.25 : 1);
+      const p = buildPlant(b.crop); p.root.position.set((k - 2) * .5, 0, k % 2 ? .28 : -.28); p.root.rotation.y = k * 1.3;
+      p.root.scale.setScalar(b.crop === 'pumpkin' || b.crop === 'watermelon' ? 1.6 : 1.35);   // 菜做大一点，长的过程看得清楚
       bd.plantsG.add(p.root); bd.plants.push(p);
     }
   }
@@ -273,9 +353,7 @@ export function createGarden({ scene, plot, rnd = Math.random, save = true }) {
       if (b.g >= 1) { b.g = 1; b.phase = 'ripe'; event = 'ripe'; }
     }
     if (b.phase !== 'withered') {
-      // 虫子：随机来，越来越多（最多 5 只）
       if (b.bugs < BUG_MAX && rnd() < 1 - Math.exp(-gs / BUG_EVERY)) { b.bugs++; event = event || 'bug'; }
-      // 虫子吃菜：虫越多吃得越快
       if (b.bugs > 0) {
         b.eat += gs * b.bugs;
         while (b.eat >= BUG_EAT && b.plants > 0) { b.eat -= BUG_EAT; b.plants--; event = 'eaten'; }
@@ -284,7 +362,6 @@ export function createGarden({ scene, plot, rnd = Math.random, save = true }) {
     }
     return event;
   }
-  // 下线这段时间也要长（按 1 倍速度补上，最多补 2 天；分小步算）
   {
     const away = Math.min(2 * 86400, Math.max(0, (Date.now() - (st.t || Date.now())) / 1000));
     for (let left = away; left > 0; left -= 60) st.beds.forEach(b => stepBed(b, Math.min(60, left)));
@@ -294,69 +371,83 @@ export function createGarden({ scene, plot, rnd = Math.random, save = true }) {
   const on = fn => listeners.push(fn);
   const emit = (...a) => listeners.forEach(f => f(...a));
   let saveT = 0, anim = 0;
-  const splashes = [];
+  const fx = [];
   const dropGeo = new THREE.SphereGeometry(.05, 6, 4), dropMat = new THREE.MeshBasicMaterial({ color: 0x7cc8ff, transparent: true, opacity: .85 });
-  function splash(bd) {
-    for (let k = 0; k < 26; k++) {
-      const d = new THREE.Mesh(dropGeo, dropMat); d.position.set((rnd() - .5) * BED_W, 1.2 + rnd() * .4, (rnd() - .5) * BED_D);
-      d.userData = { vy: -1 - rnd() * 2, life: .5 + rnd() * .4 }; bd.g.add(d); splashes.push({ d, bd });
+  const seedMat = new THREE.MeshBasicMaterial({ color: 0xe8c77a });
+  function burst(bd, mat, n, y0) {
+    for (let k = 0; k < n; k++) {
+      const d = new THREE.Mesh(dropGeo, mat); d.position.set((rnd() - .5) * BED_W, y0 + rnd() * .4, (rnd() - .5) * BED_D);
+      d.userData = { vy: -1 - rnd() * 2, life: .5 + rnd() * .4 }; bd.g.add(d); fx.push({ d, bd });
     }
+  }
+  // 收获时飘起来的 "+5 🥕"
+  const pops = [];
+  function pop(bd, text) { const sp = textSprite(text); sp.position.set(0, 1.2, 0); bd.g.add(sp); pops.push({ sp, bd, t: 0 }); }
+
+  function setIcon(bd, ch) {
+    if (bd.iconCh === ch) return;
+    bd.iconCh = ch; bd.icon.clear(); if (ch) bd.icon.add(iconSprite(ch));
   }
 
   function update(dt) {
     anim += dt;
-    const gs = dt * st.speed;
-    const active = LEVELS[st.level];
+    const gs = dt * st.speed, active = LEVELS[st.level];
     beds.forEach((bd, i) => {
       const on = i < active; bd.g.visible = on;
       if (!on) return;
-      const ev = stepBed(bd.st, gs);
+      const b = bd.st, ev = stepBed(b, gs);
       if (ev) emit(ev, bd);
-      if (bd.key !== bd.st.crop) rebuildPlants(bd);
-      // 被吃掉的菜不见了
-      bd.plants.forEach((p, k) => { p.root.visible = k < bd.st.plants; p.set(bd.st.g, bd.st.phase); });
-      bd.soilMat.color.copy(DRY).lerp(WET, bd.st.moist);
-      bd.soilMat.roughness = 1 - bd.st.moist * .45;
+      if (bd.key !== b.crop) rebuildPlants(bd);
+      bd.plants.forEach((p, k) => { p.root.visible = k < b.plants; p.set(b.g, b.phase); });
+      bd.soilMat.color.copy(DRY).lerp(WET, b.moist); bd.ridgeMat.color.copy(bd.soilMat.color).multiplyScalar(1.08);
       syncBugs(bd);
       bd.bugs.forEach(bug => {
         const u = bug.userData; u.a += (Math.sin(anim * .7 + u.x * 9) * .8) * dt;
         u.x = THREE.MathUtils.clamp(u.x + Math.sin(u.a) * u.sp * dt, -BED_W / 2 + .25, BED_W / 2 - .25);
         u.z = THREE.MathUtils.clamp(u.z + Math.cos(u.a) * u.sp * dt, -BED_D / 2 + .2, BED_D / 2 - .2);
-        bug.position.set(u.x, .02 + Math.abs(Math.sin(anim * 6 + u.a)) * .01, u.z); bug.rotation.y = u.a;
-        bug.scale.set(1.6, 1.6, 1.6 * (1 + Math.sin(anim * 8 + u.a) * .12));
+        bug.position.set(u.x, .04 + Math.abs(Math.sin(anim * 6 + u.a)) * .01, u.z); bug.rotation.y = u.a;
+        bug.scale.set(1.8, 1.8, 1.8 * (1 + Math.sin(anim * 8 + u.a) * .12));
       });
+      // 头上的小图标：有虫 > 熟了 > 要浇水
+      const growing = b.crop && (b.phase === 'grow' || b.phase === 'regrow');
+      setIcon(bd, b.crop && b.bugs ? '🐛' : b.phase === 'ripe' && b.crop ? '✨' : growing && b.moist < .15 ? '💧' : b.phase === 'withered' && b.crop ? '🥀' : null);
+      bd.icon.position.y = 2.1 + Math.sin(anim * 2.5 + i) * .08;
     });
-    for (let k = splashes.length - 1; k >= 0; k--) {
-      const { d, bd } = splashes[k]; d.userData.vy -= 9 * dt; d.position.y += d.userData.vy * dt; d.userData.life -= dt;
-      if (d.position.y < .25 || d.userData.life <= 0) { bd.g.remove(d); splashes.splice(k, 1); }
+    for (let k = fx.length - 1; k >= 0; k--) {
+      const { d, bd } = fx[k]; d.userData.vy -= 9 * dt; d.position.y += d.userData.vy * dt; d.userData.life -= dt;
+      if (d.position.y < .06 || d.userData.life <= 0) { bd.g.remove(d); fx.splice(k, 1); }
+    }
+    for (let k = pops.length - 1; k >= 0; k--) {
+      const p = pops[k]; p.t += dt; p.sp.position.y = 1.2 + p.t * 1.4; p.sp.material.opacity = Math.max(0, 1 - p.t / 1.4);
+      if (p.t > 1.4) { p.bd.g.remove(p.sp); pops.splice(k, 1); }
     }
     saveT += dt; if (saveT > 2) { saveT = 0; persist(); }
   }
 
-  // 站在哪块田旁边
+  // 站在哪块田旁边（或者田里）
   function nearest(x, z) {
     const [lx, lz] = toLocal(x, z), active = LEVELS[st.level];
     let best = null, bd = Infinity;
     beds.forEach((b, i) => {
       if (i >= active) return;
-      const dx = Math.max(0, Math.abs(lx - b.lx) - BED_W / 2), dz = Math.max(0, Math.abs(lz - b.lz) - BED_D / 2), d = Math.hypot(dx, dz);
-      if (d < 1.1 && d < bd) { bd = d; best = b; }
+      const dx = Math.max(0, Math.abs(lx - b.lx) - BED_W / 2), dz = Math.max(0, Math.abs(lz - b.lz) - BED_D / 2), d = Math.hypot(dx, dz) + Math.hypot(lx - b.lx, lz - b.lz) * .01;
+      if (d < .9 && d < bd) { bd = d; best = b; }
     });
     return best;
   }
-  // 田是挡路的（矮木框），跳起来可以跨过去
+  // 栅栏挡路（门口能进出），跳起来能跨过去
   function collide(pos, pr = .45) {
-    if (pos.y > .45) return;
-    const [lx, lz] = toLocal(pos.x, pos.z), active = LEVELS[st.level];
-    if (Math.abs(lx) > 12 || lz > plot.size / 2 || lz < plot.size / 2 - 20) return;
-    let px = lx, pz = lz;
-    beds.forEach((b, i) => {
-      if (i >= active) return;
-      const hx = BED_W / 2 + pr, hz = BED_D / 2 + pr, dx = px - b.lx, dz = pz - b.lz;
-      const ox = hx - Math.abs(dx), oz = hz - Math.abs(dz);
-      if (ox > 0 && oz > 0) { if (ox < oz) px = b.lx + Math.sign(dx || 1) * hx; else pz = b.lz + Math.sign(dz || 1) * hz; }
-    });
-    if (px !== lx || pz !== lz) { const [wx, wz] = toWorld(px, pz); pos.x = wx; pos.z = wz; }
+    if (pos.y > .7 || !rect) return;
+    let [lx, lz] = toLocal(pos.x, pos.z);
+    if (lx < rect.x0 - 2 || lx > rect.x1 + 2 || lz < rect.z0 - 2 || lz > rect.z1 + 2) return;
+    const ox = lx, oz = lz;
+    const push = (v, line) => Math.abs(v - line) < pr ? line + (v >= line ? pr : -pr) : v;
+    if (lz > rect.z0 - pr && lz < rect.z1 + pr) { lx = push(lx, rect.x0); lx = push(lx, rect.x1); }
+    if (lx > rect.x0 - pr && lx < rect.x1 + pr) {
+      lz = push(lz, rect.z0);
+      if (Math.abs(lx - rect.cx) > GATE_W / 2 - .1) lz = push(lz, rect.z1);   // 门口那一段不挡
+    }
+    if (lx !== ox || lz !== oz) { const [wx, wz] = toWorld(lx, lz); pos.x = wx; pos.z = wz; }
   }
 
   // ---------- 现在按 E 会做什么 ----------
@@ -369,19 +460,18 @@ export function createGarden({ scene, plot, rnd = Math.random, save = true }) {
     if (!b.crop) return { kind: 'plant', label: '种菜' };
     return { kind: 'water', label: '浇水' };
   }
-  // 这块田的状态说明
+  const STAGE = g => g < .25 ? '发芽' : g < .6 ? '小苗' : g < 1 ? '长大中' : '成熟';
   function describe(bd) {
-    const b = bd.st;
-    const wet = Math.round(b.moist * 100);
+    const b = bd.st, wet = Math.round(b.moist * 100);
     if (!b.crop) return `空的田 · 水分 ${wet}%`;
     const C = CROPS[b.crop], parts = [`${C.icon} ${C.name}`];
     if (b.phase === 'withered') parts.push('已经枯萎');
     else if (b.phase === 'ripe') parts.push('成熟啦！');
     else {
       const rate = growRate(b), total = b.phase === 'grow' ? C.grow : C.regrow;
-      parts.push((b.phase === 'regrow' ? '又在结果 ' : '') + Math.floor(b.g * 100) + '%');
+      parts.push((b.phase === 'regrow' ? '又在结果 ' : STAGE(b.g) + ' ') + Math.floor(b.g * 100) + '%');
       if (rate <= 0) parts.push('太干了，不长了');
-      else { const sec = (1 - b.g) * total / rate / st.speed; parts.push('还要 ' + fmt(sec)); }
+      else parts.push('还要 ' + fmt((1 - b.g) * total / rate / st.speed));
     }
     parts.push(`水分 ${wet}%`);
     if (b.plants < PER_BED) parts.push(`被虫吃掉 ${PER_BED - b.plants} 棵`);
@@ -390,7 +480,6 @@ export function createGarden({ scene, plot, rnd = Math.random, save = true }) {
   }
   const fmt = sec => sec < 60 ? Math.ceil(sec) + ' 秒' : sec < 3600 ? Math.ceil(sec / 60) + ' 分钟' : (sec / 3600).toFixed(1) + ' 小时';
 
-  // 执行；返回给玩家看的一句话（或 { pick: true } 表示要选种子）
   function act(bd, seedKey) {
     const b = bd.st, a = actionFor(bd);
     if (a.kind === 'shoo') {
@@ -398,14 +487,14 @@ export function createGarden({ scene, plot, rnd = Math.random, save = true }) {
       shooCd = performance.now() + SHOO_CD * 1000; b.bugs--; syncBugs(bd);
       return { msg: b.bugs ? `👋 赶走了一只虫子，还有 ${b.bugs} 只` : '👋 虫子都赶走啦！' };
     }
-    if (a.kind === 'water') { b.moist = 1; splash(bd); return { msg: '💧 浇好水了，土变湿了' }; }
+    if (a.kind === 'water') { b.moist = 1; burst(bd, dropMat, 30, 1.3); return { msg: '💧 浇好水了，土变深了' }; }
     if (a.kind === 'plant') {
       if (!seedKey) return { pick: true };
       const C = CROPS[seedKey];
       if (C.lv > st.level) return { msg: `🔒 ${C.name}要菜园 ${C.lv} 级才能种` };
       if (!bag.take('seed_' + seedKey)) return { msg: `没有${C.name}种子了` };
       Object.assign(b, { crop: seedKey, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0 });
-      rebuildPlants(bd);
+      rebuildPlants(bd); burst(bd, seedMat, 14, .6);
       return { msg: `🌱 种下了 ${PER_BED} 棵${C.name}${b.moist < .05 ? '，记得浇水哦' : ''}` };
     }
     if (a.kind === 'clear') { Object.assign(b, { crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0 }); rebuildPlants(bd); return { msg: '🧹 枯苗拔掉了，可以种新的了' }; }
@@ -417,22 +506,23 @@ export function createGarden({ scene, plot, rnd = Math.random, save = true }) {
       if (lastPick && rnd() < C.witherSeed) seedN = 1 + Math.floor(rnd() * 2);
       if (seedN) got.push(['seed_' + b.crop, seedN]);
       if (!bag.addAll(got)) return { msg: '🎒 背包满了，装不下了' };
-      const name = C.name;
-      let msg = `${C.icon} ${C.kind === 'pull' ? '拔' : '摘'}到 ${n} 个${name}` + (seedN ? `，还有 ${seedN} 颗种子` : '');
+      pop(bd, `+${n} ${C.icon}`);
+      let msg = `${C.icon} ${C.kind === 'pull' ? '拔' : '摘'}到 ${n} 个${C.name}` + (seedN ? `，还有 ${seedN} 颗种子` : '');
       if (C.kind === 'pull') { Object.assign(b, { crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0 }); rebuildPlants(bd); }
-      else { b.picks++; if (b.picks >= C.picks) { b.phase = 'withered'; msg += '；结了好多次，它枯萎了'; } else { b.phase = 'regrow'; b.g = 0; msg += `，过一阵还会再结`; } }
+      else { b.picks++; if (b.picks >= C.picks) { b.phase = 'withered'; msg += '；结了好多次，它枯萎了'; } else { b.phase = 'regrow'; b.g = 0; msg += '，过一阵还会再结'; } }
       return { msg };
     }
   }
 
-  // ---------- 管理员测试用 ----------
   const debug = {
-    setLevel(l) { st.level = l; persist(); },
+    setLevel(l) { st.level = l; buildYard(); persist(); },
     setSpeed(v) { st.speed = v; persist(); },
     giveSeeds() { Object.keys(CROPS).forEach(k => { if (CROPS[k].lv <= st.level) bag.add('seed_' + k, 5); }); persist(); },
     reset() { try { localStorage.removeItem(KEY); } catch (e) {} location.reload(); },
-    get level() { return st.level; }, get speed() { return st.speed; },
   };
+  buildYard();
   beds.forEach(rebuildPlants);
-  return { beds, update, nearest, collide, actionFor, describe, act, bag, debug, on, get level() { return st.level; }, get speed() { return st.speed; } };
+  // 菜园门口（世界坐标），出生点用
+  const gateWorld = () => toWorld(rect.cx, rect.z1 + 3);
+  return { beds, update, nearest, collide, actionFor, describe, act, bag, debug, on, gateWorld, get level() { return st.level; }, get speed() { return st.speed; } };
 }
