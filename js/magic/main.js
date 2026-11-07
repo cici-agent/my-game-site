@@ -1,5 +1,6 @@
 // 魔法学院星球：入学序章与自由探索。
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { buildMagicWorld } from './world.js';
 import { buildAvatar } from '../p/avatar.js';
 import * as sfx from '../u/sfx.js';
@@ -31,6 +32,8 @@ moon.shadow.mapSize.set(2048, 2048); moon.shadow.camera.left = moon.shadow.camer
 const fill = new THREE.DirectionalLight(0x718bd2, .8); fill.position.set(100, 50, -80); scene.add(fill);
 
 const world = buildMagicWorld(scene);
+let stationAsset = null;
+const stationLoad = loadHighFidelityStation();
 const avatar = buildAvatar('wizard', { hand: 'wand' }); avatar.root.scale.setScalar(1.04); scene.add(avatar.root);
 const player = { pos: world.points.start.clone(), face: Math.PI, moving: false };
 avatar.root.position.copy(player.pos);
@@ -52,6 +55,43 @@ const keys = {};
 const cam = { yaw: 0, pitch: .32, dist: 12 };
 let drag = null, near = null, toastTimer = 0, elapsed = 0, last = performance.now();
 const tmp = new THREE.Vector3(), prev = new THREE.Vector3(), move = new THREE.Vector3(), target = new THREE.Vector3();
+
+function loadHighFidelityStation() {
+  const loadingText = $('loading').querySelector('p');
+  loadingText.textContent = '正在打开九又四分之三站台……';
+  return new Promise(resolve => {
+    new GLTFLoader().load(
+      'assets/3d/magic/station/platform_9_34.glb',
+      gltf => {
+        stationAsset = gltf.scene;
+        stationAsset.name = 'Station_High_Fidelity';
+        stationAsset.position.set(0, 0, 112);
+        stationAsset.traverse(object => {
+          if (!object.isMesh) return;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          const transparent = materials.some(material => material && material.transparent);
+          object.castShadow = !transparent;
+          object.receiveShadow = true;
+        });
+        scene.add(stationAsset);
+        world.station.visible = false;
+        if (world.platformOwl) world.platformOwl.visible = false;
+        loadingText.textContent = '站台已经准备好，列车即将进站……';
+        resolve(true);
+      },
+      event => {
+        if (!event.total) return;
+        const percent = Math.min(99, Math.round(event.loaded / event.total * 100));
+        loadingText.textContent = `正在搭建九又四分之三站台…… ${percent}%`;
+      },
+      error => {
+        console.warn('高精度车站加载失败，继续使用轻量场景。', error);
+        loadingText.textContent = '轻量站台已准备好……';
+        resolve(false);
+      },
+    );
+  });
+}
 
 function setChapter(index) {
   state.chapter = index;
@@ -269,7 +309,10 @@ else setChapter(0);
 if (state.completed) $('map').classList.add('unlocked');
 
 camera.position.set(0, 8, 145); camera.lookAt(0, 2, 132);
-setTimeout(() => { $('loading').classList.add('done'); setTimeout(() => $('loading').remove(), 800); }, 500);
+Promise.all([stationLoad, new Promise(resolve => setTimeout(resolve, 650))]).then(() => {
+  $('loading').classList.add('done');
+  setTimeout(() => $('loading').remove(), 800);
+});
 tick();
 
-window.__magic = { state, player, world, restartStory, jumpTo };
+window.__magic = { state, player, world, get stationAsset() { return stationAsset; }, restartStory, jumpTo };

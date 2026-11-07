@@ -266,7 +266,7 @@ export function buildMagicWorld(scene) {
     flameMeshes.forEach((f, i) => { f.scale.y = .8 + Math.sin(time * 9 + i) * .25; f.rotation.y = time * 4 + i; });
   }
   return {
-    station, train, water, castle, boat, willow, forest, stars, update,
+    station, train, water, castle, boat, willow, forest, stars, platformOwl, update,
     lake: { x: 5, z: -87, rx: 73, rz: 54 },
     points: {
       start: new THREE.Vector3(0, 0, 132), barrier: new THREE.Vector3(0, 0, 114), platform: new THREE.Vector3(0, 0, 100),
