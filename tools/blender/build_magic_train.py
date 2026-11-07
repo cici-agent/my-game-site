@@ -265,10 +265,29 @@ def look_at(obj, target):
     obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
 
-def wheel_set(prefix, y, radius, *, x=1.46, z=None):
-    z = z if z is not None else radius + 0.12
+RAIL_CENTER_OFFSET = (1.435 + 0.15) / 2
+TREAD_DATUM = 0.12
+
+
+def group_new_parts(name, center_y, previous_objects):
+    """Group unparented components around a railway pivot without moving the stock."""
+    parts = [obj for obj in scene.objects if obj not in previous_objects and obj.parent is None]
+    root = bpy.data.objects.new(name, None)
+    root.location.y = center_y
+    bpy.context.collection.objects.link(root)
+    bpy.context.view_layer.update()
+    inverse = root.matrix_world.inverted()
+    for part in parts:
+        part.parent = root
+        part.matrix_parent_inverse = inverse
+
+
+def wheel_set(prefix, y, radius):
+    z = radius + TREAD_DATUM
     roots = []
-    for side, wheel_x in (("L", -x), ("R", x)):
+    cylinder(f"AXL_{prefix}", (0, y, z), 0.09, RAIL_CENTER_OFFSET * 2, MAT_IRON,
+             vertices=12, rotation=(0, math.pi / 2, 0), apply_rotation=True, bevel=0.008)
+    for side, wheel_x in (("L", -RAIL_CENTER_OFFSET), ("R", RAIL_CENTER_OFFSET)):
         root = bpy.data.objects.new(f"WHL_Rotor_{prefix}_{side}", None)
         root.empty_display_type = "PLAIN_AXES"
         root.location = (wheel_x, y, z)
@@ -311,8 +330,10 @@ def wheel_set(prefix, y, radius, *, x=1.46, z=None):
 
 
 def build_locomotive():
-    box("ENG_Chassis", (0, -0.2, 0.92), (3.15, 10.1, 0.34), MAT_IRON, bevel=0.06)
-    box("ENG_Running_Board", (0, -0.35, 1.2), (3.5, 10.4, 0.16), MAT_RED_DARK, bevel=0.035)
+    box("ENG_Chassis", (0, -0.2, 0.92), (1.27, 10.1, 0.34), MAT_IRON, bevel=0.06)
+    for y in (-3.6, 0, 2.6):
+        box("ENG_Frame_Stretcher", (0, y, 1.45), (1.27, 0.48, 0.86), MAT_IRON, bevel=0.035)
+    box("ENG_Running_Board", (0, -0.35, 1.91), (3.5, 10.4, 0.16), MAT_RED_DARK, bevel=0.035)
     box("ENG_Buffer_Beam", (0, -5.48, 1.0), (3.35, 0.22, 0.48), MAT_CRIMSON, bevel=0.035)
 
     # Boiler, smokebox and firebox.
@@ -362,19 +383,20 @@ def build_locomotive():
         sphere(f"ENG_Safety_Valve_Cap_{x:+.2f}", (x, 0.55, 4.0), 0.14, MAT_BRASS, segments=16, rings=8)
 
     # Cab with inset windows and rolled roof.
-    box("ENG_Cab", (0, 2.55, 2.58), (3.2, 2.45, 3.65), MAT_CRIMSON, bevel=0.11)
+    box("ENG_Cab", (0, 2.55, 3.16), (3.2, 2.45, 2.49), MAT_CRIMSON, bevel=0.11)
     box("ENG_Cab_Roof", (0, 2.55, 4.52), (3.65, 2.85, 0.24), MAT_BLACK, bevel=0.12)
     for side, x in (("L", -1.63), ("R", 1.63)):
         for y in (2.08, 2.9):
             box(f"ENG_Cab_Window_Frame_{side}_{y:.1f}", (x, y, 3.15), (0.08, 0.68, 1.18), MAT_GOLD, bevel=0.05)
             box(f"ENG_Cab_Window_{side}_{y:.1f}", (x + (-0.015 if x < 0 else 0.015), y, 3.15), (0.07, 0.55, 1.02), MAT_GLASS, bevel=0.035)
-    box("ENG_Cab_Back", (0, 3.82, 2.55), (3.22, 0.14, 3.5), MAT_RED_DARK, bevel=0.05)
+    box("ENG_Cab_Back", (0, 3.82, 3.16), (3.22, 0.14, 2.49), MAT_RED_DARK, bevel=0.05)
 
     # Driving wheels and motion gear.
     for index, y in enumerate((-2.15, 0.0, 2.05), start=1):
-        wheel_set(f"Driver_{index}", y, 0.84, x=1.52)
-    wheel_set("Leading", -4.25, 0.52, x=1.34)
-    for side, x in (("L", -1.72), ("R", 1.72)):
+        wheel_set(f"Driver_{index}", y, 0.84)
+    wheel_set("Leading", -4.25, 0.52)
+    rod_offset = RAIL_CENTER_OFFSET + 0.22
+    for side, x in (("L", -rod_offset), ("R", rod_offset)):
         box(f"ROD_Coupling_{side}", (x, -0.05, 1.0), (0.12, 5.4, 0.16), MAT_BRASS, bevel=0.045)
         tube(f"ROD_Piston_{side}", [(x, -4.35, 1.35), (x, -1.95, 0.98)], 0.065, MAT_STEEL)
         box(f"ENG_Cylinder_Block_{side}", (x, -3.55, 1.55), (0.52, 1.2, 0.85), MAT_CRIMSON, bevel=0.1)
@@ -398,8 +420,8 @@ def build_locomotive():
 
 
 def build_tender():
-    box("TND_Chassis", (0, 6.65, 0.85), (3.2, 4.9, 0.3), MAT_IRON, bevel=0.055)
-    box("TND_Body", (0, 6.65, 2.0), (3.2, 4.45, 2.25), MAT_CRIMSON, bevel=0.12)
+    box("TND_Chassis", (0, 6.65, 1.0), (1.27, 4.9, 0.59), MAT_IRON, bevel=0.055)
+    box("TND_Body", (0, 6.65, 2.20), (3.2, 4.45, 1.85), MAT_CRIMSON, bevel=0.12)
     box("TND_Top_Rim", (0, 6.65, 3.1), (3.4, 4.6, 0.18), MAT_GOLD, bevel=0.05)
     box("TND_Coal_Bed", (0, 6.3, 3.18), (2.85, 3.5, 0.2), MAT_COAL, bevel=0.04)
     for index, (x, y, z, scale) in enumerate((
@@ -414,30 +436,37 @@ def build_tender():
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         coal.data.materials.append(MAT_COAL)
     for y in (5.25, 7.95):
-        wheel_set(f"Tender_{y:.1f}", y, 0.56, x=1.4)
+        wheel_set(f"Tender_{y:.1f}", y, 0.56)
     for side, x in (("L", -1.63), ("R", 1.63)):
         box(f"TND_Gold_Line_{side}", (x, 6.65, 2.12), (0.05, 4.0, 0.07), MAT_GOLD, bevel=0.02)
         box(f"TND_Nameplate_{side}", (x, 6.4, 2.25), (0.06, 2.35, 0.52), MAT_RED_DARK, bevel=0.07)
     box("TND_Coupler", (0, 9.25, 0.92), (0.18, 0.75, 0.18), MAT_STEEL, bevel=0.04)
 
 
+def carriage_roof(name, center_y, length):
+    # A shallow elliptical vault, extruded along the coach rather than across it.
+    profile = [(1.68 * math.cos(i * math.pi / 24), 4.055 + 0.49 * math.sin(i * math.pi / 24))
+               for i in range(24, -1, -1)]
+    count = len(profile)
+    vertices = [(x, y, z) for y in (center_y - length / 2, center_y + length / 2) for x, z in profile]
+    faces = [(i, (i + 1) % count, count + (i + 1) % count, count + i) for i in range(count)]
+    faces.extend((tuple(reversed(range(count))), tuple(range(count, 2 * count))))
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    for face in list(mesh.polygons)[:count - 1]:
+        face.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    mesh.materials.append(MAT_BLACK)
+
+
 def build_carriage(index, center_y):
     prefix = f"CAR_{index:02d}"
     length = 10.2
-    box(prefix + "_Chassis", (0, center_y, 0.83), (3.25, length + 0.15, 0.32), MAT_IRON, bevel=0.055)
-    box(prefix + "_Body", (0, center_y, 2.55), (3.12, length, 3.12), MAT_CRIMSON, bevel=0.12)
-    cylinder(
-        prefix + "_Roof",
-        (0, center_y, 4.16),
-        1.68,
-        length + 0.25,
-        MAT_BLACK,
-        vertices=48,
-        rotation=(math.radians(90), 0, 0),
-        scale=(1.0, 1.0, 0.34),
-        apply_rotation=True,
-        bevel=0.035,
-    )
+    box(prefix + "_Chassis", (0, center_y, 0.91), (1.27, length + 0.15, 0.48), MAT_IRON, bevel=0.055)
+    box(prefix + "_Body", (0, center_y, 2.625), (3.12, length, 2.97), MAT_CRIMSON, bevel=0.12)
+    carriage_roof(prefix + "_Roof", center_y, length + 0.25)
     box(prefix + "_Lower_Gold_Line", (0, center_y, 1.2), (3.22, length - 0.2, 0.075), MAT_GOLD, bevel=0.02)
     box(prefix + "_Upper_Gold_Line", (0, center_y, 3.95), (3.22, length - 0.2, 0.065), MAT_GOLD, bevel=0.02)
 
@@ -464,9 +493,11 @@ def build_carriage(index, center_y):
             cylinder(f"{prefix}_Handle_{side}_{door_side}", (x + (-0.09 if x < 0 else 0.09), y, 2.55), 0.055, 0.16, MAT_BRASS, vertices=16, rotation=(0, math.radians(90), 0), apply_rotation=True, bevel=0.01)
 
     for bogie_index, y in enumerate((center_y - 3.25, center_y + 3.25), start=1):
-        box(f"{prefix}_Bogie_{bogie_index}", (0, y, 0.72), (2.75, 1.75, 0.35), MAT_IRON, bevel=0.07)
-        wheel_set(f"Car_{index}_{bogie_index}A", y - 0.5, 0.49, x=1.38)
-        wheel_set(f"Car_{index}_{bogie_index}B", y + 0.5, 0.49, x=1.38)
+        previous_objects = set(scene.objects)
+        box(f"{prefix}_Bogie_{bogie_index}", (0, y, 0.72), (1.27, 1.75, 0.35), MAT_IRON, bevel=0.07)
+        wheel_set(f"Car_{index}_{bogie_index}A", y - 0.5, 0.49)
+        wheel_set(f"Car_{index}_{bogie_index}B", y + 0.5, 0.49)
+        group_new_parts(f"BOG_Coach_{index}_{bogie_index}", y, previous_objects)
 
     for end, y in (("Front", center_y - length / 2 - 0.25), ("Rear", center_y + length / 2 + 0.25)):
         box(f"{prefix}_End_Bellows_{end}", (0, y, 2.45), (2.25, 0.35, 2.5), MAT_BLACK, bevel=0.08)
@@ -474,20 +505,26 @@ def build_carriage(index, center_y):
 
 
 def build_train():
+    previous_objects = set(scene.objects)
     build_locomotive()
+    group_new_parts("VEH_Engine", 0, previous_objects)
+    previous_objects = set(scene.objects)
     build_tender()
+    group_new_parts("VEH_Tender", 6.65, previous_objects)
     for index, center_y in enumerate((14.7, 25.7, 36.7), start=1):
+        previous_objects = set(scene.objects)
         build_carriage(index, center_y)
+        group_new_parts(f"VEH_Coach_{index}", center_y, previous_objects)
 
 
 def build_preview_track():
-    box("PREVIEW_Ground", (0, 16, -0.28), (18, 58, 0.5), MAT_PREVIEW_STONE, bevel=0.06)
+    box("PREVIEW_Ground", (0, 16, -0.63), (18, 58, 0.5), MAT_PREVIEW_STONE, bevel=0.06)
     for y in [value * 0.82 - 7 for value in range(69)]:
-        box(f"PREVIEW_Sleeper_{y:+05.1f}", (0, y, 0.02), (3.4, 0.22, 0.18), MAT_PREVIEW_WOOD, bevel=0.025)
-    for x in (-0.718, 0.718):
-        box(f"PREVIEW_Rail_Base_{x:+.3f}", (x, 16, 0.18), (0.2, 58, 0.07), MAT_STEEL, bevel=0.015)
-        box(f"PREVIEW_Rail_Web_{x:+.3f}", (x, 16, 0.29), (0.07, 58, 0.18), MAT_STEEL, bevel=0.01)
-        box(f"PREVIEW_Rail_Head_{x:+.3f}", (x, 16, 0.42), (0.15, 58, 0.1), MAT_STEEL, bevel=0.02)
+        box(f"PREVIEW_Sleeper_{y:+05.1f}", (0, y, -0.30), (2.6, 0.22, 0.18), MAT_PREVIEW_WOOD, bevel=0.025)
+    for x in (-RAIL_CENTER_OFFSET, RAIL_CENTER_OFFSET):
+        box(f"PREVIEW_Rail_Base_{x:+.3f}", (x, 16, -0.175), (0.2, 58, 0.07), MAT_STEEL, bevel=0.015)
+        box(f"PREVIEW_Rail_Web_{x:+.3f}", (x, 16, -0.06), (0.07, 58, 0.18), MAT_STEEL, bevel=0.01)
+        box(f"PREVIEW_Rail_Head_{x:+.3f}", (x, 16, TREAD_DATUM - 0.05), (0.15, 58, 0.1), MAT_STEEL, bevel=0.02)
 
 
 def add_preview_lighting():
@@ -539,7 +576,7 @@ def join_runtime_meshes_by_material():
     for obj in list(scene.objects):
         if obj.type != "MESH" or obj.name.startswith("PREVIEW_") or belongs_to_wheel(obj):
             continue
-        key = tuple(slot.material.name if slot.material else "" for slot in obj.material_slots)
+        key = (obj.parent, tuple(slot.material.name if slot.material else "" for slot in obj.material_slots))
         groups.setdefault(key, []).append(obj)
     for index, objects in enumerate(groups.values()):
         if len(objects) < 2:
@@ -565,7 +602,7 @@ bpy.ops.object.select_all(action="DESELECT")
 for obj in scene.objects:
     if obj.name.startswith("PREVIEW_"):
         continue
-    if obj.type == "MESH" or obj.name.startswith("WHL_Rotor_"):
+    if obj.type == "MESH" or obj.name.startswith(("WHL_Rotor_", "VEH_", "BOG_")):
         obj.select_set(True)
 
 export_args = dict(

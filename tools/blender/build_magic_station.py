@@ -201,6 +201,10 @@ MAT_BALLAST = material("MAT_Track_Ballast", (0.19, 0.17, 0.15), roughness=0.97)
 MAT_STEEL = material("MAT_Rail_Steel", (0.18, 0.19, 0.18), metallic=0.92, roughness=0.24)
 MAT_EMISSIVE = material("MAT_Lamp_Glow", (0.95, 0.63, 0.24), roughness=0.22, emission=((1.0, 0.42, 0.1), 5.0))
 
+PLATFORM_TOP = 1.45
+NEAR_EDGE = 19.75
+FAR_EDGE = 28.25
+
 
 def apply_bevel(obj, width=0.04, segments=2):
     if width <= 0:
@@ -214,23 +218,19 @@ def apply_bevel(obj, width=0.04, segments=2):
     return obj
 
 
-def scale_brick_uv(obj, dimensions):
-    """Keep masonry close to a 50 x 10 cm brick module on every box face."""
+def map_brick_uv(obj):
+    """Project metre-scaled bond onto each wall, with every course horizontal."""
     uv_layer = obj.data.uv_layers.active
     if uv_layer is None:
         return
     for polygon in obj.data.polygons:
         normal = polygon.normal
-        if abs(normal.y) > 0.5:
-            repeat_u, repeat_v = dimensions[0] / 2.5, dimensions[2] / 1.0
-        elif abs(normal.x) > 0.5:
-            repeat_u, repeat_v = dimensions[1] / 2.5, dimensions[2] / 1.0
-        else:
-            repeat_u, repeat_v = dimensions[0] / 2.5, dimensions[1] / 1.0
+        axis = max(range(3), key=lambda component: abs(normal[component]))
         for loop_index in polygon.loop_indices:
-            uv = uv_layer.data[loop_index].uv
-            uv.x *= repeat_u
-            uv.y *= repeat_v
+            vertex = obj.data.vertices[obj.data.loops[loop_index].vertex_index].co
+            horizontal = vertex.y if axis == 0 else vertex.x
+            vertical = vertex.y if axis == 2 else vertex.z
+            uv_layer.data[loop_index].uv = (horizontal / 1.5, vertical / 0.85)
 
 
 def box(name, location, dimensions, mat, *, bevel=0.05, rotation=(0, 0, 0)):
@@ -242,7 +242,7 @@ def box(name, location, dimensions, mat, *, bevel=0.05, rotation=(0, 0, 0)):
     apply_bevel(obj, bevel, 2)
     obj.data.materials.append(mat)
     if mat == MAT_BRICK:
-        scale_brick_uv(obj, dimensions)
+        map_brick_uv(obj)
     return obj
 
 
@@ -326,11 +326,37 @@ def roof_height(y):
 
 def build_floor_and_walls():
     box("ENV_Concourse_Floor", (0, -18.0, -0.28), (104, 36, 0.56), MAT_FLOOR, bevel=0.08)
-    box("ENV_Hidden_Platform", (0, 9.0, 0.08), (104, 18, 0.64), MAT_FLOOR, bevel=0.08)
-    box("ENV_Island_Platform", (0, 36.0, 0.08), (104, 11.5, 0.64), MAT_FLOOR, bevel=0.08)
-    box("ENV_Platform_Safety_Edge_A", (0, 17.72, 0.45), (104, 0.55, 0.12), MAT_EDGE, bevel=0.02)
-    box("ENV_Platform_Safety_Edge_B", (0, 30.28, 0.45), (104, 0.55, 0.12), MAT_EDGE, bevel=0.02)
+    for name, start, end, stripe_y in (
+        ("Hidden", 0, NEAR_EDGE, NEAR_EDGE - 0.28),
+        ("Island", FAR_EDGE, 41.75, FAR_EDGE + 0.28),
+    ):
+        box(f"ENV_{name}_Platform", (0, (start + end) / 2, PLATFORM_TOP / 2),
+            (104, end - start, PLATFORM_TOP), MAT_FLOOR, bevel=0.06)
+        box(f"ENV_{name}_Safety_Edge", (0, stripe_y, PLATFORM_TOP + 0.01),
+            (104, 0.4, 0.02), MAT_EDGE, bevel=0.008)
+        for x in (-51.8, 51.8):
+            for rail_height in (0.58, 1.12):
+                box(f"ARC_{name}_Guard_Rail", (x, (start + end) / 2, PLATFORM_TOP + rail_height),
+                    (0.10, end - start, 0.085), MAT_IRON_GREEN, bevel=0.018)
+            for post_y in np.linspace(start + 0.12, end - 0.12, math.ceil((end - start) / 2.5) + 1):
+                box(f"ARC_{name}_Guard_Post", (x, float(post_y), PLATFORM_TOP + 0.56),
+                    (0.20, 0.14, 1.12), MAT_IRON_GREEN, bevel=0.025)
     box("ENV_Back_Wall", (0, -36.0, 5.0), (104, 0.85, 10.0), MAT_BRICK, bevel=0.08)
+    for x in (-52, 52):
+        box("ARC_Concourse_End_Wall", (x, -18, 3.3), (0.6, 36, 6.6), MAT_BRICK, bevel=0.06)
+        box("ARC_Concourse_End_Coping", (x, -18, 6.64), (0.6, 36, 0.18), MAT_STONE, bevel=0.04)
+        y_values = np.linspace(-36, 0, 13)
+        vertices = [(x, float(y), z) for y in y_values for z in (6.7, roof_height(float(y)))]
+        faces = [(2*i, 2*i + 1, 2*i + 3, 2*i + 2) for i in range(len(y_values) - 1)]
+        mesh = bpy.data.meshes.new("ARC_Clerestory_Glass")
+        mesh.from_pydata(vertices, [], faces)
+        mesh.update()
+        bpy.context.collection.objects.link(bpy.data.objects.new("ARC_Clerestory_Glass", mesh))
+        mesh.materials.append(MAT_GLASS)
+        for y in y_values:
+            height = roof_height(float(y))
+            box("ARC_Clerestory_Mullion", (x, y, (height + 6.7) / 2),
+                (0.18, 0.12, height - 6.7), MAT_IRON_GREEN, bevel=0.012)
 
     # To ordinary travellers this is just a solid barrier between platforms.
     # The game teleports the player through it during the magical transition;
@@ -347,7 +373,7 @@ def build_floor_and_walls():
 
 def build_roof():
     y_values = np.linspace(-36, 42, 31)
-    for x in np.linspace(-48, 48, 13):
+    for x in (-52.0, *np.linspace(-48, 48, 13), 52.0):
         points = [(float(x), float(y), roof_height(float(y))) for y in y_values]
         tube(f"ARC_Roof_Rib_{int(x):+03d}", points, 0.13, MAT_IRON)
         box(f"ARC_Roof_Tie_{int(x):+03d}", (float(x), 3.0, 8.95), (0.22, 77.2, 0.22), MAT_IRON, bevel=0.025)
@@ -359,7 +385,7 @@ def build_roof():
     # One watertight mesh for the full glazed roof, inset under the iron grid.
     vertices = []
     faces = []
-    x_values = np.linspace(-50, 50, 26)
+    x_values = np.linspace(-52, 52, 27)
     roof_y = np.linspace(-36, 42, 31)
     for x in x_values:
         for y in roof_y:
@@ -394,16 +420,18 @@ def build_roof():
 def build_track():
     sleeper_positions = np.arange(-50, 50.1, 1.22)
     for track_index, center_y in enumerate((21.8, 26.2), start=1):
-        box(f"RAIL_{track_index}_Ballast", (0, center_y, -0.08), (104, 3.55, 0.38), MAT_BALLAST, bevel=0.08)
+        box(f"RAIL_{track_index}_Ballast", (0, center_y, -0.08), (104, 3.30, 0.38), MAT_BALLAST, bevel=0.08)
         for x in sleeper_positions:
             box(
                 f"RAIL_{track_index}_Sleeper_{x:+05.1f}",
                 (float(x), center_y, 0.17),
-                (0.27, 2.55, 0.2),
+                (0.27, 2.60, 0.2),
                 MAT_WOOD,
                 bevel=0.035,
             )
-        for rail_index, rail_y in enumerate((center_y - 0.718, center_y + 0.718), start=1):
+        # Gauge is measured between the inside faces of the 0.15 m rail heads.
+        rail_center_offset = (1.435 + 0.15) / 2
+        for rail_index, rail_y in enumerate((center_y - rail_center_offset, center_y + rail_center_offset), start=1):
             box(f"RAIL_{track_index}_{rail_index}_Foot", (0, rail_y, 0.34), (104, 0.22, 0.07), MAT_STEEL, bevel=0.018)
             box(f"RAIL_{track_index}_{rail_index}_Web", (0, rail_y, 0.45), (104, 0.07, 0.18), MAT_STEEL, bevel=0.012)
             box(f"RAIL_{track_index}_{rail_index}_Head", (0, rail_y, 0.58), (104, 0.15, 0.1), MAT_STEEL, bevel=0.025)
@@ -419,9 +447,9 @@ def build_track():
 
 
 def build_sign_disc(name, location, radius, label, *, label_size=1.25, side=-1):
-    rotation = (math.radians(90 if side < 0 else -90), 0, 0)
-    cylinder(name + "_Disc", location, radius, 0.18, MAT_ENAMEL, vertices=48, rotation=rotation, bevel=0.08)
-    cylinder(name + "_Rim", (location[0], location[1] + side * 0.11, location[2]), radius + 0.12, 0.08, MAT_BRASS, vertices=48, rotation=rotation, bevel=0.05)
+    rotation = (math.pi / 2, 0, 0 if side < 0 else math.pi)
+    cylinder(name + "_Rim", location, radius + 0.12, 0.12, MAT_BRASS, vertices=48, rotation=rotation, bevel=0.035)
+    cylinder(name + "_Disc", (location[0], location[1] + side * 0.09, location[2]), radius, 0.10, MAT_ENAMEL, vertices=48, rotation=rotation, bevel=0.035)
     text_mesh(name + "_Text", label, (location[0], location[1] + side * 0.23, location[2]), label_size, 0.055, MAT_WHITE, rotation=rotation)
 
 
@@ -494,27 +522,34 @@ def build_clock():
 
 def build_dressing():
     # The 9¾ marker exists only on the magical platform side of the solid wall.
-    build_sign_disc("SGN_Platform_934", (0, 0.72, 11.3), 2.2, "9¾", label_size=1.65, side=1)
+    build_sign_disc("SGN_Platform_934", (0, 0.72, 6.7), 1.35, "9¾", label_size=1.25, side=1)
+    for x, number in ((-8, "9"), (8, "10")):
+        box(f"SGN_Platform_{number}_Frame", (x, -0.60, 4.4), (3.15, 0.18, 2.6), MAT_BRASS, bevel=0.09)
+        box(f"SGN_Platform_{number}_Board", (x, -0.72, 4.4), (3.00, 0.12, 2.45), MAT_ENAMEL, bevel=0.06)
+        text_mesh(f"SGN_Platform_{number}_Header", "PLATFORM", (x, -0.80, 5.12), 0.32, 0.012, MAT_WHITE)
+        text_mesh(f"SGN_Platform_{number}_Digits", number, (x, -0.80, 4.12), 1.5, 0.025, MAT_WHITE)
     box("SGN_KingsCross_Board", (18.5, -35.47, 7.3), (23.0, 0.16, 2.15), MAT_ENAMEL, bevel=0.15)
-    text_mesh("SGN_KingsCross_Text", "KING'S CROSS", (18.5, -35.31, 7.3), 1.15, 0.055, MAT_WHITE, rotation=(math.radians(-90), 0, 0))
+    text_mesh("SGN_KingsCross_Text", "KING'S CROSS", (18.5, -35.31, 7.3), 1.15, 0.055, MAT_WHITE, rotation=(math.pi / 2, 0, math.pi))
 
     build_clock()
+    for x in (-42, -24, -6, 12, 30, 48):
+        build_lamp(x, -20.0, z=10.5, hanging=True)
+    build_trolley(-10, -9.5)
+    build_trolley(16, -13.0)
+    platform_objects_before = set(scene.objects)
     for x in (-38, -18, 2, 22, 42):
         build_lamp(x, 14.8)
         build_lamp(x + 5, 34.0)
-    for x in (-42, -24, -6, 12, 30, 48):
-        build_lamp(x, -20.0, z=10.5, hanging=True)
-
     for x, y in ((-34, 10.4), (-10, 10.4), (16, 10.4), (38, 10.4), (-26, 36.3), (4, 36.3), (30, 36.3)):
         build_bench(x, y)
     for x, y in ((-37, 6.0), (-5, 6.0), (28, 6.0), (-20, 39.0), (18, 39.0)):
         build_luggage_rack(x, y)
 
-    build_trolley(-10, -9.5)
-    build_trolley(16, -13.0)
     build_trolley(-30, 5.0)
-    build_trunk("PRP_Loose_Trunk_A", (26.0, 6.2, 0.42), (1.7, 1.0, 0.9))
-    build_trunk("PRP_Loose_Trunk_B", (28.0, 6.4, 0.42), (1.1, 0.8, 0.65), MAT_WOOD)
+    build_trunk("PRP_Loose_Trunk_A", (26.0, 6.2, 0), (1.7, 1.0, 0.9))
+    build_trunk("PRP_Loose_Trunk_B", (28.0, 6.4, 0), (1.1, 0.8, 0.65), MAT_WOOD)
+    for obj in set(scene.objects) - platform_objects_before:
+        obj.location.z += PLATFORM_TOP
 
 
 def add_preview_lighting():
@@ -553,11 +588,11 @@ def add_preview_lighting():
         light.data.color = (1.0, 0.43, 0.13)
         light.data.shadow_soft_size = 3.0
 
-    bpy.ops.object.camera_add(location=(30, -14.5, 4.8))
+    bpy.ops.object.camera_add(location=(11, -30, 6.0))
     camera = bpy.context.object
     camera.name = "PREVIEW_Camera"
-    camera.data.lens = 34
-    look_at(camera, (0, 6.5, 4.0))
+    camera.data.lens = 28
+    look_at(camera, (0, 0, 4.2))
     scene.camera = camera
 
 
