@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { glowTex, planetTexture, lighten, swirlTex } from './tex.js';
 
-const RADIUS = { plaza: 13, games: 9.5, coins: 9, create: 8.5, home: 8.5 };
+const RADIUS = { plaza: 13, games: 9.5, coins: 9, create: 8.5, home: 8.5, magic: 10.5 };
 const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .6, ...o });
 
 // 星球在宇宙里的位置：围成一圈，出生点在圈外，一眼能看到好几颗
@@ -108,7 +108,46 @@ function decorHome(g, r, p) {
   return () => {};
 }
 
-const DECOR = { plaza: decorPlaza, games: decorGames, coins: decorCoins, create: decorCreate, home: decorHome };
+function decorMagic(g, r, p) {
+  // 远处也能认出的城堡剪影、环绕金色轨道与飞翔的猫头鹰。
+  const stone = mat(0x4a4564, { roughness: .85 });
+  const roof = mat(0x17233f, { roughness: .7, emissive: 0x101a36, emissiveIntensity: .35 });
+  const gold = mat(0xf4cf73, { emissive: 0xc98b2b, emissiveIntensity: .7, metalness: .25 });
+  const castle = new THREE.Group();
+  const hall = new THREE.Mesh(new THREE.BoxGeometry(3.8, 2.2, 2.4), stone); hall.position.y = 1.1; castle.add(hall);
+  [[-1.65, 0, 3.1], [1.65, 0, 3.1], [0, -.7, 4.1]].forEach(([x, z, h], i) => {
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(.62 + i * .05, .72 + i * .05, h, 8), stone);
+    tower.position.set(x, h / 2, z); castle.add(tower);
+    const spire = new THREE.Mesh(new THREE.ConeGeometry(.9, 1.8, 8), roof); spire.position.set(x, h + .9, z); castle.add(spire);
+    const win = new THREE.Mesh(new THREE.BoxGeometry(.2, .5, .05), gold); win.position.set(x, h * .58, z + .73); castle.add(win);
+  });
+  castle.scale.setScalar(.9); onTop(g, castle, r, -.2);
+
+  const orbit = new THREE.Mesh(new THREE.TorusGeometry(r * 1.45, .12, 8, 96), gold);
+  orbit.rotation.x = Math.PI / 2.5; g.add(orbit);
+  const owls = [];
+  for (let i = 0; i < 3; i++) {
+    const owl = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.45, 10, 8), mat(0xe9dfc8)); body.scale.set(1, 1.25, .8); owl.add(body);
+    [-1, 1].forEach(s => {
+      const wing = new THREE.Mesh(new THREE.ConeGeometry(.32, .9, 5), mat(0xb9aa8c));
+      wing.position.x = s * .45; wing.rotation.z = s * 1.15; wing.userData.side = s; owl.add(wing);
+    });
+    owl.userData = { a: i / 3 * Math.PI * 2, rr: r + 4 + i * .8 }; g.add(owl); owls.push(owl);
+  }
+  return t => {
+    castle.position.y = r * .96 - .2 + Math.sin(t * 1.2) * .08;
+    orbit.rotation.z = t * .08;
+    owls.forEach((owl, i) => {
+      const a = owl.userData.a + t * (.32 + i * .03);
+      owl.position.set(Math.cos(a) * owl.userData.rr, 2 + Math.sin(t * 2 + i) * 1.1, Math.sin(a) * owl.userData.rr);
+      owl.rotation.y = -a + Math.PI / 2;
+      owl.children.forEach(c => { if (c.userData.side) c.rotation.z = c.userData.side * (1.05 + Math.sin(t * 7 + i) * .35); });
+    });
+  };
+}
+
+const DECOR = { plaza: decorPlaza, games: decorGames, coins: decorCoins, create: decorCreate, home: decorHome, magic: decorMagic };
 
 export function buildPlanet(p, i) {
   const r = p.radius, c2 = lighten(p.color, .5);

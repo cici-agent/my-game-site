@@ -176,11 +176,13 @@ function buildUI() {
   dock.innerHTML = '';
   PLANETS.forEach(p => {
     const b = document.createElement('button'); b.dataset.k = p.kind; b.style.setProperty('--c', p.color);
+    b.title = p.name; b.setAttribute('aria-label', p.name);
     b.innerHTML = `<span class="e">${p.icon}</span>${p.name}`; b.onclick = () => flyTo(p); dock.appendChild(b);
   });
   const sep = document.createElement('div'); sep.className = 'sep'; dock.appendChild(sep);
   takeoffBtn = document.createElement('button');
   takeoffBtn.className = 'takeoff'; takeoffBtn.disabled = true;
+  takeoffBtn.title = '起飞'; takeoffBtn.setAttribute('aria-label', '起飞');
   takeoffBtn.innerHTML = '<span class="e">🚀</span>起飞';
   takeoffBtn.onclick = () => takeOff();
   dock.appendChild(takeoffBtn);
@@ -259,6 +261,12 @@ async function finishLanding() {
   if (p.kind === 'plaza') {
     if (!ME && !(await requireLogin(p))) return;
     location.href = 'park.html';
+    return;
+  }
+  // 魔法学院星球：进入独立的剧情式 3D 世界。
+  if (p.kind === 'magic') {
+    if (!ME && !(await requireLogin(p))) return;
+    location.href = 'magic-academy.html';
     return;
   }
   state.mode = 'landed'; state.landed = p; state.speed = 0; state.warp = 0;

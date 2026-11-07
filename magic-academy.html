@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#11172b">
+<title>魔法学院星球 · 小菜鸟宇宙</title>
+<link rel="stylesheet" href="css/magic-academy.css">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="transition"><div class="transition-star">✦</div></div>
+
+<header class="hud">
+  <div class="brand"><span class="brand-mark">🦉</span><div><b>魔法学院星球</b><small>小菜鸟宇宙 · 入学序章</small></div></div>
+  <div class="hud-actions">
+    <button id="mute" class="round" title="声音">🔊</button>
+    <a class="universe" href="index.html?takeoff=magic">🚀 返回宇宙</a>
+  </div>
+</header>
+
+<aside id="map" class="map-panel">
+  <div class="map-title">魔法地图 <span>完成序章后解锁</span></div>
+  <div class="map-buttons">
+    <button data-jump="station">🚉<span>车站</span></button>
+    <button data-jump="lake">🌊<span>黑湖</span></button>
+    <button data-jump="castle">🏰<span>城堡</span></button>
+    <button data-jump="willow">🌳<span>打人柳</span></button>
+  </div>
+</aside>
+
+<section id="story" class="story-card">
+  <button id="collapseStory" class="collapse" title="收起故事卡">⌄</button>
+  <div class="story-top"><span id="chapterEyebrow"></span><b id="chapterNum"></b></div>
+  <h1 id="chapterTitle"></h1>
+  <p id="chapterText"></p>
+  <div class="objective"><span>当前任务</span><b id="objective"></b></div>
+  <div class="story-bottom">
+    <div class="story-progress" aria-label="故事进度">
+      <i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i><i class="story-dot"></i>
+    </div>
+    <button id="restart">↻ 从头开始</button>
+  </div>
+</section>
+
+<div id="prompt"></div>
+<div id="toast"></div>
+
+<div id="stick" aria-label="移动摇杆"><div class="knob"></div></div>
+<button id="actBtn" aria-label="互动">E<small>互动</small></button>
+
+<div class="help">WASD / 方向键移动 · 拖动画面转视角 · E 互动 · Shift 加速</div>
+<div class="fan-note">非官方同人互动体验 · 3D 场景为原创程序化模型</div>
+
+<div id="loading">
+  <div class="loading-crest">🦉</div>
+  <div class="loading-title">魔法学院星球</div>
+  <div class="loading-line"><i></i></div>
+  <p>猫头鹰正在送来入学车票……</p>
+</div>
+
+<script type="module" src="js/magic/main.js"></script>
+</body>
+</html>
