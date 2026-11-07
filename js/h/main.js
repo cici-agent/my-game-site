@@ -290,7 +290,7 @@ if (ME) loadInventory(ME.user.id).then(() => {
 }).catch(() => {});
 
 const keys = {};
-const cam = { yaw: Math.PI, pitch: .32, dist: 11 };   // 相机在玩家南边，看向北边的广场
+const cam = { yaw: Math.PI, pitch: .3, dist: 13 };   // 离得远一点：整个人从头到脚都看得见   // 相机在玩家南边，看向北边的广场
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
@@ -308,7 +308,7 @@ canvas.addEventListener('pointermove', e => {
   drag.x = e.clientX; drag.y = e.clientY;
 });
 ['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => drag = null));
-canvas.addEventListener('wheel', e => { cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * .01, 5, 30); }, { passive: true });
+canvas.addEventListener('wheel', e => { cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * .006, 9, 28); }, { passive: true });
 
 // 触屏：摇杆 + 跳跃键
 const stick = $('stick'), knob = stick.querySelector('.knob'), joy = { x: 0, y: 0, id: null };
@@ -327,7 +327,7 @@ $('jumpBtn').addEventListener('pointerdown', e => { keys.Space = true; $('jumpBt
 
 const WALK = 7.5, RUN = 12, GRAV = 26, JUMP = 9.5, EDGE = 120;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
-camera.position.set(0, 8, 34);
+camera.position.set(0, 5.5, 34.5);
 function step(dt, t) {
   let mx = 0, my = 0;
   if (keys.KeyW || keys.ArrowUp) my += 1;
@@ -369,8 +369,8 @@ function step(dt, t) {
     pet.group.position.copy(petPos); pet.update(dt, t, moving);
   }
   // 第三人称镜头：在人物身后，可以抬头看天
-  camLook.set(player.pos.x, player.pos.y + 2, player.pos.z);
-  const upk = Math.max(0, -cam.pitch), cd = cam.dist * (1 - upk * .45), pv = Math.max(cam.pitch, -.12);
+  camLook.set(player.pos.x, player.pos.y + 1.5, player.pos.z);
+  const upk = Math.max(0, -cam.pitch), cd = Math.max(8, cam.dist * (1 - upk * .45)), pv = Math.max(cam.pitch, -.12);
   camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(pv), camLook.y + Math.sin(pv) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(pv));
   camPos.y = Math.max(camPos.y, .5);
   camera.position.lerp(camPos, Math.min(1, dt * 8));
@@ -378,7 +378,11 @@ function step(dt, t) {
   camera.lookAt(camLook);
 }
 
-function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight;
+  camera.fov = camera.aspect < 1 ? 62 : 50;   // 竖屏手机视野放宽，人物不会被切掉
+  camera.updateProjectionMatrix();
+}
 addEventListener('resize', resize); resize();
 
 const clock = new THREE.Clock();
