@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { glowTex, planetTexture, lighten, swirlTex } from './tex.js';
 
-const RADIUS = { plaza: 13, games: 9.5, coins: 9, create: 8.5, home: 8.5 };
+const RADIUS = { plaza: 13, games: 9.5, coins: 9, create: 8.5, home: 8.5, homestead: 9.5 };
 const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .6, ...o });
 
 // 星球在宇宙里的位置：围成一圈，出生点在圈外，一眼能看到好几颗
@@ -108,7 +108,51 @@ function decorHome(g, r, p) {
   return () => {};
 }
 
-const DECOR = { plaza: decorPlaza, games: decorGames, coins: decorCoins, create: decorCreate, home: decorHome };
+function decorHomestead(g, r, p) {
+  // 小木屋 + 一排排菜地 + 栅栏 + 小鸡：一看就是"家园"
+  const farm = new THREE.Group();
+  const cabin = new THREE.Group();
+  const wood = mat(0xc98b4e), dark = mat(0x8b5a2b);
+  const walls = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.8, 2.2), wood); walls.position.y = .9; cabin.add(walls);
+  const roofMat = mat(0xd9534f);
+  [-1, 1].forEach(s => { const slab = new THREE.Mesh(new THREE.BoxGeometry(3, .14, 1.55), roofMat); slab.position.set(0, 2.25, s * .55); slab.rotation.x = s * .62; cabin.add(slab); });
+  const door = new THREE.Mesh(new THREE.BoxGeometry(.6, 1.05, .08), dark); door.position.set(-.5, .53, 1.11); cabin.add(door);
+  const win = new THREE.Mesh(new THREE.BoxGeometry(.55, .5, .08), mat(0xfff3b0, { emissive: 0xffd23f, emissiveIntensity: .8 })); win.position.set(.6, 1.05, 1.11); cabin.add(win);
+  cabin.position.set(-1.6, 0, -.6); farm.add(cabin);
+  // 菜地：三垄，种着不同颜色的菜
+  const soil = mat(0x7a4a2a, { roughness: 1 });
+  const veg = [0x5cc04a, 0xff8c2a, 0xe8433a];
+  for (let k = 0; k < 3; k++) {
+    const row = new THREE.Mesh(new THREE.BoxGeometry(2.4, .25, .45), soil); row.position.set(1.9, .12, -.9 + k * .75); farm.add(row);
+    for (let j = 0; j < 4; j++) {
+      const v = new THREE.Mesh(new THREE.SphereGeometry(.17, 8, 6), mat(veg[k])); v.position.set(1 + j * .6, .36, -.9 + k * .75); farm.add(v);
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(.1, .3, 5), mat(0x3e9b35)); leaf.position.set(1 + j * .6, .55, -.9 + k * .75); farm.add(leaf);
+    }
+  }
+  // 栅栏
+  const fence = mat(0xfff6ec);
+  for (let j = 0; j < 7; j++) { const post = new THREE.Mesh(new THREE.BoxGeometry(.12, .6, .12), fence); post.position.set(.6 + j * .45, .3, 1.35); farm.add(post); }
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(2.9, .08, .06), fence); rail.position.set(1.95, .42, 1.35); farm.add(rail);
+  onTop(g, farm, r, -.35);
+  // 小鸡在星球表面绕圈走
+  const chicks = [];
+  for (let k = 0; k < 3; k++) {
+    const c = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.32, 10, 8), mat(0xfff1a8)); c.add(body);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(.08, .2, 5), mat(0xff8c2a)); beak.rotation.x = Math.PI / 2; beak.position.z = .34; c.add(beak);
+    c.userData.a = k / 3 * Math.PI * 2; g.add(c); chicks.push(c);
+  }
+  return t => {
+    chicks.forEach((c, k) => {
+      const a = c.userData.a + t * .35;
+      const rr = r * 1.0;
+      c.position.set(Math.cos(a) * rr * .55, r * .82 + Math.abs(Math.sin(t * 6 + k)) * .15, Math.sin(a) * rr * .55);
+      c.rotation.y = -a;
+    });
+  };
+}
+
+const DECOR = { plaza: decorPlaza, games: decorGames, coins: decorCoins, create: decorCreate, home: decorHome, homestead: decorHomestead };
 
 export function buildPlanet(p, i) {
   const r = p.radius, c2 = lighten(p.color, .5);

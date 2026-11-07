@@ -131,7 +131,16 @@ async function renderHome(el, ctx) {
   return '';
 }
 
-const RENDER = { games: renderGames, coins: renderCoins, create: renderCreate, home: renderHome };
+// ---------- 🏡 菜鸟家园（开发中） ----------
+function renderComingSoon(el) {
+  el.innerHTML = `<div class="empty" style="padding:40px 16px;line-height:1.9">
+    <div style="font-size:64px">🏡🚧</div>
+    <div style="font-size:22px;font-weight:700;margin:8px 0">菜鸟家园正在开发中</div>
+    <div>以后每个人在这里都会有自己的小屋、菜园和小动物。<br>敬请期待！</div></div>`;
+  return '';
+}
+
+const RENDER = { homestead: renderComingSoon, games: renderGames, coins: renderCoins, create: renderCreate, home: renderHome };
 export async function renderStation(el, planet, ctx) {
   const fn = RENDER[planet.kind];
   if (!fn) { el.innerHTML = empty('这颗星球还在建设中…'); return ''; }

@@ -264,7 +264,7 @@ async function finishLanding() {
   state.mode = 'landed'; state.landed = p; state.speed = 0; state.warp = 0;
   gate.visible = false; parkAt(p, true);
   flash(false); refreshUI();
-  if (!ME && !(await requireLogin(p))) return;
+  if (!ME && !p.coming_soon && !(await requireLogin(p))) return;
   sfx.chime();
   openStation(p);
 }
@@ -512,7 +512,7 @@ async function boot() {
     ship.position.set(p.pos[0], p.pos[1], p.pos[2] - p.radius - 14);
     state.mode = 'landed'; state.landed = p; parkAt(p, true); refreshUI(); markDock(p);
     camera.position.set(p.pos[0], p.pos[1] + p.radius * 1.2, p.pos[2] - p.radius * 3.6); lookAt.set(...p.pos);
-    if (land) { if (ME) openStation(p); else requireLogin(p).then(ok => ok && openStation(p)); }
+    if (land) { if (ME || p.coming_soon) openStation(p); else requireLogin(p).then(ok => ok && openStation(p)); }
     else takeOff(PLANETS.find(x => x.kind === params.get('next')));
     hintEl.style.opacity = 0; hintHidden = true;
     history.replaceState(null, '', location.pathname);
