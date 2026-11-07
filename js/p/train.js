@@ -20,7 +20,7 @@ function buildCar(color, k) {
   // 柱子 + 顶棚
   [-1, 1].forEach(sx => [-1, 0, 1].forEach(sz => { const p = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, 3.0, 8), white); p.position.set(sx * 1.3, 2.5, sz * (CAR_L / 2 - .15)); g.add(p); }));
   const roof = new THREE.Mesh(new THREE.BoxGeometry(3.1, .18, CAR_L + .1), C); roof.position.y = 4.0; g.add(roof);
-  const roofTop = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, CAR_L + .1, 16, 1, false, -Math.PI / 2, Math.PI), M(0xffffff)); roofTop.rotation.z = Math.PI / 2; roofTop.rotation.y = Math.PI / 2; roofTop.scale.set(1, 1, .25); roofTop.position.y = 4.09; g.add(roofTop);
+  // （车顶上不再加白色的拱形盖子，只留和车厢同色的平顶）
   // 两边的栏杆（中间留门）
   [-1, 1].forEach(sx => [[-CAR_L / 2 + .1, -.8], [.8, CAR_L / 2 - .1]].forEach(([z0, z1]) => { const L = z1 - z0; const r = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, L), white); r.position.set(sx * 1.3, 1.75, (z0 + z1) / 2); g.add(r);
     const pan = new THREE.Mesh(new THREE.BoxGeometry(.05, .55, L), C); pan.position.set(sx * 1.32, 1.3, (z0 + z1) / 2); g.add(pan); }));
