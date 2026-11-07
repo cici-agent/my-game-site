@@ -65,6 +65,8 @@ export const SKINS = {
   corgi:    { shirt: 0xf08c2e, pants: 0xf08c2e, shoes: 0xfff4e6, head: 0xf08c2e, hand: 0xfff4e6, belt: null, animal: true, extra: corgiExtra },
   dino:     { shirt: 0x51cf66, pants: 0x40c057, shoes: 0x2f9e44, head: 0x51cf66, hand: 0x51cf66, belt: null, animal: true, extra: dinoExtra },
   robot:    { shirt: 0xadb5bd, pants: 0x868e96, shoes: 0x495057, head: 0xced4da, hand: 0x495057, belt: 0x495057, metal: true, robot: true, extra: robotExtra },
+  // 小农民：菜鸟家园里的默认样子（不在商店里卖）
+  farmer:   { shirt: 0xd9413a, pants: 0x3b6fb6, shoes: 0x6b4226, head: SKIN_TONE, hair: 0x7a4a26, belt: null, extra: farmerExtra },
   unicorn:  { shirt: 0xfff0f6, pants: 0xfff0f6, shoes: 0xf783ac, head: 0xfff0f6, hand: 0xfff0f6, belt: null, animal: true, extra: unicornExtra },
 };
 
@@ -78,6 +80,49 @@ function explorerExtra(ctx) {
   add(h, cyl(r * .83, r * .83, r * .14, 20), M(0x8b5a2b), [0, r * .62, 0]);
   const bp = add(ctx.root, new THREE.BoxGeometry(.55, .6, .28), M(0x3f8f5a), [0, 1.12, -.42]);
   add(bp, new THREE.BoxGeometry(.56, .22, .3), M(0x2f6b43), [0, .2, -.01]);
+}
+function farmerExtra(ctx) {
+  const { r, root, rig, body } = ctx;
+  // 红白格子衬衫（身体 + 袖子换成格子布）
+  const plaid = canvasTex(64, 64, (g, w) => {
+    g.fillStyle = '#d9413a'; g.fillRect(0, 0, w, w);
+    g.fillStyle = 'rgba(255,255,255,.55)'; [8, 40].forEach(x => { g.fillRect(x, 0, 8, w); g.fillRect(0, x, w, 8); });
+    g.fillStyle = 'rgba(90,10,10,.35)'; [24, 56].forEach(x => { g.fillRect(x, 0, 3, w); g.fillRect(0, x, w, 3); });
+  });
+  plaid.wrapS = plaid.wrapT = THREE.RepeatWrapping; plaid.repeat.set(3, 2);
+  const shirtM = M(0xffffff, { map: plaid, roughness: .8 });
+  body.material = shirtM;
+  [rig.armL, rig.armR].forEach(a => a.children[0] && (a.children[0].material = shirtM));
+  // 牛仔背带裤：下半身裤腰 + 胸前护片 + 两条背带 + 金色扣子
+  const denim = M(0x3b6fb6, { roughness: .85 }), stitch = M(0xf2c94c, { roughness: .5 });
+  add(root, cyl(.425, .43, .36, 24), denim, [0, .7, 0]);
+  add(root, cyl(.418, .418, .44, 24, 1, true), denim, [0, 1.06, 0]).geometry =
+    new THREE.CylinderGeometry(.418, .418, .44, 24, 1, true, -1.05, 2.1);
+  add(root, new THREE.BoxGeometry(.24, .16, .03), M(0x2f5a96), [0, 1.0, .41]);   // 胸前小口袋
+  [-1, 1].forEach(sd => {
+    add(root, new THREE.BoxGeometry(.09, .62, .04), denim, [sd * .2, 1.45, .3], null, [-.55, 0, 0]);
+    add(root, new THREE.BoxGeometry(.09, .7, .04), denim, [sd * .2, 1.4, -.32], null, [.5, 0, 0]);
+    add(root, sph(.05, 10, 8), stitch, [sd * .2, 1.26, .41]);
+  });
+  // 红色小领巾
+  add(root, new THREE.TorusGeometry(.27, .06, 8, 20), M(0xc92a2a), [0, 1.58, .02], null, [Math.PI / 2, 0, 0]);
+  // 大草帽：宽帽檐 + 帽顶 + 红色帽带 + 一根小麦穗
+  const straw = canvasTex(128, 32, (g, w, h) => {
+    g.fillStyle = '#e9c46a'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++) { g.strokeStyle = i % 2 ? 'rgba(160,110,40,.35)' : 'rgba(255,240,190,.5)'; g.beginPath(); g.moveTo(i * 4, 0); g.lineTo(i * 4 + 6, h); g.stroke(); }
+    for (let y = 4; y < h; y += 6) { g.strokeStyle = 'rgba(150,100,30,.3)'; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+  });
+  straw.wrapS = straw.wrapT = THREE.RepeatWrapping; straw.repeat.set(4, 1);
+  const strawM = M(0xffffff, { map: straw, roughness: .9 });
+  const h = hatGroup(ctx);
+  add(h, cyl(r * 1.55, r * 1.6, r * .07, 32), strawM, [0, r * .55, 0]);
+  add(h, new THREE.TorusGeometry(r * 1.55, r * .05, 6, 32), strawM, [0, r * .55, 0], null, [Math.PI / 2, 0, 0]);
+  add(h, cyl(r * .78, r * .86, r * .55, 24), strawM, [0, r * .85, 0]);
+  add(h, sph(r * .78, 20, 8), strawM, [0, r * 1.1, 0], [1, .35, 1]);
+  add(h, cyl(r * .87, r * .87, r * .14, 24), M(0xc92a2a), [0, r * .66, 0]);
+  const wheat = new THREE.Group(); wheat.position.set(r * .8, r * .75, r * .2); wheat.rotation.z = -.5; h.add(wheat);
+  add(wheat, cyl(.012, .012, .35, 4), M(0xd4a73a), [0, .17, 0]);
+  for (let i = 0; i < 5; i++) [-1, 1].forEach(sd => add(wheat, sph(.03, 6, 4), M(0xe0b44a), [sd * .025, .26 + i * .035, 0], [1, 1.6, 1]));
 }
 function chefExtra(ctx) {
   const { r } = ctx, h = hatGroup(ctx), white = M(0xffffff, { roughness: .8 });

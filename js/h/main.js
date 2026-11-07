@@ -274,7 +274,9 @@ const clouds = [];
 
 // ---------- 玩家：用自己的皮肤和装饰在家园里走（和游乐园一样） ----------
 const $ = id => document.getElementById(id);
-let me = buildAvatar('explorer'), pet = null;
+// 在菜鸟家园里默认是小农民的样子；买了别的皮肤的照样穿自己的皮肤
+const homeSkin = k => (!k || k === 'explorer') ? 'farmer' : k;
+let me = buildAvatar('farmer'), pet = null;
 scene.add(me.root);
 const player = { pos: new THREE.Vector3(0, 0, 22), vy: 0, ground: true, face: Math.PI };
 const petPos = new THREE.Vector3(1.5, 0, 23.5);
@@ -282,7 +284,7 @@ const ME = window.__ME;
 if (ME) loadInventory(ME.user.id).then(() => {
   const e = INV.equip;
   scene.remove(me.root);
-  me = buildAvatar(e.skin || 'explorer', { hand: e.hand, head: e.head, back: e.back });
+  me = buildAvatar(homeSkin(e.skin), { hand: e.hand, head: e.head, back: e.back });
   scene.add(me.root);
   if (e.pet) { pet = buildPet(e.pet); scene.add(pet.group); }
 }).catch(() => {});
