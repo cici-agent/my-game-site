@@ -146,6 +146,8 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
     let left = sec; while (left > 0) { const step = Math.min(left, 60); left -= step; const now = Date.now() - left * 1000; tick(step, now, true); }
   }
   function tick(dt, now, offline) {
+    // 鸡蛋放着不收：有可能孵出小鸡（收走了就不会孵；金蛋不会孵）—— 用户说的
+    if (st.eggs > 0 && st.hens.length < COOP[st.lv].cap && Math.random() < dt * st.eggs / (30 * 60)) { st.eggs--; st.hens.push({ born: now, full: 80, next: now + GROW * 1000 + EGG_MIN * 1000 }); if (!offline) hatched = true; }
     st.hens.forEach(h => {
       h.full = Math.max(0, h.full - dt * HUNGER);
       if (h.full < 50 && st.feed > 0) { st.feed--; h.full = Math.min(100, h.full + MEAL); }
@@ -159,7 +161,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
       }
     });
   }
-  let laid = false;
+  let laid = false, hatched = false;
   if (st.t) simulate(Math.max(0, (Date.now() - st.t) / 1000));
 
   // ---------- 每只鸡在院子里走来走去 ----------
@@ -191,6 +193,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
     C.gate.update(dt);
     t0 += dt; tick(dt, Date.now(), false);
     if (laid) { laid = false; showStuff(); notify('🥚 鸡下蛋了！去鸡舍收鸡蛋'); }
+    if (hatched) { hatched = false; syncBirds(); showStuff(); notify('🐣 鸡蛋没收，孵出了一只小鸡！'); }
     if ((growT += dt) > 5) { growT = 0; syncBirds(); showStuff(); }
     const night = isNight(), { RW, RD } = C, door = C.door, hb = C.houseBox;
     birds.forEach((b, i) => {

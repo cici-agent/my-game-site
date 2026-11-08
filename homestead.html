@@ -42,6 +42,12 @@
   #bag .slot { cursor: pointer; border: 2px solid transparent; }
   #bag .slot.on { border-color: #ffd23f; background: rgba(255,210,63,.35); box-shadow: 0 0 10px rgba(255,210,63,.6); transform: translateY(-3px); }
   #bag .slot.tool { background: rgba(120,190,255,.25); }
+  /* 熟的：焦黄、暖暖的光、冒热气；生的：淡一点、粉粉的、标“生” */
+  .slot.cooked { background: radial-gradient(circle, rgba(255,170,60,.55), rgba(140,70,20,.35)) !important; }
+  .slot.cooked .veg { filter: sepia(.55) saturate(1.7) brightness(.92) drop-shadow(0 0 3px #ffb347); }
+  .slot.cooked::after { content: '♨️'; position: absolute; right: 1px; top: -2px; font-size: 11px; }
+  .slot.raw .veg { filter: saturate(.55) brightness(1.18); opacity: .9; }
+  .slot.raw::after { content: '生'; position: absolute; right: 2px; top: 1px; font-size: 9px; font-weight: 800; color: #fff; background: #e26a7a; border-radius: 4px; padding: 0 2px; line-height: 12px; }
   #bag .slot u { position: absolute; left: 3px; top: 0; text-decoration: none; font-size: 10px; font-weight: 800; color: rgba(255,255,255,.75); }
   #prompt.dim { border-color: rgba(255,255,255,.4); }
   /* 种子：牛皮纸小纸袋，上边是锯齿口，中间贴着菜的小图 */
@@ -203,6 +209,7 @@
   <div class="row"><button id="dbgOil">🛢️ 送灯油</button><button id="dbgStaFull">💪 体力加满</button><button id="dbgStaLow">😩 体力清空</button></div>
   <div class="t">鸡舍</div><div class="row"><button id="dbgCoopLv">🐔 鸡舍换等级</button><button id="dbgChick">🐔 送一只母鸡</button><button id="dbgEggs">🥚 马上下蛋</button><button id="dbgFeed">🌾 送鸡饲料</button></div>
   <div class="t">牛、羊、猪、鸭、鱼塘、栅栏</div><div class="row"><button id="dbgCowLv">🐄 牛棚换等级</button><button id="dbgCow">🐄 送一头牛</button><button id="dbgSheepLv">🐑 羊圈换等级</button><button id="dbgSheep">🐑 送一只羊</button><button id="dbgPigLv">🐷 猪圈换等级</button><button id="dbgPig">🐷 送一头猪</button><button id="dbgDuckLv">🦆 鸭棚换等级</button><button id="dbgDuck">🦆 送一只鸭</button><button id="dbgFence">🧱 栅栏换等级</button><button id="dbgPondLv">🏞️ 鱼塘换等级</button><button id="dbgPondFill">🐟 放鱼虾蟹 + 渔网</button><button id="dbgRanchReady">🥛 马上能收东西</button><button id="dbgRanchStuff">🎁 草料 + 剪刀 + 菜刀</button></div>
+  <div class="t">小鸟、蝴蝶</div><div class="row"><button id="dbgBirdStuff">🎁 鸟食 + 鸟笼 + 鸟屋 + 蝴蝶网</button><button id="dbgBird">🐦 飞来一只鸟</button><button id="dbgBirdLove">❤️ 小鸟好感满</button><button id="dbgBirdEgg">🪺 鸟屋下蛋</button><button id="dbgBirdHatch">🐣 鸟蛋马上孵</button><button id="dbgBfly">🦋 多 3 只蝴蝶</button></div>
   <div class="t">小狗</div><div class="row"><button id="dbgDog">🐶 送小狗</button><button id="dbgDogStuff">🎁 狗盆 + 狗粮 + 飞盘 + 狗链</button><button id="dbgKennel">🛖 狗屋 / 换等级</button><button id="dbgDogHungry">😢 让它饿</button><button id="dbgDogLoyal">❤️ 忠诚满</button><button id="dbgDogReset">🗑 清掉狗</button></div>
 </div></div>
 <div id="stick"><div class="knob"></div></div>

@@ -8,7 +8,7 @@ export const BED_RATE = { bedStraw: .06, bedWood: .09, bedSoft: .12, bedDouble: 
 // 吃东西回多少体力
 // 生的回得少（用户说：烧熟了回得多）
 export const FOOD = { steak: 32, lambskewer: 28, roastpork: 30, roastchicken: 24, roastduck: 26, grilledfish: 20, cookedshrimp: 14, steamedcrab: 18, friedegg: 16, boiledduckegg: 16, bakedpotato: 16, roastcorn: 18,
-  fish: 4, shrimp: 3, crab: 4, pork: 7, duckmeat: 6, duckegg: 6, beef: 8, mutton: 7, milk: 12, chicken_meat: 5, egg: 5, radish: 4, lettuce: 5, carrot: 6, potato: 8, tomato: 7, corn: 9, strawberry: 6, pumpkin: 20, watermelon: 25, apple: 8, orange: 8, peach: 10, cherry: 6 };
+  birdegg: 3, fish: 4, shrimp: 3, crab: 4, pork: 7, duckmeat: 6, duckegg: 6, beef: 8, mutton: 7, milk: 12, chicken_meat: 5, egg: 5, radish: 4, lettuce: 5, carrot: 6, potato: 8, tomato: 7, corn: 9, strawberry: 6, pumpkin: 20, watermelon: 25, apple: 8, orange: 8, peach: 10, cherry: 6 };
 
 export function createStamina({ save = true } = {}) {
   const KEY = 'xcn_stamina_v1';

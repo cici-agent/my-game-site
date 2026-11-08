@@ -27,6 +27,11 @@ export const SHOP_ITEMS = [
   { key: 'fishfood', price: 2, lv: 1, note: '一把鱼食：在鱼塘边按 E 撒进去', shop: 'animal' },
   { key: 'net', price: 12, lv: 1, note: '渔网：要走进水里才能用，按 E 捞一只长大的（不会用完）', once: true, shop: 'animal' },
   { key: 'rod', price: 15, lv: 1, note: '鱼竿：站在岸边甩竿，浮漂动了赶紧按 E 收杆（不会用完）', once: true, shop: 'animal' },
+  // 小鸟和蝴蝶（用户说的）
+  { key: 'birdseed', price: 2, lv: 1, note: '一把鸟食：选中按 E 撒在地上，站着别动，小鸟会飞过来吃，好感变高', shop: 'animal' },
+  { key: 'cage', price: 20, lv: 1, note: '鸟笼：走到小鸟旁边按 E 关进去，拿着到处走、看它；关在笼子里的鸟才能卖', shop: 'animal' },
+  { key: 'birdhouse', price: 50, lv: 1, note: '鸟屋：放进背包，走到空地里“鸟屋的地方”按 E 立起来；两只好感高的小鸟住进去会下蛋', once: true, shop: 'animal', building: true },
+  { key: 'bugnet', price: 10, lv: 1, note: '蝴蝶网：走到蝴蝶旁边按 E 抓（不会用完）；抓到的蝴蝶能卖', once: true, shop: 'animal' },
   { key: 'hay', price: 3, lv: 1, note: '一份草料：倒进牛棚、羊圈的食槽（生菜、胡萝卜、玉米也行）', shop: 'animal' },
   { key: 'shears', price: 10, lv: 1, note: '剪羊毛用（不会用完）', once: true, shop: 'animal' },
   // 萌宠小屋（用户说：宠物店，现在只有小狗，以后有更多）
@@ -44,7 +49,7 @@ export const SHOP_ITEMS = [
 ];
 // 能卖的价格（用户说：背包里除了钥匙，什么都能卖，但卖的价格比买的低）：菜和水果按原价收；小卖部买来的东西按买价的一半
 const BUY = Object.fromEntries(SHOP_ITEMS.map(it => [it.key, it.price]));
-const EXTRA_SELL = { steak: 50, lambskewer: 38, roastpork: 42, roastchicken: 22, roastduck: 34, grilledfish: 22, cookedshrimp: 18, steamedcrab: 34, friedegg: 10, boiledduckegg: 14, bakedpotato: 9, roastcorn: 14, fish: 12, shrimp: 10, crab: 20, goldfish: 80, egg: 5, goldegg: 60, chicken_meat: 12, milk: 15, wool: 18, beef: 30, mutton: 22, truffle: 40, duckegg: 8, pork: 26, duckmeat: 20 };   // 鸡蛋、金蛋
+const EXTRA_SELL = { cagebird: 30, butterfly: 6, birdegg: 4, steak: 50, lambskewer: 38, roastpork: 42, roastchicken: 22, roastduck: 34, grilledfish: 22, cookedshrimp: 18, steamedcrab: 34, friedegg: 10, boiledduckegg: 14, bakedpotato: 9, roastcorn: 14, fish: 12, shrimp: 10, crab: 20, goldfish: 80, egg: 5, goldegg: 60, chicken_meat: 12, milk: 15, wool: 18, beef: 30, mutton: 22, truffle: 40, duckegg: 8, pork: 26, duckmeat: 20 };   // 鸡蛋、金蛋
 export const sellPrice = key => key === 'key' ? 0 : EXTRA_SELL[key] ? EXTRA_SELL[key] : CROPS[key] ? CROPS[key].price : BUY[key] ? Math.max(1, Math.floor(BUY[key] / 2)) : 0;
 
 function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }

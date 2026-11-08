@@ -10,9 +10,9 @@ export const RECIPES = {
   fish: 'grilledfish', shrimp: 'cookedshrimp', crab: 'steamedcrab', egg: 'friedegg', duckegg: 'boiledduckegg', potato: 'bakedpotato', corn: 'roastcorn',
 };
 export const COOKED_ITEMS = {
-  steak: { icon: '🥩', name: '香煎牛排' }, lambskewer: { icon: '🍢', name: '烤羊肉串' }, roastpork: { icon: '🍖', name: '红烧肉' }, roastchicken: { icon: '🍗', name: '烤鸡腿' }, roastduck: { icon: '🦆', name: '烤鸭' },
+  steak: { icon: '🥩', name: '香煎牛排' }, lambskewer: { icon: '🍢', name: '烤羊肉串' }, roastpork: { icon: '🥘', name: '红烧肉' }, roastchicken: { icon: '🍗', name: '烤鸡腿' }, roastduck: { icon: '🦆', name: '烤鸭' },
   grilledfish: { icon: '🐟', name: '烤鱼' }, cookedshrimp: { icon: '🍤', name: '炸虾' }, steamedcrab: { icon: '🦀', name: '清蒸螃蟹' }, friedegg: { icon: '🍳', name: '煎蛋' }, boiledduckegg: { icon: '🥚', name: '咸鸭蛋' },
-  bakedpotato: { icon: '🥔', name: '烤土豆' }, roastcorn: { icon: '🌽', name: '烤玉米' },
+  bakedpotato: { icon: '🍠', name: '烤土豆' }, roastcorn: { icon: '🌽', name: '烤玉米' },
   wood: { icon: '🪵', name: '木头' }, coal: { icon: '⚫', name: '煤' },
 };
 // 吃了回多少体力（熟的比生的多很多）、卖多少钱（熟的贵一点）
@@ -60,7 +60,8 @@ export function createGrill({ scene, plot, side }) {
   [[0, 0, .3, .55, 0xff7a1a], [.15, .05, .2, .4, 0xffb030], [-.12, -.05, .18, .38, 0xffd23f]].forEach(([fx, fz, r, h, c]) => { const f = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .9 })); f.position.set(fx, .25 + h / 2, fz); fire.add(f); });
   const light = new THREE.PointLight(0xff9a4a, 0, 7, 1.4); light.position.y = .8; g.add(light);
   // 正在烤的东西（一块小肉 / 小鱼）
-  const food = new THREE.Mesh(SPH, M(0xc0583a)); food.scale.set(.18, .07, .12); food.position.y = .7; food.visible = false; g.add(food);
+  const RAW = new THREE.Color(0xf08a8a), DONE = new THREE.Color(0x8a4a1c);   // 生的粉粉的，烤着烤着变成焦黄色
+  const food = new THREE.Mesh(SPH, M(0xf08a8a)); food.scale.set(.18, .07, .12); food.position.y = .7; food.visible = false; g.add(food);
   const smoke = []; for (let i = 0; i < 4; i++) { const s = new THREE.Mesh(SPH, new THREE.MeshBasicMaterial({ color: 0xdddddd, transparent: true, opacity: .4 })); s.visible = false; s.userData.k = i; g.add(s); smoke.push(s); }
   // 木牌
   const c = document.createElement('canvas'); c.width = 256; c.height = 96; const x2 = c.getContext('2d'); x2.fillStyle = '#f2e1bd'; x2.fillRect(0, 0, 256, 96); x2.fillStyle = '#5a3a1a'; x2.font = 'bold 42px sans-serif'; x2.textAlign = 'center'; x2.fillText('🔥 烤炉', 128, 62);
@@ -73,7 +74,8 @@ export function createGrill({ scene, plot, side }) {
     near: p => Math.hypot(p.x - x, p.z - z) < 1.9,
     collide(p, pr = .45) { const dx = p.x - x, dz = p.z - z, d = Math.hypot(dx, dz), m = .9 + pr; if (d < m && d > 1e-4 && p.y < .8) { p.x = x + dx / d * m; p.z = z + dz / d * m; } },
     update(dt, busy) {
-      t += dt; fire.visible = food.visible = !!busy; light.intensity = busy ? 2.4 + Math.sin(t * 13) * .4 : 0;
+      t += dt; fire.visible = food.visible = !!busy;
+      if (busy) food.material.color.lerpColors(RAW, DONE, Math.min(1, Math.max(0, 1 - (busy.end - Date.now()) / (STOVES.grill.time * 1000)))); light.intensity = busy ? 2.4 + Math.sin(t * 13) * .4 : 0;
       fire.children.forEach((f, i) => f.scale.set(1 + Math.sin(t * 11 + i) * .15, 1 + Math.sin(t * 8 + i * 2) * .25, 1));
       smoke.forEach(s => { s.visible = !!busy; const k = (t * .5 + s.userData.k / 4) % 1; s.position.set(Math.sin(k * 6) * .1, .9 + k * 2, 0); s.scale.setScalar(.15 + k * .3); s.material.opacity = .45 * (1 - k); });
     },
