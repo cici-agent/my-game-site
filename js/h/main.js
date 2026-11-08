@@ -778,17 +778,22 @@ function stealAction() {
   if (it === 'can') { h.garden.helpWater(i); neighbors.hold(h.uid); net.send(h.uid, 'water', i); toast(`💧 帮${h.name}浇了水`); return true; }
   return false;
 }
-// 跑着使劲撞别人家菜园的栅栏门（用户说：撞的是门；栅栏越高级越难撞开）：1 级撞 1 秒、2 级 2.5 秒、3 级 5 秒
-const RAM_TIME = { 1: 1, 2: 2.5, 3: 5 };
-let ramT = 0, ramWho = null, ramTip = 0;
+// 跑着撞别人家菜园的栅栏门（用户说：撞的是门；按撞了几下来算；门越高级要撞越多下；撞开 1 分钟后自己关上）
+// 一直顶着门只算一下：要退开再冲上去撞
+const RAM_HITS = { 1: 3, 2: 6, 3: 10 };
+let ramN = 0, ramWho = null, ramTouch = false, ramLast = 0;
 function ramCheck(dt, hit, running) {
   const atGate = hit && (() => { const [gx, gz] = hit.garden.gateSpot(); return Math.hypot(player.pos.x - gx, player.pos.z - gz) < 1.8; })();
-  if (atGate && running && !hit.garden.broken) {
-    if (ramWho !== hit) { ramWho = hit; ramT = 0; }
-    const need = RAM_TIME[hit.garden.fenceLv] || 1; ramT += dt; stamina.use('work', dt * 3);
-    if (ramTip < performance.now()) { ramTip = performance.now() + 700; toast(`💥 撞门……（${Math.min(100, Math.round(ramT / need * 100))}%）`); }
-    if (ramT > need) { ramT = 0; hit.garden.breakFence(120); stamina.use('work', 20); toast(`💥 撞开了${hit.name}家菜园的门！（2 分钟后会自己关上）`); }
-  } else if (!atGate) ramT = Math.max(0, ramT - dt);
+  const now = performance.now();
+  if (now - ramLast > 20000) ramN = 0;   // 20 秒没接着撞：门又稳住了
+  if (atGate && running && !ramTouch && !hit.garden.broken) {
+    if (ramWho !== hit) { ramWho = hit; ramN = 0; }
+    ramN++; ramLast = now; stamina.use('work', 5);
+    const need = RAM_HITS[hit.garden.fenceLv] || 3;
+    if (ramN >= need) { ramN = 0; hit.garden.breakFence(60); toast(`💥 撞开了${hit.name}家菜园的门！（1 分钟后会自己关上）`); }
+    else toast(`💥 撞了一下门（${ramN} / ${need}）· 退开再冲上去撞`);
+  }
+  ramTouch = !!(atGate && running);
 }
 // 主人这边：收到偷菜 / 帮忙的消息，照着改自己的菜园
 async function readInbox() {
