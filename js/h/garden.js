@@ -87,7 +87,7 @@ export function createBag(cap = 7, stack = 50) {   // 快捷栏一共 9 格：�
   }
   return Object.assign(bag, { count, room, add, take, addAll, tidy });
 }
-const OTHER_ITEMS = { key: { icon: '🔑', name: '我的钥匙' }, candle: { icon: '🕯️', name: '蜡烛' }, oil: { icon: '🛢️', name: '灯油' }, puppy: { icon: '🐶', name: '小狗' }, bowl: { icon: '🥣', name: '狗盆' }, kennel: { icon: '🛖', name: '狗屋' }, leash: { icon: '⛓️', name: '狗链' }, dogfood: { icon: '🦴', name: '狗粮' }, frisbee: { icon: '🥏', name: '飞盘' }, spray: { icon: '🧴', name: '杀虫剂' } };
+const OTHER_ITEMS = { key: { icon: '🔑', name: '我的钥匙' }, candle: { icon: '🕯️', name: '蜡烛' }, oil: { icon: '🛢️', name: '灯油' }, puppy: { icon: '🐶', name: '小狗' }, bowl: { icon: '🥣', name: '狗盆' }, kennel: { icon: '🛖', name: '狗屋' }, leash: { icon: '⛓️', name: '狗链' }, egg: { icon: '🥚', name: '鸡蛋' }, goldegg: { icon: '🌟', name: '金蛋' }, chickfeed: { icon: '🌾', name: '鸡饲料' }, chick: { icon: '🐣', name: '小鸡' }, dogfood: { icon: '🦴', name: '狗粮' }, frisbee: { icon: '🥏', name: '飞盘' }, spray: { icon: '🧴', name: '杀虫剂' } };
 export const itemInfo = key => {
   if (OTHER_ITEMS[key]) return OTHER_ITEMS[key];
   if (key.startsWith('seed_')) { const c = CROPS[key.slice(5)]; return { icon: '🌱', sub: c.icon, name: c.kind === 'tree' ? c.tree + '苗' : c.name + '种子', seed: true }; }
