@@ -247,7 +247,7 @@ const clouds = []; let cloudMat = null;
 const $ = id => document.getElementById(id);
 // ---------- 我的菜园：先放在离出生点最近的那块空地上（以后改成在镇政府领到的那块） ----------
 const garden = createGarden({ scene, plot: homePlot, side: gardenSide, daylight: () => growLight() });
-const house = createHouse({ scene, plot: homePlot, side: gardenSide, speed: () => garden.speed, darkness: () => darkness() });
+const house = createHouse({ scene, plot: homePlot, side: gardenSide, speed: () => garden.speed, darkness: () => darkness(), wallet: garden.wallet, notify: m => toast(m) });
 garden.addContainer('cabinet', house.cabinet, () => house.persist());
 garden.addContainer('safe', house.safe, () => house.persist());
 const stamina = createStamina();
@@ -496,7 +496,7 @@ renderDbgHouse();
 $('dbgOil').onclick = () => { const ok = garden.bag.add('oil', 3); renderBag(); toast(ok ? '🛢️ 送了 3 瓶灯油' : '🎒 背包满了'); };
 $('dbgStaFull').onclick = () => { stamina.set(STA_MAX); toast('💪 体力满了'); };
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
-setInterval(renderBag, 1500);
+setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
 if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 

@@ -8,6 +8,8 @@ import { BED_RATE } from './stamina.js';
 
 export const HOUSE_NAMES = { 1: '小木棚', 2: '小木屋', 3: '砖瓦小屋', 4: '两层小楼', 5: '花园小别墅' };
 const CANDLE_LIFE = 3600, OIL_LIFE = 2 * 3600;   // 现实里的秒：蜡烛烧 1 小时，油灯 2 小时（不跟着管理员加速走）
+// 电费（用户说：用电灯的房子要交电费，但要特别低）：每盏电灯开着，每个现实小时 0.5 菜币；攒够 1 菜币自动扣
+export const POWER_RATE = .5;
 const CAB_CAP = { 1: 9, 2: 18, 3: 27, 4: 45, 5: 72 };
 
 // 房子在空地里的中心（空地自己的坐标，门朝 +z，也就是朝路）
@@ -87,7 +89,7 @@ const LEVELS = {
                  { side: 'front', t: -4.6, y0: 4.9, y1: 6.3, w: 1.5, up: true }, { side: 'front', t: -1.6, y0: 4.9, y1: 6.3, w: 1.3, up: true }, { side: 'front', t: 1.6, y0: 4.9, y1: 6.3, w: 1.3, up: true }, { side: 'front', t: 4.6, y0: 4.9, y1: 6.3, w: 1.5, up: true }, { side: 'right', t: 0, y0: 4.9, y1: 6.3, w: 1.5, up: true }] },
 };
 
-export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = true, speed = () => 1, darkness = () => 0 }) {
+export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = true, speed = () => 1, darkness = () => 0, wallet = null, notify = () => {} }) {
   const spot = houseSpot();
   const group = new THREE.Group(); group.position.set(plot.x, 0, plot.z); group.rotation.y = plot.rot; scene.add(group);
   const toWorld = (lx, lz) => plotToWorld(plot, spot.x + lx, spot.z + lz);
@@ -467,7 +469,8 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
          { type: 'bigCab', x: -6.75, z: 2.6, ry: Math.PI / 2 }, { type: 'safe', x: -6.6, z: .8, ry: Math.PI / 2 }, { type: 'plant', x: 4.4, z: 4.6 }, { type: 'plant', x: -4.4, z: 4.6 },
          { type: 'switch', x: -1.7, z: 5.05, ry: Math.PI, room: 'down', id: 's0' },
          // 二楼：主卧、小卧室、书房、浴室
-         { type: 'bedCanopy', x: -5.2, z: -3.4, up: true }, { type: 'wardrobe', x: -2.4, z: -4.75, up: true }, { type: 'bedWood', x: 2.6, z: -3.9, up: true },
+         { type: 'bedCanopy', x: -5.2, z: -3.4, up: true }, { type: 'wardrobe', x: -2.4, z: -4.75, up: true }, { type: 'sofa', x: 2.8, z: -4.1, up: true, color: 0xf4c6d6 },   // 用户说：一个房子一张床就够了
+        
          { type: 'desk', x: -1.4, z: 3.8, up: true, ry: Math.PI }, { type: 'bookshelf', x: -3.6, z: 4.85, up: true, ry: Math.PI }, { type: 'bathtub', x: 4.4, z: 3.9, up: true },
          { type: 'crystal', x: -2, z: -1, ceil: 3.4, room: 'up', id: 'b2', up: true }, { type: 'bulb', x: 3, z: 1, ceil: 3.4, room: 'up', id: 'b3', up: true },
          { type: 'switch', x: 5.2, z: -1, ry: 0, room: 'up', id: 's1', up: true } ],
@@ -536,7 +539,7 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
     if (t.kind === 'bed') return { label: `🛏️ 在${t.name}上睡觉`, sub: `睡觉回体力（${t.name}：每分钟 +${Math.round((BED_RATE[t.type] || .06) * 60)}）· 时间照常走`, can: true };
     if (t.kind === 'stove') return { label: '🍳 灶台', sub: '做饭的玩法以后再做', can: false };
     if (t.kind === 'greenhouse') return { label: '🌱 温室', sub: '冬天也能种菜（和天气一起做）', can: false };
-    if (t.kind === 'switch') return { label: roomOn(t.room) ? '💡 关灯' : '💡 开灯', sub: '电灯 —— 不会烧完', can: true };
+    if (t.kind === 'switch') return { label: roomOn(t.room) ? '💡 关灯' : '💡 开灯', sub: `电灯不会烧完 · 电费：每盏开 1 小时 ${POWER_RATE} 菜币（已经交了 ${st.paid || 0} 菜币）`, can: true };
     if (t.kind === 'fire') return { label: st.lights.fire ? '🔥 把壁炉的火灭掉' : '🔥 点壁炉', sub: '又亮又暖', can: true };
     if (t.kind === 'candle') {
       const l = lightOf(t), left = st.candles[t.id] || 0, oil = l && l.kind === 'oil', need = oil ? 'oil' : 'candle', nm = oil ? '灯油' : '蜡烛';
@@ -556,7 +559,7 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
     if (t.kind === 'cabinet') return { open: 'cabinet' };
     if (t.kind === 'safe') return { open: 'safe' };
     if (t.kind === 'bed') { const [wx, wz] = toWorld(t.bx, t.bz); return { sleep: { name: t.name, top: { bedStraw: .7, bedWood: .82, bedSoft: .97, bedDouble: 1, bedCanopy: 1.1 }[t.type] || .8, rate: BED_RATE[t.type] || .06, x: wx, z: wz, y: t.by, yaw: plot.rot + t.ry } }; }
-    if (t.kind === 'switch') { st.lights[t.room] = !roomOn(t.room); persist(); return { msg: st.lights[t.room] ? '💡 灯开了' : '💡 灯关了' }; }
+    if (t.kind === 'switch') { if (!roomOn(t.room) && wallet && wallet.get() < 1 && (st.bill || 0) > 0) return { msg: '⚡ 没有菜币交电费，灯开不了' }; st.lights[t.room] = !roomOn(t.room); persist(); return { msg: st.lights[t.room] ? '💡 灯开了' : '💡 灯关了' }; }
     if (t.kind === 'fire') { st.lights.fire = !st.lights.fire; persist(); return { msg: st.lights.fire ? '🔥 壁炉点起来了' : '🔥 火灭了' }; }
     if (t.kind === 'candle') {
       const l = lightOf(t), oil = l && l.kind === 'oil', need = oil ? 'oil' : 'candle';
@@ -575,6 +578,7 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
       d.leaves.forEach((p, i) => p.rotation.y = (d.leaves.length > 1 ? (i ? 1 : -1) : -1) * d.ang * 1.6); });
     const dark = darkness();
     for (const k in st.candles) st.candles[k] = Math.max(0, st.candles[k] - dt);   // 管理员的加速只加速菜，不加速蜡烛
+    let powered = 0;
     lights.forEach((l, i) => {
       let on = false, pow = l.power;
       if (l.kind === 'candle') { const max = CANDLE_LIFE, left = (st.candles[l.id] || 0) / max; on = left > 0;
@@ -586,6 +590,7 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
       else if (l.kind === 'fire') { on = !!st.lights.fire; l.flame.forEach((f, k) => { f.visible = on; f.scale.set(1 + Math.sin(t0 * 12 + k) * .15, 1 + Math.sin(t0 * 9 + k * 2) * .25, 1); }); pow *= 1 + Math.sin(t0 * 11) * .15 + Math.sin(t0 * 23) * .08; }
       else if (l.kind === 'auto') { on = dark > .3; l.bulb.material.emissiveIntensity = on ? 2 : 0; }
       l.light.intensity = on ? pow : 0;
+      if (on && (l.kind === 'electric' || l.kind === 'auto')) powered++;
     });
     // 人在屋里：屋顶变透明；在一楼时二楼也变透明，好看到屋里
     const ins = playerPos && inside(playerPos) && !firstPerson, fl = playerPos ? floorOf(playerPos.y) : 0;
@@ -596,6 +601,15 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
     upper.traverse(o => { if (o.isMesh && o.material) { o.material.opacity = upFade; o.castShadow = upFade > .5; } });
     upper.visible = upFade > .05;
     roof.children.forEach(o => { if (o.userData.smoke !== undefined) { const k = o.userData.smoke; o.position.y += dt * .5; o.scale.multiplyScalar(1 + dt * .2); if (o.position.y > fyNow() + 12) { o.position.y -= 2; o.scale.setScalar(.35 + k * .15); } } });
+    // 电费：按开着的电灯数慢慢累计，攒够 1 菜币扣一次；没钱了就停电
+    if (powered && wallet) {
+      st.bill = (st.bill || 0) + powered * POWER_RATE * dt / 3600;
+      if (st.bill >= 1) {
+        const n = Math.floor(st.bill);
+        if (wallet.spend(n)) { st.bill -= n; st.paid = (st.paid || 0) + n; }
+        else { st.lights = {}; persist(); notify('⚡ 菜币不够交电费，停电了'); }
+      }
+    }
     saveT += dt; if (saveT > 3) { saveT = 0; persist(); }
   }
 
@@ -603,6 +617,7 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
     giveCandles(bag) { const ok = bag.add('candle', 3); persist(); return ok; },
     setLevel(l) { st.level = l; build(); persist(); },
     get level() { return st.level; },
+    bill(v) { st.bill = v; },   // 测试用
   };
   build();
   return { update, collide, inside, groundAt, floorOf, nearThing, describe, act, cabinet, safe, persist, debug,
