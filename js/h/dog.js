@@ -113,7 +113,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
   const fv = new THREE.Vector3(); let frisState = null;   // null / 'fly' / 'ground' / 'mouth'
 
   // ---------- 行为 ----------
-  const circ = new THREE.Vector3(); let circA = 0, air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
+  const circ = new THREE.Vector3(); let fetchT = 0, circA = 0, air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
   const say = (e, dur = 2) => { emote.set(e); emote.visible = true; emoteT = dur; };
   function spawnNear(p) { pos.set(p.x + 1.5, 0, p.z + 1.5); }
   function adopt(name) { if (st.has) return false; Object.assign(st, { has: true, name: name || DOG_NAMES[Math.floor(Math.random() * DOG_NAMES.length)], full: 80, loyal: 10, bowl: st.bowl || null }); save(); D.root.visible = true; placed = false; say('❤️', 3); return true; }
@@ -168,12 +168,13 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     switch (mode) {
       case 'fetch': {
         if (frisState === 'mouth') { mode = 'return'; break; }
+        fetchT += dt; if (fetchT > 12 && frisState === 'ground') { pos.set(fris.position.x - .5, 0, fris.position.z - .5); fetchT = 0; }   // 够不着（被墙挡住）：直接跑过去
         const d = runTo(fris.position.x, fris.position.z, 9, dt);
         if (d < .7 && fris.position.y < 1.6) { frisState = 'mouth'; mode = 'return'; say('🥏', 1.2); }
         break; }
       case 'return': {
-        const d = runTo(ppos.x, ppos.z, 8, dt);
-        if (d < 1.4) { frisState = null; fris.visible = false; onFrisbeeBack(); st.loyal = Math.min(100, st.loyal + 3); say('❤️', 2); mode = 'sit'; timer = 1.5; save(); }
+        const d = runTo(ppos.x, ppos.z, 8, dt); fetchT += dt;
+        if (d < 1.4 || fetchT > 24) { frisState = null; fris.visible = false; onFrisbeeBack(); st.loyal = Math.min(100, st.loyal + 3); say('❤️', 2); mode = 'sit'; timer = 1.5; save(); }
         break; }
       case 'toBowl': {
         if (!st.bowl || st.bowl.food <= 0) { mode = 'idle'; break; }
@@ -258,7 +259,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     throwFrisbee(from, yaw) {
       if (!st.has || frisState) return false;
       fris.visible = true; fris.position.set(from.x + Math.sin(yaw) * .6, from.y + 1.3, from.z + Math.cos(yaw) * .6);
-      fv.set(Math.sin(yaw) * 19, 4.2, Math.cos(yaw) * 19);   // 扔得更远（大约 22 米） frisState = 'fly'; mode = 'fetch'; say('❗', 1); return true;
+      fv.set(Math.sin(yaw) * 19, 4.2, Math.cos(yaw) * 19); fetchT = 0; frisState = 'fly'; mode = 'fetch'; say('❗', 1); return true;   // 扔得更远（大约 22 米）
     },
     debug: { pose(f, m, t = 999) { face = f; mode = m; timer = t; }, setFull(v) { st.full = v; save(); }, setLoyal(v) { st.loyal = v; save(); }, reset() { st = { has: false }; save(); D.root.visible = false; frisState = null; fris.visible = false; showBowl(); } },
     save,

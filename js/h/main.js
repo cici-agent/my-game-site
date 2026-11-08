@@ -284,7 +284,9 @@ const stamina = createStamina();
 // 🐶 宠物狗（用户定的：要非常可爱呆萌；饿了自己去狗盆吃；不饿自己玩；忠诚度高帮你看菜园）
 const dog = createDog({ scene, groundAt: p => house.groundAt(p), collide: p => { house.collide(p, .35); garden.collide(p, .35); plotFenceCollide(p, .35); },
   guardSpot: () => { const [x, z] = garden.gateWorld(); return { x, z }; }, homeCenter: () => ({ x: homePlot.x, z: homePlot.z }),
-  notify: m => { if (!nearBed) toast(m); }, onFrisbeeBack: () => { if (!garden.bag.add('frisbee', 1)) garden.chest.add('frisbee', 1); renderBag(); } });
+  notify: m => { if (!nearBed) toast(m); }, onFrisbeeBack: () => {} });
+// 修 bug 补偿：之前有个版本扔飞盘会把飞盘弄丢，有狗却哪里都找不到飞盘的，还一个（只做一次）
+try { if (dog.has && !localStorage.getItem('xcn_fris_fix1')) { if (!garden.bag.count('frisbee') && !garden.chest.count('frisbee') && !house.cabinet.count('frisbee')) { if (!garden.bag.add('frisbee', 1)) garden.chest.add('frisbee', 1); } localStorage.setItem('xcn_fris_fix1', '1'); } } catch (e) {}
 let sleeping = null, firstPerson = false;
 // 小卖部：在广场上，背对第一条路，面朝广场中间
 const shopAng = Math.atan2(LAY.roads[1].pts[8].x, LAY.roads[1].pts[8].z) + Math.PI * .8;
@@ -425,7 +427,7 @@ function dogAction() {
   if (it === 'frisbee') {
     if (!dog.has) { toast('🥏 先去小卖部买一只小狗'); return true; }
     if (dog.frisbeeOut) { toast(`🐶 ${dog.name}正在捡飞盘`); return true; }
-    garden.bag.take('frisbee'); dog.throwFrisbee(player.pos, player.face); stamina.use('work', .5); return true;
+    dog.throwFrisbee(player.pos, player.face); stamina.use('work', .5); return true;   // 飞盘一直留在背包里，扔出去只是标记一下（不会弄丢）
   }
   if (it === 'bowl') { const [x, z] = frontOf(); const had = !!dog.bowl; if (!had) garden.bag.take('bowl'); dog.placeBowl(x, z); toast(had ? '🥣 狗盆挪到这里了' : '🥣 狗盆放好了：选中狗粮按 E 往里加'); return true; }   // 已经放了一个：直接挪过来
   if (it === 'glove' && dog.nearBowl(player.pos)) { const n = dog.takeBowl(); garden.bag.add('bowl', 1); if (n) garden.bag.add('dogfood', n); toast('🥣 狗盆收起来了'); return true; }
