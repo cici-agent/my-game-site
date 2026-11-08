@@ -7,6 +7,7 @@ import { L, createLayout, ribbon } from './layout.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden } from './garden.js';
 import { createHouse, inHouse, HOUSE_NAMES } from './house.js';
 import { createGate, fenceMaterial } from './gate.js';
+import { createDog } from './dog.js';
 import { createStamina, FOOD, MAX as STA_MAX } from './stamina.js';
 import { createShop, SHOP_ITEMS, sellPrice } from './shop.js';
 import { createSky, growLight, phaseOf, clockText, gameHour, jumpTo, resetTime, darkness } from './sky.js';
@@ -280,6 +281,10 @@ const house = createHouse({ scene, plot: homePlot, side: gardenSide, speed: () =
 garden.addContainer('cabinet', house.cabinet, () => house.persist());
 garden.addContainer('safe', house.safe, () => house.persist());
 const stamina = createStamina();
+// 🐶 宠物狗（用户定的：要非常可爱呆萌；饿了自己去狗盆吃；不饿自己玩；忠诚度高帮你看菜园）
+const dog = createDog({ scene, groundAt: p => house.groundAt(p), collide: p => house.collide(p, .35),
+  guardSpot: () => { const [x, z] = garden.gateWorld(); return { x, z }; }, homeCenter: () => ({ x: homePlot.x, z: homePlot.z }),
+  notify: m => { if (!nearBed) toast(m); }, onFrisbeeBack: () => { if (!garden.bag.add('frisbee', 1)) garden.chest.add('frisbee', 1); renderBag(); } });
 let sleeping = null, firstPerson = false;
 // 小卖部：在广场上，背对第一条路，面朝广场中间
 const shopAng = Math.atan2(LAY.roads[1].pts[8].x, LAY.roads[1].pts[8].z) + Math.PI * .8;
@@ -358,6 +363,7 @@ function select(i) { if (i < 0 || i >= hotbarLen()) return; sel = i; renderBag()
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2000); }
 function doAction() {
   if (sleeping) return wakeUp();
+  if (!shopOpen && !chestOpen && dogAction()) return renderBag();
   if (shopOpen) return closeShop();
   if (chestOpen) return closeChest();
   if (!nearBed && nearShop) return openShop();
@@ -392,6 +398,46 @@ function renderBag() {
 }
 $('bag').addEventListener('pointerdown', e => { if (chestOpen) return; const c = e.target.closest('.slot'); if (c) { e.preventDefault(); select(+c.dataset.i); } });
 
+// ---------- 🐶 和狗互动：摸摸、喂、扔飞盘、放狗盆、加狗粮 ----------
+const DOG_ITEMS = ['dogfood', 'frisbee', 'bowl'];
+function frontOf(d = 1.4) { return [player.pos.x + Math.sin(player.face) * d, player.pos.z + Math.cos(player.face) * d]; }
+function dogPrompt(it) {
+  const nm = dog.name;
+  if (it === 'dogfood' && dog.nearBowl(player.pos)) return { label: '🦴 往狗盆里加狗粮', sub: `盆里有 ${dog.bowl.food} / 5 份`, can: true };
+  if (it === 'bowl') return { label: dog.bowl ? '🥣 把狗盆挪到这里' : '🥣 把狗盆放在这里', sub: '狗饿了会自己来吃', can: true };
+  if (dog.near(player.pos)) {
+    if (it === 'dogfood') return { label: `🦴 喂${nm}`, sub: dog.status(), can: true };
+    if (it === 'frisbee') return { label: '🥏 扔飞盘', sub: `${nm}会跑去捡回来`, can: !dog.frisbeeOut };
+    return { label: `🐶 摸摸${nm}`, sub: `${dog.status()} · ${dog.moodText()}`, can: true };
+  }
+  if (it === 'frisbee') return dog.has ? { label: '🥏 扔飞盘', sub: dog.frisbeeOut ? `${nm}正在捡` : `${nm}会跑去捡回来`, can: !dog.frisbeeOut } : { label: '🥏 飞盘', sub: '先去小卖部买一只小狗', can: false };
+  if (it === 'bowl') return { label: dog.bowl ? '🥣 把狗盆挪到这里' : '🥣 把狗盆放在这里', sub: '狗饿了会自己来吃', can: true };
+  if (it === 'glove' && dog.nearBowl(player.pos)) return { label: '🥣 把狗盆收起来', sub: `里面的 ${dog.bowl.food} 份狗粮也会收回背包`, can: true };
+  if (dog.nearBowl(player.pos)) return { label: `🥣 狗盆：还有 ${dog.bowl.food} / 5 份狗粮`, sub: '选中 🦴 狗粮按 E 往里加', can: false };
+  return null;
+}
+function dogAction() {
+  const it = selItem();
+  if (nearBed && !DOG_ITEMS.includes(it)) return false;
+  if (it === 'dogfood' && dog.nearBowl(player.pos)) { if (dog.bowl.food >= 5) { toast('🥣 狗盆满了'); return true; } garden.bag.take('dogfood'); toast(`🦴 加了一份狗粮（盆里 ${dog.fillBowl()} / 5）`); return true; }
+  if (dog.near(player.pos) && it === 'dogfood') { if (dog.full >= 95) { toast(`🐶 ${dog.name}已经吃饱了`); return true; } garden.bag.take('dogfood'); toast(dog.feed()); return true; }
+  if (it === 'frisbee') {
+    if (!dog.has) { toast('🥏 先去小卖部买一只小狗'); return true; }
+    if (dog.frisbeeOut) { toast(`🐶 ${dog.name}正在捡飞盘`); return true; }
+    garden.bag.take('frisbee'); dog.throwFrisbee(player.pos, player.face); stamina.use('work', .5); return true;
+  }
+  if (it === 'bowl') { const [x, z] = frontOf(); const had = !!dog.bowl; if (!had) garden.bag.take('bowl'); dog.placeBowl(x, z); toast(had ? '🥣 狗盆挪到这里了' : '🥣 狗盆放好了：选中狗粮按 E 往里加'); return true; }   // 已经放了一个：直接挪过来
+  if (it === 'glove' && dog.nearBowl(player.pos)) { const n = dog.takeBowl(); garden.bag.add('bowl', 1); if (n) garden.bag.add('dogfood', n); toast('🥣 狗盆收起来了'); return true; }
+  if (dog.near(player.pos)) { toast(dog.pet()); return true; }
+  return false;
+}
+let dogHudT = 0;
+function renderDogHud() {
+  if ((dogHudT -= 1) > 0) return; dogHudT = 20;
+  const el = $('dogHud'); el.style.display = dog.has ? '' : 'none'; if (!dog.has) return;
+  el.innerHTML = `🐶 <b>${dog.name}</b> 🍖 ${Math.round(dog.full)}% · ❤️ ${Math.round(dog.loyal)}`;
+  el.classList.toggle('hungry', dog.full < 40);
+}
 // ---------- 体力：睡觉、吃东西、第一人称 ----------
 const Y_AXIS = new THREE.Vector3(0, 1, 0), Q_LIE = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, Math.PI / 2, 'XYZ'));
 function goSleep(s) {
@@ -427,7 +473,7 @@ function renderShop() {
     $('shopList').innerHTML = SHOP_ITEMS.map((it, i) => { const info = itemInfo(it.key), lock = false, poor = garden.wallet.get() < it.price;
       return `<div class="row${lock ? ' lock' : ''}"><span class="ic">${info.seed ? `<span class="pk"><b>${info.sub}</b></span>` : info.icon}</span>
         <span class="nm">${info.name}<small>${lock ? `菜园 ${it.lv} 级才能买` : it.note || ''}</small></span><span class="pr">🥕 ${it.price}</span>
-        <button data-i="${i}" data-n="1" ${lock || poor ? 'disabled' : ''}>买 1 个</button><button data-i="${i}" data-n="5" ${lock || garden.wallet.get() < it.price * 5 ? 'disabled' : ''}>买 5 个</button></div>`; }).join('');
+        <button data-i="${i}" data-n="1" ${lock || poor ? 'disabled' : ''}>买 1 个</button>${it.once ? '' : `<button data-i="${i}" data-n="5" ${lock || garden.wallet.get() < it.price * 5 ? 'disabled' : ''}>买 5 个</button>`}</div>`; }).join('');
   } else {
     const rows = []; const seen = new Set();
     garden.bag.slots.forEach(sl => { if (!sl || seen.has(sl.key) || !sellPrice(sl.key)) return; seen.add(sl.key);
@@ -441,6 +487,11 @@ $('shopList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   if (shopTab === 'buy') {
     const it = SHOP_ITEMS[+b.dataset.i], n = +b.dataset.n, cost = it.price * n;
+    if (it.key === 'puppy') {
+      if (dog.has) { toast(`🐶 你已经有${dog.name}了`); return; }
+      if (!garden.wallet.spend(it.price)) { toast('菜币不够'); return; }
+      dog.adopt(); toast(`🐶 买到一只小狗：${dog.name}！它会跟着你`); renderShop(); renderMoney(); return;
+    }
     if (garden.bag.room(it.key) < n) { toast('🎒 背包放不下了，先把东西放进箱子'); return; }
     if (!garden.wallet.spend(cost)) { toast('菜币不够'); return; }
     garden.bag.add(it.key, n); toast(`买到 ${n} 个${itemInfo(it.key).name}，花了 ${cost} 菜币`);
@@ -539,10 +590,15 @@ function renderDbgHouse() {
 renderDbgHouse();
 $('dbgOil').onclick = () => { const ok = garden.bag.add('oil', 3); renderBag(); toast(ok ? '🛢️ 送了 3 瓶灯油' : '🎒 背包满了'); };
 $('dbgStaFull').onclick = () => { stamina.set(STA_MAX); toast('💪 体力满了'); };
+$('dbgDog').onclick = () => { if (dog.has) return toast(`🐶 已经有${dog.name}了`); dog.adopt(); toast(`🐶 送你一只小狗：${dog.name}`); };
+$('dbgDogStuff').onclick = () => { const ok = garden.bag.add('bowl', 1) && garden.bag.add('dogfood', 10) && garden.bag.add('frisbee', 1); renderBag(); toast(ok ? '🎁 送了狗盆、10 份狗粮、飞盘' : '🎒 背包满了，先把东西放进箱子'); };
+$('dbgDogHungry').onclick = () => { dog.debug.setFull(10); toast('🐶 狗饿了'); };
+$('dbgDogLoyal').onclick = () => { dog.debug.setLoyal(100); toast('🐶 忠诚度满了：会帮你看菜园'); };
+$('dbgDogReset').onclick = () => { if (confirm('把狗和狗盆都清掉？')) { dog.debug.reset(); toast('🐶 清掉了'); } };
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
@@ -643,6 +699,8 @@ renderer.setAnimationLoop(() => {
   house.update(dt, player.pos, firstPerson && !overview);
   renderSta();
   shop.update(dt);
+  dog.update(dt, player.pos, player.face);
+  renderDogHud();
   homeGate.update(dt);
   step(dt, t);
   // 站在哪块田旁边：显示能做什么
@@ -654,7 +712,9 @@ renderer.setAnimationLoop(() => {
   if (nearGate) { nearBox = false; nearHouse = null; nearShop = false; }
   if (sleeping) { nearBed = null; nearBox = false; nearHouse = null; nearShop = false; nearGate = null; }
   const pr = $('prompt');
-  if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
+  const dogP = !overview && !sleeping && !chestOpen && !shopOpen ? dogPrompt(selItem()) : null;
+  if (dogP && (!nearBed || DOG_ITEMS.includes(selItem()))) { pr.innerHTML = `<b>${dogP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${dogP.label}</b><span>${dogP.sub}</span>`; pr.classList.toggle('dim', !dogP.can); pr.classList.add('show'); $('actBtn').textContent = dogP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', dogP.can); }
+  else if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
   else if (nearGate && !chestOpen && !shopOpen) { const d = gateInfo(nearGate, selItem()); pr.innerHTML = `<b>${d.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${d.label}</b><span>${d.sub}</span>`; pr.classList.toggle('dim', !d.can); pr.classList.add('show'); $('actBtn').textContent = d.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', d.can); }
   else if (nearShop && !shopOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}🏪 进小卖部</b><span>买种子、树苗、蜡烛、杀虫剂；把菜卖掉换菜币</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '进小卖部'; $('actBtn').classList.add('show'); }
   else if (nearHouse && !chestOpen) { const d = house.describe(nearHouse, selItem()); pr.innerHTML = `<b>${d.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${d.label}</b><span>${d.sub}</span>`; pr.classList.toggle('dim', !d.can); pr.classList.add('show'); $('actBtn').textContent = d.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', d.can); }

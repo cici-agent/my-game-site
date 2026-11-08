@@ -116,6 +116,9 @@
   body.touch #sta { top: calc(var(--top-h) + 132px); }
   #viewBtn { position: fixed; left: 16px; top: calc(var(--top-h) + 124px); z-index: 9; border: 0; background: rgba(40,40,60,.7); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 13px; cursor: pointer; font-family: inherit; }
   body.touch #viewBtn { top: calc(var(--top-h) + 170px); }
+  #dogHud { position: fixed; left: 16px; top: calc(var(--top-h) + 160px); z-index: 9; background: rgba(120,70,20,.72); color: #fff; padding: 5px 12px; border-radius: 999px; font-size: 13px; }
+  #dogHud.hungry { background: rgba(200,60,40,.85); animation: staBlink 1.2s infinite; }
+  body.touch #dogHud { top: calc(var(--top-h) + 206px); }
   body.sleeping canvas { filter: brightness(.55) saturate(.7); transition: filter 1s; }
   #chestUI { position: fixed; inset: 0; z-index: 15; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.3); }
   #chestUI.show { display: flex; }
@@ -165,6 +168,7 @@
 <div id="clock"></div>
 <div id="sta" title="体力：走路、跑步、干活会用掉；睡觉、吃菜能回来"><span>💪</span><div class="bar"><i></i></div><b>100</b></div>
 <button id="viewBtn">👁️ 第一人称 (V)</button>
+<div id="dogHud" style="display: none"></div>
 <div id="shopUI"><div class="box">
   <div class="hd">🏪 菜鸟小卖部<span class="mo">🥕 <b id="shopMoney">0</b> 菜币</span><button id="shopClose">✕</button></div>
   <div class="tabs"><button data-t="buy">买东西</button><button data-t="sell">卖菜</button></div>
@@ -178,6 +182,7 @@
   <div class="row"><button id="dbgSeeds">🎁 送种子</button><button id="dbgTrees">🌳 送树苗</button><button id="dbgCandle">🕯 送蜡烛</button><button id="dbgMoney">🥕 送 100 菜币</button><button id="dbgReset">🗑 重置菜园</button></div>
   <div class="t">房子等级（点一下就换成那一级）</div><div class="row" id="dbgHouse"></div>
   <div class="row"><button id="dbgOil">🛢️ 送灯油</button><button id="dbgStaFull">💪 体力加满</button><button id="dbgStaLow">😩 体力清空</button></div>
+  <div class="t">小狗</div><div class="row"><button id="dbgDog">🐶 送小狗</button><button id="dbgDogStuff">🎁 狗盆 + 狗粮 + 飞盘</button><button id="dbgDogHungry">😢 让它饿</button><button id="dbgDogLoyal">❤️ 忠诚满</button><button id="dbgDogReset">🗑 清掉狗</button></div>
 </div></div>
 <div id="stick"><div class="knob"></div></div>
 <button class="round-btn" id="jumpBtn">跳</button>
