@@ -20,6 +20,12 @@ export const SHOP_ITEMS = [
   { key: 'piglet', price: 40, lv: 1, note: '一只小猪：25 分钟长大，会拱出松露（要先有猪圈）', once: true, shop: 'animal', animal: true },
   { key: 'duckhouse', price: 70, lv: 1, note: '放进背包，走到空地里鸭棚那块地（另一边的中间）按 E 盖；带池塘', once: true, shop: 'animal', building: true },
   { key: 'duckling', price: 20, lv: 1, note: '一只小鸭：20 分钟长大，会下鸭蛋（要先有鸭棚）', once: true, shop: 'animal', animal: true },
+  { key: 'pondkit', price: 60, lv: 1, note: '放进背包，走到空地里鱼塘那块地（画了个圆圈）按 E 挖；能升级', once: true, shop: 'animal', building: true },
+  { key: 'fry', price: 8, lv: 1, note: '鱼苗：放进鱼塘，25 分钟长成鱼', once: true, shop: 'animal', animal: true },
+  { key: 'shrimpling', price: 6, lv: 1, note: '小虾：放进鱼塘，20 分钟长大', once: true, shop: 'animal', animal: true },
+  { key: 'crabling', price: 12, lv: 1, note: '小螃蟹：要 2 级鱼塘（有石头）才能养，30 分钟长大', once: true, shop: 'animal', animal: true },
+  { key: 'fishfood', price: 2, lv: 1, note: '一把鱼食：在鱼塘边按 E 撒进去', shop: 'animal' },
+  { key: 'net', price: 12, lv: 1, note: '渔网：在鱼塘边按 E 捞一条长大的（不会用完）', once: true, shop: 'animal' },
   { key: 'hay', price: 3, lv: 1, note: '一份草料：倒进牛棚、羊圈的食槽（生菜、胡萝卜、玉米也行）', shop: 'animal' },
   { key: 'shears', price: 10, lv: 1, note: '剪羊毛用（不会用完）', once: true, shop: 'animal' },
   // 萌宠小屋（用户说：宠物店，现在只有小狗，以后有更多）
@@ -35,7 +41,7 @@ export const SHOP_ITEMS = [
 ];
 // 能卖的价格（用户说：背包里除了钥匙，什么都能卖，但卖的价格比买的低）：菜和水果按原价收；小卖部买来的东西按买价的一半
 const BUY = Object.fromEntries(SHOP_ITEMS.map(it => [it.key, it.price]));
-const EXTRA_SELL = { egg: 5, goldegg: 60, chicken_meat: 12, milk: 15, wool: 18, beef: 30, mutton: 22, truffle: 40, duckegg: 8, pork: 26, duckmeat: 20 };   // 鸡蛋、金蛋
+const EXTRA_SELL = { fish: 12, shrimp: 10, crab: 20, goldfish: 80, egg: 5, goldegg: 60, chicken_meat: 12, milk: 15, wool: 18, beef: 30, mutton: 22, truffle: 40, duckegg: 8, pork: 26, duckmeat: 20 };   // 鸡蛋、金蛋
 export const sellPrice = key => key === 'key' ? 0 : EXTRA_SELL[key] ? EXTRA_SELL[key] : CROPS[key] ? CROPS[key].price : BUY[key] ? Math.max(1, Math.floor(BUY[key] / 2)) : 0;
 
 function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
@@ -44,7 +50,7 @@ function tex(w, h, draw) { const c = document.createElement('canvas'); c.width =
 export const SHOPS = {
   general: { name: '菜鸟小卖部', icon: '🏪', a: '#e8473e', b: '#ffffff', keeper: 'chef', desc: '买种子、树苗、蜡烛、杀虫剂、菜刀；把东西卖掉换菜币' },
   pet: { name: '萌宠小屋', icon: '🐾', a: '#ff7aa8', b: '#ffffff', keeper: 'explorer', desc: '买小狗、狗屋、狗盆、狗粮、狗链、飞盘（以后会有更多宠物）' },
-  animal: { name: '动物小铺', icon: '🐔', a: '#4caf50', b: '#fff4c2', keeper: 'farmer', desc: '买小鸡、小牛、小羊、小猪、小鸭，鸡舍、牛棚、羊圈、猪圈、鸭棚，饲料、剪刀' },
+  animal: { name: '动物小铺', icon: '🐔', a: '#4caf50', b: '#fff4c2', keeper: 'farmer', desc: '买小鸡、小牛、小羊、小猪、小鸭、鱼苗、小虾、小螃蟹，各种动物的家，饲料、剪刀、渔网' },
 };
 export const shopOf = it => it.shop || 'general';
 
