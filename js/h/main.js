@@ -6,7 +6,7 @@ import { INV, loadInventory } from '../p/inventory.js';
 import { L, createLayout, ribbon } from './layout.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden, plotToWorld } from './garden.js';
 import { createHouse, inHouse, HOUSE_NAMES } from './house.js';
-import { createGate, fenceMaterial } from './gate.js';
+import { createGate, fenceMaterial, PEN_FENCE } from './gate.js';
 import { createDog } from './dog.js';
 import { createCoop, inCoop, COOP } from './coop.js';
 import { createPond, inPond, CRITTER } from './pond.js';
@@ -350,7 +350,7 @@ try { if (localStorage.getItem('xcn_layout_v') !== '2') {
   localStorage.setItem('xcn_layout_v', '2'); } } catch (e) {}
 // 修 bug 补偿：之前有个版本扔飞盘会把飞盘弄丢，有狗却哪里都找不到飞盘的，还一个（只做一次）
 try { if (dog.has && !localStorage.getItem('xcn_fris_fix1')) { if (!garden.bag.count('frisbee') && !garden.chest.count('frisbee') && !house.cabinet.count('frisbee')) { if (!garden.bag.add('frisbee', 1)) garden.chest.add('frisbee', 1); } localStorage.setItem('xcn_fris_fix1', '1'); } } catch (e) {}
-let sleeping = null, firstPerson = false;
+let sleeping = null, firstPerson = false, inWater = false;
 // 三家店：菜鸟小卖部（小摊）；萌宠小屋、动物小铺是能走进去的大商店（用户说：老板要是人；有些做成大商店）
 const SHOP_DECOR = {
   // 萌宠小屋里面：左边一个矮围栏里有两只小狗，右边狗窝、狗盆、一袋袋狗粮、飞盘；货架上一排排狗粮
@@ -595,20 +595,32 @@ function ranchAction() {
 }
 // ---------- 🐟 鱼塘：挖鱼塘、撒鱼食、用渔网捞、升级、拆 ----------
 function fencePrompt(it) {
-  // 用户找不到升级栅栏：现在走到自家栅栏旁边，不管拿着什么都会提示（要按两次 E 确认，免得按错花了菜币）
-  if (nearGate || !nearHomeFence(player.pos)) return null;
-  const F = FENCE_LV[fenceLv], nx = FENCE_LV[fenceLv + 1];
-  if (!nx) return { label: `🧱 ${F.name}（最高级）`, sub: `${F.h} 米高，谁也跳不过去`, can: false };
-  if (fenceUpT > performance.now()) return { label: `⚠️ 再按一次 E：花 ${nx.price} 菜币升级成${nx.name}`, sub: `${nx.h} 米高${fenceLv + 1 === 3 ? '，跳不过去' : '，更难跳过去'}`, can: true };
-  return { label: `🧱 升级栅栏：${nx.name}（${nx.price} 菜币）`, sub: `现在是${F.name}（${F.h} 米）→ ${nx.h} 米高${fenceLv + 1 === 3 ? '，跳不过去' : '，更难跳过去'}`, can: true };
+  // 用户找不到升级栅栏：走到栅栏旁边，不管拿着什么都会提示（要按两次 E 确认，免得按错花了菜币）
+  if (nearGate) return null;
+  if (nearHomeFence(player.pos)) {
+    const F = FENCE_LV[fenceLv], nx = FENCE_LV[fenceLv + 1];
+    if (!nx) return { label: `🧱 ${F.name}（最高级）`, sub: `${F.h} 米高，谁也跳不过去`, can: false };
+    if (fenceUpT > performance.now() && fenceUpWhat === 'home') return { label: `⚠️ 再按一次 E：花 ${nx.price} 菜币升级成${nx.name}`, sub: `${nx.h} 米高${fenceLv + 1 === 3 ? '，跳不过去' : '，更难跳过去'}`, can: true };
+    return { label: `🧱 升级栅栏：${nx.name}（${nx.price} 菜币）`, sub: `现在是${F.name}（${F.h} 米）→ ${nx.h} 米高${fenceLv + 1 === 3 ? '，跳不过去' : '，更难跳过去'}`, can: true };
+  }
+  // 菜园、鸡舍、牧场的栅栏（用户说：菜园栏杆、动物栏杆也要能升级）
+  const e = ENCLOSURES().find(x => x.nearFence(player.pos)); if (!e) return null;
+  const lv = e.fenceLv, F = PEN_FENCE[lv], nx = PEN_FENCE[lv + 1];
+  if (!nx) return { label: `🧱 ${e.fenceName}：${F.name}（最高级）`, sub: '跳不过去', can: false };
+  if (fenceUpT > performance.now() && fenceUpWhat === e) return { label: `⚠️ 再按一次 E：花 ${e.fencePrice[lv + 1]} 菜币升级`, sub: `${e.fenceName}升级成${nx.name}${lv + 1 === 3 ? '，跳不过去' : '，更高、更难跳'}`, can: true };
+  return { label: `🧱 升级${e.fenceName}：${nx.name}（${e.fencePrice[lv + 1]} 菜币）`, sub: `现在是${F.name} · 升级后${lv + 1 === 3 ? '跳不过去' : '更高、更难跳过去'}`, can: true };
 }
-let fenceUpT = 0;
+let fenceUpT = 0, fenceUpWhat = null;
+const ENCLOSURES = () => [garden, coop, cows, sheep, pigs, ducks];
 function fenceAction() {
-  if (!nearHomeFence(player.pos)) return false; const nx = FENCE_LV[fenceLv + 1]; if (!nx) return false;
-  if (fenceUpT < performance.now()) { fenceUpT = performance.now() + 3000; toast(`🧱 3 秒内再按一次 E：花 ${nx.price} 菜币升级成${nx.name}`); return true; }
+  let what = null, price = 0, name = '';
+  if (nearHomeFence(player.pos)) { const nx = FENCE_LV[fenceLv + 1]; if (!nx) return false; what = 'home'; price = nx.price; name = nx.name; }
+  else { const e = ENCLOSURES().find(x => x.nearFence(player.pos)); if (!e) return false; const nx = PEN_FENCE[e.fenceLv + 1]; if (!nx) return false; what = e; price = e.fencePrice[e.fenceLv + 1]; name = nx.name; }
+  if (!(fenceUpT > performance.now() && fenceUpWhat === what)) { fenceUpT = performance.now() + 3000; fenceUpWhat = what; toast(`🧱 3 秒内再按一次 E：花 ${price} 菜币升级成${name}`); return true; }
   fenceUpT = 0;
-  if (!garden.wallet.spend(nx.price)) { toast(`菜币不够：要 ${nx.price}`); return true; }
-  fenceLv++; applyFence(); applyFenceGates(); renderMoney(); toast(`🧱 栅栏升级成${nx.name}了！`); return true;
+  if (!garden.wallet.spend(price)) { toast(`菜币不够：要 ${price}`); return true; }
+  if (what === 'home') { fenceLv++; applyFence(); applyFenceGates(); } else what.upgradeFence();
+  renderMoney(); toast(`🧱 ${what === 'home' ? '栅栏' : what.fenceName}升级成${name}了！`); return true;
 }
 function pondPrompt(it) {
   if (pond.nearSign(player.pos)) return it === 'pondkit' ? { label: '🏞️ 在这里挖鱼塘', sub: '这块地就是专门挖鱼塘的地方', can: true } : { label: '🏞️ 这里是挖鱼塘的地方', sub: '去动物小铺买鱼塘，放进背包，再到这里按 E 挖', can: false };
@@ -944,7 +956,7 @@ function step(dt, t) {
   const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
   // 体力：用光了走得很慢、跑不动、跳不起来；快用光时也跑不快
   const tired = stamina.empty, running = (keys.ShiftLeft || keys.ShiftRight) && !tired;
-  const speed = (tired ? TIRED : running ? (stamina.value < 15 ? WALK * 1.2 : RUN) : WALK) * Math.min(1, len);
+  const speed = (inWater ? .5 : 1) * (tired ? TIRED : running ? (stamina.value < 15 ? WALK * 1.2 : RUN) : WALK) * Math.min(1, len);
   stamina.update(dt, Math.min(1, len), running);
   const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
   const vx = (fx * my - fz * mx) * speed, vz = (fz * my + fx * mx) * speed;
@@ -959,7 +971,9 @@ function step(dt, t) {
   if (keys.Space && player.ground && !sleeping && !tired) { player.vy = JUMP; player.ground = false; stamina.use('jump'); }
   player.vy -= GRAV * dt; player.pos.y += player.vy * dt;
   // 脚下的高度：房子的地板、楼梯、二楼（上台阶时直接迈上去）
-  const gy = house.groundAt(player.pos);
+  // 鱼塘：水有深度，走进去会沉下去一截（用户说的）
+  const wd = pond.depthAt(player.pos), gy = wd > 0 ? -wd : house.groundAt(player.pos);
+  if (wd > 0 && !inWater) { pond.splash(player.pos.x, player.pos.z); toast('💦 扑通！掉进水里了'); } inWater = wd > 0;
   if (player.pos.y <= gy || (player.ground && player.pos.y - gy < .45 && player.vy <= 0)) { player.pos.y = gy; player.vy = 0; player.ground = true; } else player.ground = false;
   if (sleeping) { player.pos.set(sleeping.x, sleeping.y, sleeping.z); player.vy = 0; }
   // 碰撞：树、灌木、花坛；走到边上就停住

@@ -116,16 +116,23 @@ export function createPond({ scene, plot, side, isNight = () => false, notify = 
       if (s.c.kind === 'crab') { s.m.position.set(x, .04, z); s.m.rotation.y = -s.a; }   // 螃蟹在水底横着走
       else { s.m.position.set(x, s.c.kind === 'fish' ? .05 + Math.sin(t0 * 2 + s.ph) * .02 : .04, z); s.m.rotation.y = -s.a + (s.sp > 0 ? 0 : Math.PI); if (s.m.userData.tail) s.m.userData.tail.rotation.y = Math.sin(t0 * 10 + s.ph) * .5; }
     });
+    for (let k = drops.length - 1; k >= 0; k--) { const d = drops[k]; d.t += dt; d.g.children.forEach(f => { if (f.userData.v) { f.userData.v.y -= 9 * dt; f.position.addScaledVector(f.userData.v, dt); } });
+      d.g.userData.ring.scale.setScalar(1 + d.t * 4); d.g.userData.ring.material.opacity = Math.max(0, .8 - d.t); d.mat.opacity = Math.max(0, 1 - d.t / 1.2); if (d.t > 1.2) { base.remove(d.g); drops.splice(k, 1); } }
     if ((saveT += dt) > 5) { saveT = 0; save(); }
   }
-  // 水挡人（不能走进水里）
-  function collide(p, pr = .45) {
-    if (!P) return; const [lx, lz] = toLocal(p.x, p.z), d = Math.hypot(lx, lz), R = P.R + .35 + pr;
-    if (d < R && d > 1e-3) { const [wx, wz] = toWorld(lx / d * R, lz / d * R); p.x = wx; p.z = wz; }
-  }
+  // 用户说：水有一定深度，人能走进去（会沉下去一截）。1 级齐腰，越高级越深
+  const DEPTH = { 1: .55, 2: .75, 3: .95 };
+  function collide() {}
+  function depthAt(p) { if (!P) return 0; const [lx, lz] = toLocal(p.x, p.z), d = Math.hypot(lx, lz); if (d > P.R - .2) return 0; return DEPTH[st.lv] * Math.min(1, (P.R - .2 - d) / .8 + .35); }
+  // 掉进水里溅起水花
+  const drops = [];
+  function splash(x, z) { const [lx, lz] = toLocal(x, z), g = new THREE.Group(); g.position.set(lx, .15, lz); base.add(g); const mat = new THREE.MeshStandardMaterial({ color: 0xbfe8ff, transparent: true, roughness: .1 });
+    for (let i = 0; i < 26; i++) { const f = new THREE.Mesh(SPH, mat); f.scale.setScalar(.05 + Math.random() * .06); f.userData.v = new THREE.Vector3((Math.random() - .5) * 2.4, 1.5 + Math.random() * 2, (Math.random() - .5) * 2.4); g.add(f); }
+    const ring = new THREE.Mesh(new THREE.RingGeometry(.3, .4, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = -.03; g.add(ring); g.userData.ring = ring;
+    drops.push({ g, mat, t: 0 }); }
   const dist = p => { const [lx, lz] = toLocal(p.x, p.z); return Math.hypot(lx, lz); };
   return {
-    update, collide,
+    update, collide, depthAt, splash,
     get built() { return st.built; }, get lv() { return st.lv; }, get name() { return POND[st.lv].name; }, get cap() { return POND[st.lv].cap; }, get count() { return st.list.length; }, get food() { return st.food; }, FOOD_MAX,
     get grownCount() { return st.list.filter(grown).length; },
     nearSign(p) { return !st.built && dist(p) < 5.2; },

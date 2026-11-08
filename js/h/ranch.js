@@ -4,7 +4,7 @@
 // 数字是 Claude 定的（现实里的秒），以后可以改
 import * as THREE from 'three';
 import { plotToWorld, worldToPlot } from './garden.js';
-import { createGate } from './gate.js';
+import { createGate, PEN_FENCE, nearSegs } from './gate.js';
 
 export const SPECIES = {
   cow: { name: '牛', baby: '小牛', home: { 1: '小牛棚', 2: '红色牛棚', 3: '大牧场牛棚' }, cap: { 1: 1, 2: 3, 3: 6 }, up: { 2: 150, 3: 300 },
@@ -162,9 +162,11 @@ function buildHome(kind, lv) {
   // 木头围栏（两道横木），前面（+z，朝空地）中间留个口
   const wood = M(0x9a6a3c), FH = 1;
   const segs = [[-RW, RD, -1.2, RD], [1.2, RD, RW, RD], [RW, RD, RW, -RD], [RW, -RD, -RW, -RD], [-RW, -RD, -RW, RD]];
+  const nKids = g.children.length;
   segs.forEach(([ax, az, bx, bz]) => { const len = Math.hypot(bx - ax, bz - az), ang = -Math.atan2(bz - az, bx - ax), mx = (ax + bx) / 2, mz = (az + bz) / 2;
     [.4, .82].forEach(y => box(len, .1, .07, wood, [mx, y, mz], [0, ang, 0]));
     const n = Math.max(1, Math.round(len / 1.5)); for (let i = 0; i <= n; i++) box(.12, FH + .1, .12, wood, [ax + (bx - ax) * i / n, (FH + .1) / 2, az + (bz - az) * i / n]); });
+  const fenceG = new THREE.Group(); g.children.slice(nKids).forEach(c => fenceG.add(c)); g.add(fenceG);   // 栅栏单独一组：升级时整体变高
   // 棚子：门朝 +z，靠在后边
   const S = LK.styles[lv];
   const [w, d, h, style] = S, hz = -RD + d / 2 + .5, H = new THREE.Group(); H.position.set(-RW * .25, 0, hz); g.add(H);
@@ -211,7 +213,7 @@ function buildHome(kind, lv) {
   box(.08, 1.1, .08, wood, [0, .55, 0], null, sign);
   const st = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 96; const x = c.getContext('2d'); x.fillStyle = '#f2e1bd'; x.fillRect(0, 0, 256, 96); x.fillStyle = '#5a3a1a'; x.font = 'bold 44px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(LK.icon + ' ' + K.home[lv], 128, 50); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   box(1, .38, .05, new THREE.MeshStandardMaterial({ map: st }), [0, 1.05, .05], null, sign);
-  return { mud: g.userData.mud, pond: g.userData.pond, group: g, hay, troughPos: trough.position, door: { x: H.position.x, z: hz + d / 2 + .8 }, houseBox: { x: H.position.x, z: hz, hw: w / 2 + .1, hd: d / 2 + .1 }, sleep: { x: H.position.x, z: hz }, fence: segs, roofH: h + rise };
+  return { fenceG, mud: g.userData.mud, pond: g.userData.pond, group: g, hay, troughPos: trough.position, door: { x: H.position.x, z: hz + d / 2 + .8 }, houseBox: { x: H.position.x, z: hz, hw: w / 2 + .1, hd: d / 2 + .1 }, sleep: { x: H.position.x, z: hz }, fence: segs, roofH: h + rise };
 }
 
 // ---------- 一个牧场（牛的或者羊的） ----------
@@ -242,6 +244,7 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
       H = null; return; }
     H = buildHome(kind, st.lv); base.add(H.group); showFeed();
     H.gate = createGate({ parent: H.group, x: 0, z: K.RD, axis: 'x', width: 2.3, height: 1, double: true, out: 1, key: 'xcn_gate_' + kind, name: K.home[st.lv] + '的门' });
+    const fk = PEN_FENCE[st.fenceLv || 1].k; H.fenceG.scale.y = fk; H.gate.setHeight(fk);
   }
   function showFeed() { if (!H) return; H.hay.visible = st.feed > 0; H.hay.scale.y = Math.max(.25, Math.min(1, st.feed / 8)); }
   // 离线：饿、吃食槽、产奶 / 长毛
@@ -323,7 +326,7 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
   function collide(p, pr = .45) {
     if (!st.built) return;
     let [lx, lz] = toLocal(p.x, p.z); if (Math.abs(lx) > K.RW + 2 || Math.abs(lz) > K.RD + 2) return; const ox = lx, oz = lz;
-    if (p.y < .7) (H.gate.passable ? H.fence : H.fence.concat([[-1.2, K.RD, 1.2, K.RD]])).forEach(([ax, az, bx, bz]) => { const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, rx = lx - ax, rz = lz - az, t = rx * ux + rz * uz, n = rx * -uz + rz * ux;
+    if (p.y < PEN_FENCE[st.fenceLv || 1].jump) (H.gate.passable ? H.fence : H.fence.concat([[-1.2, K.RD, 1.2, K.RD]])).forEach(([ax, az, bx, bz]) => { const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, rx = lx - ax, rz = lz - az, t = rx * ux + rz * uz, n = rx * -uz + rz * ux;
       if (t < -pr || t > len + pr || Math.abs(n) > pr) return; const push = (n >= 0 ? pr : -pr) - n; lx += -uz * push; lz += ux * push; });
     const hb = H.houseBox, ex = hb.hw + pr - Math.abs(lx - hb.x), ez = hb.hd + pr - Math.abs(lz - hb.z);
     if (ex > 0 && ez > 0 && p.y < H.roofH) { if (ex < ez) lx = hb.x + Math.sign(lx - hb.x || 1) * (hb.hw + pr); else lz = hb.z + Math.sign(lz - hb.z || 1) * (hb.hd + pr); }
@@ -331,6 +334,9 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
   }
   const near = (p, pt, r) => { const [lx, lz] = toLocal(p.x, p.z); return Math.hypot(lx - pt.x, lz - pt.z) < r; };
   return {
+    get fenceLv() { return st.fenceLv || 1; }, fencePrice: { 2: 80, 3: 220 }, get fenceName() { return K.home[st.lv] + '的栅栏'; },
+    nearFence(p) { if (!st.built || !H) return false; const [lx, lz] = toLocal(p.x, p.z); return nearSegs(lx, lz, H.fence); },
+    upgradeFence() { const l = (st.fenceLv || 1) + 1; if (!PEN_FENCE[l]) return false; st.fenceLv = l; save(); build(); sync(); return true; },
     kind, K, update, collide, get gate() { return st.built && H ? H.gate : null; },
     get built() { return st.built; }, get lv() { return st.lv; }, get homeName() { return K.home[st.lv]; }, get cap() { return K.cap[st.lv]; }, get count() { return st.animals.length; }, get feed() { return st.feed; }, FEED_MAX,
     build() { if (st.built) return false; st.built = true; st.lv = 1; st.feed = 4; save(); build(); return true; },

@@ -6,7 +6,7 @@
 //   收法：拔（整棵拔起来，给种子）/ 摘（只摘果子，不给种子；过一阵还会结，结太多次会枯萎，枯萎时小概率给几颗种子）
 //   收获装进背包，背包满了就装不下
 import * as THREE from 'three';
-import { createGate } from './gate.js';
+import { createGate, PEN_FENCE, nearSegs } from './gate.js';
 
 // ---------- 作物（数值以后后台可改） ----------
 // grow：第一次成熟要多少秒（水分充足、没虫时按 1 倍算）；regrow：摘完再结果要多少秒；picks：能结几次 [最少, 最多]，种下时随机定
@@ -324,7 +324,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   const FLAT = (color, layer) => M(color, { roughness: 1, polygonOffset: true, polygonOffsetFactor: -layer, polygonOffsetUnits: -layer * 4 });
   const groundMat = FLAT(0xc7a678, 2), pathMat = FLAT(0xe2c696, 3), fenceMat = M(0xa8784a), railMat = M(0xc49766);
   const GATE_W = 2.4;
-  let rect = null, gate = null;
+  let rect = null, gate = null, fenceG = null, fenceEdges = [];
   function buildYard() {
     yard.clear();
     rect = gardenRect(plot, side, st.level);
@@ -332,6 +332,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const g = new THREE.Mesh(new THREE.PlaneGeometry(w, d), groundMat); g.rotation.x = -Math.PI / 2; g.position.set(rect.cx, .02, (rect.z0 + rect.z1) / 2); g.receiveShadow = true; yard.add(g);
     // 栅栏：四边每 1.6 米一根桩 + 两道横杆；前边中间留门
     const edges = [[rect.x0, rect.z0, rect.x1, rect.z0], [rect.x1, rect.z0, rect.x1, rect.z1], [rect.x1, rect.z1, rect.x0, rect.z1], [rect.x0, rect.z1, rect.x0, rect.z0]];
+    const nKids = yard.children.length;
     edges.forEach(([ax, az, bx, bz], ei) => {
       const len = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(len / 1.6));
       // 门：开在靠空地的那条边上（左边是第 3 条边，右边是第 1 条边）
@@ -345,6 +346,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
         [.35, .7].forEach(y => part(yard, G.box, railMat, [ax + (bx - ax) * m, y, az + (bz - az) * m], [l, .07, .05], [0, -ang, 0]));
       });
     });
+    fenceG = new THREE.Group(); yard.children.slice(nKids).forEach(c => fenceG.add(c)); yard.add(fenceG); fenceG.scale.y = PEN_FENCE[st.fenceLv || 1].k;   // 栅栏能升级（变高）
+    fenceEdges = edges;
     // 从空地（盖房子的地方）走到菜园门口的小路
     const ph = plot.size / 2, pathPts = [[side * (ph - 2), rect.gz], [rect.xn + side * .8, rect.gz]];
     for (let k = 0; k < pathPts.length - 1; k++) {
@@ -361,6 +364,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const board = new THREE.Mesh(new THREE.PlaneGeometry(1.5, .56), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide })); board.position.y = 1.35; sign.add(board);
     // 菜园门口的栅栏门（用户说：菜园那个口子要有栅栏门）；往外（空地那边）开
     gate = createGate({ parent: yard, x: rect.xn, z: rect.gz, axis: 'z', width: GATE_W - .1, out: rect.xn === rect.x0 ? -1 : 1, key: 'xcn_gate_garden' });
+    gate.setHeight(PEN_FENCE[st.fenceLv || 1].k);
     beds.forEach((bd, i) => placeBed(bd, i));
     // 箱子：放在空地和菜园之间、小路旁边
     const box = new THREE.Group(); box.position.set(rect.xn - side * 1.5, 0, rect.gz + 2.3); box.rotation.y = -side * Math.PI / 2; yard.add(box);
@@ -572,9 +576,10 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   }
   // 栅栏挡路（门口能进出），跳起来能跨过去
   function collide(pos, pr = .45) {
-    if (pos.y > .7 || !rect) return;   // 用户说：栅栏要能跳过去
+    if (!rect) return;
     { const dx = pos.x - chestPos[0], dz = pos.z - chestPos[1], d = Math.hypot(dx, dz), m = .65 + pr;   // 箱子挡路
-      if (d < m && d > 1e-4) { pos.x = chestPos[0] + dx / d * m; pos.z = chestPos[1] + dz / d * m; } }
+      if (d < m && d > 1e-4 && pos.y < 1) { pos.x = chestPos[0] + dx / d * m; pos.z = chestPos[1] + dz / d * m; } }
+    if (pos.y > PEN_FENCE[st.fenceLv || 1].jump) return;   // 用户说：栅栏要能跳过去；升级以后更高、更难跳
     let [lx, lz] = toLocal(pos.x, pos.z);
     if (lx < rect.x0 - 2 || lx > rect.x1 + 2 || lz < rect.z0 - 2 || lz > rect.z1 + 2) return;
     const ox = lx, oz = lz;
@@ -743,5 +748,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 菜园门口（世界坐标），出生点用
   const gateWorld = () => toWorld(side * (plot.size / 2 - 4), rect.gz);
   const gateYaw = () => { const [ax, az] = toWorld(0, 0), [bx, bz] = toWorld(side, 0); return Math.atan2(bx - ax, bz - az); };
-  return { wallet, beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get gate() { return gate; }, get level() { return st.level; }, get speed() { return st.speed; } };
+  return { wallet, beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get gate() { return gate; },
+    get fenceLv() { return st.fenceLv || 1; }, fencePrice: { 2: 100, 3: 300 }, fenceName: '菜园的栅栏',
+    nearFence(p) { if (!rect) return false; const [lx, lz] = toLocal(p.x, p.z); return nearSegs(lx, lz, fenceEdges); },
+    upgradeFence() { const l = (st.fenceLv || 1) + 1; if (!PEN_FENCE[l]) return false; st.fenceLv = l; persist(); fenceG.scale.y = PEN_FENCE[l].k; if (gate) gate.setHeight(PEN_FENCE[l].k); return true; }, get level() { return st.level; }, get speed() { return st.speed; } };
 }

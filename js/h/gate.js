@@ -60,4 +60,8 @@ export function createGate({ parent, x, z, axis = 'x', width = 2.4, height = 1.1
     dispose() { parent.remove(frame); },
   };
 }
+// 菜园、鸡舍、牧场的栅栏也能升级（用户说的）：越高越难跳，3 级跳不过去
+export const PEN_FENCE = { 1: { name: '木栅栏', k: 1, jump: .65 }, 2: { name: '高栅栏', k: 1.6, jump: 1.5 }, 3: { name: '铁栅栏', k: 2.3, jump: 1.9 } };
+// 点到一圈栅栏（本地坐标的线段）有多近
+export function nearSegs(lx, lz, segs, r = 1.2) { return segs.some(([ax, az, bx, bz]) => { const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, t = (lx - ax) * ux + (lz - az) * uz; return t > .3 && t < len - .3 && Math.abs((lx - ax) * -uz + (lz - az) * ux) < r; }); }
 export const fenceMaterial = () => (LM ||= leafMat());

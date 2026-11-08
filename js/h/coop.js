@@ -4,7 +4,7 @@
 // 产蛋、喂食、小鸡长大这些数字是 Claude 定的（现实里的秒），以后可以改
 import * as THREE from 'three';
 import { plotToWorld, worldToPlot } from './garden.js';
-import { createGate } from './gate.js';
+import { createGate, PEN_FENCE, nearSegs } from './gate.js';
 
 export const COOP = {
   1: { name: '小鸡窝', cap: 2, price: 0, RW: 2.3, RD: 2.1, hw: .75, hd: .55, hh: .8, legs: .4, wall: 0xc49766, roof: 0x8a5a2b },
@@ -63,6 +63,7 @@ function buildCoop(lv) {
   // 铁丝网围栏（木柱 + 顶上横木 + 铁丝网），前面中间留个口子
   WIRE ||= wireTex();
   const FH = .85, segs = [[-RW, RD, -.6, RD], [.6, RD, RW, RD], [RW, RD, RW, -RD], [RW, -RD, -RW, -RD], [-RW, -RD, -RW, RD]];
+  const nKids = g.children.length;
   segs.forEach(([ax, az, bx, bz]) => {
     const len = Math.hypot(bx - ax, bz - az), ang = -Math.atan2(bz - az, bx - ax), mx = (ax + bx) / 2, mz = (az + bz) / 2;
     const wm = new THREE.MeshBasicMaterial({ map: WIRE.clone(), transparent: true, side: THREE.DoubleSide, depthWrite: false }); wm.map.repeat.set(len / .35, FH / .35); wm.map.needsUpdate = true;
@@ -71,6 +72,7 @@ function buildCoop(lv) {
     const n = Math.max(1, Math.round(len / 1.2));
     for (let i = 0; i <= n; i++) box(.09, FH + .1, .09, wood, [ax + (bx - ax) * i / n, (FH + .1) / 2, az + (bz - az) * i / n]);
   });
+  const fenceG = new THREE.Group(); g.children.slice(nKids).forEach(c => fenceG.add(c)); g.add(fenceG);   // 栅栏单独一组：升级时整体变高
   // 鸡舍房子（门朝 +z，开在院子里）
   const H = new THREE.Group(); H.position.set(0, legs, hz); g.add(H);
   const hb = (w, h, d, mat, p, r) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(...p); if (r) m.rotation.set(...r); m.castShadow = m.receiveShadow = true; H.add(m); return m; };
@@ -103,7 +105,7 @@ function buildCoop(lv) {
   tb(.9, .05, .32, [0, .12, 0]); tb(.9, .14, .04, [0, .19, .15]); tb(.9, .14, .04, [0, .19, -.15]); tb(.04, .14, .32, [.45, .19, 0]); tb(.04, .14, .32, [-.45, .19, 0]);
   [-.38, .38].forEach(x => tb(.05, .12, .05, [x, .06, 0]));
   const grain = new THREE.Mesh(new THREE.BoxGeometry(.84, .08, .26), M(0xe8c35a, { roughness: 1 })); grain.position.y = .19; trough.add(grain);
-  return { group: g, eggs, grain, nestPos: nest.position, troughPos: trough.position, door: { x: 0, z: hz + hd + (legs ? .8 : .3) }, houseBox: { x: 0, z: hz, hw: hw + .1, hd: hd + .1 }, fence: segs, RW, RD };
+  return { fenceG, group: g, eggs, grain, nestPos: nest.position, troughPos: trough.position, door: { x: 0, z: hz + hd + (legs ? .8 : .3) }, houseBox: { x: 0, z: hz, hw: hw + .1, hd: hd + .1 }, fence: segs, RW, RD };
 }
 
 export function createCoop({ scene, plot, side, isNight = () => false, notify = () => {} }) {
@@ -129,6 +131,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, .52, .05), new THREE.MeshStandardMaterial({ map: t })); b.position.set(0, 1.2, .06); sign.add(b); return; }
     C = buildCoop(st.lv); holder.add(C.group); showStuff();
     C.gate = createGate({ parent: C.group, x: 0, z: C.RD, axis: 'x', width: 1.1, height: .8, out: 1, key: 'xcn_gate_coop', name: '鸡舍小门' });
+    const fk = PEN_FENCE[st.fenceLv || 1].k; C.fenceG.scale.y = fk; C.gate.setHeight(fk);
   }
   function showStuff() {
     if (!C) return;
@@ -228,7 +231,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
   function collide(p, pr = .45) {
     if (!C) return;
     let [lx, lz] = toLocal(p.x, p.z); if (Math.abs(lx) > C.RW + 2 || Math.abs(lz) > C.RD + 2) return; const ox = lx, oz = lz;
-    if (p.y < .6) (C.gate.passable ? C.fence : C.fence.concat([[-.6, C.RD, .6, C.RD]])).forEach(([ax, az, bx, bz]) => {
+    if (p.y < PEN_FENCE[st.fenceLv || 1].jump) (C.gate.passable ? C.fence : C.fence.concat([[-.6, C.RD, .6, C.RD]])).forEach(([ax, az, bx, bz]) => {
       const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, rx = lx - ax, rz = lz - az, t = rx * ux + rz * uz, n = rx * -uz + rz * ux;
       if (t < -pr || t > len + pr || Math.abs(n) > pr) return; const push = (n >= 0 ? pr : -pr) - n; lx += -uz * push; lz += ux * push;
     });
@@ -244,7 +247,9 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
     get eggs() { return st.eggs; }, get gold() { return st.gold; }, get feed() { return st.feed; },
     get hungry() { return st.hens.filter(h => h.full < 20).length; },
     update, collide,
-    get built() { return st.built; }, get gate() { return C ? C.gate : null; },
+    get built() { return st.built; }, get fenceLv() { return st.fenceLv || 1; }, fencePrice: { 2: 60, 3: 180 }, fenceName: '鸡舍的栅栏',
+    nearFence(p) { if (!C) return false; const [lx, lz] = toLocal(p.x, p.z); return nearSegs(lx, lz, C.fence); },
+    upgradeFence() { const l = (st.fenceLv || 1) + 1; if (!PEN_FENCE[l]) return false; st.fenceLv = l; save(); build(); return true; }, get gate() { return C ? C.gate : null; },
     nearSign(p) { return !C && near(p, { x: 0, z: 0 }, 3.8); },
     nearNest(p) { return !!C && near(p, C.nestPos, 1.4); },
     nearTrough(p) { return !!C && near(p, C.troughPos, 1.3); },
