@@ -6,6 +6,7 @@ import { INV, loadInventory } from '../p/inventory.js';
 import { L, createLayout, ribbon } from './layout.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden } from './garden.js';
 import { createHouse, inHouse, HOUSE_NAMES } from './house.js';
+import { createGate, fenceMaterial } from './gate.js';
 import { createStamina, FOOD, MAX as STA_MAX } from './stamina.js';
 import { createShop, SHOP_ITEMS, sellPrice } from './shop.js';
 import { createSky, growLight, phaseOf, clockText, gameHour, jumpTo, resetTime, darkness } from './sky.js';
@@ -102,29 +103,57 @@ for (let k = 0; k < 16; k++) {   // 放射状石板缝
   colliders.push([0, 0, 4.4]);
 }
 
-// ---------- 空地块：浅一点的草坪 + 一圈矮木桩（门口留空），大小、方向都不一样，以后在这里盖小屋 ----------
+// ---------- 空地块：浅一点的草坪 + 一圈木栅栏（用户说：一竖一竖的木桩改成一整圈栅栏，门口有大栅栏门，能用钥匙锁） ----------
 const plotLawn = flatMat(0xa3db74, 2), plotBorder = flatMat(0x8cc462, 1);
-const postGeo = new THREE.CylinderGeometry(.13, .16, .9, 6);
-const postCount = PLOTS.reduce((n, p) => n + 4 * Math.floor(p.size / 4), 0);
-const posts = new THREE.InstancedMesh(postGeo, mat(0xa06a3c), postCount);
+const FENCE_H = 1.15, PLOT_GATE = 6;   // 栅栏高度；空地大门宽 6 米（两扇）
+// 每块空地四条边，去掉门口，剩下的一段段栅栏（空地自己的坐标）
+function fenceSegs(p) {
+  const h = p.size / 2, out = [];
+  const sides = [[-h, -h, h, -h, []], [h, -h, h, h, []], [h, h, -h, h, [[h - PLOT_GATE / 2, h + PLOT_GATE / 2]]], [-h, h, -h, -h, []]];
+  if (p === homePlot) { const gs = gardenSide > 0 ? 1 : 3, a = sides[gs], gz = h - 3;   // 自家空地朝菜园那边留个口（接菜园的小路，菜园有自己的栅栏门）
+    a[4].push(gardenSide > 0 ? [h + gz - 2.2, h + gz + 2.2] : [h - gz - 2.2, h - gz + 2.2]); }
+  sides.forEach(([ax, az, bx, bz, gaps]) => {
+    const len = Math.hypot(bx - ax, bz - az); let t = 0;
+    gaps.sort((u, w) => u[0] - w[0]).concat([[len, len]]).forEach(([g0, g1]) => { if (g0 - t > .05) out.push([ax + (bx - ax) * t / len, az + (bz - az) * t / len, ax + (bx - ax) * g0 / len, az + (bz - az) * g0 / len]); t = g1; });
+  });
+  return out;
+}
+let postN = 0, panelN = 0; const FENCE = PLOTS.map(p => { const segs = fenceSegs(p); segs.forEach(([ax, az, bx, bz]) => { const k = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 2.2)); postN += k + 1; panelN += k; }); return segs; });
+const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(.16, FENCE_H + .2, .16), mat(0x8a5a30), postN);
+const panels = new THREE.InstancedMesh(new THREE.BoxGeometry(1, FENCE_H, .05), fenceMaterial(), panelN);
 const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
-let pi = 0;
-PLOTS.forEach(p => {
+let pi = 0, pj = 0;
+const plotGates = [];
+PLOTS.forEach((p, idx) => {
   flat(new THREE.PlaneGeometry(p.size + .5, p.size + .5), plotBorder, p.x, p.z, p.rot);
   flat(new THREE.PlaneGeometry(p.size, p.size), plotLawn, p.x, p.z, p.rot);
-  const h = p.size / 2, n = Math.floor(p.size / 4), c = Math.cos(p.rot), sn = Math.sin(p.rot);
-  for (let side = 0; side < 4; side++) for (let k = 0; k < n; k++) {
-    const t = -h + k * (p.size / n);
-    const [lx, lz] = [[t, -h], [h, t], [-t, h], [-h, -t]][side];
-    const gate = (lz === h && Math.abs(lx) < 3)                   // 门口：朝路那条边（本地 +z）中间留空
-      || (p === homePlot && lx === gardenSide * h && Math.abs(lz - (h - 3)) < 2.2);   // 我的空地：朝菜园那边也留个口
-    const corner = Math.abs(lx) === h && Math.abs(lz) === h;
-    const wx = p.x + lx * c + lz * sn, wz = p.z - lx * sn + lz * c;
-    posts.setMatrixAt(pi++, m4.compose(v.set(wx, gate ? -5 : (corner ? .45 : .3), wz), q.setFromAxisAngle(up, p.rot), s.set(1, corner ? 1 : .65, 1)));
-  }
+  const c = Math.cos(p.rot), sn = Math.sin(p.rot), W = (lx, lz) => [p.x + lx * c + lz * sn, p.z - lx * sn + lz * c];
+  FENCE[idx].forEach(([ax, az, bx, bz]) => {
+    const len = Math.hypot(bx - ax, bz - az), k = Math.max(1, Math.round(len / 2.2)), ang = p.rot - Math.atan2(bz - az, bx - ax);
+    for (let i = 0; i <= k; i++) { const [wx, wz] = W(ax + (bx - ax) * i / k, az + (bz - az) * i / k); posts.setMatrixAt(pi++, m4.compose(v.set(wx, (FENCE_H + .2) / 2, wz), q.setFromAxisAngle(up, p.rot), s.set(1, 1, 1))); }
+    for (let i = 0; i < k; i++) { const [wx, wz] = W(ax + (bx - ax) * (i + .5) / k, az + (bz - az) * (i + .5) / k); panels.setMatrixAt(pj++, m4.compose(v.set(wx, FENCE_H / 2 + .08, wz), q.setFromAxisAngle(up, ang), s.set(len / k - .14, 1, 1))); }
+  });
+  // 大门：在朝路那边（本地 +z）中间；只有自己家的能开关、上锁；别人家的先关着
+  const holder = new THREE.Group(); holder.position.set(p.x, 0, p.z); holder.rotation.y = p.rot; scene.add(holder);
+  const mine = p === homePlot;
+  plotGates.push(createGate({ parent: holder, x: 0, z: p.size / 2, axis: 'x', width: PLOT_GATE - .2, height: FENCE_H, double: true, out: 1, key: mine ? 'xcn_gate_plot' : null, live: mine, shadow: mine }));
 });
-posts.castShadow = true;
-scene.add(posts);
+posts.castShadow = panels.castShadow = true;
+scene.add(posts); scene.add(panels);
+const homeGate = plotGates[PLOTS.indexOf(homePlot)];
+// 自家空地的栅栏挡人（跳也跳不过去，不然锁门就没用了）；大门开着才能走过去
+function plotFenceCollide(pos, pr = .45) {
+  const p = homePlot, h = p.size / 2, c = Math.cos(p.rot), sn = Math.sin(p.rot), dx = pos.x - p.x, dz = pos.z - p.z;
+  let lx = dx * c - dz * sn, lz = dx * sn + dz * c; if (Math.abs(lx) > h + 2 || Math.abs(lz) > h + 2 || pos.y > 2.2) return;
+  const segs = homeGate.passable ? FENCE[PLOTS.indexOf(homePlot)] : FENCE[PLOTS.indexOf(homePlot)].concat([[-PLOT_GATE / 2, h, PLOT_GATE / 2, h]]);
+  const ox = lx, oz = lz;
+  segs.forEach(([ax, az, bx, bz]) => {
+    const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, rx = lx - ax, rz = lz - az, t = rx * ux + rz * uz, n = rx * -uz + rz * ux;
+    if (t < -pr || t > len + pr || Math.abs(n) > pr) return;
+    const push = (n >= 0 ? pr : -pr) - n; lx += -uz * push; lz += ux * push;
+  });
+  if (lx !== ox || lz !== oz) { pos.x = p.x + lx * c + lz * sn; pos.z = p.z - lx * sn + lz * c; }
+}
 
 // ---------- 花 ----------
 const FLOWER_COLORS = [0xff6b8a, 0xffd23f, 0xffffff, 0xb48cff, 0xff8c42, 0x6fc3ff, 0xff4d6d, 0xffb3d1];
@@ -332,6 +361,7 @@ function doAction() {
   if (shopOpen) return closeShop();
   if (chestOpen) return closeChest();
   if (!nearBed && nearShop) return openShop();
+  if (!nearBed && nearGate) { toast(gateAct(nearGate, selItem())); return renderBag(); }
   if (!nearBed && nearHouse) {
     const r = house.act(nearHouse, selItem(), garden.bag);
     if (r && r.open) return openChest(r.open);
@@ -428,6 +458,20 @@ renderMoney(); setInterval(renderMoney, 1000);
 
 // ---------- 箱子：走到旁边按 E 打开；拖动格子搬东西，点一下整格搬到另一边 ----------
 let nearShop = false, shopOpen = false, shopTab = 'buy';
+let nearGate = null; const GATE_NAME = g => g === homeGate ? '大门' : '菜园栅栏门';
+// 栅栏门：E 开关；选中 🔑 钥匙按 E 上锁 / 开锁
+function gateInfo(g, item) {
+  const nm = GATE_NAME(g);
+  if (item === 'key') return g.locked ? { label: `🔓 用钥匙打开${nm}的锁`, sub: '这是你自己家的钥匙', can: true } : { label: `🔒 把${nm}锁上`, sub: '锁上以后，没有钥匙就进不来', can: true };
+  if (g.locked) return { label: `🔒 ${nm}锁着`, sub: '选中背包里的 🔑 钥匙，再按 E 开锁', can: false };
+  return { label: g.open ? `🚪 关上${nm}` : `🚪 打开${nm}`, sub: '选中 🔑 钥匙可以上锁', can: true };
+}
+function gateAct(g, item) {
+  const nm = GATE_NAME(g);
+  if (item === 'key') { if (g.locked) { g.setLock(false); return `🔓 ${nm}开锁了`; } g.setLock(true); return `🔒 ${nm}锁上了`; }
+  if (g.locked) return `🔒 ${nm}锁着 —— 选中 🔑 钥匙再按 E`;
+  return g.toggle() ? `🚪 ${nm}开了` : `🚪 ${nm}关上了`;
+}
 let nearBox = false, nearHouse = null, chestOpen = false, drag2 = null, boxName = 'chest';
 const BOX_TITLE = { chest: '📦 我的箱子', get cabinet() { return `🗄️ 柜子（${HOUSE_NAMES[house.level]} · ${house.cabinet.cap} 格）`; }, safe: '🔐 保险箱（12 格）' };
 function cellHTML(c, i, sl) {
@@ -498,7 +542,7 @@ $('dbgStaFull').onclick = () => { stamina.set(STA_MAX); toast('💪 体力满了
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
@@ -542,6 +586,7 @@ function step(dt, t) {
   const pr = .55;
   garden.collide(player.pos);
   house.collide(player.pos);
+  plotFenceCollide(player.pos);
   shop.collide(player.pos);
   colliders.forEach(([cx, cz, cr]) => {
     const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
@@ -598,15 +643,19 @@ renderer.setAnimationLoop(() => {
   house.update(dt, player.pos, firstPerson && !overview);
   renderSta();
   shop.update(dt);
+  homeGate.update(dt);
   step(dt, t);
   // 站在哪块田旁边：显示能做什么
   nearBed = overview ? null : garden.nearest(player.pos.x, player.pos.z);
   nearBox = !overview && !nearBed && garden.nearChest(player.pos.x, player.pos.z);
   nearHouse = !overview && !nearBed ? house.nearThing(player.pos) : null;
   nearShop = !overview && !nearBed && shop.near(player.pos);
-  if (sleeping) { nearBed = null; nearBox = false; nearHouse = null; nearShop = false; }
+  nearGate = overview || nearBed ? null : [garden.gate, homeGate].filter(Boolean).map(g => [g, g.dist(player.pos.x, player.pos.z) - (g === homeGate ? .8 : 0)]).filter(([, d]) => d < 1.9).sort((a, b) => a[1] - b[1]).map(([g]) => g)[0] || null;
+  if (nearGate) { nearBox = false; nearHouse = null; nearShop = false; }
+  if (sleeping) { nearBed = null; nearBox = false; nearHouse = null; nearShop = false; nearGate = null; }
   const pr = $('prompt');
   if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
+  else if (nearGate && !chestOpen && !shopOpen) { const d = gateInfo(nearGate, selItem()); pr.innerHTML = `<b>${d.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${d.label}</b><span>${d.sub}</span>`; pr.classList.toggle('dim', !d.can); pr.classList.add('show'); $('actBtn').textContent = d.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', d.can); }
   else if (nearShop && !shopOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}🏪 进小卖部</b><span>买种子、树苗、蜡烛、杀虫剂；把菜卖掉换菜币</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '进小卖部'; $('actBtn').classList.add('show'); }
   else if (nearHouse && !chestOpen) { const d = house.describe(nearHouse, selItem()); pr.innerHTML = `<b>${d.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${d.label}</b><span>${d.sub}</span>`; pr.classList.toggle('dim', !d.can); pr.classList.add('show'); $('actBtn').textContent = d.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', d.can); }
   else if (nearBox && !chestOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}📦 打开箱子</b><span>把背包里的东西放进箱子，或者拿出来</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '打开箱子'; $('actBtn').classList.add('show'); }

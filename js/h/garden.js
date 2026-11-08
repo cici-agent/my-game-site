@@ -6,6 +6,7 @@
 //   收法：拔（整棵拔起来，给种子）/ 摘（只摘果子，不给种子；过一阵还会结，结太多次会枯萎，枯萎时小概率给几颗种子）
 //   收获装进背包，背包满了就装不下
 import * as THREE from 'three';
+import { createGate } from './gate.js';
 
 // ---------- 作物（数值以后后台可改） ----------
 // grow：第一次成熟要多少秒（水分充足、没虫时按 1 倍算）；regrow：摘完再结果要多少秒；picks：能结几次 [最少, 最多]，种下时随机定
@@ -313,8 +314,9 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 菜园旁边的大箱子：6×6 = 36 格，每格最多 99 个
   const chest = createBag(36, 99);
   if (st.chest) chest.slots = st.chest.slice(0, chest.cap).map(x => x || null);
-  // 每个人背包里都自带一把自己家的钥匙（锁门、开锁用），不能放进箱子
-  if (!bag.count('key') && !bag.add('key', 1)) { const old = bag.slots[0]; if (old) chest.add(old.key, old.n); bag.slots[0] = { key: 'key', n: 1 }; }
+  // 每个人一开始背包里自带一把自己家的钥匙（锁门、开锁用）；用户说钥匙也可以放进箱子，所以只送一次
+  if (bag.count('key') || chest.count('key')) st.gotKey = true;
+  if (!st.gotKey) { if (!bag.add('key', 1)) { const old = bag.slots[0]; if (old) chest.add(old.key, old.n); bag.slots[0] = { key: 'key', n: 1 }; } st.gotKey = true; }
   function persist() { if (!save) return; st.bag = bag.slots; st.chest = chest.slots; st.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
 
   // ---------- 围起来的菜地：踩实的土地 + 一圈木栅栏（前面留门） + 小路连到空地门口 ----------
@@ -322,7 +324,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   const FLAT = (color, layer) => M(color, { roughness: 1, polygonOffset: true, polygonOffsetFactor: -layer, polygonOffsetUnits: -layer * 4 });
   const groundMat = FLAT(0xc7a678, 2), pathMat = FLAT(0xe2c696, 3), fenceMat = M(0xa8784a), railMat = M(0xc49766);
   const GATE_W = 2.4;
-  let rect = null;
+  let rect = null, gate = null;
   function buildYard() {
     yard.clear();
     rect = gardenRect(plot, side, st.level);
@@ -357,6 +359,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const sign = new THREE.Group(); sign.position.set(rect.xn - side * 1.3, 0, rect.gz + GATE_W / 2 + .5); sign.rotation.y = -side * Math.PI / 2; yard.add(sign);   // 牌子朝着空地
     part(sign, G.cyl, M(0x9b6a3c), [0, .65, 0], [.06, 1.3, .06]);
     const board = new THREE.Mesh(new THREE.PlaneGeometry(1.5, .56), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide })); board.position.y = 1.35; sign.add(board);
+    // 菜园门口的栅栏门（用户说：菜园那个口子要有栅栏门）；往外（空地那边）开
+    gate = createGate({ parent: yard, x: rect.xn, z: rect.gz, axis: 'z', width: GATE_W - .1, out: rect.xn === rect.x0 ? -1 : 1, key: 'xcn_gate_garden' });
     beds.forEach((bd, i) => placeBed(bd, i));
     // 箱子：放在空地和菜园之间、小路旁边
     const box = new THREE.Group(); box.position.set(rect.xn - side * 1.5, 0, rect.gz + 2.3); box.rotation.y = -side * Math.PI / 2; yard.add(box);
@@ -510,7 +514,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   }
 
   function update(dt) {
-    anim += dt;
+    anim += dt; if (gate) gate.update(dt);
     const gs = dt * st.speed, active = LEVELS[st.level];
     light = daylight();
     const bugEvents = stepBugs(st.beds.slice(0, active), gs);
@@ -568,7 +572,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   }
   // 栅栏挡路（门口能进出），跳起来能跨过去
   function collide(pos, pr = .45) {
-    if (pos.y > .7 || !rect) return;
+    if (pos.y > 2.2 || !rect) return;   // 栅栏跳不过去（不然锁门就没用了）
     { const dx = pos.x - chestPos[0], dz = pos.z - chestPos[1], d = Math.hypot(dx, dz), m = .65 + pr;   // 箱子挡路
       if (d < m && d > 1e-4) { pos.x = chestPos[0] + dx / d * m; pos.z = chestPos[1] + dz / d * m; } }
     let [lx, lz] = toLocal(pos.x, pos.z);
@@ -576,7 +580,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const ox = lx, oz = lz;
     const push = (v, line) => Math.abs(v - line) < pr ? line + (v >= line ? pr : -pr) : v;
     if (lz > rect.z0 - pr && lz < rect.z1 + pr) {
-      const inGate = Math.abs(lz - rect.gz) < GATE_W / 2 - .1;            // 门口那一段不挡
+      const inGate = Math.abs(lz - rect.gz) < GATE_W / 2 - .1 && gate && gate.passable;   // 门开着才能过
       if (!(inGate && rect.xn === rect.x0)) lx = push(lx, rect.x0);
       if (!(inGate && rect.xn === rect.x1)) lx = push(lx, rect.x1);
     }
@@ -678,7 +682,6 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const F = box(fc), T = box(tc); if (ti >= T.cap) return false;
     const a = F.slots[fi]; if (!a || (fc === tc && fi === ti)) return false;
     const b = T.slots[ti];
-    if ((a.key === 'key' && tc !== 'bag') || (b && b.key === 'key' && fc !== 'bag')) return false;   // 钥匙一直带在身上
     if (!b) { T.slots[ti] = { key: a.key, n: Math.min(a.n, T.stack) }; a.n -= T.slots[ti].n; if (!a.n) F.slots[fi] = null; }
     else if (b.key === a.key) { const k = Math.min(a.n, T.stack - b.n); b.n += k; a.n -= k; if (!a.n) F.slots[fi] = null; }
     else { if (a.n > T.stack || b.n > F.stack) return false; T.slots[ti] = a; F.slots[fi] = b; }
@@ -686,7 +689,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   }
   // 点一下：整格搬到另一边（先叠到同一种上，再放空格）
   function quickMove(fc, fi, tc = fc === 'bag' ? 'chest' : 'bag') {
-    const F = box(fc), T = box(tc), a = F.slots[fi]; if (!a || (a.key === 'key' && tc !== 'bag')) return false;
+    const F = box(fc), T = box(tc), a = F.slots[fi]; if (!a) return false;
     for (let i = 0; i < T.cap && a.n; i++) { const b = T.slots[i]; if (b && b.key === a.key && b.n < T.stack) { const k = Math.min(a.n, T.stack - b.n); b.n += k; a.n -= k; } }
     for (let i = 0; i < T.cap && a.n; i++) if (!T.slots[i]) { const k = Math.min(a.n, T.stack); T.slots[i] = { key: a.key, n: k }; a.n -= k; }
     if (!a.n) F.slots[fi] = null;
@@ -740,5 +743,5 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 菜园门口（世界坐标），出生点用
   const gateWorld = () => toWorld(side * (plot.size / 2 - 4), rect.gz);
   const gateYaw = () => { const [ax, az] = toWorld(0, 0), [bx, bz] = toWorld(side, 0); return Math.atan2(bx - ax, bz - az); };
-  return { wallet, beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
+  return { wallet, beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get gate() { return gate; }, get level() { return st.level; }, get speed() { return st.speed; } };
 }
