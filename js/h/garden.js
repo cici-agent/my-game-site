@@ -526,7 +526,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
 
   function update(dt) {
     anim += dt; if (gate) gate.update(dt);
-    if (fenceG) { const k = PEN_FENCE[st.fenceLv || 1].k, to = brokenUntil > Date.now() ? k * .25 : k; fenceG.scale.y += (to - fenceG.scale.y) * Math.min(1, dt * 4); }   // 撞开了：栅栏塌下去；时间到了自己立起来
+    // 门被撞开了：门一直开着；时间到了自己关上（原来锁着的再锁上）
+    if (gate && remote) { const br = brokenUntil > Date.now(); if (br && !gate.open) { if (gate.locked) gate.setLock(false); gate.toggle(); } else if (!br && brokenUntil && gate.open) { brokenUntil = 0; const g0 = remote.gate || {}; if (!g0.open) gate.toggle(); if (g0.locked) gate.setLock(true); } }
     const gs = dt * st.speed, active = LEVELS[st.level];
     light = daylight();
     const bugEvents = stepBugs(st.beds.slice(0, active), gs);
@@ -587,7 +588,6 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     if (!rect) return;
     { const dx = pos.x - chestPos[0], dz = pos.z - chestPos[1], d = Math.hypot(dx, dz), m = .65 + pr;   // 箱子挡路
       if (d < m && d > 1e-4 && pos.y < 1) { pos.x = chestPos[0] + dx / d * m; pos.z = chestPos[1] + dz / d * m; } }
-    if (brokenUntil > Date.now()) return;   // 栅栏被撞开了：随便走
     if (pos.y > PEN_FENCE[st.fenceLv || 1].jump) return;   // 用户说：栅栏要能跳过去；升级以后更高、更难跳
     let [lx, lz] = toLocal(pos.x, pos.z);
     if (lx < rect.x0 - 2 || lx > rect.x1 + 2 || lz < rect.z0 - 2 || lz > rect.z1 + 2) return;
@@ -756,6 +756,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   beds.forEach(rebuildPlants);
   // 菜园门口（世界坐标），出生点用
   const gateWorld = () => toWorld(side * (plot.size / 2 - 4), rect.gz);
+  const gateSpot = () => toWorld(rect.xn, rect.gz);   // 菜园栅栏门正中间
   const gateYaw = () => { const [ax, az] = toWorld(0, 0), [bx, bz] = toWorld(side, 0); return Math.atan2(bx - ax, bz - az); };
   // ---------- 联网：偷菜、帮忙（用户说的） ----------
   let brokenUntil = 0;
@@ -778,7 +779,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 小鸟帮忙吃虫子（好感满的小鸟会来）
   const bugBeds = () => beds.filter(bd => bd.st.bugs > 0).map(bd => ({ i: bd.i, x: bd.wx, z: bd.wz }));
   function birdEatBug(i) { const bd = beds[i]; if (!bd || bd.st.bugs <= 0) return false; bd.st.bugs--; catchBug(bd); syncBugs(bd); persist(); return true; }
-  return { stealOne, helpShoo, helpWater, snapshot, dispose, breakFence(sec) { brokenUntil = Date.now() + sec * 1000; }, get broken() { return brokenUntil > Date.now(); }, get fenceJump() { return PEN_FENCE[st.fenceLv || 1].jump; }, bugBeds, birdEatBug, wallet, beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get gate() { return gate; },
+  return { stealOne, helpShoo, helpWater, snapshot, dispose, breakFence(sec) { brokenUntil = Date.now() + sec * 1000; }, get broken() { return brokenUntil > Date.now(); }, get fenceJump() { return PEN_FENCE[st.fenceLv || 1].jump; }, bugBeds, birdEatBug, wallet, beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateSpot, gateYaw, get gate() { return gate; },
     get fenceLv() { return st.fenceLv || 1; }, fencePrice: { 2: 100, 3: 300 }, fenceName: '菜园的栅栏',
     nearFence(p) { if (!rect) return false; const [lx, lz] = toLocal(p.x, p.z); return nearSegs(lx, lz, fenceEdges); },
     upgradeFence() { const l = (st.fenceLv || 1) + 1; if (!PEN_FENCE[l]) return false; st.fenceLv = l; persist(); fenceG.scale.y = PEN_FENCE[l].k; if (gate) gate.setHeight(PEN_FENCE[l].k); return true; }, get level() { return st.level; }, get speed() { return st.speed; } };

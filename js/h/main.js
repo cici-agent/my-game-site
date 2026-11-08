@@ -778,12 +778,17 @@ function stealAction() {
   if (it === 'can') { h.garden.helpWater(i); neighbors.hold(h.uid); net.send(h.uid, 'water', i); toast(`💧 帮${h.name}浇了水`); return true; }
   return false;
 }
-// 跑着使劲撞别人家的栅栏：撞 1 秒就撞开
-let ramT = 0, ramWho = null;
+// 跑着使劲撞别人家菜园的栅栏门（用户说：撞的是门；栅栏越高级越难撞开）：1 级撞 1 秒、2 级 2.5 秒、3 级 5 秒
+const RAM_TIME = { 1: 1, 2: 2.5, 3: 5 };
+let ramT = 0, ramWho = null, ramTip = 0;
 function ramCheck(dt, hit, running) {
-  if (hit && running && !hit.garden.broken) { if (ramWho !== hit) { ramWho = hit; ramT = 0; } ramT += dt; stamina.use('work', dt * 3);
-    if (ramT > 1) { ramT = 0; hit.garden.breakFence(120); stamina.use('work', 20); toast(`💥 撞开了${hit.name}家菜园的栅栏！（2 分钟后会自己修好）`); } }
-  else if (!hit) { ramT = Math.max(0, ramT - dt); }
+  const atGate = hit && (() => { const [gx, gz] = hit.garden.gateSpot(); return Math.hypot(player.pos.x - gx, player.pos.z - gz) < 1.8; })();
+  if (atGate && running && !hit.garden.broken) {
+    if (ramWho !== hit) { ramWho = hit; ramT = 0; }
+    const need = RAM_TIME[hit.garden.fenceLv] || 1; ramT += dt; stamina.use('work', dt * 3);
+    if (ramTip < performance.now()) { ramTip = performance.now() + 700; toast(`💥 撞门……（${Math.min(100, Math.round(ramT / need * 100))}%）`); }
+    if (ramT > need) { ramT = 0; hit.garden.breakFence(120); stamina.use('work', 20); toast(`💥 撞开了${hit.name}家菜园的门！（2 分钟后会自己关上）`); }
+  } else if (!atGate) ramT = Math.max(0, ramT - dt);
 }
 // 主人这边：收到偷菜 / 帮忙的消息，照着改自己的菜园
 async function readInbox() {
@@ -1262,7 +1267,7 @@ $('dbgDogReset').onclick = () => { if (confirm('把狗和狗盆都清掉？')) {
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { neighbors, net, readInbox, hall, mayor, MAYOR, get metMayor() { return metMayor; }, homeIdx, loose, birds, bfly, get gateFirst() { return gateFirst; }, pondObj: pond, get fishing() { return fishing; }, get inWater() { return inWater; }, grill, grillCook, houseCook, get fenceLv() { return fenceLv; }, pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { ramCheck, neighbors, net, readInbox, hall, mayor, MAYOR, get metMayor() { return metMayor; }, homeIdx, loose, birds, bfly, get gateFirst() { return gateFirst; }, pondObj: pond, get fishing() { return fishing; }, get inWater() { return inWater; }, grill, grillCook, houseCook, get fenceLv() { return fenceLv; }, pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
