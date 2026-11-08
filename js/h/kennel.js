@@ -3,9 +3,9 @@
 import * as THREE from 'three';
 
 export const KENNEL = {
-  1: { name: '小狗窝', price: 30, W: .8, D: .95, H: 1.05, rise: .6, wall: 0xc49766, roof: 0x8a5a2b, trim: 0x6b4423 },
-  2: { name: '漂亮狗屋', price: 60, W: .9, D: 1.05, H: 1.15, rise: .65, wall: 0x6fb7ff, roof: 0x3f5fa8, trim: 0xffffff, plate: true, cushion: true },
-  3: { name: '狗狗乐园', price: 120, W: 1.05, D: 1.2, H: 1.3, rise: .75, wall: 0x6fb7ff, roof: 0x3f5fa8, trim: 0xffffff, plate: true, cushion: true, yard: true },
+  1: { name: '小狗窝', price: 30, W: .9, D: 1.05, H: 1.5, rise: .65, wall: 0xc49766, roof: 0x8a5a2b, trim: 0x6b4423 },
+  2: { name: '漂亮狗屋', price: 60, W: 1, D: 1.15, H: 1.6, rise: .7, wall: 0x6fb7ff, roof: 0x3f5fa8, trim: 0xffffff, plate: true, cushion: true },
+  3: { name: '狗狗乐园', price: 120, W: 1.15, D: 1.3, H: 1.75, rise: .8, wall: 0x6fb7ff, roof: 0x3f5fa8, trim: 0xffffff, plate: true, cushion: true, yard: true },
 };
 
 function plankTex() {
@@ -34,7 +34,7 @@ export function buildKennel(lv, dogName) {
   // 前后墙：五边形（带三角屋顶山墙）；前墙挖一个拱形门洞
   const gable = (hole) => {
     const s = new THREE.Shape(); s.moveTo(-W, 0); s.lineTo(W, 0); s.lineTo(W, H); s.lineTo(0, H + rise); s.lineTo(-W, H); s.lineTo(-W, 0);
-    if (hole) { const dw = W * .55, dh = H * .78, h = new THREE.Path(); h.moveTo(-dw, 0); h.lineTo(dw, 0); h.lineTo(dw, dh - dw); h.absarc(0, dh - dw, dw, 0, Math.PI, false); h.lineTo(-dw, 0); s.holes.push(h); }
+    if (hole) { const dw = W * .6, dh = H * .9, h = new THREE.Path(); h.moveTo(-dw, 0); h.lineTo(dw, 0); h.lineTo(dw, dh - dw); h.absarc(0, dh - dw, dw, 0, Math.PI, false); h.lineTo(-dw, 0); s.holes.push(h); }
     const geo = new THREE.ExtrudeGeometry(s, { depth: T, bevelEnabled: false });
     // 贴图按米铺
     const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * .9, uv.getY(i) * .9);
@@ -49,7 +49,7 @@ export function buildKennel(lv, dogName) {
   [-1, 1].forEach(s => mesh(new THREE.BoxGeometry(sl, .08, D * 2 + .3), roofMat, [s * (W + .15) / 2, H + rise / 2, 0], [0, 0, -s * Math.atan2(rise, W + .15)]));
   mesh(new THREE.CylinderGeometry(.05, .05, D * 2 + .34, 8), trimMat, [0, H + rise + .02, 0], [Math.PI / 2, 0, 0]);
   // 门洞边框
-  const dw = W * .55, dh = H * .78;
+  const dw = W * .6, dh = H * .9;   // 门洞高一点：狗站着就能走进去（用户说门洞太矮）
   const arch = new THREE.Mesh(new THREE.TorusGeometry(dw + .03, .035, 6, 20, Math.PI), trimMat); arch.position.set(0, dh - dw, D + .005); g.add(arch);
   [-1, 1].forEach(s => mesh(new THREE.BoxGeometry(.07, dh - dw, .07), trimMat, [s * (dw + .03), (dh - dw) / 2, D + .005]));
   // 二级起：白色墙角、名字牌、软垫子
@@ -69,7 +69,9 @@ export function buildKennel(lv, dogName) {
   let yard = null;
   if (K.yard) {
     const YW = 2.6, Y0 = D + .2, Y1 = D + 4;   // 院子：x ±YW，z 从 Y0 到 Y1
-    yard = { x: 0, z: (Y0 + Y1) / 2, w: YW - .4, d: (Y1 - Y0) / 2 - .4 };
+    yard = { x: 0, z: (Y0 + Y1) / 2, w: YW - .4, d: (Y1 - Y0) / 2 - .4,
+      // 栅栏的几段（狗屋自己的坐标），用来挡人；前面中间留个 1.4 米的口子
+      segs: [[-YW, Y1, -.7, Y1], [.7, Y1, YW, Y1], [-YW, Y0, -YW, Y1], [YW, Y0, YW, Y1], [-YW, Y0, -W - .1, Y0], [W + .1, Y0, YW, Y0]] };
     const white = M(0xffffff), grass = new THREE.Mesh(new THREE.PlaneGeometry(YW * 2, Y1 - Y0), M(0x8fd06a, { roughness: 1 }));
     grass.rotation.x = -Math.PI / 2; grass.position.set(0, .015, (Y0 + Y1) / 2); grass.receiveShadow = true; g.add(grass);
     const post = new THREE.BoxGeometry(.06, .55, .06);

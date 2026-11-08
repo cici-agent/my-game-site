@@ -282,7 +282,7 @@ garden.addContainer('cabinet', house.cabinet, () => house.persist());
 garden.addContainer('safe', house.safe, () => house.persist());
 const stamina = createStamina();
 // 🐶 宠物狗（用户定的：要非常可爱呆萌；饿了自己去狗盆吃；不饿自己玩；忠诚度高帮你看菜园）
-const dog = createDog({ scene, isNight: () => darkness() > .55, groundAt: p => house.groundAt(p), collide: p => { house.collide(p, .35); garden.collide(p, .35); plotFenceCollide(p, .35); },
+const dog = createDog({ scene, isNight: () => darkness() > .55, groundAt: p => house.groundAt(p), collide: p => { house.collide(p, .35); garden.collide(p, .35); plotFenceCollide(p, .35); dog.collideYard(p, .3); },
   guardSpot: () => { const [x, z] = garden.gateWorld(); return { x, z }; }, homeCenter: () => ({ x: homePlot.x, z: homePlot.z }),
   notify: m => { if (!nearBed) toast(m); }, onFrisbeeBack: () => {} });
 // 修 bug 补偿：之前有个版本扔飞盘会把飞盘弄丢，有狗却哪里都找不到飞盘的，还一个（只做一次）
@@ -403,22 +403,24 @@ $('bag').addEventListener('pointerdown', e => { if (chestOpen) return; const c =
 
 // ---------- 🐶 和狗互动：摸摸、喂、扔飞盘、放狗盆、加狗粮 ----------
 let kennelLvInBag = +(localStorage.getItem('xcn_kennel_bag_lv') || 0);   // 收进背包的狗屋记住等级
-const DOG_ITEMS = ['dogfood', 'frisbee', 'bowl', 'kennel'];
+let demolishT = 0;
+const DOG_ITEMS = ['dogfood', 'frisbee', 'bowl', 'kennel', 'leash'];
 const KENNEL_UP = lv => dog.KENNEL[lv + 1];
 function frontOf(d = 1.4) { return [player.pos.x + Math.sin(player.face) * d, player.pos.z + Math.cos(player.face) * d]; }
 function dogPrompt(it) {
   const nm = dog.name;
   if (it === 'dogfood' && dog.nearBowl(player.pos)) return { label: '🦴 往狗盆里加狗粮', sub: `盆里有 ${dog.bowl.food} / 5 份`, can: true };
   if (it === 'bowl') return { label: dog.bowl ? '🥣 把狗盆挪到这里' : '🥣 把狗盆放在这里', sub: '狗饿了会自己来吃', can: true };
-  if (it === 'kennel') return { label: '🛖 把狗屋放在这里', sub: '门会朝着你；狗晚上回去睡觉', can: true };
-  if (it === 'glove' && dog.nearKennel(player.pos)) return { label: '🛖 把狗屋收起来', sub: '收进背包，可以换个地方放', can: true };
+  if (it === 'kennel') return dog.kennel ? { label: '🛖 你已经放了一个狗屋', sub: '狗屋放好以后就不能再挪了', can: false } : { label: '🛖 把狗屋放在这里', sub: '门会朝着你 · ⚠️ 放好以后就不能再挪了', can: true };
+  if (it === 'glove' && dog.nearKennel(player.pos)) return { label: demolishT > performance.now() ? '⚠️ 再按一次 E：确定拆掉狗屋' : '🔨 拆掉狗屋', sub: '拆掉就没有了，不会回到背包里', can: true };
   if (dog.nearKennel(player.pos) && !dog.near(player.pos)) { const k = dog.kennel, up = KENNEL_UP(k.lv);
     return up ? { label: `🛖 升级狗屋：${up.name}（${up.price} 菜币）`, sub: `现在是 ${k.lv} 级 ${dog.KENNEL[k.lv].name}${dog.mode === 'sleep' ? ` · ${nm}在里面睡觉 💤` : ''}`, can: true }
               : { label: `🛖 ${dog.KENNEL[k.lv].name}（最高级）`, sub: dog.mode === 'sleep' ? `${nm}在里面睡觉 💤` : '晚上狗会回来睡觉', can: false }; }
+  if (it === 'leash' && dog.near(player.pos)) return dog.chained ? { label: `⛓️ 解开${nm}`, sub: '解开以后它会跟着你到处跑', can: true } : { label: `⛓️ 把${nm}拴起来`, sub: dog.kennel && Math.hypot(dog.pos.x - dog.kennel.x, dog.pos.z - dog.kennel.z) < 8 ? '拴在狗屋门口；只能在狗链那一圈里走' : '在这里钉个小木桩拴着；只能在狗链那一圈里走', can: true };
   if (dog.near(player.pos)) {
     if (it === 'dogfood') return { label: `🦴 喂${nm}`, sub: dog.status(), can: true };
     if (it === 'frisbee') return { label: '🥏 扔飞盘', sub: `${nm}会跑去捡回来`, can: !dog.frisbeeOut };
-    return { label: `🐶 摸摸${nm}`, sub: `${dog.status()} · ${dog.moodText()}`, can: true };
+    return { label: `🐶 摸摸${nm}`, sub: `${dog.status()} · ${dog.chained ? '被拴着（选中 ⛓️ 狗链按 E 解开）' : dog.moodText()}`, can: true };
   }
   if (it === 'frisbee') return dog.has ? { label: '🥏 扔飞盘', sub: dog.frisbeeOut ? `${nm}正在捡` : `${nm}会跑去捡回来`, can: !dog.frisbeeOut } : { label: '🥏 飞盘', sub: '先去小卖部买一只小狗', can: false };
   if (it === 'bowl') return { label: dog.bowl ? '🥣 把狗盆挪到这里' : '🥣 把狗盆放在这里', sub: '狗饿了会自己来吃', can: true };
@@ -431,14 +433,17 @@ function dogAction() {
   if (nearBed && !DOG_ITEMS.includes(it)) return false;
   if (it === 'dogfood' && dog.nearBowl(player.pos)) { if (dog.bowl.food >= 5) { toast('🥣 狗盆满了'); return true; } garden.bag.take('dogfood'); toast(`🦴 加了一份狗粮（盆里 ${dog.fillBowl()} / 5）`); return true; }
   if (dog.near(player.pos) && it === 'dogfood') { if (dog.full >= 95) { toast(`🐶 ${dog.name}已经吃饱了`); return true; } garden.bag.take('dogfood'); toast(dog.feed()); return true; }
+  if (it === 'leash' && dog.near(player.pos)) { if (dog.chained) { dog.untie(); toast(`⛓️ 解开了，${dog.name}好开心`); } else { const k = dog.tie(); toast(k ? `⛓️ 把${dog.name}拴在狗屋门口了` : `⛓️ 把${dog.name}拴在这里了`); if (dog.bowl && Math.hypot(dog.bowl.x - dog.pos.x, dog.bowl.z - dog.pos.z) > 4) setTimeout(() => toast('🥣 狗盆离得太远，它够不着：把狗盆挪近一点'), 1800); } return true; }
   if (it === 'frisbee') {
     if (!dog.has) { toast('🥏 先去小卖部买一只小狗'); return true; }
     if (dog.frisbeeOut) { toast(`🐶 ${dog.name}正在捡飞盘`); return true; }
-    dog.throwFrisbee(player.pos, player.face); stamina.use('work', .5); return true;   // 飞盘一直留在背包里，扔出去只是标记一下（不会弄丢）
+    if (dog.throwFrisbee(player.pos, player.face) === 'chained') { toast(`⛓️ ${dog.name}被拴着，先解开才能玩飞盘`); return true; } stamina.use('work', .5); return true;   // 飞盘一直留在背包里，扔出去只是标记一下（不会弄丢）
   }
   if (it === 'bowl') { const [x, z] = frontOf(); const had = !!dog.bowl; if (!had) garden.bag.take('bowl'); dog.placeBowl(x, z); toast(had ? '🥣 狗盆挪到这里了' : '🥣 狗盆放好了：选中狗粮按 E 往里加'); return true; }   // 已经放了一个：直接挪过来
-  if (it === 'kennel') { const [x, z] = frontOf(2.4); garden.bag.take('kennel'); dog.placeKennel(x, z, player.face + Math.PI, kennelLvInBag || 1); kennelLvInBag = 0; try { localStorage.setItem('xcn_kennel_bag_lv', '0'); } catch (e) {} toast('🛖 狗屋放好了：晚上狗会回来睡觉'); return true; }
-  if (it === 'glove' && dog.nearKennel(player.pos)) { const lv = dog.takeKennel(); if (!garden.bag.add('kennel', 1)) garden.chest.add('kennel', 1); kennelLvInBag = lv; try { localStorage.setItem('xcn_kennel_bag_lv', String(lv)); } catch (e) {} toast('🛖 狗屋收进背包了'); return true; }
+  if (it === 'kennel') { if (dog.kennel) { toast('🛖 你已经放了一个狗屋（放好就不能再挪了）'); return true; } const [x, z] = frontOf(2.4); garden.bag.take('kennel'); dog.placeKennel(x, z, player.face + Math.PI, kennelLvInBag || 1); kennelLvInBag = 0; try { localStorage.setItem('xcn_kennel_bag_lv', '0'); } catch (e) {} toast('🛖 狗屋放好了（不能再挪了）：晚上狗会回来睡觉'); return true; }
+  if (it === 'glove' && dog.nearKennel(player.pos)) {   // 拆狗屋：要按两次 E 确认，拆掉不会回到背包（用户说的）
+    if (demolishT < performance.now()) { demolishT = performance.now() + 3000; toast('⚠️ 拆掉就没有了：3 秒内再按一次 E 确定'); return true; }
+    demolishT = 0; dog.takeKennel(); toast('🔨 狗屋拆掉了'); return true; }
   if (dog.nearKennel(player.pos) && !dog.near(player.pos)) { const k = dog.kennel, up = KENNEL_UP(k.lv); if (!up) return true;
     if (!garden.wallet.spend(up.price)) { toast(`菜币不够：要 ${up.price}`); return true; }
     dog.setKennelLevel(k.lv + 1); renderMoney(); toast(`🛖 狗屋升级成 ${up.name}！`); return true; }
@@ -505,15 +510,16 @@ function renderShop() {
     const rows = []; const seen = new Set();
     garden.bag.slots.forEach(sl => { if (!sl || seen.has(sl.key) || !sellPrice(sl.key)) return; seen.add(sl.key);
       const info = itemInfo(sl.key), n = garden.bag.count(sl.key), p = sellPrice(sl.key);
-      rows.push(`<div class="row"><span class="ic">${info.icon}</span><span class="nm">${info.name}<small>背包里有 ${n} 个</small></span><span class="pr">🥕 ${p} / 个</span>
+      rows.push(`<div class="row"><span class="ic">${info.icon}</span><span class="nm">${info.name}<small>背包里有 ${n} 个${SHOP_ITEMS.some(x => x.key === sl.key) ? ` · 买的时候 ${SHOP_ITEMS.find(x => x.key === sl.key).price}` : ''}</small></span><span class="pr">🥕 ${p} / 个</span>
         <button data-k="${sl.key}" data-n="1">卖 1 个</button><button data-k="${sl.key}" data-n="${n}">全部卖掉（${n * p}）</button></div>`); });
-    $('shopList').innerHTML = rows.join('') || '<div class="empty">背包里没有能卖的菜。去菜园收一些吧！</div>';
+    $('shopList').innerHTML = (rows.join('') || '<div class="empty">背包里没有能卖的东西。去菜园收一些菜吧！</div>') + '<div class="empty">🔑 钥匙不能卖 · 从小卖部买的东西按一半的价钱收</div>';
   }
 }
 $('shopList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   if (shopTab === 'buy') {
     const it = SHOP_ITEMS[+b.dataset.i], n = +b.dataset.n, cost = it.price * n;
+    if (it.key === 'leash' && (garden.bag.count('leash') || garden.chest.count('leash'))) { toast('⛓️ 你已经有狗链了'); return; }
     if (it.key === 'kennel' && (dog.kennel || garden.bag.count('kennel') || garden.chest.count('kennel'))) { toast('🛖 你已经有一个狗屋了'); return; }
     if (it.key === 'puppy') {
       if (dog.has) { toast(`🐶 你已经有${dog.name}了`); return; }
@@ -619,7 +625,7 @@ renderDbgHouse();
 $('dbgOil').onclick = () => { const ok = garden.bag.add('oil', 3); renderBag(); toast(ok ? '🛢️ 送了 3 瓶灯油' : '🎒 背包满了'); };
 $('dbgStaFull').onclick = () => { stamina.set(STA_MAX); toast('💪 体力满了'); };
 $('dbgDog').onclick = () => { if (dog.has) return toast(`🐶 已经有${dog.name}了`); dog.adopt(); askDogName(true); };
-$('dbgDogStuff').onclick = () => { const ok = garden.bag.add('bowl', 1) && garden.bag.add('dogfood', 10) && garden.bag.add('frisbee', 1); renderBag(); toast(ok ? '🎁 送了狗盆、10 份狗粮、飞盘' : '🎒 背包满了，先把东西放进箱子'); };
+$('dbgDogStuff').onclick = () => { const ok = garden.bag.add('bowl', 1) && garden.bag.add('dogfood', 10) && garden.bag.add('frisbee', 1) && garden.bag.add('leash', 1); renderBag(); toast(ok ? '🎁 送了狗盆、10 份狗粮、飞盘、狗链' : '🎒 背包满了，先把东西放进箱子'); };
 $('dbgKennel').onclick = () => { if (!dog.has) dog.adopt(); const [x, z] = frontOf(3); if (dog.kennel) dog.setKennelLevel(dog.kennel.lv % 3 + 1); else dog.placeKennel(x, z, player.face + Math.PI, 1); toast(`🛖 狗屋：${dog.kennel.lv} 级 ${dog.KENNEL[dog.kennel.lv].name}（再点一下换下一级）`); };
 $('dbgDogHungry').onclick = () => { dog.debug.setFull(10); toast('🐶 狗饿了'); };
 $('dbgDogLoyal').onclick = () => { dog.debug.setLoyal(100); toast('🐶 忠诚度满了：会帮你看菜园'); };
@@ -673,6 +679,7 @@ function step(dt, t) {
   house.collide(player.pos);
   plotFenceCollide(player.pos);
   dog.collideKennel(player.pos);
+  dog.collideYard(player.pos);
   shop.collide(player.pos);
   colliders.forEach(([cx, cz, cr]) => {
     const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;

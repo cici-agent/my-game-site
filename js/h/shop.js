@@ -1,5 +1,5 @@
 // ===== 菜鸟家园 · 小镇广场上的小卖部 =====
-// 卖：种子、树苗、蜡烛、杀虫剂；收：背包里的菜和水果（换菜币）。价格以后后台可改。
+// 卖：种子、树苗、蜡烛、杀虫剂、狗用的东西；收：背包里除了钥匙的所有东西（换菜币）。价格以后后台可改。
 import * as THREE from 'three';
 import { CROPS } from './garden.js';
 
@@ -9,14 +9,17 @@ export const SHOP_ITEMS = [
   { key: 'spray', price: 15, lv: 1, note: '一次喷 9 块田（周围 3×3）：虫子全赶走，2 小时不来虫' },
   { key: 'candle', price: 5, lv: 1, note: '点在烛台上，能烧半小时' },
   { key: 'puppy', price: 80, lv: 1, note: '一只呆萌的小狗，买了就跟着你（只能养一只）', once: true },
-  { key: 'kennel', price: 30, lv: 1, note: '小狗窝：放在地上，狗晚上回去睡觉；在狗屋前按 E 能升级', once: true },
+  { key: 'kennel', price: 30, lv: 1, note: '小狗窝：先放进背包，选中按 E 放在地上（放好就不能再挪了）；狗晚上回去睡觉；在狗屋前按 E 能升级', once: true },
+  { key: 'leash', price: 8, lv: 1, note: '把狗拴在狗屋门口（或者地上的小木桩）上，它就不会乱跑；不会用完', once: true },
   { key: 'bowl', price: 10, lv: 1, note: '放在地上，往里面加狗粮，狗饿了自己去吃' },
   { key: 'dogfood', price: 3, lv: 1, note: '一份狗粮：放进狗盆，或者直接喂给狗' },
   { key: 'frisbee', price: 12, lv: 1, note: '扔出去，狗会去捡回来（不会用完）' },
   { key: 'oil', price: 8, lv: 1, note: '小木屋的油灯用，能亮 2 小时' },
   ...Object.keys(SEED_PRICE).map(k => ({ key: 'seed_' + k, price: SEED_PRICE[k], lv: CROPS[k].lv, note: CROPS[k].kind === 'tree' ? '果树，一块田种一棵' : '' })),
 ];
-export const sellPrice = key => (CROPS[key] ? CROPS[key].price : 0);
+// 能卖的价格（用户说：背包里除了钥匙，什么都能卖，但卖的价格比买的低）：菜和水果按原价收；小卖部买来的东西按买价的一半
+const BUY = Object.fromEntries(SHOP_ITEMS.map(it => [it.key, it.price]));
+export const sellPrice = key => key === 'key' ? 0 : CROPS[key] ? CROPS[key].price : BUY[key] ? Math.max(1, Math.floor(BUY[key] / 2)) : 0;
 
 function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
 
