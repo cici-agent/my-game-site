@@ -12,7 +12,7 @@ const MEAL = 40, BOWL_MAX = 5, HUNGRY = 40;
 export const DOG_NAMES = ['豆豆', '团子', '旺财', '布丁', '小黄'];
 
 // ---------- 小狗模型：大头、大眼睛、耷拉耳朵、短腿、摇尾巴、吐舌头 ----------
-function buildDog() {
+export function buildDog() {
   const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .75, ...o });
   const fur = M(0xf1c27d), cream = M(0xfff4e0), brown = M(0xb8743a), black = M(0x1d1712, { roughness: .3 }), white = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const sph = new THREE.SphereGeometry(1, 20, 16);

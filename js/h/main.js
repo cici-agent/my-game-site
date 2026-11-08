@@ -10,7 +10,9 @@ import { createGate, fenceMaterial } from './gate.js';
 import { createDog } from './dog.js';
 import { createCoop, inCoop, COOP } from './coop.js';
 import { createStamina, FOOD, MAX as STA_MAX } from './stamina.js';
-import { createShop, SHOP_ITEMS, sellPrice } from './shop.js';
+import { createShop, SHOP_ITEMS, sellPrice, SHOPS, shopOf } from './shop.js';
+import { buildDog } from './dog.js';
+import { buildChicken } from './coop.js';
 import { createSky, growLight, phaseOf, clockText, gameHour, jumpTo, resetTime, darkness } from './sky.js';
 
 // ---------- 布局：弯弯的主路 + 零零散散的大空地 + 弯弯的小道（见 layout.js） ----------
@@ -24,7 +26,18 @@ const { onPath, onPlot } = LAY;
 // 我的空地：先用离出生点最近的那块（以后改成在镇政府领到的那块）；菜园围在它旁边
 const homePlot = PLOTS.slice().sort((a, b) => Math.hypot(a.x - LAY.spawn.x, a.z - LAY.spawn.z) - Math.hypot(b.x - LAY.spawn.x, b.z - LAY.spawn.z))[0];
 const gardenSide = chooseSide(homePlot, (x, z) => onPath(x, z, 1.5) || onPlot(x, z, 1));
-const blocked = (x, z, m = .4) => onPath(x, z, m) || onPlot(x, z, m) || inGarden(homePlot, gardenSide, x, z, m);
+// 三家店的位置：广场外面的草坪上（用户说：商店不要在中间的圆里，移到草坪上），挨在一起，靠近我家那边，面朝广场
+const SHOP_SPOTS = (() => {
+  const cand = [], homeA = Math.atan2(homePlot.x, homePlot.z);
+  for (let r = 30; r <= 64; r += 2) for (let a = 0; a < 6.283; a += .03) { const x = Math.sin(a) * r, z = Math.cos(a) * r; if (!onPath(x, z, 6.5) && !onPlot(x, z, 7.5)) cand.push({ x, z, r, a, face: a + Math.PI }); }
+  const angD = a => { let d = Math.abs(a - homeA) % 6.283; return Math.min(d, 6.283 - d); };
+  cand.sort((p, q) => (p.r + angD(p.a) * 25) - (q.r + angD(q.a) * 25));
+  const out = [cand[0]];
+  while (out.length < 3) { const nx = cand.filter(c => out.every(o => Math.hypot(o.x - c.x, o.z - c.z) >= 13)).sort((p, q) => Math.hypot(p.x - out[0].x, p.z - out[0].z) - Math.hypot(q.x - out[0].x, q.z - out[0].z))[0]; if (!nx) break; out.push(nx); }
+  return out;
+})();
+const inShopArea = (x, z, m = 0) => SHOP_SPOTS.some(s => Math.hypot(s.x - x, s.z - z) < 7 + m);
+const blocked = (x, z, m = .4) => onPath(x, z, m) || onPlot(x, z, m) || inGarden(homePlot, gardenSide, x, z, m) || inShopArea(x, z, m);
 const WR = L.worldR;
 
 // ---------- 渲染器 / 相机 / 灯光 ----------
@@ -291,9 +304,27 @@ const coop = createCoop({ scene, plot: homePlot, side: gardenSide, isNight: () =
 // 修 bug 补偿：之前有个版本扔飞盘会把飞盘弄丢，有狗却哪里都找不到飞盘的，还一个（只做一次）
 try { if (dog.has && !localStorage.getItem('xcn_fris_fix1')) { if (!garden.bag.count('frisbee') && !garden.chest.count('frisbee') && !house.cabinet.count('frisbee')) { if (!garden.bag.add('frisbee', 1)) garden.chest.add('frisbee', 1); } localStorage.setItem('xcn_fris_fix1', '1'); } } catch (e) {}
 let sleeping = null, firstPerson = false;
-// 小卖部：在广场上，背对第一条路，面朝广场中间
-const shopAng = Math.atan2(LAY.roads[1].pts[8].x, LAY.roads[1].pts[8].z) + Math.PI * .8;
-const shop = createShop({ scene, x: Math.sin(shopAng) * 13, z: Math.cos(shopAng) * 13, face: shopAng + Math.PI, buildAvatar });
+// 三家店：菜鸟小卖部、萌宠小屋、动物小铺
+const SHOP_DECOR = {
+  // 萌宠小屋：柜台上坐着一只小狗，旁边有粉色狗垫子和骨头
+  pet: (g, { add, M, BOX, CYL, SPH }) => {
+    const d = buildDog(); d.root.scale.setScalar(.75); d.root.position.set(-1.6, 1.29, 1); d.body.rotation.x = -.35; g.add(d.root);
+    const d2 = buildDog(); d2.root.scale.setScalar(.9); d2.root.position.set(3.3, 0, 2.3); d2.root.rotation.y = -.6; d2.head.rotation.z = .3; g.add(d2.root);
+    add(CYL, M({ color: 0xffb3c8 }), [3.3, .06, 2.3], [.75, .12, .75]);
+    for (let i = 0; i < 3; i++) { add(CYL, M({ color: 0xfff4e0 }), [1 + i * .4, 1.33, 1.1], [.03, .24, .03], [0, 0, Math.PI / 2]); }
+    add(SPH, M({ color: 0xe8352b }), [-3.2, .2, 2.4], [.2, .2, .2]);
+  },
+  // 动物小铺：干草堆、两只母鸡、柜台上一窝小鸡
+  animal: (g, { add, M, BOX, CYL, SPH }) => {
+    [[-3.3, 2.1], [3.3, 2.2]].forEach(([x, z], i) => { add(CYL, M({ color: 0xe0c050 }), [x, .45, z], [.6, .9, .6], [0, 0, Math.PI / 2]); const c = buildChicken(false); c.root.position.set(x + (i ? -.2 : .2), .9, z); c.root.rotation.y = i ? -.5 : .5; g.add(c.root); });
+    add(CYL, M({ color: 0xd8b25a }), [-1.6, 1.33, 1], [.45, .12, .45]);
+    for (let i = 0; i < 3; i++) { const c = buildChicken(true); c.root.position.set(-1.9 + i * .3, 1.38, 1 + (i % 2) * .12); c.root.rotation.y = i - 1; g.add(c.root); }
+    add(BOX, M({ color: 0xe8c35a }), [1.4, 1.42, 1], [.6, .3, .4]);
+  },
+};
+const shops = SHOP_SPOTS.map((s, i) => { const kind = ['general', 'pet', 'animal'][i]; return createShop({ scene, x: s.x, z: s.z, face: s.face, buildAvatar, kind, decor: SHOP_DECOR[kind] }); });
+const shop = shops[0];
+let curShop = 'general';
 // 出生在自家空地里、通往菜园的小路旁边，面朝菜园
 [LAY.spawn.x, LAY.spawn.z] = garden.gateWorld();
 LAY.spawn.yaw = garden.gateYaw();
@@ -373,7 +404,7 @@ function doAction() {
   if (!shopOpen && !chestOpen && !nearBed && coopAction()) return renderBag();
   if (shopOpen) return closeShop();
   if (chestOpen) return closeChest();
-  if (!nearBed && nearShop) return openShop();
+  if (!nearBed && nearShop) return openShop(nearShop.kind);
   if (!nearBed && nearGate) { toast(gateAct(nearGate, selItem())); return renderBag(); }
   if (!nearBed && nearHouse) {
     const r = house.act(nearHouse, selItem(), garden.bag);
@@ -541,7 +572,7 @@ function renderShop() {
   $('shopMoney').textContent = garden.wallet.get();
   document.querySelectorAll('#shopUI .tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === shopTab));
   if (shopTab === 'buy') {
-    $('shopList').innerHTML = SHOP_ITEMS.map((it, i) => { const info = itemInfo(it.key), lock = false, poor = garden.wallet.get() < it.price;
+    $('shopList').innerHTML = SHOP_ITEMS.map((it, i) => { if (shopOf(it) !== curShop) return ''; const info = itemInfo(it.key), lock = false, poor = garden.wallet.get() < it.price;
       return `<div class="row${lock ? ' lock' : ''}"><span class="ic">${info.seed ? `<span class="pk"><b>${info.sub}</b></span>` : info.icon}</span>
         <span class="nm">${info.name}<small>${lock ? `菜园 ${it.lv} 级才能买` : it.note || ''}</small></span><span class="pr">🥕 ${it.price}</span>
         <button data-i="${i}" data-n="1" ${lock || poor ? 'disabled' : ''}>买 1 个</button>${it.once ? '' : `<button data-i="${i}" data-n="5" ${lock || garden.wallet.get() < it.price * 5 ? 'disabled' : ''}>买 5 个</button>`}</div>`; }).join('');
@@ -580,7 +611,7 @@ $('shopList').addEventListener('click', e => {
   renderShop(); renderBag(); renderMoney();
 });
 document.querySelectorAll('#shopUI .tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.t; renderShop(); });
-function openShop() { shopOpen = true; renderShop(); $('shopUI').classList.add('show'); Object.keys(keys).forEach(k => keys[k] = false); }
+function openShop(kind = 'general') { curShop = kind; const S = SHOPS[kind]; $('shopTitle').textContent = `${S.icon} ${S.name}`; $('shopUI').querySelector('.box').style.borderColor = S.a; shopOpen = true; renderShop(); $('shopUI').classList.add('show'); Object.keys(keys).forEach(k => keys[k] = false); }
 function closeShop() { shopOpen = false; $('shopUI').classList.remove('show'); }
 $('shopClose').onclick = closeShop;
 renderMoney(); setInterval(renderMoney, 1000);
@@ -681,7 +712,7 @@ $('dbgDogReset').onclick = () => { if (confirm('把狗和狗盆都清掉？')) {
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
@@ -729,7 +760,7 @@ function step(dt, t) {
   dog.collideKennel(player.pos);
   dog.collideYard(player.pos);
   coop.collide(player.pos);
-  shop.collide(player.pos);
+  shops.forEach(s => s.collide(player.pos));
   colliders.forEach(([cx, cz, cr]) => {
     const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
     if (d < min && d > 1e-4 && player.pos.y < 1.5) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
@@ -784,7 +815,7 @@ renderer.setAnimationLoop(() => {
   garden.update(dt);
   house.update(dt, player.pos, firstPerson && !overview);
   renderSta();
-  shop.update(dt);
+  shops.forEach(s => s.update(dt));
   dog.update(dt, player.pos, player.face);
   coop.update(dt);
   renderDogHud();
@@ -794,7 +825,7 @@ renderer.setAnimationLoop(() => {
   nearBed = overview ? null : garden.nearest(player.pos.x, player.pos.z);
   nearBox = !overview && !nearBed && garden.nearChest(player.pos.x, player.pos.z);
   nearHouse = !overview && !nearBed ? house.nearThing(player.pos) : null;
-  nearShop = !overview && !nearBed && shop.near(player.pos);
+  nearShop = !overview && !nearBed ? shops.find(s => s.near(player.pos)) || false : false;
   nearGate = overview || nearBed ? null : [garden.gate, homeGate].filter(Boolean).map(g => [g, g.dist(player.pos.x, player.pos.z) - (g === homeGate ? .8 : 0)]).filter(([, d]) => d < 1.9).sort((a, b) => a[1] - b[1]).map(([g]) => g)[0] || null;
   if (nearGate) { nearBox = false; nearHouse = null; nearShop = false; }
   if (sleeping) { nearBed = null; nearBox = false; nearHouse = null; nearShop = false; nearGate = null; }
@@ -805,7 +836,7 @@ renderer.setAnimationLoop(() => {
   else if (dogP && (!nearBed || DOG_ITEMS.includes(selItem()))) { pr.innerHTML = `<b>${dogP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${dogP.label}</b><span>${dogP.sub}</span>`; pr.classList.toggle('dim', !dogP.can); pr.classList.add('show'); $('actBtn').textContent = dogP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', dogP.can); }
   else if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
   else if (nearGate && !chestOpen && !shopOpen) { const d = gateInfo(nearGate, selItem()); pr.innerHTML = `<b>${d.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${d.label}</b><span>${d.sub}</span>`; pr.classList.toggle('dim', !d.can); pr.classList.add('show'); $('actBtn').textContent = d.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', d.can); }
-  else if (nearShop && !shopOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}🏪 进小卖部</b><span>买种子、树苗、蜡烛、杀虫剂；把菜卖掉换菜币</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '进小卖部'; $('actBtn').classList.add('show'); }
+  else if (nearShop && !shopOpen) { const S = SHOPS[nearShop.kind]; pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}${S.icon} 进${S.name}</b><span>${S.desc}</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '进' + S.name; $('actBtn').classList.add('show'); }
   else if (nearHouse && !chestOpen) { const d = house.describe(nearHouse, selItem()); pr.innerHTML = `<b>${d.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${d.label}</b><span>${d.sub}</span>`; pr.classList.toggle('dim', !d.can); pr.classList.add('show'); $('actBtn').textContent = d.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', d.can); }
   else if (nearBox && !chestOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}📦 打开箱子</b><span>把背包里的东西放进箱子，或者拿出来</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '打开箱子'; $('actBtn').classList.add('show'); }
   else if (sleeping) { pr.innerHTML = `<b>💤 正在${sleeping.name}上睡觉</b><span>体力每分钟 +${Math.round(sleeping.rate * 60)} · 按 E 或走路起床</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '起床'; $('actBtn').classList.add('show'); }

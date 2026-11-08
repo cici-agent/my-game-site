@@ -24,7 +24,7 @@ export function inCoop(plot, side, x, z, m = 0) { const c = coopSpot(plot, side)
 
 // ---------- 小鸡模型（圆滚滚的白母鸡；小鸡是黄色毛球） ----------
 const SPH = new THREE.SphereGeometry(1, 16, 12);
-function buildChicken(baby) {
+export function buildChicken(baby) {
   const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .8, ...o });
   const white = M(baby ? 0xffe066 : 0xfffaf0), red = M(0xe8352b), yellow = M(0xf7b32b), black = M(0x1d1712, { roughness: .3 }), hi = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
