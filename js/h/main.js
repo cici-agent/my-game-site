@@ -7,6 +7,7 @@ import { L, createLayout, ribbon } from './layout.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden } from './garden.js';
 import { createHouse, inHouse } from './house.js';
 import { createShop, SHOP_ITEMS, sellPrice } from './shop.js';
+import { createSky, growLight, phaseOf, clockText, gameHour, jumpTo, resetTime } from './sky.js';
 
 // ---------- 布局：弯弯的主路 + 零零散散的大空地 + 弯弯的小道（见 layout.js） ----------
 // 固定种子的随机数：每次打开布局都一样
@@ -40,22 +41,15 @@ scene.fog = new THREE.Fog(0xd9efff, 320, 820);
 const camera = new THREE.PerspectiveCamera(50, 1, .5, 2400);
 camera.position.set(0, 64, 96);
 
-// 天空：上蓝下浅的渐变大球
-{
-  const g = new THREE.SphereGeometry(1400, 32, 16), pos = g.attributes.position, cols = [];
-  const top = new THREE.Color(0x5eaefc), bottom = new THREE.Color(0xe8f6ff);
-  for (let i = 0; i < pos.count; i++) { const c = bottom.clone().lerp(top, Math.pow(Math.max(0, pos.getY(i) / 1400), .55)); cols.push(c.r, c.g, c.b); }
-  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-  scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false })));
-}
-scene.add(new THREE.HemisphereLight(0xe4f3ff, 0x5f8f3e, 1.4));
+// 天空、太阳、月亮、星星：见 sky.js（白天晚上会变）
+const hemi = new THREE.HemisphereLight(0xe4f3ff, 0x5f8f3e, 1.4); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.3);
 sun.position.set(160, 230, 105);
 sun.castShadow = true;
 sun.shadow.mapSize.set(isTouch ? 2048 : 4096, isTouch ? 2048 : 4096);
 Object.assign(sun.shadow.camera, { left: -350, right: 350, top: 350, bottom: -350, near: 10, far: 900 });
 sun.shadow.bias = -.0006; sun.shadow.normalBias = .4;
-scene.add(sun);
+scene.add(sun); scene.add(sun.target);
 
 const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .9, ...o });
 // 贴在地上的东西用 polygonOffset 一层层叠，避免和草地闪烁
@@ -234,9 +228,9 @@ for (let k = 0; k < 140; k++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd
 }
 
 // ---------- 云 ----------
-const clouds = [];
+const clouds = []; let cloudMat = null;
 {
-  const cm = mat(0xffffff, { roughness: 1, emissive: 0xffffff, emissiveIntensity: .25 });
+  const cm = cloudMat = mat(0xffffff, { roughness: 1, emissive: 0xffffff, emissiveIntensity: .25 });
   for (let k = 0; k < 20; k++) {
     const cloud = new THREE.Group();
     for (let j = 0; j < 5; j++) {
@@ -251,7 +245,7 @@ const clouds = [];
 // ---------- 玩家：用自己的皮肤和装饰在家园里走（和游乐园一样） ----------
 const $ = id => document.getElementById(id);
 // ---------- 我的菜园：先放在离出生点最近的那块空地上（以后改成在镇政府领到的那块） ----------
-const garden = createGarden({ scene, plot: homePlot, side: gardenSide });
+const garden = createGarden({ scene, plot: homePlot, side: gardenSide, daylight: () => growLight() });
 const house = createHouse({ scene, plot: homePlot, speed: () => garden.speed });
 garden.addContainer('cabinet', house.cabinet, () => house.persist());
 // 小卖部：在广场上，背对第一条路，面朝广场中间
@@ -456,6 +450,12 @@ setInterval(renderBag, 1500);
 // 自动测试用（只有网址带 ?test 才有）
 if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, house, shop, homePlot, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
+const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
+// 左上角的时钟：几点、白天还是晚上
+function renderClock() { const h = gameHour(), p = phaseOf(h); $('clock').innerHTML = `${p.icon} ${p.name} <b>${clockText(h)}</b>${p.name === '晚上' ? '<small>菜长得慢</small>' : ''}`; }
+renderClock(); setInterval(renderClock, 1000);
+document.querySelectorAll('#dbgTime button').forEach(b => b.onclick = () => { if (b.dataset.h === 'real') resetTime(); else jumpTo(+b.dataset.h); renderClock(); toast(b.dataset.h === 'real' ? '回到真实时间' : `跳到 ${b.textContent}`); });
+
 const WALK = 7.5, RUN = 12, GRAV = 26, JUMP = 9.5, EDGE = WR - 6;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
 camera.position.set(LAY.spawn.x - Math.sin(LAY.spawn.yaw) * 13, 5.5, LAY.spawn.z - Math.cos(LAY.spawn.yaw) * 13);
@@ -526,6 +526,7 @@ const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
   clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 560) c.position.x = -560; });
+  sky.update(dt);
   garden.update(dt);
   house.update(dt, player.pos);
   shop.update(dt);

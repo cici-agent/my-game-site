@@ -294,7 +294,8 @@ function textSprite(text) {
 }
 
 // ---------- 菜园 ----------
-export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = true }) {
+export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = true, daylight = () => 1 }) {
+  let light = 1;   // 白天 1，晚上 0.5（晚上菜长得慢）
   const toWorld = (lx, lz) => plotToWorld(plot, lx, lz);
   const toLocal = (x, z) => worldToPlot(plot, x, z);
   const group = new THREE.Group(); group.position.set(plot.x, 0, plot.z); group.rotation.y = plot.rot; scene.add(group);
@@ -412,7 +413,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const C = CROPS[b.crop];
     let event = null;
     if (b.phase === 'grow' || b.phase === 'regrow') {
-      b.g += gs * growRate(b) / (b.phase === 'grow' ? C.grow : C.regrow);
+      b.g += gs * growRate(b) * light / (b.phase === 'grow' ? C.grow : C.regrow);
       if (b.g >= 1) { b.g = 1; b.phase = 'ripe'; event = 'ripe'; }
     }
     if (b.phase !== 'withered') {
@@ -467,7 +468,9 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   {
     const away = Math.min(2 * 86400, Math.max(0, (Date.now() - (st.t || Date.now())) / 1000));
     const list = st.beds.slice(0, LEVELS[st.level]);
+    light = .81;   // 下线这段时间按一天的平均（晚上长得慢）来算
     for (let left = away; left > 0; left -= 60) { const g = Math.min(60, left); list.forEach(b => stepBed(b, g)); stepBugs(list, g); }
+    light = 1;
   }
 
   const listeners = [];
@@ -507,6 +510,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   function update(dt) {
     anim += dt;
     const gs = dt * st.speed, active = LEVELS[st.level];
+    light = daylight();
     const bugEvents = stepBugs(st.beds.slice(0, active), gs);
     bugEvents.forEach(([kind, b]) => { const bd = beds.find(x => x.st === b); if (kind === 'flyOut' && bd) flyAway(bd); if (kind === 'bug' || kind === 'flyIn') emit('bug', bd); });
     beds.forEach((bd, i) => {
@@ -599,7 +603,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       const rate = growRate(b), total = b.phase === 'grow' ? C.grow : C.regrow;
       parts.push((b.phase === 'regrow' ? '又在结果 ' : STAGE(b.g) + ' ') + Math.floor(b.g * 100) + '%');
       if (rate <= 0) parts.push('太干了，不长了');
-      else parts.push('还要 ' + fmt((1 - b.g) * total / rate / st.speed));
+      else parts.push('还要 ' + fmt((1 - b.g) * total / rate / light / st.speed) + (light < .99 ? '（晚上长得慢）' : ''));
     }
     parts.push(`水分 ${wet}%` + (b.moist > 1.02 ? '（水太多了，长得慢）' : ''));
     if (b.guard > 0) parts.push('🧴 喷过杀虫剂');

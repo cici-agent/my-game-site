@@ -102,6 +102,9 @@
   #shopList .empty { text-align: center; color: #8a7a60; padding: 30px 0; }
   #shopUI .tip { font-size: 12px; color: #8a7a60; text-align: center; margin-top: 8px; }
   body.touch #money { top: calc(var(--top-h) + 52px); }
+  #clock { position: fixed; left: 16px; top: calc(var(--top-h) + 46px); z-index: 9; background: rgba(20,30,60,.7); color: #fff; padding: 6px 14px; border-radius: 999px; font-size: 14px; }
+  #clock b { font-size: 16px; margin-left: 4px; } #clock small { margin-left: 6px; opacity: .75; font-size: 12px; }
+  body.touch #clock { top: calc(var(--top-h) + 92px); }
   #chestUI { position: fixed; inset: 0; z-index: 15; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.3); }
   #chestUI.show { display: flex; }
   #chestUI .box { background: #8a5a2e; border: 4px solid #5e3a1a; border-radius: 18px; padding: 12px 14px; color: #fff3dc; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
@@ -147,6 +150,7 @@
   <div class="tip">拖动格子把东西搬来搬去 · 点一下整格搬到另一边 · 按 E 或 Esc 关上</div>
 </div></div>
 <div id="money"></div>
+<div id="clock"></div>
 <div id="shopUI"><div class="box">
   <div class="hd">🏪 菜鸟小卖部<span class="mo">🥕 <b id="shopMoney">0</b> 菜币</span><button id="shopClose">✕</button></div>
   <div class="tabs"><button data-t="buy">买东西</button><button data-t="sell">卖菜</button></div>
@@ -156,6 +160,7 @@
 <div id="dbg"><button id="dbgToggle">🧪 管理员测试</button><div class="body">
   <div class="t">菜园等级</div><div class="row" id="dbgLv"></div>
   <div class="t">生长速度（只影响你自己的测试）</div><div class="row" id="dbgSp"></div>
+  <div class="t">时间（只改你自己看到的）</div><div class="row" id="dbgTime"><button data-h="6.3">早上</button><button data-h="12">中午</button><button data-h="19.6">黄昏</button><button data-h="0">半夜</button><button data-h="real">真实时间</button></div>
   <div class="row"><button id="dbgSeeds">🎁 送种子</button><button id="dbgTrees">🌳 送树苗</button><button id="dbgCandle">🕯 送蜡烛</button><button id="dbgMoney">🥕 送 100 菜币</button><button id="dbgReset">🗑 重置菜园</button></div>
 </div></div>
 <div id="stick"><div class="knob"></div></div>
