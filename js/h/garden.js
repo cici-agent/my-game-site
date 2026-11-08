@@ -686,7 +686,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   const debug = {
     setLevel(l) { st.level = l; buildYard(); persist(); },
     setSpeed(v) { st.speed = v; persist(); },
-    giveSeeds() { Object.keys(CROPS).forEach(k => { if (CROPS[k].lv <= st.level) bag.add('seed_' + k, 5); }); persist(); },
+    giveSeeds() { let n = 0; Object.keys(CROPS).forEach(k => { if (CROPS[k].kind !== 'tree' && CROPS[k].lv <= st.level && bag.add('seed_' + k, 5)) n++; }); persist(); return n; },
+    giveTrees() { let n = 0; Object.keys(CROPS).forEach(k => { if (CROPS[k].kind === 'tree' && CROPS[k].lv <= st.level && bag.add('seed_' + k, 2)) n++; }); persist(); return n; },
     reset() { try { localStorage.removeItem(KEY); } catch (e) {} location.reload(); },
   };
   buildYard();

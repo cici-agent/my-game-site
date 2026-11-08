@@ -388,7 +388,8 @@ function renderDbg() {
   $('dbgSp').querySelectorAll('button').forEach(b => b.onclick = () => { garden.debug.setSpeed(+b.dataset.v); renderDbg(); toast(`生长速度 ${b.dataset.v} 倍`); });
 }
 renderDbg();
-$('dbgSeeds').onclick = () => { garden.debug.giveSeeds(); renderBag(); toast('🎁 每种能种的种子各送 5 颗'); };
+$('dbgSeeds').onclick = () => { const n = garden.debug.giveSeeds(); renderBag(); toast(n ? `🎁 送了 ${n} 种种子，每种 5 颗` : '🎒 背包满了，先把东西放进箱子'); };
+$('dbgTrees').onclick = () => { if (garden.level < 2) return toast('🔒 菜园 2 级以上才能种果树'); const n = garden.debug.giveTrees(); renderBag(); toast(n ? `🌳 送了 ${n} 种树苗，每种 2 棵` : '🎒 背包满了，先把东西放进箱子'); };
 $('dbgReset').onclick = () => { if (confirm('把菜园和背包都清空，重新开始？')) garden.debug.reset(); };
 $('dbgToggle').onclick = () => $('dbg').classList.toggle('open');
 setInterval(renderBag, 1500);
