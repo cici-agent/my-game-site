@@ -49,7 +49,7 @@ export function createGate({ parent, x, z, axis = 'x', width = 2.4, height = 1.1
   apply();
   const center = new THREE.Vector3();
   return {
-    name, get open() { return open; },
+    name, get open() { return open; }, setHeight(k) { frame.scale.y = k; },
     get passable() { return ang > .6; },     // 门开到一大半才能走过去
     get locked() { return locked; },
     toggle() { if (locked) return false; open = !open; save(); return open; },

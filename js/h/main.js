@@ -148,7 +148,9 @@ const panels = new THREE.InstancedMesh(new THREE.BoxGeometry(1, FENCE_H, .05), f
 const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
 let pi = 0, pj = 0;
 const plotGates = [];
+const homeInst = { p0: 0, p1: 0, q0: 0, q1: 0 };
 PLOTS.forEach((p, idx) => {
+  if (p === homePlot) { homeInst.p0 = pi; homeInst.q0 = pj; }
   flat(new THREE.PlaneGeometry(p.size + .5, p.size + .5), plotBorder, p.x, p.z, p.rot);
   flat(new THREE.PlaneGeometry(p.size, p.size), plotLawn, p.x, p.z, p.rot);
   const c = Math.cos(p.rot), sn = Math.sin(p.rot), W = (lx, lz) => [p.x + lx * c + lz * sn, p.z - lx * sn + lz * c];
@@ -157,6 +159,7 @@ PLOTS.forEach((p, idx) => {
     for (let i = 0; i <= k; i++) { const [wx, wz] = W(ax + (bx - ax) * i / k, az + (bz - az) * i / k); posts.setMatrixAt(pi++, m4.compose(v.set(wx, (FENCE_H + .2) / 2, wz), q.setFromAxisAngle(up, p.rot), s.set(1, 1, 1))); }
     for (let i = 0; i < k; i++) { const [wx, wz] = W(ax + (bx - ax) * (i + .5) / k, az + (bz - az) * (i + .5) / k); panels.setMatrixAt(pj++, m4.compose(v.set(wx, FENCE_H / 2 + .08, wz), q.setFromAxisAngle(up, ang), s.set(len / k - .14, 1, 1))); }
   });
+  if (p === homePlot) { homeInst.p1 = pi; homeInst.q1 = pj; }
   // 大门：在朝路那边（本地 +z）中间；只有自己家的能开关、上锁；别人家的先关着
   const holder = new THREE.Group(); holder.position.set(p.x, 0, p.z); holder.rotation.y = p.rot; scene.add(holder);
   const mine = p === homePlot;
@@ -165,12 +168,28 @@ PLOTS.forEach((p, idx) => {
     gp.gate = createGate({ parent: holder, x: (ax + bx) / 2, z: (az + bz) / 2, axis: along ? 'x' : 'z', width: Math.hypot(bx - ax, bz - az) - .2, height: FENCE_H, double: Math.hypot(bx - ax, bz - az) > 3.5, out: gp.si === 0 ? -1 : gp.si === 2 ? 1 : gp.si === 1 ? 1 : -1, key: 'xcn_gate_plot_' + i, name: '空地侧门' }); });
 });
 posts.castShadow = panels.castShadow = true;
+// 🧱 自家栅栏能升级（用户说：升级的时候会更高，更难跳过去）：1 级木栅栏 → 2 级高木栅栏 → 3 级铁栅栏（跳不过去）
+const FENCE_LV = { 1: { name: '木栅栏', h: 1.15, jump: .7, price: 0 }, 2: { name: '高木栅栏', h: 1.6, jump: 1.5, price: 150 }, 3: { name: '铁栅栏', h: 2.2, jump: 1.9, price: 400, color: 0x5a6068 } };
+let fenceLv = Math.max(1, Math.min(3, +(localStorage.getItem('xcn_fence_lv') || 1)));
+for (let i = 0; i < postN; i++) posts.setColorAt(i, new THREE.Color(0xffffff)); for (let i = 0; i < panelN; i++) panels.setColorAt(i, new THREE.Color(0xffffff));
+function applyFence() {
+  const F = FENCE_LV[fenceLv], k = F.h / FENCE_H, pos = new THREE.Vector3(), rot = new THREE.Quaternion(), sc = new THREE.Vector3(), col = new THREE.Color(F.color || 0xffffff);
+  for (let i = homeInst.p0; i < homeInst.p1; i++) { posts.getMatrixAt(i, m4); m4.decompose(pos, rot, sc); sc.y = k; pos.y = (F.h + .2) / 2; posts.setMatrixAt(i, m4.compose(pos, rot, sc)); posts.setColorAt(i, col); }
+  for (let i = homeInst.q0; i < homeInst.q1; i++) { panels.getMatrixAt(i, m4); m4.decompose(pos, rot, sc); sc.y = k; pos.y = F.h / 2 + .08; panels.setMatrixAt(i, m4.compose(pos, rot, sc)); panels.setColorAt(i, fenceLv === 3 ? new THREE.Color(0x7d858f) : col); }
+  posts.instanceMatrix.needsUpdate = panels.instanceMatrix.needsUpdate = true; posts.instanceColor.needsUpdate = panels.instanceColor.needsUpdate = true;
+  try { localStorage.setItem('xcn_fence_lv', String(fenceLv)); } catch (e) {}
+}
 scene.add(posts); scene.add(panels);
 const homeGate = plotGates[PLOTS.indexOf(homePlot)];
+function applyFenceGates() { const k = FENCE_LV[fenceLv].h / FENCE_H; homeGate.setHeight(k); HOME_GAPS.forEach(g => g.gate.setHeight(k)); }
+applyFence(); applyFenceGates();
+// 离自家栅栏多近（不算门口）
+function nearHomeFence(pos) { const p = homePlot, c = Math.cos(p.rot), sn = Math.sin(p.rot), dx = pos.x - p.x, dz = pos.z - p.z, lx = dx * c - dz * sn, lz = dx * sn + dz * c;
+  return FENCE[PLOTS.indexOf(homePlot)].some(([ax, az, bx, bz]) => { const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, t = (lx - ax) * ux + (lz - az) * uz; return t > .5 && t < len - .5 && Math.abs((lx - ax) * -uz + (lz - az) * ux) < 1.3; }); }
 // 自家空地的栅栏挡人，但能跳过去（用户说的）；大门开着才能走过去
 function plotFenceCollide(pos, pr = .45) {
   const p = homePlot, h = p.size / 2, c = Math.cos(p.rot), sn = Math.sin(p.rot), dx = pos.x - p.x, dz = pos.z - p.z;
-  let lx = dx * c - dz * sn, lz = dx * sn + dz * c; if (Math.abs(lx) > h + 2 || Math.abs(lz) > h + 2 || pos.y > .7) return;   // 用户说：栅栏要能跳过去
+  let lx = dx * c - dz * sn, lz = dx * sn + dz * c; if (Math.abs(lx) > h + 2 || Math.abs(lz) > h + 2 || pos.y > FENCE_LV[fenceLv].jump) return;   // 用户说：栅栏要能跳过去；升级以后更高、更难跳（石墙跳不过去）
   const segs = (homeGate.passable ? FENCE[PLOTS.indexOf(homePlot)] : FENCE[PLOTS.indexOf(homePlot)].concat([[-PLOT_GATE / 2, h, PLOT_GATE / 2, h]])).concat(HOME_GAPS.filter(gp => !gp.gate.passable).map(gp => [...gp.a, ...gp.b]));
   const ox = lx, oz = lz;
   segs.forEach(([ax, az, bx, bz]) => {
@@ -441,6 +460,7 @@ function doAction() {
   if (!shopOpen && !chestOpen && !nearBed && coopAction()) return renderBag();
   if (!shopOpen && !chestOpen && !nearBed && ranchAction()) return renderBag();
   if (!shopOpen && !chestOpen && !nearBed && pondAction()) return renderBag();
+  if (!shopOpen && !chestOpen && !nearBed && !nearGate && fenceAction()) return renderBag();
   if (shopOpen) return closeShop();
   if (chestOpen) return closeChest();
   if (!nearBed && nearShop) return openShop(nearShop.kind);
@@ -574,6 +594,16 @@ function ranchAction() {
   return false;
 }
 // ---------- 🐟 鱼塘：挖鱼塘、撒鱼食、用渔网捞、升级、拆 ----------
+function fencePrompt(it) {
+  if (it || nearGate || !nearHomeFence(player.pos)) return null;
+  const F = FENCE_LV[fenceLv], nx = FENCE_LV[fenceLv + 1];
+  return nx ? { label: `🧱 把栅栏升级成${nx.name}（${nx.price} 菜币）`, sub: `现在是${F.name}（${F.h} 米）→ ${nx.h} 米高${fenceLv + 1 === 3 ? '，跳不过去' : '，更难跳过去'} · 空手按 E`, can: true } : { label: `🧱 ${F.name}（最高级）`, sub: `${F.h} 米高，谁也跳不过去`, can: false };
+}
+function fenceAction() {
+  if (selItem() || !nearHomeFence(player.pos)) return false; const nx = FENCE_LV[fenceLv + 1]; if (!nx) return false;
+  if (!garden.wallet.spend(nx.price)) { toast(`菜币不够：要 ${nx.price}`); return true; }
+  fenceLv++; applyFence(); applyFenceGates(); renderMoney(); toast(`🧱 栅栏升级成${nx.name}了！`); return true;
+}
 function pondPrompt(it) {
   if (pond.nearSign(player.pos)) return it === 'pondkit' ? { label: '🏞️ 在这里挖鱼塘', sub: '这块地就是专门挖鱼塘的地方', can: true } : { label: '🏞️ 这里是挖鱼塘的地方', sub: '去动物小铺买鱼塘，放进背包，再到这里按 E 挖', can: false };
   if (!pond.nearEdge(player.pos)) return null;
@@ -872,6 +902,7 @@ $('dbgPigLv').onclick = () => { const l = pigs.built ? pigs.lv % 3 + 1 : 1; pigs
 $('dbgPig').onclick = () => { if (!pigs.built) pigs.debug.setLevel(1); toast(pigs.addAnimal(true) ? '🐷 送了一头猪' : '🐷 猪圈住满了'); };
 $('dbgDuckLv').onclick = () => { const l = ducks.built ? ducks.lv % 3 + 1 : 1; ducks.debug.setLevel(l); toast(`🦆 ${ducks.homeName}（再点换下一级）`); };
 $('dbgDuck').onclick = () => { if (!ducks.built) ducks.debug.setLevel(1); toast(ducks.addAnimal(true) ? '🦆 送了一只鸭子' : '🦆 鸭棚住满了'); };
+$('dbgFence').onclick = () => { fenceLv = fenceLv % 3 + 1; applyFence(); applyFenceGates(); toast(`🧱 栅栏：${fenceLv} 级 ${FENCE_LV[fenceLv].name}（再点换下一级）`); };
 $('dbgPondLv').onclick = () => { const l = pond.built ? pond.lv % 3 + 1 : 1; pond.debug.setLevel(l); toast(`🏞️ ${pond.name}（再点换下一级）`); };
 $('dbgPondFill').onclick = () => { if (!pond.built) pond.debug.setLevel(1); ['fish', 'shrimp', 'crab', 'fish'].forEach(k => pond.add(k, true)); garden.bag.add('net', 1); garden.bag.add('fishfood', 5); renderBag(); toast(`🐟 放了鱼虾蟹（${pond.count} / ${pond.cap}），送了渔网和鱼食`); };
 $('dbgRanchReady').onclick = () => { RANCHES.forEach(r => r.debug.readyNow()); toast('🥛🧶 马上能挤奶、剪毛'); };
@@ -882,7 +913,7 @@ $('dbgDogReset').onclick = () => { if (confirm('把狗和狗盆都清掉？')) {
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { get fenceLv() { return fenceLv; }, pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
@@ -1006,7 +1037,7 @@ renderer.setAnimationLoop(() => {
   if (sleeping) { nearBed = null; nearBox = false; nearHouse = null; nearShop = false; nearGate = null; }
   const pr = $('prompt');
   const dogP = !overview && !sleeping && !chestOpen && !shopOpen ? dogPrompt(selItem()) : null;
-  const coopP = !dogP && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? coopPrompt(selItem()) || ranchPrompt(selItem()) || pondPrompt(selItem()) : null;
+  const coopP = !dogP && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? coopPrompt(selItem()) || ranchPrompt(selItem()) || pondPrompt(selItem()) || fencePrompt(selItem()) : null;
   if (coopP) { pr.innerHTML = `<b>${coopP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${coopP.label}</b><span>${coopP.sub}</span>`; pr.classList.toggle('dim', !coopP.can); pr.classList.add('show'); $('actBtn').textContent = coopP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', coopP.can); }
   else if (dogP && (!nearBed || DOG_ITEMS.includes(selItem()))) { pr.innerHTML = `<b>${dogP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${dogP.label}</b><span>${dogP.sub}</span>`; pr.classList.toggle('dim', !dogP.can); pr.classList.add('show'); $('actBtn').textContent = dogP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', dogP.can); }
   else if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
