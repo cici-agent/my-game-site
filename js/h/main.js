@@ -273,8 +273,8 @@ const keys = {};
 let overview = false;
 const cam = { yaw: LAY.spawn.yaw, pitch: .3, dist: 13 };   // 离得远一点：整个人从头到脚都看得见   // 相机在玩家南边，看向北边的广场
 addEventListener('keydown', e => {
-  if (pickOpen) { pickKey(e); return; }
   keys[e.code] = true;
+  { const m = /^Digit(\d)$/.exec(e.code); if (m && !e.repeat) select((+m[1] + 9) % 10); }   // 1~9 选第 1~9 格，0 选第 10 格
   if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) doAction();
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
@@ -309,47 +309,35 @@ function moveJoy(e) {
 $('jumpBtn').addEventListener('pointerdown', e => { keys.Space = true; $('jumpBtn').setPointerCapture(e.pointerId); });
 ['pointerup', 'pointercancel'].forEach(ev => $('jumpBtn').addEventListener(ev, () => keys.Space = false));
 
-// ---------- 菜园操作：走到田边按 E（触屏点按钮） ----------
-let nearBed = null, pickOpen = false, toastT = 0;
-function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2400); }
+// ---------- 菜园操作：快捷栏选东西（按 1~9、0 或者点格子），走到田边按 E（触屏点按钮） ----------
+// 快捷栏：第 1 格水壶、第 2 格手套（一直都有），后面是背包里的种子和菜
+let nearBed = null, toastT = 0, sel = 0;
+const TOOLS = [{ key: 'can', icon: '🪣', name: '水壶（浇水）' }, { key: 'glove', icon: '🧤', name: '手套（抓虫子、收菜）' }];
+const hotbarLen = () => TOOLS.length + garden.bag.cap;
+function selItem() { if (sel < TOOLS.length) return TOOLS[sel].key; const sl = garden.bag.slots[sel - TOOLS.length]; return sl ? sl.key : null; }
+function select(i) { if (i < 0 || i >= hotbarLen()) return; sel = i; renderBag(); const it = selItem(); toast(it ? (sel < TOOLS.length ? TOOLS[sel].name : itemInfo(it).name) : '空格子'); }
+function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2000); }
 function doAction() {
   if (!nearBed) return;
-  const r = garden.act(nearBed);
-  if (!r) return;
-  if (r.pick) return openPick();
-  if (r.msg) toast(r.msg);
+  const r = garden.useItem(nearBed, selItem());
+  if (r && r.msg) toast(r.msg);
   renderBag();
 }
 $('actBtn').addEventListener('click', () => doAction());
-// 选种子
-function seedChoices() { return Object.keys(CROPS).filter(k => CROPS[k].lv <= garden.level); }
-function openPick() {
-  const list = seedChoices();
-  $('pickList').innerHTML = list.map((k, i) => { const n = garden.bag.count('seed_' + k), C = CROPS[k];
-    return `<button data-k="${k}" ${n ? '' : 'disabled'}><b>${i + 1}</b><span class="e">${C.icon}</span>${C.name}<small>${n ? '种子 ×' + n : '没有种子'} · ${C.kind === 'pull' ? '拔' : '摘'} · ${fmtT(C.grow)}成熟</small></button>`; }).join('');
-  $('pickList').querySelectorAll('button').forEach(b => b.onclick = () => choose(b.dataset.k));
-  $('pick').classList.add('show'); pickOpen = true; Object.keys(keys).forEach(k => keys[k] = false);
-}
-function closePick() { $('pick').classList.remove('show'); pickOpen = false; }
-function choose(k) { closePick(); if (!nearBed) return; const r = garden.act(nearBed, k); if (r && r.msg) toast(r.msg); renderBag(); }
-function pickKey(e) {
-  if (e.code === 'Escape' || e.code === 'KeyE') return closePick();
-  const m = /^Digit(\d)$/.exec(e.code); if (!m) return;
-  const k = seedChoices()[+m[1] - 1]; if (k && garden.bag.count('seed_' + k)) choose(k);
-}
-$('pickClose').onclick = closePick;
-const fmtT = sec => sec < 3600 ? Math.round(sec / 60) + ' 分钟' : (sec / 3600) + ' 小时';
-// 背包栏
+// 快捷栏
 function renderBag() {
   const b = garden.bag, cells = [];
-  for (let i = 0; i < b.cap; i++) { const sl = b.slots[i];
-    if (!sl) { cells.push('<div class="slot"></div>'); continue; }
+  const num = i => i < 10 ? `<u>${(i + 1) % 10}</u>` : '';
+  TOOLS.forEach((t, i) => cells.push(`<div class="slot tool${sel === i ? ' on' : ''}" data-i="${i}" title="${t.name}">${num(i)}<span class="veg">${t.icon}</span></div>`));
+  for (let k = 0; k < b.cap; k++) { const i = k + TOOLS.length, sl = b.slots[k], on = sel === i ? ' on' : '';
+    if (!sl) { cells.push(`<div class="slot${on}" data-i="${i}">${num(i)}</div>`); continue; }
     const it = itemInfo(sl.key); cells.push(it.seed
-      ? `<div class="slot seed" title="${it.name}"><span class="pk"><b>${it.sub}</b></span><i>${sl.n}</i></div>`     // 种子：一个个小纸袋
-      : `<div class="slot" title="${it.name}"><span class="veg">${it.icon}</span><i>${sl.n}</i></div>`);   // 收获的菜：大大的菜
+      ? `<div class="slot seed${on}" data-i="${i}" title="${it.name}">${num(i)}<span class="pk"><b>${it.sub}</b></span><i>${sl.n}</i></div>`     // 种子：一个个小纸袋
+      : `<div class="slot${on}" data-i="${i}" title="${it.name}">${num(i)}<span class="veg">${it.icon}</span><i>${sl.n}</i></div>`);   // 收获的菜：大大的菜
   }
   $('bag').innerHTML = cells.join('');
 }
+$('bag').addEventListener('pointerdown', e => { const c = e.target.closest('.slot'); if (c) { e.preventDefault(); select(+c.dataset.i); } });
 renderBag();
 garden.on(ev => { if (ev === 'allEaten') toast('😱 有一块田的菜被虫子吃光了！'); });
 // 管理员测试面板：切换菜园等级、加快生长、送种子、重置
@@ -365,7 +353,7 @@ $('dbgReset').onclick = () => { if (confirm('把菜园和背包都清空，重�
 $('dbgToggle').onclick = () => $('dbg').classList.toggle('open');
 setInterval(renderBag, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, homePlot, act: () => doAction(), choose: k => choose(k) };
+if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, homePlot, act: () => doAction(), select: i => select(i) };
 
 const WALK = 7.5, RUN = 12, GRAV = 26, JUMP = 9.5, EDGE = WR - 6;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
@@ -377,7 +365,6 @@ function step(dt, t) {
   if (keys.KeyA || keys.ArrowLeft) mx -= 1;
   if (keys.KeyD || keys.ArrowRight) mx += 1;
   if (joy.id !== null) { mx = joy.x; my = joy.y; }
-  if (pickOpen) mx = my = 0;
   const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
   const running = keys.ShiftLeft || keys.ShiftRight;
   const speed = (running ? RUN : WALK) * Math.min(1, len);
@@ -439,7 +426,7 @@ renderer.setAnimationLoop(() => {
   // 站在哪块田旁边：显示能做什么
   nearBed = overview ? null : garden.nearest(player.pos.x, player.pos.z);
   const pr = $('prompt');
-  if (nearBed) { const a = garden.actionFor(nearBed); pr.innerHTML = `<b>${isTouch ? '点「' + a.label + '」' : 'E · ' + a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
+  if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
   else { pr.classList.remove('show'); $('actBtn').classList.remove('show'); }
   renderer.render(scene, camera);
 });

@@ -46,21 +46,27 @@ export function growRate(b) {
 
 // ---------- 背包 ----------
 export function createBag(cap = 12, stack = 50) {
-  const bag = { cap, stack, slots: [] };
-  const count = key => bag.slots.filter(s => s.key === key).reduce((n, s) => n + s.n, 0);
+  const bag = { cap, stack, slots: [] };   // slots[i] 是 { key, n } 或 null（空格子）；格子位置固定
+  const used = () => bag.slots.filter(Boolean).length;
+  const count = key => bag.slots.reduce((n, s) => n + (s && s.key === key ? s.n : 0), 0);
   function room(key) {
-    let r = 0; bag.slots.forEach(s => { if (s.key === key) r += stack - s.n; });
-    return r + (cap - bag.slots.length) * stack;
+    let r = 0; bag.slots.forEach(s => { if (s && s.key === key) r += stack - s.n; });
+    return r + (cap - used()) * stack;
   }
   function add(key, n) {
     if (room(key) < n) return false;
-    for (const s of bag.slots) if (s.key === key && s.n < stack) { const k = Math.min(n, stack - s.n); s.n += k; n -= k; if (!n) return true; }
-    while (n > 0) { const k = Math.min(n, stack); bag.slots.push({ key, n: k }); n -= k; }
+    for (const s of bag.slots) if (s && s.key === key && s.n < stack) { const k = Math.min(n, stack - s.n); s.n += k; n -= k; if (!n) return true; }
+    while (n > 0) {
+      const k = Math.min(n, stack), i = bag.slots.indexOf(null);
+      if (i >= 0) bag.slots[i] = { key, n: k }; else bag.slots.push({ key, n: k });
+      n -= k;
+    }
     return true;
   }
   function take(key, n = 1) {
     if (count(key) < n) return false;
-    for (let i = bag.slots.length - 1; i >= 0 && n; i--) { const s = bag.slots[i]; if (s.key !== key) continue; const k = Math.min(n, s.n); s.n -= k; n -= k; if (!s.n) bag.slots.splice(i, 1); }
+    for (let i = bag.slots.length - 1; i >= 0 && n; i--) { const s = bag.slots[i]; if (!s || s.key !== key) continue; const k = Math.min(n, s.n); s.n -= k; n -= k; if (!s.n) bag.slots[i] = null; }
+    while (bag.slots.length && !bag.slots[bag.slots.length - 1]) bag.slots.pop();
     return true;
   }
   // 一次放好几样东西：要么全放进去，要么一样都不放
@@ -538,8 +544,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   }
   const fmt = sec => sec < 60 ? Math.ceil(sec) + ' 秒' : sec < 3600 ? Math.ceil(sec / 60) + ' 分钟' : (sec / 3600).toFixed(1) + ' 小时';
 
-  function act(bd, seedKey) {
-    const b = bd.st, a = actionFor(bd);
+  function act(bd, seedKey, kind) {
+    const b = bd.st, a = kind ? { kind } : actionFor(bd);
     if (a.kind === 'shoo') {
       if (shooCd > performance.now()) return { msg: '🐛 慢慢来…', soft: true };
       shooCd = performance.now() + SHOO_CD * 1000; b.bugs--; syncBugs(bd); flyAway(bd);
@@ -576,6 +582,31 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     }
   }
 
+  // ---------- 手上拿着什么，按 E 就做什么 ----------
+  // item：'can' 水壶 / 'glove' 手套 / 'seed_xxx' 种子 / 菜 / null
+  function plan(bd, item) {
+    const b = bd.st;
+    if (item === 'can') return { kind: 'water', label: '💧 浇水' };
+    if (item === 'glove') {
+      if (b.bugs > 0) return { kind: 'shoo', label: `🧤 抓虫子（${b.bugs} 只）` };
+      if (b.crop && b.phase === 'ripe') return { kind: 'harvest', label: `🧤 ${CROPS[b.crop].kind === 'pull' ? '拔' : '摘'}${CROPS[b.crop].name}` };
+      if (b.crop && b.phase === 'withered') return { kind: 'clear', label: '🧤 拔掉枯苗' };
+      return { kind: null, label: '🧤 这里没有虫子', msg: b.crop ? '这块田没有虫子，菜还没熟' : '这块田没有虫子' };
+    }
+    if (item && item.startsWith('seed_')) {
+      const k = item.slice(5), C = CROPS[k];
+      if (b.crop) return { kind: null, label: `${C.icon} 这里已经有菜了`, msg: '这块田已经种了菜，不能再种' };
+      if (C.lv > st.level) return { kind: null, label: `🔒 ${C.name}要 ${C.lv} 级菜园`, msg: `🔒 ${C.name}要菜园 ${C.lv} 级才能种` };
+      return { kind: 'plant', seed: k, label: `${C.icon} 种${C.name}` };
+    }
+    return { kind: null, label: '按数字键选水壶、手套或种子', msg: '先按数字键选一样东西：1 水壶、2 手套、后面是种子' };
+  }
+  function useItem(bd, item) {
+    const p = plan(bd, item);
+    if (!p.kind) return { msg: p.msg };
+    return act(bd, p.seed, p.kind);
+  }
+
   const debug = {
     setLevel(l) { st.level = l; buildYard(); persist(); },
     setSpeed(v) { st.speed = v; persist(); },
@@ -587,5 +618,5 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 菜园门口（世界坐标），出生点用
   const gateWorld = () => toWorld(side * (plot.size / 2 - 4), rect.gz);
   const gateYaw = () => { const [ax, az] = toWorld(0, 0), [bx, bz] = toWorld(side, 0); return Math.atan2(bx - ax, bz - az); };
-  return { beds, update, nearest, collide, actionFor, describe, act, bag, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
+  return { beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
 }

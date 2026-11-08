@@ -39,6 +39,11 @@
   #bag .slot i { position: absolute; right: 3px; bottom: 1px; font-style: normal; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; }
   #bag .slot em { position: absolute; left: 2px; top: 1px; font-style: normal; font-size: 9px; color: #ffe08a; font-weight: 800; }
   #bag .slot.seed { background: rgba(255,255,255,.1); }
+  #bag .slot { cursor: pointer; border: 2px solid transparent; }
+  #bag .slot.on { border-color: #ffd23f; background: rgba(255,210,63,.35); box-shadow: 0 0 10px rgba(255,210,63,.6); transform: translateY(-3px); }
+  #bag .slot.tool { background: rgba(120,190,255,.25); }
+  #bag .slot u { position: absolute; left: 3px; top: 0; text-decoration: none; font-size: 10px; font-weight: 800; color: rgba(255,255,255,.75); }
+  #prompt.dim { border-color: rgba(255,255,255,.4); }
   /* 种子：牛皮纸小纸袋，上边是锯齿口，中间贴着菜的小图 */
   #bag .pk { width: 26px; height: 32px; position: relative; display: flex; align-items: center; justify-content: center; margin-top: 3px;
     background: linear-gradient(#e9d3a0, #d9b978); border-radius: 0 0 4px 4px; box-shadow: inset 0 -3px 0 rgba(120,80,30,.25), 0 1px 2px rgba(0,0,0,.3); }
@@ -86,12 +91,11 @@
 </div>
 <div id="devTag">🚧 建设中 · 只有管理员能看到</div>
 <button id="takeoff">🚀 起飞</button>
-<div id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 走到田边按 E · 拖动屏幕转视角 · 滚轮缩放 · M 看全景地图</div>
+<div id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 数字键选东西 · 走到田边按 E 使用 · 拖动屏幕转视角 · 滚轮缩放 · M 看全景地图</div>
 <div id="prompt"></div>
 <div id="toast"></div>
 <div id="bag"></div>
 <button class="round-btn" id="actBtn">操作</button>
-<div id="pick"><div class="box"><div class="hd">🌱 种什么？<button id="pickClose">✕</button></div><div id="pickList"></div><div class="tip">每块田种 5 棵，用 1 颗种子 · 按数字键也可以选</div></div></div>
 <div id="dbg"><button id="dbgToggle">🧪 管理员测试</button><div class="body">
   <div class="t">菜园等级</div><div class="row" id="dbgLv"></div>
   <div class="t">生长速度（只影响你自己的测试）</div><div class="row" id="dbgSp"></div>
