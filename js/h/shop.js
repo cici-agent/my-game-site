@@ -58,6 +58,7 @@ function tex(w, h, draw) { const c = document.createElement('canvas'); c.width =
 // 三家店：菜鸟小卖部（种子、杂货、狗用品）、萌宠小屋（宠物）、动物小铺（农场动物）
 export const SHOPS = {
   general: { name: '菜鸟小卖部', icon: '🏪', a: '#e8473e', b: '#ffffff', keeper: 'chef', desc: '买种子、树苗、蜡烛、杀虫剂、菜刀、木头、煤；把东西卖掉换菜币' },
+  hall: { name: '镇政府', icon: '🏛️', a: '#34588f', b: '#ffffff', keeper: 'explorer', desc: '镇长在这里：新来的找他领空地' },
   pet: { name: '萌宠小屋', icon: '🐾', a: '#ff7aa8', b: '#ffffff', keeper: 'explorer', desc: '买小狗、狗屋、狗盆、狗粮、狗链、飞盘（以后会有更多宠物）' },
   animal: { name: '动物小铺', icon: '🐔', a: '#4caf50', b: '#fff4c2', keeper: 'farmer', desc: '买小鸡、小牛、小羊、小猪、小鸭、鱼苗、小虾、小螃蟹，各种动物的家，饲料、剪刀、渔网' },
 };
@@ -116,6 +117,7 @@ export function createShop({ scene, x, z, face, buildAvatar, kind = 'general', d
 const STORE_STYLE = {
   pet: { wall: 0xffd6e4, trim: 0xffffff, roof: 0xff7aa8, floor: 0xe9c9a0, keeper: 'explorer', sign: '#ff5a93' },
   animal: { wall: 0xc23626, trim: 0xffffff, roof: 0x5a2a18, floor: 0xb08a5a, keeper: 'farmer', sign: '#2e8b3a' },
+  hall: { wall: 0xf4efe4, trim: 0xffffff, roof: 0x34588f, floor: 0xc9b48a, keeper: 'explorer', sign: '#2f4f8f', hat: true },   // 镇政府（用户说：镇长要有一个房子）
 };
 export function createStore({ scene, x, z, face, buildAvatar, kind, decor = null }) {
   const S = SHOPS[kind], Y = STORE_STYLE[kind];
@@ -167,7 +169,8 @@ export function createStore({ scene, x, z, face, buildAvatar, kind, decor = null
   add(SPH, M({ color: 0xfff1c8, emissive: 0xffd36b, emissiveIntensity: .8 }), [0, H - .25, 0], [.22, .15, .22]);
   // 老板（是人）站在柜台后面
   let keeper = null;
-  try { keeper = buildAvatar(Y.keeper); keeper.root.position.set(0, 0, -2.4); g.add(keeper.root); } catch (e) {}
+  try { keeper = buildAvatar(Y.keeper); keeper.root.position.set(0, 0, -2.4); g.add(keeper.root);
+    if (Y.hat) { const top = new THREE.Box3().setFromObject(keeper.root).max.y, hm = M({ color: 0x1a1a1a }); add(CYL, hm, [0, top + .13, 0], [.17, .3, .17], null, keeper.root); add(CYL, hm, [0, top - .01, 0], [.3, .03, .3], null, keeper.root); add(CYL, M({ color: 0xc23626 }), [0, top + .04, 0], [.175, .06, .175], null, keeper.root); } } catch (e) {}
   const decorBoxes = decor ? decor(g, { add, M, BOX, CYL, SPH, wood, dark, W, D, H }) || [] : [];
   const world = (lx, lz) => { const c = Math.cos(face), s = Math.sin(face); return [x + lx * c + lz * s, z - lx * s + lz * c]; };
   const local = (wx, wz) => { const dx = wx - x, dz = wz - z, c = Math.cos(face), s = Math.sin(face); return [dx * c - dz * s, dx * s + dz * c]; };

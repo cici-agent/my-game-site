@@ -49,7 +49,7 @@ const SHOP_SPOTS = (() => {
   const angD = a => { let d = Math.abs(a - homeA) % 6.283; return Math.min(d, 6.283 - d); };
   cand.sort((p, q) => (p.r + angD(p.a) * 25) - (q.r + angD(q.a) * 25));
   const out = [cand[0]];
-  while (out.length < 3) { const nx = cand.filter(c => out.every(o => Math.hypot(o.x - c.x, o.z - c.z) >= 15)).sort((p, q) => Math.hypot(p.x - out[0].x, p.z - out[0].z) - Math.hypot(q.x - out[0].x, q.z - out[0].z))[0]; if (!nx) break; out.push(nx); }
+  while (out.length < 4) { const nx = cand.filter(c => out.every(o => Math.hypot(o.x - c.x, o.z - c.z) >= 15)).sort((p, q) => Math.hypot(p.x - out[0].x, p.z - out[0].z) - Math.hypot(q.x - out[0].x, q.z - out[0].z))[0]; if (!nx) break; out.push(nx); }
   return out;
 })();
 const inShopArea = (x, z, m = 0) => SHOP_SPOTS.some(s => Math.hypot(s.x - x, s.z - z) < 7.5 + m);
@@ -402,7 +402,7 @@ const SHOP_DECOR = {
     return [[-W + 1.75, 1.45, 1.5, 1.5], [3.4, 1.55, .6, 1.3], [2.2, 2.4, .6, .6], [2.1, .4, .75, .2]];
   },
 };
-const shops = SHOP_SPOTS.map((s, i) => { const kind = ['general', 'pet', 'animal'][i]; const make = kind === 'general' ? createShop : createStore; return make({ scene, x: s.x, z: s.z, face: s.face, buildAvatar, kind, decor: SHOP_DECOR[kind] }); });
+const shops = SHOP_SPOTS.slice(0, 3).map((s, i) => { const kind = ['general', 'pet', 'animal'][i]; const make = kind === 'general' ? createShop : createStore; return make({ scene, x: s.x, z: s.z, face: s.face, buildAvatar, kind, decor: SHOP_DECOR[kind] }); });
 const shop = shops[0];
 let curShop = 'general';
 // 出生在自家空地里、通往菜园的小路旁边，面朝菜园
@@ -682,28 +682,21 @@ function fenceAction() {
 
 
 // ---------- 🏛️ 镇长（用户说：新手先站在路上，路牌告诉你镇长在哪；找到镇长，他随便分一块没人住的空地给你，里面有最低级的菜园、鸡舍、房子） ----------
-const MAYOR = (() => { const a = Math.atan2(ROAD_SPAWN.x, ROAD_SPAWN.z); return { x: Math.sin(a) * 7.5, z: Math.cos(a) * 7.5, face: a }; })();
 function boardTex(text, w = 256, h = 96, bg = '#f2e1bd', fg = '#5a3a1a', font = 'bold 40px sans-serif') { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = bg; x.fillRect(0, 0, w, h); x.fillStyle = fg; x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, w / 2, h / 2); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
-const mayor = (() => {
-  const g = new THREE.Group(); g.position.set(MAYOR.x, 0, MAYOR.z); g.rotation.y = MAYOR.face; scene.add(g);
-  const podium = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1, .6), mat(0x8a5a2b)); podium.position.set(0, .5, .9); podium.castShadow = true; g.add(podium);
-  const plate = new THREE.Mesh(new THREE.BoxGeometry(1.1, .4, .03), new THREE.MeshStandardMaterial({ map: boardTex('🏛️ 镇长') })); plate.position.set(0, .6, 1.215); g.add(plate);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 4, 8), mat(0xdddddd, { metalness: .5 })); pole.position.set(-1.6, 2, -.3); g.add(pole);
-  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.3, .8), new THREE.MeshStandardMaterial({ map: boardTex('菜鸟小镇', 256, 160, '#e8473e', '#ffffff', 'bold 46px sans-serif'), side: THREE.DoubleSide })); flag.position.set(-.93, 3.55, -.3); g.add(flag);
-  let av = null;
-  try { av = buildAvatar('explorer'); g.add(av.root); const top = new THREE.Box3().setFromObject(av.root).max.y - g.position.y;
-    const hatM = mat(0x1a1a1a); const hat = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .3, 16), hatM); hat.position.y = top + .13; g.add(hat);
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(.3, .3, .03, 16), hatM); brim.position.y = top - .01; g.add(brim);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(.175, .175, .06, 16), mat(0xc23626)); band.position.y = top + .04; g.add(band); } catch (e) {}
-  const [px, pz] = [MAYOR.x + Math.sin(MAYOR.face) * .9, MAYOR.z + Math.cos(MAYOR.face) * .9];
-  colliders.push([px, pz, .8], [MAYOR.x, MAYOR.z, .45], [MAYOR.x + Math.sin(MAYOR.face - Math.PI / 2) * 1.6 - Math.sin(MAYOR.face) * .3, MAYOR.z + Math.cos(MAYOR.face - Math.PI / 2) * 1.6 - Math.cos(MAYOR.face) * .3, .15]);
-  let t = 0;
-  return { near: p => Math.hypot(p.x - MAYOR.x, p.z - MAYOR.z) < 3.4, update(dt) { t += dt; if (av) { av.animate(dt, 0, false, false); av.root.rotation.y = Math.sin(t * .6) * .3; } flag.rotation.y = Math.sin(t * 2) * .12; } };
-})();
+// 镇政府：广场外面草坪上的一栋房子，镇长站在里面的柜台后面（用户说：镇长要有一个房子，不一定在市中心）
+const HALL_SPOT = SHOP_SPOTS[3];
+const hall = createStore({ scene, x: HALL_SPOT.x, z: HALL_SPOT.z, face: HALL_SPOT.face, buildAvatar, kind: 'hall', decor: (g, { add, M, BOX, CYL, W, D }) => {
+  const pole = add(CYL, M({ color: 0xdddddd, metalness: .5 }), [-W - 1.2, 2.5, D - .5], [.06, 5, .06]);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.4, .85), new THREE.MeshStandardMaterial({ map: boardTex('菜鸟小镇', 256, 160, '#e8473e', '#ffffff', 'bold 46px sans-serif'), side: THREE.DoubleSide })); flag.position.set(-W - .48, 4.5, D - .5); g.add(flag);
+  [-1, 1].forEach(s => add(CYL, M({ color: 0xffffff }), [s * 2.2, 1.7, D + .35], [.18, 3.4, .18]));   // 门口两根白柱子
+  return []; } });
+const MAYOR = (() => { const [x, z] = hall.door(); return { x, z }; })();
+const mayor = { near: p => hall.near(p), update: dt => hall.update(dt, player.pos) };
+colliders.push([...(() => { const [x, z] = (() => { const c = Math.cos(HALL_SPOT.face), s2 = Math.sin(HALL_SPOT.face), lx = -5 - 1.2, lz = 4 - .5; return [HALL_SPOT.x + lx * c + lz * s2, HALL_SPOT.z - lx * s2 + lz * c]; })(); return [x, z, .2]; })()]);
 // 出生的路边：一块路牌，告诉你镇长在广场
 if (!metMayor) { const g = new THREE.Group(); const a = Math.atan2(-ROAD_SPAWN.x, -ROAD_SPAWN.z), sx = ROAD_SPAWN.x + Math.sin(a + Math.PI / 2) * 3.2, sz = ROAD_SPAWN.z + Math.cos(a + Math.PI / 2) * 3.2; g.position.set(sx, 0, sz); g.rotation.y = a + Math.PI; scene.add(g);
   const p = new THREE.Mesh(new THREE.BoxGeometry(.1, 2, .1), mat(0x9a6a3c)); p.position.y = 1; g.add(p);
-  const b = new THREE.Mesh(new THREE.BoxGeometry(1.8, .6, .05), new THREE.MeshStandardMaterial({ map: boardTex('🏛️ 镇长就在前面的广场', 384, 128, '#f2e1bd', '#5a3a1a', 'bold 40px sans-serif') })); b.position.y = 1.8; g.add(b); colliders.push([sx, sz, .2]); }
+  const b = new THREE.Mesh(new THREE.BoxGeometry(1.8, .6, .05), new THREE.MeshStandardMaterial({ map: boardTex('🏛️ 镇政府在广场旁边', 384, 128, '#f2e1bd', '#5a3a1a', 'bold 40px sans-serif') })); b.position.y = 1.8; g.add(b); colliders.push([sx, sz, .2]); }
 let guideHome = localStorage.getItem('xcn_guide_home') === '1';
 if (!metMayor) homeGate.setLock(true);   // 还没找镇长：自己的空地大门先锁着
 function talk(msg, sec = 7) { const el = $('talk'); el.innerHTML = msg; el.classList.add('show'); clearTimeout(talk.t); talk.t = setTimeout(() => el.classList.remove('show'), sec * 1000); }
@@ -727,7 +720,7 @@ function updateGuide(dt) {
   if ((guideT += dt) < .2) return; guideT = 0;
   const el = $('guide');
   let tx, tz, text;
-  if (!metMayor) { tx = MAYOR.x; tz = MAYOR.z; text = '去广场找镇长，领一块空地'; }
+  if (!metMayor) { tx = MAYOR.x; tz = MAYOR.z; text = '去镇政府找镇长，领一块空地'; }
   else if (guideHome) {
     const [lx, lz] = worldToPlot(homePlot, player.pos.x, player.pos.z), hs = homePlot.size / 2;
     if (Math.abs(lx) < hs && Math.abs(lz) < hs) { guideHome = false; try { localStorage.setItem('xcn_guide_home', '0'); } catch (e) {} toast('🏡 到家啦！这块空地就是你的了'); el.classList.remove('show'); return; }
@@ -1180,7 +1173,7 @@ $('dbgDogReset').onclick = () => { if (confirm('把狗和狗盆都清掉？')) {
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { mayor, MAYOR, get metMayor() { return metMayor; }, homeIdx, loose, birds, bfly, get gateFirst() { return gateFirst; }, pondObj: pond, get fishing() { return fishing; }, get inWater() { return inWater; }, grill, grillCook, houseCook, get fenceLv() { return fenceLv; }, pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { hall, mayor, MAYOR, get metMayor() { return metMayor; }, homeIdx, loose, birds, bfly, get gateFirst() { return gateFirst; }, pondObj: pond, get fishing() { return fishing; }, get inWater() { return inWater; }, grill, grillCook, houseCook, get fenceLv() { return fenceLv; }, pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
@@ -1233,7 +1226,7 @@ function step(dt, t) {
   RANCHES.forEach(r => r.collide(player.pos));
   pond.collide(player.pos);
   grill.collide(player.pos); birds.collide(player.pos);
-  shops.forEach(s => s.collide(player.pos));
+  shops.forEach(s => s.collide(player.pos)); hall.collide(player.pos);
   colliders.forEach(([cx, cz, cr]) => {
     const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
     if (d < min && d > 1e-4 && player.pos.y < 1.5) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
