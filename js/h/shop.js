@@ -9,6 +9,7 @@ export const SHOP_ITEMS = [
   { key: 'spray', price: 15, lv: 1, note: '一次喷 9 块田（周围 3×3）：虫子全赶走，2 小时不来虫' },
   { key: 'candle', price: 5, lv: 1, note: '点在烛台上，能烧半小时' },
   { key: 'puppy', price: 80, lv: 1, note: '一只呆萌的小狗，买了就跟着你（只能养一只）', once: true },
+  { key: 'kennel', price: 30, lv: 1, note: '小狗窝：放在地上，狗晚上回去睡觉；在狗屋前按 E 能升级', once: true },
   { key: 'bowl', price: 10, lv: 1, note: '放在地上，往里面加狗粮，狗饿了自己去吃' },
   { key: 'dogfood', price: 3, lv: 1, note: '一份狗粮：放进狗盆，或者直接喂给狗' },
   { key: 'frisbee', price: 12, lv: 1, note: '扔出去，狗会去捡回来（不会用完）' },

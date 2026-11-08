@@ -3,6 +3,7 @@
 // 饿了自己去狗盆吃，不饿就自己玩；忠诚度高的时候很喜欢你，还会帮你守着菜园，不让别人偷菜
 // 数字是 Claude 定的（现实里的秒），以后可以改
 import * as THREE from 'three';
+import { buildKennel, KENNEL } from './kennel.js';
 
 const KEY = 'xcn_dog_v1';
 const HUNGER_RATE = .012;   // 饱的程度每秒掉多少（100 → 0 大约 2 小时多）
@@ -38,10 +39,12 @@ function buildDog() {
   add(head, sph, black, [0, -.02, .36], [.06, .045, .045]);   // 鼻子
   add(head, sph, white, [-.02, -.005, .4], [.015, .012, .01]);
   // 大大的眼睛，有亮光（呆萌）
+  const eyes = [];
   [-1, 1].forEach(s => {
-    add(head, sph, black, [s * .14, .07, .27], [.07, .08, .05]);
-    add(head, sph, white, [s * .14 + .025, .1, .31], [.022, .025, .015]);
-    add(head, sph, white, [s * .14 - .02, .05, .315], [.01, .011, .008]);
+    const eg = new THREE.Group(); eg.position.set(s * .14, .07, .27); head.add(eg); eyes.push(eg);   // 睡觉时把眼睛压扁 = 闭眼
+    add(eg, sph, black, [0, 0, 0], [.07, .08, .05]);
+    add(eg, sph, white, [.025, .03, .04], [.022, .025, .015]);
+    add(eg, sph, white, [-.02, -.02, .045], [.01, .011, .008]);
     add(head, sph, M(0xff9aa8, { transparent: true, opacity: .6 }), [s * .22, -.06, .22], [.06, .035, .02]);   // 红脸蛋
     add(head, sph, M(0xffffff, { roughness: 1 }), [s * .13, .22, .25], [.035, .02, .02]);   // 小眉毛白点
   });
@@ -62,7 +65,7 @@ function buildDog() {
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(.42, 20), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .2, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = .02; shadow.scale.set(1, 1.3, 1); root.add(shadow);
   root.scale.setScalar(1.15);
-  return { root, body, head, legs, tail, ears, tongue, mouth, bell, shadow };
+  return { root, body, head, legs, tail, ears, tongue, mouth, bell, shadow, eyes };
 }
 
 // 头上冒的小表情（❤️、💤、😢、🍖）
@@ -75,7 +78,7 @@ function emoteSprite() {
   return sp;
 }
 
-export function createDog({ scene, groundAt = () => 0, collide = () => {}, guardSpot = () => null, homeCenter = () => null, notify = () => {}, onFrisbeeBack = () => {} }) {
+export function createDog({ scene, isNight = () => false, groundAt = () => 0, collide = () => {}, guardSpot = () => null, homeCenter = () => null, notify = () => {}, onFrisbeeBack = () => {} }) {
   let st = null;
   try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   st ||= { has: false };
@@ -106,6 +109,16 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     bowlG.position.set(st.bowl.x, groundAt({ x: st.bowl.x, z: st.bowl.z, y: 0 }), st.bowl.z);
     kib.forEach((k, i) => k.visible = i < Math.ceil(st.bowl.food / BOWL_MAX * kib.length));
   }
+  // 狗屋（用户说：给狗一个住的地方）
+  let kennelObj = null;
+  const kToWorld = (lx, lz) => { const k = st.kennel, c = Math.cos(k.face), s = Math.sin(k.face); return [k.x + lx * c + lz * s, k.z - lx * s + lz * c]; };
+  function showKennel() {
+    if (kennelObj) { scene.remove(kennelObj.group); kennelObj = null; }
+    if (!st.kennel) return;
+    kennelObj = buildKennel(st.kennel.lv, st.name);
+    kennelObj.group.position.set(st.kennel.x, groundAt({ x: st.kennel.x, z: st.kennel.z, y: 0 }), st.kennel.z); kennelObj.group.rotation.y = st.kennel.face;
+    scene.add(kennelObj.group);
+  }
   // 飞盘
   const fris = new THREE.Mesh(new THREE.CylinderGeometry(.22, .2, .04, 20), new THREE.MeshStandardMaterial({ color: 0xff5a4a, roughness: .5 }));
   fris.add(new THREE.Mesh(new THREE.TorusGeometry(.17, .015, 6, 20), new THREE.MeshStandardMaterial({ color: 0xffffff })).rotateX(Math.PI / 2));
@@ -113,7 +126,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
   const fv = new THREE.Vector3(); let frisState = null;   // null / 'fly' / 'ground' / 'mouth'
 
   // ---------- 行为 ----------
-  const circ = new THREE.Vector3(); let fetchT = 0, circA = 0, air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
+  const circ = new THREE.Vector3(); let entering = false, napT = 0, zzT = 0, fetchT = 0, circA = 0, air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
   const say = (e, dur = 2) => { emote.set(e); emote.visible = true; emoteT = dur; };
   function spawnNear(p) { pos.set(p.x + 1.5, 0, p.z + 1.5); }
   function adopt(name) { if (st.has) return false; Object.assign(st, { has: true, name: name || DOG_NAMES[Math.floor(Math.random() * DOG_NAMES.length)], full: 80, loyal: 10, bowl: st.bowl || null }); save(); D.root.visible = true; placed = false; say('❤️', 3); return true; }
@@ -125,6 +138,11 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
       if (st.bowl && st.bowl.food > 0) { mode = 'toBowl'; target.set(st.bowl.x, 0, st.bowl.z); return; }
       mode = 'beg'; timer = 4; return;
     }
+    // 晚上：有狗屋就回狗屋睡觉；没有就在主人旁边趴着睡
+    if (isNight()) {
+      if (st.kennel) { mode = 'toBed'; napT = 0; entering = false; return; }
+      if (dist2(pos, ppos) < 6 && Math.random() < .6) { mode = 'sleep'; napT = 0; timer = 30; return; }
+    }
     // 忠诚度高、主人出门了：去菜园门口看着
     const home = homeCenter(), g = guardSpot();
     if (st.loyal >= 70 && home && g && dist2(ppos, home) > 38) { mode = 'guard'; target.set(g.x, 0, g.z); return; }
@@ -133,6 +151,11 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     if (dist2(pos, ppos) > far) { mode = 'follow'; timer = 3; return; }
     // 不饿就自己玩
     const r = Math.random();
+    if (st.kennel && r < .06) { mode = 'toBed'; entering = false; napT = 15 + Math.random() * 20; return; }   // 白天偶尔回狗屋打个盹
+    if (st.kennel && st.kennel.lv >= 3 && kennelObj && kennelObj.yard && r < .25) {   // 有狗狗乐园：去院子里玩
+      const y = kennelObj.yard, [wx, wz] = kToWorld(y.x + (Math.random() * 2 - 1) * y.w, y.z + (Math.random() * 2 - 1) * y.d);
+      mode = 'wander'; target.set(wx, 0, wz); timer = 6; if (Math.random() < .5) say('⚽', 1.5); return;
+    }
     if (r < .35) { mode = 'wander'; const a = Math.random() * 6.28, d = 2 + Math.random() * 5; target.set(ppos.x + Math.cos(a) * d, 0, ppos.z + Math.sin(a) * d); timer = 6; }
     else if (r < .5) { mode = 'spin'; timer = 1.6; }
     else if (r < .62) { mode = 'circle'; timer = 2.6; circ.set(pos.x - Math.cos(face) * .9, 0, pos.z + Math.sin(face) * .9); circA = Math.atan2(pos.z - circ.z, pos.x - circ.x); say('😆', 1.5); }   // 开心：原地绕个小圈（用户说不要横着打滚）
@@ -164,7 +187,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     if (dP > 60 && mode !== 'guard') spawnNear(ppos);
     timer -= dt;
     // 正在玩的时候饿了：马上不玩了，去找吃的
-    if (st.full < HUNGRY && ['wander', 'zoom', 'spin', 'circle', 'sit', 'sniff', 'follow', 'guard'].includes(mode)) mode = 'idle';
+    if (st.full < HUNGRY && ['sleep', 'toBed', 'wander', 'zoom', 'spin', 'circle', 'sit', 'sniff', 'follow', 'guard'].includes(mode)) mode = 'idle';
     switch (mode) {
       case 'fetch': {
         if (frisState === 'mouth') { mode = 'return'; break; }
@@ -201,13 +224,26 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
       case 'circle': { circA += dt * 4.2; const nx = circ.x + Math.cos(circA) * .9, nz = circ.z + Math.sin(circA) * .9;
         face = Math.atan2(nx - pos.x, nz - pos.z); pos.x = nx; pos.z = nz; moving = 5; if (timer <= 0) mode = 'idle'; break; }
       case 'sit': case 'sniff': if (timer <= 0) mode = 'idle'; break;
+      case 'toBed': {
+        if (!st.kennel) { mode = 'idle'; break; }
+        const [dx, dz] = kToWorld(0, KENNEL[st.kennel.lv].D + .9), [bx, bz] = kToWorld(kennelObj.bed.x, kennelObj.bed.z);
+        if (!entering) { if (runTo(dx, dz, 6, dt) > .4) break; entering = true; }   // 先跑到狗屋门口，再钻进去
+        if (runTo(bx, bz, 2.5, dt) < .15) { entering = false; mode = 'sleep'; timer = napT || 999; face = st.kennel.face; }   // 再钻进去
+        break; }
+      case 'sleep': {
+        zzT -= dt; if (zzT <= 0) { say('💤', 2.2); zzT = 4; }
+        if (st.kennel && !napT) { const [bx, bz] = kToWorld(kennelObj.bed.x, kennelObj.bed.z); pos.x = bx; pos.z = bz; face = st.kennel.face; }
+        const wake = napT ? timer <= 0 : st.kennel ? !isNight() : (dP > 8 || timer <= 0 || !isNight());
+        if (wake) { mode = 'idle'; say('🥱', 1.5); }
+        if (st.kennel && napT) { const [bx, bz] = kToWorld(kennelObj.bed.x, kennelObj.bed.z); pos.x = bx; pos.z = bz; face = st.kennel.face; }
+        break; }
       default: if (timer <= 0 || mode === 'idle') { pick(ppos); if (mode === 'idle') timer = .5; }
     }
     // 墙、栅栏挡着
     // 栅栏、墙挡着；被栅栏挡住时跳过去（用户说：狗不能穿过栅栏，但能跳过去）
     jumpCd = Math.max(0, jumpCd - dt);
     const bx = pos.x, bz = pos.z;
-    collide(pos);
+    if (!(st.kennel && (mode === 'sleep' || mode === 'toBed') && kennelObj && dist2(pos, st.kennel) < 2)) collide(pos);
     const gy = groundAt(pos), pushed = Math.hypot(pos.x - bx, pos.z - bz);
     if (air) { vy -= 22 * dt; pos.y += vy * dt; if (pos.y <= gy) { pos.y = gy; air = false; vy = 0; } }
     else { pos.y = gy; if (pushed > .02 && moving > 0 && jumpCd <= 0) { air = true; vy = 6.8; jumpCd = 1.2; } }
@@ -225,6 +261,10 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     D.tongue.visible = moving > 4 || mode === 'sit' || mode === 'circle';
     D.body.rotation.x = mode === 'sit' || mode === 'guard' ? -.35 : mode === 'eat' || mode === 'sniff' ? .12 : 0;
     D.body.rotation.z = 0; D.body.position.x = 0;
+    // 睡觉：趴下、前腿往前伸、闭眼、尾巴不摇
+    const zz = mode === 'sleep';
+    D.eyes.forEach(e => e.scale.y += ((zz ? .12 : 1) - e.scale.y) * Math.min(1, dt * 6));
+    if (zz) { D.body.position.y = -.15; D.body.rotation.x = 0; D.legs.forEach((l, i) => l.rotation.x = i < 2 ? -1.35 : 1.35); D.head.rotation.x = .3; D.head.rotation.z = .25; D.tail.rotation.z *= .1; D.tongue.visible = false; }
     D.shadow.position.y = .02 - D.body.position.y;
     if (frisState === 'mouth') { const hp = new THREE.Vector3(0, .72, .72).applyEuler(D.root.rotation).multiplyScalar(1.15).add(pos); fris.position.copy(hp); fris.rotation.set(Math.PI / 2, face, 0); }
     if (emoteT > 0) { emoteT -= dt; emote.position.y = 1.55 + Math.sin(t0 * 4) * .05; if (emoteT <= 0) emote.visible = false; }
@@ -235,7 +275,20 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
   const api = {
     get has() { return st.has; }, get name() { return st.name; }, get full() { return st.full; }, get loyal() { return st.loyal; }, get mode() { return mode; }, get pos() { return pos; },
     get bowl() { return st.bowl; }, get frisbeeOut() { return !!frisState; },
-    adopt, update, rename(n) { st.name = n; save(); say('❤️', 2); },
+    adopt, update, rename(n) { st.name = n; save(); say('❤️', 2); showKennel(); },
+    get kennel() { return st.kennel; }, KENNEL,
+    nearKennel(p) { if (!st.kennel) return false; const [fx, fz] = kToWorld(0, KENNEL[st.kennel.lv].D + .6); return Math.hypot(p.x - fx, p.z - fz) < 1.6 || dist2(p, st.kennel) < 1.9; },
+    placeKennel(x, z, f, lv) { st.kennel = { x, z, face: f, lv: lv || (st.kennel ? st.kennel.lv : 1) }; save(); showKennel(); if (mode === 'sleep' || mode === 'toBed') mode = 'idle'; },
+    takeKennel() { if (!st.kennel) return 0; const lv = st.kennel.lv; st.kennel = null; save(); showKennel(); if (mode === 'sleep' || mode === 'toBed') mode = 'idle'; return lv; },
+    setKennelLevel(lv) { if (!st.kennel) return false; st.kennel.lv = lv; save(); showKennel(); return true; },
+    // 人不能穿过狗屋（狗可以钻进去）
+    collideKennel(p, pr = .45) {
+      if (!st.kennel || !kennelObj) return; const k = st.kennel, c = Math.cos(k.face), s = Math.sin(k.face), dx = p.x - k.x, dz = p.z - k.z;
+      let lx = dx * c - dz * s, lz = dx * s + dz * c; const hw = kennelObj.half.w + pr, hd = kennelObj.half.d + pr;
+      const ex = hw - Math.abs(lx), ez = hd - Math.abs(lz); if (ex <= 0 || ez <= 0) return;
+      if (ex < ez) lx = Math.sign(lx || 1) * hw; else lz = Math.sign(lz || 1) * hd;
+      p.x = k.x + lx * c + lz * s; p.z = k.z - lx * s + lz * c;
+    },
     near(p) { return st.has && D.root.visible && dist2(pos, p) < 2.2; },
     nearBowl(p) { return st.bowl && dist2(st.bowl, p) < 1.6; },
     status() { return `饱 ${Math.round(st.full)}% · 忠诚 ${Math.round(st.loyal)}${st.loyal >= 70 ? ' ❤️' : ''}`; },
@@ -264,6 +317,6 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     debug: { pose(f, m, t = 999) { face = f; mode = m; timer = t; }, setFull(v) { st.full = v; save(); }, setLoyal(v) { st.loyal = v; save(); }, reset() { st = { has: false }; save(); D.root.visible = false; frisState = null; fris.visible = false; showBowl(); } },
     save,
   };
-  showBowl();
+  showBowl(); showKennel();
   return api;
 }
