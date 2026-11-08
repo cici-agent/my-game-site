@@ -342,7 +342,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     takeBowl() { if (!st.bowl) return false; const left = st.bowl.food; st.bowl = null; save(); showBowl(); return left; },
     // 扔飞盘
     // 拴住 / 解开（用户说：狗拴上以后不能随便乱跑）。有狗屋而且在旁边：拴在狗屋门口；不然在狗站的地方钉个小木桩
-    get chained() { return !!st.chain; }, get chainedToKennel() { return !!(st.chain && st.chain.k); },
+    get chained() { return !!st.chain; }, nearAnchor(p) { return !!st.chain && dist2(p, st.chain) < 1.5; }, get chainedToKennel() { return !!(st.chain && st.chain.k); },
     tie() {
       if (st.kennel && dist2(pos, st.kennel) < 8) { const [cx, cz] = kToWorld(0, KENNEL[st.kennel.lv].D + .35); st.chain = { x: cx, z: cz, k: true }; }
       else st.chain = { x: pos.x, z: pos.z, k: false };

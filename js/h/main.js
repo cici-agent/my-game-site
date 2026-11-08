@@ -10,7 +10,7 @@ import { createGate, fenceMaterial } from './gate.js';
 import { createDog } from './dog.js';
 import { createCoop, inCoop, COOP } from './coop.js';
 import { createStamina, FOOD, MAX as STA_MAX } from './stamina.js';
-import { createShop, SHOP_ITEMS, sellPrice, SHOPS, shopOf } from './shop.js';
+import { createShop, createStore, SHOP_ITEMS, sellPrice, SHOPS, shopOf } from './shop.js';
 import { buildDog } from './dog.js';
 import { buildChicken } from './coop.js';
 import { createSky, growLight, phaseOf, clockText, gameHour, jumpTo, resetTime, darkness } from './sky.js';
@@ -29,14 +29,14 @@ const gardenSide = chooseSide(homePlot, (x, z) => onPath(x, z, 1.5) || onPlot(x,
 // 三家店的位置：广场外面的草坪上（用户说：商店不要在中间的圆里，移到草坪上），挨在一起，靠近我家那边，面朝广场
 const SHOP_SPOTS = (() => {
   const cand = [], homeA = Math.atan2(homePlot.x, homePlot.z);
-  for (let r = 30; r <= 64; r += 2) for (let a = 0; a < 6.283; a += .03) { const x = Math.sin(a) * r, z = Math.cos(a) * r; if (!onPath(x, z, 6.5) && !onPlot(x, z, 7.5)) cand.push({ x, z, r, a, face: a + Math.PI }); }
+  for (let r = 30; r <= 64; r += 2) for (let a = 0; a < 6.283; a += .03) { const x = Math.sin(a) * r, z = Math.cos(a) * r; if (!onPath(x, z, 7.5) && !onPlot(x, z, 8.5)) cand.push({ x, z, r, a, face: a + Math.PI }); }
   const angD = a => { let d = Math.abs(a - homeA) % 6.283; return Math.min(d, 6.283 - d); };
   cand.sort((p, q) => (p.r + angD(p.a) * 25) - (q.r + angD(q.a) * 25));
   const out = [cand[0]];
-  while (out.length < 3) { const nx = cand.filter(c => out.every(o => Math.hypot(o.x - c.x, o.z - c.z) >= 13)).sort((p, q) => Math.hypot(p.x - out[0].x, p.z - out[0].z) - Math.hypot(q.x - out[0].x, q.z - out[0].z))[0]; if (!nx) break; out.push(nx); }
+  while (out.length < 3) { const nx = cand.filter(c => out.every(o => Math.hypot(o.x - c.x, o.z - c.z) >= 15)).sort((p, q) => Math.hypot(p.x - out[0].x, p.z - out[0].z) - Math.hypot(q.x - out[0].x, q.z - out[0].z))[0]; if (!nx) break; out.push(nx); }
   return out;
 })();
-const inShopArea = (x, z, m = 0) => SHOP_SPOTS.some(s => Math.hypot(s.x - x, s.z - z) < 7 + m);
+const inShopArea = (x, z, m = 0) => SHOP_SPOTS.some(s => Math.hypot(s.x - x, s.z - z) < 7.5 + m);
 const blocked = (x, z, m = .4) => onPath(x, z, m) || onPlot(x, z, m) || inGarden(homePlot, gardenSide, x, z, m) || inShopArea(x, z, m);
 const WR = L.worldR;
 
@@ -219,7 +219,7 @@ for (let k = 0; k < 140; k++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd
     const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * (WR + 6), x = Math.sin(a) * r, z = Math.cos(a) * r;
     if (onPath(x, z, .2)) continue;
     if (onPlot(x, z, -.3) && rnd() < .8) continue;   // 空地上草少一点
-    if (inGarden(homePlot, gardenSide, x, z, .3) || inHouse(homePlot, x, z, .6) || inCoop(homePlot, gardenSide, x, z, .3)) continue;   // 菜园里、小木棚里没有野草
+    if (inGarden(homePlot, gardenSide, x, z, .3) || inHouse(homePlot, x, z, .6) || inCoop(homePlot, gardenSide, x, z, .3) || inShopArea(x, z, .5)) continue;   // 菜园里、小木棚里没有野草
     const sc = range(.6, 1.4);
     tufts.setMatrixAt(n, m4.compose(v.set(x, 0, z), q.setFromAxisAngle(up, rnd() * 6.28), s.set(sc, sc * range(.7, 1.4), sc)));
     tufts.setColorAt(n++, col.setHSL(range(.24, .3), range(.45, .6), range(.32, .45)));
@@ -304,25 +304,34 @@ const coop = createCoop({ scene, plot: homePlot, side: gardenSide, isNight: () =
 // 修 bug 补偿：之前有个版本扔飞盘会把飞盘弄丢，有狗却哪里都找不到飞盘的，还一个（只做一次）
 try { if (dog.has && !localStorage.getItem('xcn_fris_fix1')) { if (!garden.bag.count('frisbee') && !garden.chest.count('frisbee') && !house.cabinet.count('frisbee')) { if (!garden.bag.add('frisbee', 1)) garden.chest.add('frisbee', 1); } localStorage.setItem('xcn_fris_fix1', '1'); } } catch (e) {}
 let sleeping = null, firstPerson = false;
-// 三家店：菜鸟小卖部、萌宠小屋、动物小铺
+// 三家店：菜鸟小卖部（小摊）；萌宠小屋、动物小铺是能走进去的大商店（用户说：老板要是人；有些做成大商店）
 const SHOP_DECOR = {
-  // 萌宠小屋：柜台上坐着一只小狗，旁边有粉色狗垫子和骨头
-  pet: (g, { add, M, BOX, CYL, SPH }) => {
-    const d = buildDog(); d.root.scale.setScalar(.75); d.root.position.set(-1.6, 1.29, 1); d.body.rotation.x = -.35; g.add(d.root);
-    const d2 = buildDog(); d2.root.scale.setScalar(.9); d2.root.position.set(3.3, 0, 2.3); d2.root.rotation.y = -.6; d2.head.rotation.z = .3; g.add(d2.root);
-    add(CYL, M({ color: 0xffb3c8 }), [3.3, .06, 2.3], [.75, .12, .75]);
-    for (let i = 0; i < 3; i++) { add(CYL, M({ color: 0xfff4e0 }), [1 + i * .4, 1.33, 1.1], [.03, .24, .03], [0, 0, Math.PI / 2]); }
-    add(SPH, M({ color: 0xe8352b }), [-3.2, .2, 2.4], [.2, .2, .2]);
+  // 萌宠小屋里面：左边一个矮围栏里有两只小狗，右边狗窝、狗盆、一袋袋狗粮、飞盘；货架上一排排狗粮
+  pet: (g, { add, M, BOX, CYL, SPH, W, D }) => {
+    const pen = M({ color: 0xffffff });
+    [[-W + .3, 0, -W + 3.2, 0], [-W + 3.2, 0, -W + 3.2, 2.9], [-W + .3, 2.9, -W + 3.2, 2.9]].forEach(([ax, az, bx, bz]) => add(BOX, pen, [(ax + bx) / 2, .35, (az + bz) / 2], [Math.abs(bx - ax) || .08, .7, Math.abs(bz - az) || .08]));
+    add(BOX, M({ color: 0x9fd4ef }), [-W + 1.75, .1, 1.45], [2.8, .04, 2.8]);
+    [[-3.6, .9, .8], [-2.6, 2, -2.2]].forEach(([x, z, r]) => { const d = buildDog(); d.root.position.set(x, .1, z); d.root.rotation.y = r; d.head.rotation.z = .3; g.add(d.root); });
+    add(CYL, M({ color: 0xffb3c8 }), [3.4, .08, 2.4], [.7, .14, .7]);
+    for (let i = 0; i < 4; i++) add(BOX, M({ color: [0xc98a4a, 0xe8b04a][i % 2] }), [2.2 + (i % 2) * .5, .35 + Math.floor(i / 2) * .62, .7], [.42, .6, .3]);   // 一袋袋狗粮
+    [[3.4, .9], [3.9, 1.4]].forEach(([x, z]) => add(CYL, M({ color: 0x4f9de8 }), [x, .1, z], [.28, .16, .28]));
+    add(CYL, M({ color: 0xff5a4a }), [4.2, .05, 2.8], [.22, .04, .22]);
+    for (let i = 0; i < 9; i++) add(BOX, M({ color: [0xff7aa8, 0x6fb7ff, 0xffd23f][i % 3] }), [-2.4 + i * .6, [.75, 1.55, 2.35][i % 3], -D + .6], [.4, .5, .25]);
+    return [[-W + 1.75, 1.45, 1.5, 1.5], [2.45, .7, .55, .25], [3.4, 2.4, .7, .7]];
   },
-  // 动物小铺：干草堆、两只母鸡、柜台上一窝小鸡
-  animal: (g, { add, M, BOX, CYL, SPH }) => {
-    [[-3.3, 2.1], [3.3, 2.2]].forEach(([x, z], i) => { add(CYL, M({ color: 0xe0c050 }), [x, .45, z], [.6, .9, .6], [0, 0, Math.PI / 2]); const c = buildChicken(false); c.root.position.set(x + (i ? -.2 : .2), .9, z); c.root.rotation.y = i ? -.5 : .5; g.add(c.root); });
-    add(CYL, M({ color: 0xd8b25a }), [-1.6, 1.33, 1], [.45, .12, .45]);
-    for (let i = 0; i < 3; i++) { const c = buildChicken(true); c.root.position.set(-1.9 + i * .3, 1.38, 1 + (i % 2) * .12); c.root.rotation.y = i - 1; g.add(c.root); }
-    add(BOX, M({ color: 0xe8c35a }), [1.4, 1.42, 1], [.6, .3, .4]);
+  // 动物小铺里面：左边小围栏里有小鸡和母鸡，右边干草堆、饲料袋；货架上一筐筐鸡蛋
+  animal: (g, { add, M, BOX, CYL, SPH, W, D }) => {
+    const pen = M({ color: 0x8a5a30 });
+    [[-W + .3, 0, -W + 3.2, 0], [-W + 3.2, 0, -W + 3.2, 2.9], [-W + .3, 2.9, -W + 3.2, 2.9]].forEach(([ax, az, bx, bz]) => add(BOX, pen, [(ax + bx) / 2, .3, (az + bz) / 2], [Math.abs(bx - ax) || .08, .6, Math.abs(bz - az) || .08]));
+    add(BOX, M({ color: 0xd8b25a }), [-W + 1.75, .09, 1.45], [2.8, .04, 2.8]);
+    for (let i = 0; i < 5; i++) { const c = buildChicken(i > 1); c.root.position.set(-4.2 + (i % 3) * .9, .1, .6 + Math.floor(i / 3) * 1.2); c.root.rotation.y = i * 1.3; g.add(c.root); }
+    [[3.4, 2.2], [3.4, .9], [2.2, 2.4]].forEach(([x, z]) => add(CYL, M({ color: 0xe0c050 }), [x, .45, z], [.55, 1.1, .55], [0, 0, Math.PI / 2]));
+    for (let i = 0; i < 3; i++) add(BOX, M({ color: 0xf2e6c8 }), [1.6 + i * .5, .35, .4], [.42, .7, .32]);
+    for (let i = 0; i < 6; i++) { add(BOX, M({ color: 0xc49766 }), [-2.2 + i * .9, [.75, 1.55][i % 2], -D + .6], [.6, .25, .3]); for (let k = 0; k < 3; k++) add(SPH, M({ color: 0xfff4e0 }), [-2.4 + i * .9 + k * .2, [.92, 1.72][i % 2], -D + .6], [.08, .1, .08]); }
+    return [[-W + 1.75, 1.45, 1.5, 1.5], [3.4, 1.55, .6, 1.3], [2.2, 2.4, .6, .6], [2.1, .4, .75, .2]];
   },
 };
-const shops = SHOP_SPOTS.map((s, i) => { const kind = ['general', 'pet', 'animal'][i]; return createShop({ scene, x: s.x, z: s.z, face: s.face, buildAvatar, kind, decor: SHOP_DECOR[kind] }); });
+const shops = SHOP_SPOTS.map((s, i) => { const kind = ['general', 'pet', 'animal'][i]; const make = kind === 'general' ? createShop : createStore; return make({ scene, x: s.x, z: s.z, face: s.face, buildAvatar, kind, decor: SHOP_DECOR[kind] }); });
 const shop = shops[0];
 let curShop = 'general';
 // 出生在自家空地里、通往菜园的小路旁边，面朝菜园
@@ -486,7 +495,7 @@ function frontOf(d = 1.4) { return [player.pos.x + Math.sin(player.face) * d, pl
 function dogPrompt(it) {
   const nm = dog.name;
   // 狗链（用户说：拴上时狗链从背包里拿走，解开后回到背包；拴狗它会不开心）
-  if (dog.chained && dog.near(player.pos) && (!it || it === 'glove')) return { label: `⛓️ 解开${nm}`, sub: '狗链会回到背包里', can: true };
+  if (dog.chained && dog.nearAnchor(player.pos) && !it) return { label: `⛓️ 解开${nm}的狗链`, sub: '空着手在拴狗的地方按 E · 狗链会回到背包里', can: true };   // 用户说：走到拴狗的桩子旁边，空着手就能解开
   if (it === 'leash' && dog.near(player.pos) && !dog.chained) return { label: `⛓️ 把${nm}拴起来`, sub: `${dog.kennel && Math.hypot(dog.pos.x - dog.kennel.x, dog.pos.z - dog.kennel.z) < 8 ? '拴在狗屋门口' : '在这里钉个小木桩拴着'} · 它会有点不开心（忠诚 -5）`, can: true };
   if (it === 'dogfood' && dog.nearBowl(player.pos)) return { label: '🦴 往狗盆里加狗粮', sub: `盆里有 ${dog.bowl.food} / 5 份`, can: true };
   if (it === 'bowl') return { label: dog.bowl ? '🥣 把狗盆挪到这里' : '🥣 把狗盆放在这里', sub: '狗饿了会自己来吃', can: true };
@@ -498,7 +507,7 @@ function dogPrompt(it) {
   if (dog.near(player.pos)) {
     if (it === 'dogfood') return { label: `🦴 喂${nm}`, sub: dog.status(), can: true };
     if (it === 'frisbee') return { label: '🥏 扔飞盘', sub: `${nm}会跑去捡回来`, can: !dog.frisbeeOut };
-    return { label: `🐶 摸摸${nm}`, sub: `${dog.status()} · ${dog.chained ? '被拴着（选中 ⛓️ 狗链按 E 解开）' : dog.moodText()}`, can: true };
+    return { label: `🐶 摸摸${nm}`, sub: `${dog.status()} · ${dog.chained ? '被拴着（空着手走到拴它的木桩 / 狗屋门口按 E 解开）' : dog.moodText()}`, can: true };
   }
   if (it === 'frisbee') return dog.has ? { label: '🥏 扔飞盘', sub: dog.frisbeeOut ? `${nm}正在捡` : `${nm}会跑去捡回来`, can: !dog.frisbeeOut } : { label: '🥏 飞盘', sub: '先去小卖部买一只小狗', can: false };
   if (it === 'bowl') return { label: dog.bowl ? '🥣 把狗盆挪到这里' : '🥣 把狗盆放在这里', sub: '狗饿了会自己来吃', can: true };
@@ -509,7 +518,7 @@ function dogPrompt(it) {
 function dogAction() {
   const it = selItem();
   if (nearBed && !DOG_ITEMS.includes(it)) return false;
-  if (dog.chained && dog.near(player.pos) && (!it || it === 'glove')) { dog.untie(); if (!garden.bag.add('leash', 1)) garden.chest.add('leash', 1); toast(`⛓️ 解开了，${dog.name}好开心（狗链回到背包里了）`); return true; }
+  if (dog.chained && dog.nearAnchor(player.pos) && !it) { dog.untie(); if (!garden.bag.add('leash', 1)) garden.chest.add('leash', 1); toast(`⛓️ 解开了，${dog.name}好开心（狗链回到背包里了）`); return true; }
   if (it === 'leash' && dog.near(player.pos) && !dog.chained) { garden.bag.take('leash'); const k = dog.tie(); toast(`⛓️ 把${dog.name}拴${k ? '在狗屋门口' : '在这里'}了 · ${dog.name}有点不开心（忠诚 -5）`);
     if (dog.bowl && Math.hypot(dog.bowl.x - dog.pos.x, dog.bowl.z - dog.pos.z) > 4) setTimeout(() => toast('🥣 狗盆离得太远，它够不着：把狗盆挪近一点'), 1800); return true; }
   if (it === 'dogfood' && dog.nearBowl(player.pos)) { if (dog.bowl.food >= 5) { toast('🥣 狗盆满了'); return true; } garden.bag.take('dogfood'); toast(`🦴 加了一份狗粮（盆里 ${dog.fillBowl()} / 5）`); return true; }
@@ -826,7 +835,7 @@ renderer.setAnimationLoop(() => {
   garden.update(dt);
   house.update(dt, player.pos, firstPerson && !overview);
   renderSta();
-  shops.forEach(s => s.update(dt));
+  shops.forEach(s => s.update(dt, player.pos));
   dog.update(dt, player.pos, player.face);
   coop.update(dt);
   renderDogHud();
