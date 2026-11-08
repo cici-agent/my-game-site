@@ -62,8 +62,8 @@ export function createBag(cap = 7, stack = 50) {   // 快捷栏一共 9 格：�
     if (room(key) < n) return false;
     for (const s of bag.slots) if (s && s.key === key && s.n < stack) { const k = Math.min(n, stack - s.n); s.n += k; n -= k; if (!n) return true; }
     while (n > 0) {
-      const k = Math.min(n, stack), i = bag.slots.indexOf(null);
-      if (i >= 0) bag.slots[i] = { key, n: k }; else bag.slots.push({ key, n: k });
+      const k = Math.min(n, stack); let i = 0; while (bag.slots[i]) i++;   // 第一个空格子
+      bag.slots[i] = { key, n: k };
       n -= k;
     }
     return true;
@@ -71,16 +71,17 @@ export function createBag(cap = 7, stack = 50) {   // 快捷栏一共 9 格：�
   function take(key, n = 1) {
     if (count(key) < n) return false;
     for (let i = bag.slots.length - 1; i >= 0 && n; i--) { const s = bag.slots[i]; if (!s || s.key !== key) continue; const k = Math.min(n, s.n); s.n -= k; n -= k; if (!s.n) bag.slots[i] = null; }
-    while (bag.slots.length && !bag.slots[bag.slots.length - 1]) bag.slots.pop();
+    tidy();
     return true;
   }
+  function tidy() { for (let i = 0; i < bag.slots.length; i++) if (!bag.slots[i]) bag.slots[i] = null; while (bag.slots.length && !bag.slots[bag.slots.length - 1]) bag.slots.pop(); }
   // 一次放好几样东西：要么全放进去，要么一样都不放
   function addAll(list) {
     const copy = JSON.stringify(bag.slots);
     for (const [k, n] of list) if (n > 0 && !add(k, n)) { bag.slots = JSON.parse(copy); return false; }
     return true;
   }
-  return Object.assign(bag, { count, room, add, take, addAll });
+  return Object.assign(bag, { count, room, add, take, addAll, tidy });
 }
 export const itemInfo = key => {
   if (key.startsWith('seed_')) { const c = CROPS[key.slice(5)]; return { icon: '🌱', sub: c.icon, name: c.kind === 'tree' ? c.tree + '苗' : c.name + '种子', seed: true }; }
@@ -302,7 +303,10 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 以前存的背包可能比 7 格多，多出来的放不下；第一次来送一些种子
   if (st.bag) bag.slots = st.bag.filter(Boolean).slice(0, bag.cap);
   else { bag.add('seed_radish', 6); bag.add('seed_lettuce', 4); bag.add('seed_carrot', 2); }
-  function persist() { if (!save) return; st.bag = bag.slots; st.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+  // 菜园旁边的大箱子：6×6 = 36 格，每格最多 99 个
+  const chest = createBag(36, 99);
+  if (st.chest) chest.slots = st.chest.slice(0, chest.cap).map(x => x || null);
+  function persist() { if (!save) return; st.bag = bag.slots; st.chest = chest.slots; st.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
 
   // ---------- 围起来的菜地：踩实的土地 + 一圈木栅栏（前面留门） + 小路连到空地门口 ----------
   const yard = new THREE.Group(); group.add(yard);
@@ -345,7 +349,17 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     part(sign, G.cyl, M(0x9b6a3c), [0, .65, 0], [.06, 1.3, .06]);
     const board = new THREE.Mesh(new THREE.PlaneGeometry(1.5, .56), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide })); board.position.y = 1.35; sign.add(board);
     beds.forEach((bd, i) => placeBed(bd, i));
+    // 箱子：放在空地和菜园之间、小路旁边
+    const box = new THREE.Group(); box.position.set(rect.xn - side * 1.5, 0, rect.gz + 2.3); box.rotation.y = -side * Math.PI / 2; yard.add(box);
+    const woodM = M(0xa0662f), darkM = M(0x6b4220), metalM = M(0xc9b27a, { metalness: .6, roughness: .4 });
+    part(box, G.box, woodM, [0, .3, 0], [1.1, .6, .7]);
+    part(box, G.box, darkM, [0, .63, 0], [1.14, .08, .74]);
+    const lid = part(box, G.cyl, woodM, [0, .66, 0], [.35, 1.12, .35], [0, 0, Math.PI / 2]); lid.scale.set(.35, 1.12, .36);
+    [-.4, .4].forEach(x => { part(box, G.box, metalM, [x, .32, 0], [.06, .64, .72]); });
+    part(box, G.box, metalM, [0, .5, .36], [.14, .16, .03]);
+    chestPos = toWorld(rect.xn - side * 1.5, rect.gz + 2.3);
   }
+  let chestPos = [0, 0];
 
   // ---------- 每块田：平地上一块深色的土 + 一道道垄（颜色跟着水分变）+ 5 棵菜 + 虫子 ----------
   const DRY = new THREE.Color(0xb48d5c), WET = new THREE.Color(0x3f2614);
@@ -540,6 +554,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 栅栏挡路（门口能进出），跳起来能跨过去
   function collide(pos, pr = .45) {
     if (pos.y > .7 || !rect) return;
+    { const dx = pos.x - chestPos[0], dz = pos.z - chestPos[1], d = Math.hypot(dx, dz), m = .65 + pr;   // 箱子挡路
+      if (d < m && d > 1e-4) { pos.x = chestPos[0] + dx / d * m; pos.z = chestPos[1] + dz / d * m; } }
     let [lx, lz] = toLocal(pos.x, pos.z);
     if (lx < rect.x0 - 2 || lx > rect.x1 + 2 || lz < rect.z0 - 2 || lz > rect.z1 + 2) return;
     const ox = lx, oz = lz;
@@ -620,6 +636,28 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     }
   }
 
+  // ---------- 箱子 ----------
+  const nearChest = (x, z) => Math.hypot(x - chestPos[0], z - chestPos[1]) < 1.9;
+  const box = name => name === 'chest' ? chest : bag;
+  // 把一格东西拖到另一格：空格就放进去；同一种就叠起来（放不下的留在原地）；不一样就交换
+  function moveItem(fc, fi, tc, ti) {
+    const F = box(fc), T = box(tc); if (ti >= T.cap) return false;
+    const a = F.slots[fi]; if (!a || (fc === tc && fi === ti)) return false;
+    const b = T.slots[ti];
+    if (!b) { T.slots[ti] = { key: a.key, n: Math.min(a.n, T.stack) }; a.n -= T.slots[ti].n; if (!a.n) F.slots[fi] = null; }
+    else if (b.key === a.key) { const k = Math.min(a.n, T.stack - b.n); b.n += k; a.n -= k; if (!a.n) F.slots[fi] = null; }
+    else { if (a.n > T.stack || b.n > F.stack) return false; T.slots[ti] = a; F.slots[fi] = b; }
+    F.tidy(); T.tidy(); persist(); return true;
+  }
+  // 点一下：整格搬到另一边（先叠到同一种上，再放空格）
+  function quickMove(fc, fi) {
+    const F = box(fc), T = box(fc === 'chest' ? 'bag' : 'chest'), a = F.slots[fi]; if (!a) return false;
+    for (let i = 0; i < T.cap && a.n; i++) { const b = T.slots[i]; if (b && b.key === a.key && b.n < T.stack) { const k = Math.min(a.n, T.stack - b.n); b.n += k; a.n -= k; } }
+    for (let i = 0; i < T.cap && a.n; i++) if (!T.slots[i]) { const k = Math.min(a.n, T.stack); T.slots[i] = { key: a.key, n: k }; a.n -= k; }
+    if (!a.n) F.slots[fi] = null;
+    F.tidy(); T.tidy(); persist(); return !a.n;
+  }
+
   // ---------- 手上拿着什么，按 E 就做什么 ----------
   // item：'can' 水壶 / 'glove' 手套 / 'seed_xxx' 种子 / 菜 / null
   function plan(bd, item) {
@@ -656,5 +694,5 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 菜园门口（世界坐标），出生点用
   const gateWorld = () => toWorld(side * (plot.size / 2 - 4), rect.gz);
   const gateYaw = () => { const [ax, az] = toWorld(0, 0), [bx, bz] = toWorld(side, 0); return Math.atan2(bx - ax, bz - az); };
-  return { beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
+  return { beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
 }

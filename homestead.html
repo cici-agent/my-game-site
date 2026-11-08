@@ -78,6 +78,25 @@
   body.touch #prompt { bottom: 196px; }
   body.touch #dbg { top: calc(var(--top-h) + 100px); }
   #devTag { pointer-events: none; }
+  #chestUI { position: fixed; inset: 0; z-index: 15; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.3); }
+  #chestUI.show { display: flex; }
+  #chestUI .box { background: #8a5a2e; border: 4px solid #5e3a1a; border-radius: 18px; padding: 12px 14px; color: #fff3dc; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  #chestUI .hd { font-size: 19px; font-weight: 900; display: flex; align-items: center; margin-bottom: 8px; }
+  #chestUI .hd button { margin-left: auto; border: 0; background: rgba(255,255,255,.2); color: #fff; border-radius: 999px; width: 30px; height: 30px; cursor: pointer; }
+  #chestUI .grid { display: grid; grid-template-columns: repeat(6, 46px); gap: 5px; }
+  #chestUI .grid.bagrow { grid-template-columns: repeat(7, 46px); }
+  #chestUI .t { margin: 10px 0 6px; font-weight: 800; font-size: 14px; }
+  #chestUI .tip { font-size: 12px; opacity: .8; margin-top: 8px; text-align: center; }
+  #chestUI .slot, .slot.ghost { width: 46px; height: 46px; border-radius: 9px; background: rgba(0,0,0,.22); position: relative; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; user-select: none; }
+  #chestUI .slot i, .slot.ghost i { position: absolute; right: 3px; bottom: 1px; font-style: normal; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; }
+  #chestUI .slot.lift { opacity: .35; }
+  .slot.ghost { position: fixed; z-index: 30; pointer-events: none; transform: translate(-50%, -50%) scale(1.1); display: none; background: rgba(255,210,63,.5); }
+  .slot.ghost.show { display: flex; }
+  #chestUI .pk, .slot.ghost .pk { width: 26px; height: 32px; position: relative; display: flex; align-items: center; justify-content: center; margin-top: 3px; background: linear-gradient(#e9d3a0, #d9b978); border-radius: 0 0 4px 4px; }
+  #chestUI .pk b, .slot.ghost .pk b { width: 20px; height: 20px; border-radius: 50%; background: #fff8e6; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  #chestUI .veg, .slot.ghost .veg { font-size: 26px; }
+  body.touch #chestUI .grid { grid-template-columns: repeat(6, 40px); } body.touch #chestUI .grid.bagrow { grid-template-columns: repeat(7, 40px); }
+  body.touch #chestUI .slot { width: 40px; height: 40px; }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
@@ -96,6 +115,13 @@
 <div id="toast"></div>
 <div id="bag"></div>
 <button class="round-btn" id="actBtn">操作</button>
+<div id="chestUI"><div class="box">
+  <div class="hd">📦 我的箱子<button id="chestClose">✕</button></div>
+  <div id="chestGrid" class="grid"></div>
+  <div class="t">🎒 背包</div>
+  <div id="chestBag" class="grid bagrow"></div>
+  <div class="tip">拖动格子把东西搬来搬去 · 点一下整格搬到另一边 · 按 E 或 Esc 关上</div>
+</div></div>
 <div id="dbg"><button id="dbgToggle">🧪 管理员测试</button><div class="body">
   <div class="t">菜园等级</div><div class="row" id="dbgLv"></div>
   <div class="t">生长速度（只影响你自己的测试）</div><div class="row" id="dbgSp"></div>

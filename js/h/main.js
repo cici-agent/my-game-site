@@ -278,7 +278,8 @@ addEventListener('keydown', e => {
   if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) doAction();
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
-  if (e.code === 'KeyM' && !e.repeat) overview = !overview;   // M：俯瞰整个小镇
+  if (e.code === 'KeyM' && !e.repeat && !chestOpen) overview = !overview;   // M：俯瞰整个小镇
+  if (e.code === 'Escape' && chestOpen) closeChest();
 });
 addEventListener('keyup', e => keys[e.code] = false);
 addEventListener('blur', () => Object.keys(keys).forEach(k => keys[k] = false));
@@ -318,6 +319,8 @@ function selItem() { if (sel < TOOLS.length) return TOOLS[sel].key; const sl = g
 function select(i) { if (i < 0 || i >= hotbarLen()) return; sel = i; renderBag(); const it = selItem(); toast(it ? (sel < TOOLS.length ? TOOLS[sel].name : itemInfo(it).name) : '空格子'); }
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2000); }
 function doAction() {
+  if (chestOpen) return closeChest();
+  if (!nearBed && nearBox) return openChest();
   if (!nearBed) return;
   const r = garden.useItem(nearBed, selItem());
   if (r && r.msg) toast(r.msg);
@@ -337,7 +340,44 @@ function renderBag() {
   }
   $('bag').innerHTML = cells.join('');
 }
-$('bag').addEventListener('pointerdown', e => { const c = e.target.closest('.slot'); if (c) { e.preventDefault(); select(+c.dataset.i); } });
+$('bag').addEventListener('pointerdown', e => { if (chestOpen) return; const c = e.target.closest('.slot'); if (c) { e.preventDefault(); select(+c.dataset.i); } });
+
+// ---------- 箱子：走到旁边按 E 打开；拖动格子搬东西，点一下整格搬到另一边 ----------
+let nearBox = false, chestOpen = false, drag2 = null;
+function cellHTML(c, i, sl) {
+  if (!sl) return `<div class="slot" data-c="${c}" data-i="${i}"></div>`;
+  const it = itemInfo(sl.key);
+  return it.seed ? `<div class="slot seed" data-c="${c}" data-i="${i}" title="${it.name}"><span class="pk"><b>${it.sub}</b></span><i>${sl.n}</i></div>`
+                 : `<div class="slot" data-c="${c}" data-i="${i}" title="${it.name}"><span class="veg">${it.icon}</span><i>${sl.n}</i></div>`;
+}
+function renderChest() {
+  const ch = garden.chest, bg = garden.bag;
+  $('chestGrid').innerHTML = Array.from({ length: ch.cap }, (_, i) => cellHTML('chest', i, ch.slots[i])).join('');
+  $('chestBag').innerHTML = Array.from({ length: bg.cap }, (_, i) => cellHTML('bag', i, bg.slots[i])).join('');
+}
+function openChest() { chestOpen = true; renderChest(); $('chestUI').classList.add('show'); Object.keys(keys).forEach(k => keys[k] = false); }
+function closeChest() { chestOpen = false; $('chestUI').classList.remove('show'); renderBag(); }
+$('chestClose').onclick = closeChest;
+$('chestUI').addEventListener('pointerdown', e => {
+  const c = e.target.closest('.slot'); if (!c || !c.querySelector('i')) return;
+  e.preventDefault();
+  const ghost = c.cloneNode(true); ghost.classList.add('ghost'); document.body.appendChild(ghost);
+  drag2 = { c: c.dataset.c, i: +c.dataset.i, x: e.clientX, y: e.clientY, moved: false, ghost, el: c };
+  ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px';
+});
+addEventListener('pointermove', e => {
+  if (!drag2) return;
+  if (Math.hypot(e.clientX - drag2.x, e.clientY - drag2.y) > 6) { drag2.moved = true; drag2.el.classList.add('lift'); drag2.ghost.classList.add('show'); }
+  drag2.ghost.style.left = e.clientX + 'px'; drag2.ghost.style.top = e.clientY + 'px';
+});
+addEventListener('pointerup', e => {
+  if (!drag2) return;
+  const d = drag2; drag2 = null; d.ghost.remove(); d.el.classList.remove('lift');
+  if (!d.moved) { garden.quickMove(d.c, d.i); renderChest(); return; }            // 点一下：整格搬到另一边
+  const t = document.elementFromPoint(e.clientX, e.clientY)?.closest('#chestUI .slot');
+  if (t) garden.moveItem(d.c, d.i, t.dataset.c, +t.dataset.i);
+  renderChest();
+});
 renderBag();
 garden.on(ev => { if (ev === 'allEaten') toast('😱 有一块田的菜被虫子吃光了！'); });
 // 管理员测试面板：切换菜园等级、加快生长、送种子、重置
@@ -353,7 +393,7 @@ $('dbgReset').onclick = () => { if (confirm('把菜园和背包都清空，重�
 $('dbgToggle').onclick = () => $('dbg').classList.toggle('open');
 setInterval(renderBag, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, homePlot, act: () => doAction(), select: i => select(i) };
+if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, homePlot, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const WALK = 7.5, RUN = 12, GRAV = 26, JUMP = 9.5, EDGE = WR - 6;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
@@ -365,6 +405,7 @@ function step(dt, t) {
   if (keys.KeyA || keys.ArrowLeft) mx -= 1;
   if (keys.KeyD || keys.ArrowRight) mx += 1;
   if (joy.id !== null) { mx = joy.x; my = joy.y; }
+  if (chestOpen) mx = my = 0;
   const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
   const running = keys.ShiftLeft || keys.ShiftRight;
   const speed = (running ? RUN : WALK) * Math.min(1, len);
@@ -425,8 +466,10 @@ renderer.setAnimationLoop(() => {
   step(dt, t);
   // 站在哪块田旁边：显示能做什么
   nearBed = overview ? null : garden.nearest(player.pos.x, player.pos.z);
+  nearBox = !overview && !nearBed && garden.nearChest(player.pos.x, player.pos.z);
   const pr = $('prompt');
   if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
+  else if (nearBox && !chestOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}📦 打开箱子</b><span>把背包里的东西放进箱子，或者拿出来</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '打开箱子'; $('actBtn').classList.add('show'); }
   else { pr.classList.remove('show'); $('actBtn').classList.remove('show'); }
   renderer.render(scene, camera);
 });
