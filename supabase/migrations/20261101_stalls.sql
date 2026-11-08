@@ -2,12 +2,12 @@
 -- 价格放在 shop_items 里（key 以 __ 开头，管理员可以在后台改价格）
 
 insert into shop_items (key, kind, name, price, is_active) values
-  ('__stall_balloon', 'prop', '射气球（一局）', 10, false),
-  ('__stall_pot', 'prop', '投壶（一局）', 10, false),
-  ('__stall_ring', 'prop', '套圈（一局）', 10, false),
-  ('__stall_mole', 'prop', '打地鼠（一局）', 10, false),
-  ('__stall_duck', 'prop', '捞小鸭（一局）', 10, false),
-  ('__stall_wheel', 'prop', '幸运转盘（一次）', 15, false)
+  ('__stall_balloon', 'prop', '射气球（一局）', 2, false),
+  ('__stall_pot', 'prop', '投壶（一局）', 5, false),
+  ('__stall_ring', 'prop', '套圈（一局）', 4, false),
+  ('__stall_mole', 'prop', '打地鼠（一局）', 3, false),
+  ('__stall_duck', 'prop', '捞小鸭（一局）', 2, false),
+  ('__stall_wheel', 'prop', '幸运转盘（一次）', 3, false)
 on conflict (key) do nothing;
 
 -- 每一局的记录：开局时扣钱、生成一条；结束时用它来领奖（一局只能领一次）
@@ -33,7 +33,7 @@ begin
   if uid is null then raise exception 'not_logged_in'; end if;
   if p_game not in ('balloon', 'pot', 'ring', 'mole', 'duck', 'wheel') then raise exception 'bad_game'; end if;
   select price into cost from shop_items where key = '__stall_' || p_game;
-  cost := coalesce(cost, 10);
+  cost := coalesce(cost, 3);
   update profiles set coins = coins - cost where id = uid and coalesce(coins, 0) >= cost returning coins into left_coins;
   if not found then raise exception 'not_enough_coins'; end if;
   insert into stall_plays (user_id, game, wheel) values (uid, p_game, case when p_game = 'wheel' then floor(random() * 8)::int end) returning id into pid;
@@ -50,24 +50,20 @@ begin
   if not found then raise exception 'no_play'; end if;
   if pl.claimed_at is not null then raise exception 'already_claimed'; end if;
   if pl.created_at < now() - interval '10 minutes' then raise exception 'too_late'; end if;
+  -- 每扎破一个 / 每得一分都能赚金币；越难的项目一分值得越多
   if pl.game = 'balloon' then
-    s := least(greatest(p_score, 0), 10);               -- 10 支飞镖，最多扎破 10 个
-    v_prize := case when s >= 9 then 20 when s >= 7 then 10 when s >= 5 then 5 else 0 end;                 -- 简单：奖得少
-  elsif pl.game = 'pot' then
-    s := least(greatest(p_score, 0), 15);               -- 投壶最难：奖得最多
-    v_prize := case when s >= 10 then 60 when s >= 6 then 30 when s >= 4 then 15 when s >= 2 then 6 else 0 end;
-  elsif pl.game = 'ring' then
-    s := least(greatest(p_score, 0), 15);               -- 套圈：比较难
-    v_prize := case when s >= 10 then 40 when s >= 6 then 20 when s >= 4 then 10 when s >= 2 then 5 else 0 end;
-  elsif pl.game = 'mole' then
-    s := least(greatest(p_score, 0), 45);               -- 30 秒打地鼠
-    v_prize := case when s >= 25 then 30 when s >= 18 then 15 when s >= 12 then 8 when s >= 6 then 3 else 0 end;
+    s := least(greatest(p_score, 0), 10);  v_prize := s;                -- 射气球：扎破一个 1 金币（最多 10）
   elsif pl.game = 'duck' then
-    s := least(greatest(p_score, 0), 30);               -- 捞 6 只，每只 1~5 分
-    v_prize := case when s >= 24 then 20 when s >= 18 then 10 when s >= 12 then 5 else 0 end;               -- 捞小鸭比较简单
-  else                                                  -- 转盘：格子是开局时服务器定的，不看客户端
+    s := least(greatest(p_score, 0), 30);  v_prize := (s + 1) / 3;      -- 捞小鸭：每 3 分 1 金币（最多 10）
+  elsif pl.game = 'mole' then
+    s := least(greatest(p_score, 0), 45);  v_prize := s / 2;            -- 打地鼠：打中 2 只 1 金币
+  elsif pl.game = 'ring' then
+    s := least(greatest(p_score, 0), 15);  v_prize := s;                -- 套圈：1 分 1 金币（最多 15）
+  elsif pl.game = 'pot' then
+    s := least(greatest(p_score, 0), 15);  v_prize := s * 2;            -- 投壶最难：1 分 2 金币（最多 30）
+  else                                                                  -- 转盘：格子是开局时服务器定的
     s := pl.wheel;
-    v_prize := (array[5, 10, 0, 20, 15, 50, 0, 10])[pl.wheel + 1];
+    v_prize := (array[1, 2, 0, 4, 3, 10, 0, 2])[pl.wheel + 1];
   end if;
   update stall_plays set score = s, prize = v_prize, claimed_at = now() where id = p_play;
   update profiles set coins = coalesce(coins, 0) + v_prize where id = uid returning coins into left_coins;
@@ -79,5 +75,7 @@ begin
   return jsonb_build_object('prize', v_prize, 'coins', left_coins, 'score', s);
 end $$;
 
+revoke all on function public.stall_play(text) from public, anon;
+revoke all on function public.stall_claim(uuid, int) from public, anon;
 grant execute on function public.stall_play(text) to authenticated;
 grant execute on function public.stall_claim(uuid, int) to authenticated;

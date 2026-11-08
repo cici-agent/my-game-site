@@ -385,7 +385,7 @@ function trainTick(dt, t) {
 }
 // ---------- 摆摊小游戏 ----------
 // 摆摊：花金币玩一局、玩得好领奖（服务器算）
-const stallPrice = { balloon: 10, pot: 10, ring: 10, mole: 10, duck: 10, wheel: 15 };
+const stallPrice = { balloon: 2, pot: 5, ring: 4, mole: 3, duck: 2, wheel: 3 };
 setTimeout(async () => { try { const { data } = await getSupabase().from('shop_items').select('key,price').like('key', '__stall_%'); (data || []).forEach(r => stallPrice[r.key.slice(8)] = r.price); } catch (e) {} }, 1500);
 async function stallPay(kind) {
   if (!ME) { const ok = await askLogin({ icon: '🎪', name: '摆摊小游戏', color: '#ff6b6b' }); if (!ok) return { ok: false, msg: '🔒 要先登录才能玩哦（玩一局要花金币）' }; await refreshMe(); }
