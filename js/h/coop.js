@@ -111,6 +111,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
   try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   // 一开始每个人都有一个 1 级小鸡窝，还送一只母鸡
   st ||= { lv: 1, feed: 4, eggs: 0, gold: 0, hens: [{ born: Date.now() - GROW * 1000, full: 80, next: Date.now() + EGG_MIN * 1000 }], t: Date.now() };
+  if (st.built === undefined) st.built = true;   // 鸡舍能拆（用户说：养动物的地方都要能拆）
   const save = () => { st.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
   const spot = coopSpot(plot, side);
   const root = new THREE.Group(); root.position.set(plot.x, 0, plot.z); root.rotation.y = plot.rot; scene.add(root);
@@ -118,8 +119,17 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
   const toWorld = (lx, lz) => plotToWorld(plot, spot.x + lx, spot.z + lz);
   const toLocal = (x, z) => { const [a, b] = worldToPlot(plot, x, z); return [a - spot.x, b - spot.z]; };
   let C = null;
-  function build() { if (C) holder.remove(C.group); C = buildCoop(st.lv); holder.add(C.group); showStuff(); }
+  let sign = null;
+  function build() {
+    if (C) holder.remove(C.group); if (sign) { holder.remove(sign); sign = null; } C = null;
+    if (!st.built) {   // 拆掉以后：插一块小木牌
+      sign = new THREE.Group(); holder.add(sign); const p = new THREE.Mesh(new THREE.BoxGeometry(.1, 1.2, .1), new THREE.MeshStandardMaterial({ color: 0x9a6a3c })); p.position.y = .6; sign.add(p);
+      const c = document.createElement('canvas'); c.width = 320; c.height = 120; const x = c.getContext('2d'); x.fillStyle = '#f2e1bd'; x.fillRect(0, 0, 320, 120); x.fillStyle = '#5a3a1a'; x.font = 'bold 34px sans-serif'; x.textAlign = 'center'; x.fillText('🐔 这里可以盖鸡舍', 160, 50); x.font = '26px sans-serif'; x.fillText('去动物小铺买', 160, 92);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, .52, .05), new THREE.MeshStandardMaterial({ map: t })); b.position.set(0, 1.2, .06); sign.add(b); return; }
+    C = buildCoop(st.lv); holder.add(C.group); showStuff();
+  }
   function showStuff() {
+    if (!C) return;
     const n = Math.min(C.eggs.length, st.eggs + st.gold);
     C.eggs.forEach((e, i) => { e.visible = i < n; e.material = i < st.gold ? GOLD : EGG; });
     C.grain.visible = st.feed > 0; C.grain.scale.y = Math.max(.2, Math.min(1, st.feed / 8)); C.grain.position.y = .13 + .06 * C.grain.scale.y;
@@ -172,6 +182,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
 
   let t0 = 0, saveT = 0, growT = 0;
   function update(dt) {
+    if (!C) return;
     t0 += dt; tick(dt, Date.now(), false);
     if (laid) { laid = false; showStuff(); notify('🥚 鸡下蛋了！去鸡舍收鸡蛋'); }
     if ((growT += dt) > 5) { growT = 0; syncBirds(); showStuff(); }
@@ -212,6 +223,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
 
   // ---------- 碰撞：鸡舍房子挡人；铁丝网围栏挡人，但能跳过去 ----------
   function collide(p, pr = .45) {
+    if (!C) return;
     let [lx, lz] = toLocal(p.x, p.z); if (Math.abs(lx) > C.RW + 2 || Math.abs(lz) > C.RD + 2) return; const ox = lx, oz = lz;
     if (p.y < .6) C.fence.forEach(([ax, az, bx, bz]) => {
       const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, rx = lx - ax, rz = lz - az, t = rx * ux + rz * uz, n = rx * -uz + rz * ux;
@@ -229,15 +241,17 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
     get eggs() { return st.eggs; }, get gold() { return st.gold; }, get feed() { return st.feed; },
     get hungry() { return st.hens.filter(h => h.full < 20).length; },
     update, collide,
-    nearNest(p) { return near(p, C.nestPos, 1.4); },
-    nearTrough(p) { return near(p, C.troughPos, 1.3); },
-    nearCoop(p) { return near(p, C.door, 1.5) || near(p, { x: C.houseBox.x, z: C.houseBox.z + C.houseBox.hd + .4 }, 1.6); },
-    nearChicken(p) { const [lx, lz] = toLocal(p.x, p.z); return birds.find(b => b.m.root.visible && Math.hypot(lx - b.x, lz - b.z) < 1); },
+    get built() { return st.built; },
+    nearSign(p) { return !C && near(p, { x: 0, z: 0 }, 2); },
+    nearNest(p) { return !!C && near(p, C.nestPos, 1.4); },
+    nearTrough(p) { return !!C && near(p, C.troughPos, 1.3); },
+    nearCoop(p) { return !!C && (near(p, C.door, 1.5) || near(p, { x: C.houseBox.x, z: C.houseBox.z + C.houseBox.hd + .4 }, 1.6)); },
+    nearChicken(p) { if (!C) return null; const [lx, lz] = toLocal(p.x, p.z); return birds.find(b => b.m.root.visible && Math.hypot(lx - b.x, lz - b.z) < 1); },
     collectEggs() { const n = st.eggs, g = st.gold; st.eggs = 0; st.gold = 0; save(); showStuff(); return { n, g }; },
     putBackEggs(n, g) { st.eggs += n; st.gold += g; save(); showStuff(); },
     addFeed(k) { const v = feedValue(k); if (!v) return 0; if (st.feed + v > FEED_MAX) return -1; st.feed += v; save(); showStuff(); return v; },
     canFeed: k => !!feedValue(k), FEED_MAX,
-    addHen(adult) { if (st.hens.length >= COOP[st.lv].cap) return false; st.hens.push({ born: adult ? Date.now() - GROW * 1000 : Date.now(), full: 80, next: Date.now() + (EGG_MIN + Math.random() * 300) * 1000 }); save(); syncBirds(); return true; },
+    addHen(adult) { if (!C || st.hens.length >= COOP[st.lv].cap) return false; st.hens.push({ born: adult ? Date.now() - GROW * 1000 : Date.now(), full: 80, next: Date.now() + (EGG_MIN + Math.random() * 300) * 1000 }); save(); syncBirds(); return true; },
     upgrade() { const nx = COOP[st.lv + 1]; if (!nx) return false; st.lv++; save(); build(); syncBirds(); birds.forEach(b => { b.x = 0; b.z = 0; }); return true; },
     nextLevel() { return COOP[st.lv + 1] || null; },
     pet(b) { b.act = 'flap'; b.t = .8; },
@@ -247,8 +261,11 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
       const meat = b.baby ? 1 : 2; puff(b.x, b.z);
       holder.remove(b.m.root); birds.splice(i, 1); st.hens.splice(i, 1); save(); return meat;
     },
-    debug: { setLevel(l) { st.lv = l; while (st.hens.length > COOP[l].cap) st.hens.pop(); save(); build(); syncBirds(); }, layNow() { st.hens.forEach(h => { h.next = 0; h.born = Math.min(h.born, Date.now() - GROW * 1000); h.full = Math.max(h.full, 60); }); }, reset() { localStorage.removeItem(KEY); } },
-    entrance: () => toWorld(0, C.RD + 1.2),
+    debug: { setLevel(l) { st.built = true; st.lv = l; while (st.hens.length > COOP[l].cap) st.hens.pop(); save(); build(); syncBirds(); }, layNow() { st.hens.forEach(h => { h.next = 0; h.born = Math.min(h.born, Date.now() - GROW * 1000); h.full = Math.max(h.full, 60); }); }, reset() { localStorage.removeItem(KEY); } },
+    entrance: () => toWorld(0, (C ? C.RD : 2) + 1.2),
+    // 拆鸡舍：鸡、蛋、饲料都没有了；以后可以在动物小铺再买一个
+    demolish() { if (!st.built) return 0; const n = st.hens.length; st.built = false; st.hens = []; st.eggs = 0; st.gold = 0; st.feed = 0; st.lv = 1; save(); syncBirds(); build(); return n; },
+    rebuild() { if (st.built) return false; st.built = true; st.lv = 1; st.feed = 4; save(); build(); return true; },
   };
   return api;
 }

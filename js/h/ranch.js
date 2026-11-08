@@ -23,11 +23,12 @@ export function pastureSpots(plot, side, isBlocked) {
     { cow: { x: -side * (h + 1.8 + C.RD), z: C.RW + .6, rot: side * Math.PI / 2 }, sheep: { x: -side * (h + 1.8 + S.RD), z: -(S.RW + .6), rot: side * Math.PI / 2 } },
     { cow: { x: -(C.RW + .6), z: h + 1.8 + C.RD, rot: Math.PI }, sheep: { x: S.RW + .6, z: h + 1.8 + S.RD, rot: Math.PI } },
   ];
-  const free = (sp, K) => { const c = Math.cos(sp.rot), s = Math.sin(sp.rot);
-    for (let a = -K.RW - 1; a <= K.RW + 1; a += 1.5) for (let b = -K.RD - 1; b <= K.RD + 1; b += 1.5) {
-      const lx = sp.x + a * c + b * s, lz = sp.z - a * s + b * c, [x, z] = plotToWorld(plot, lx, lz); if (isBlocked(x, z)) return false; }
-    return true; };
-  return options.find(o => free(o.cow, C) && free(o.sheep, S)) || options[0];
+  // 数一数牧场范围里有几个点被挡住（0 = 完全空着）；都不行就选挡得最少的
+  const bad = (sp, K) => { const c = Math.cos(sp.rot), s = Math.sin(sp.rot); let n = 0;
+    for (let a = -K.RW - 1; a <= K.RW + 1; a += .75) for (let b = -K.RD - 1; b <= K.RD + 1; b += .75) {
+      const lx = sp.x + a * c + b * s, lz = sp.z - a * s + b * c, [x, z] = plotToWorld(plot, lx, lz); if (isBlocked(x, z)) n++; }
+    return n; };
+  return options.map(o => ({ o, n: bad(o.cow, C) + bad(o.sheep, S) })).sort((p, q) => p.n - q.n)[0].o;
 }
 // 某个点在不在牧场里（种花种草时避开）
 export function inPasture(plot, spots, x, z, m = 0) {
@@ -261,6 +262,8 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
     // 挤奶 / 剪毛：拿到产品，过一阵子才能再挤 / 再长
     harvest(b) { const a = st.animals[beasts.indexOf(b)]; if (!a || !a.ready) return 0; a.ready = false; a.next = Date.now() + rndEvery(); b.act = 'idle'; save(); return kind === 'sheep' ? 2 : 1; },
     kill(b) { const i = beasts.indexOf(b); if (i < 0) return 0; const n = b.baby ? K.meatN[1] : K.meatN[0]; puff(b.x, b.z, kind === 'cow' ? 0xffffff : 0xfbfaf7); base.remove(b.m.root); beasts.splice(i, 1); st.animals.splice(i, 1); save(); return n; },
+    // 拆掉：动物、饲料都没有了，回到空地 + 小木牌
+    demolish() { if (!st.built) return 0; const n = st.animals.length; st.built = false; st.animals = []; st.feed = 0; st.lv = 1; save(); sync(); build(); return n; },
     pet(b) { b.act = 'idle'; b.t = 1.5; b.face += Math.PI * .1; },
     upgrade() { if (!K.cap[st.lv + 1]) return false; st.lv++; save(); build(); sync(); beasts.forEach(b => { b.x = 0; b.z = K.RD * .3; }); return true; },
     next() { const l = st.lv + 1; return K.cap[l] ? { lv: l, name: K.home[l], cap: K.cap[l], price: K.up[l] } : null; },

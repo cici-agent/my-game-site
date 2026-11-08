@@ -30,7 +30,7 @@ const gardenSide = chooseSide(homePlot, (x, z) => onPath(x, z, 1.5) || onPlot(x,
 // 三家店的位置：广场外面的草坪上（用户说：商店不要在中间的圆里，移到草坪上），挨在一起，靠近我家那边，面朝广场
 const SHOP_SPOTS = (() => {
   const cand = [], homeA = Math.atan2(homePlot.x, homePlot.z);
-  for (let r = 30; r <= 64; r += 2) for (let a = 0; a < 6.283; a += .03) { const x = Math.sin(a) * r, z = Math.cos(a) * r; if (!onPath(x, z, 7.5) && !onPlot(x, z, 8.5)) cand.push({ x, z, r, a, face: a + Math.PI }); }
+  for (let r = 30; r <= 64; r += 2) for (let a = 0; a < 6.283; a += .03) { const x = Math.sin(a) * r, z = Math.cos(a) * r; if (!onPath(x, z, 7.5) && !onPlot(x, z, 8.5) && Math.hypot(x - homePlot.x, z - homePlot.z) > homePlot.size / 2 + 24) cand.push({ x, z, r, a, face: a + Math.PI }); }
   const angD = a => { let d = Math.abs(a - homeA) % 6.283; return Math.min(d, 6.283 - d); };
   cand.sort((p, q) => (p.r + angD(p.a) * 25) - (q.r + angD(q.a) * 25));
   const out = [cand[0]];
@@ -39,7 +39,8 @@ const SHOP_SPOTS = (() => {
 })();
 const inShopArea = (x, z, m = 0) => SHOP_SPOTS.some(s => Math.hypot(s.x - x, s.z - z) < 7.5 + m);
 // 牛、羊的牧场：自家空地后面（被挡住就换到菜园对面那边），入口朝空地
-const PASTURES = pastureSpots(homePlot, gardenSide, (x, z) => onPath(x, z, 1) || onPlot(x, z, .5) || inGarden(homePlot, gardenSide, x, z, 1) || inShopArea(x, z, 1));
+// 用户说：牛圈和商店重叠了 —— 离商店远一点（商店房子 10×8 米，再留 3 米）
+const PASTURES = pastureSpots(homePlot, gardenSide, (x, z) => onPath(x, z, 1) || onPlot(x, z, .5) || inGarden(homePlot, gardenSide, x, z, 1) || inShopArea(x, z, 3.5));
 const blocked = (x, z, m = .4) => onPath(x, z, m) || onPlot(x, z, m) || inGarden(homePlot, gardenSide, x, z, m) || inShopArea(x, z, m) || inPasture(homePlot, PASTURES, x, z, m);
 const WR = L.worldR;
 
@@ -460,7 +461,16 @@ $('bag').addEventListener('pointerdown', e => { if (chestOpen) return; const c =
 
 // ---------- 🐔 鸡舍：收鸡蛋、往食槽加饲料、摸摸小鸡、升级 ----------
 let killT = 0, killB = null;
+// 拆养动物的地方（用户说：养动物的东西都要能拆）：拿着手套在门口按两次 E
+let demoT = 0, demoWhat = null;
+const demoLabel = (what, name, n) => demoT > performance.now() && demoWhat === what ? { label: `⚠️ 再按一次 E：确定拆掉${name}`, sub: n ? `里面的 ${n} 只动物也会一起没有！` : '拆掉就没有了', can: true } : { label: `🔨 拆掉${name}`, sub: n ? `⚠️ 里面还有 ${n} 只动物，拆了它们也没有了` : '拆掉以后可以在动物小铺再买', can: true };
+function tryDemolish(what, name, n, doIt) {
+  if (!(demoT > performance.now() && demoWhat === what)) { demoT = performance.now() + 3000; demoWhat = what; toast(n ? `⚠️ 里面还有 ${n} 只动物！3 秒内再按一次 E 确定拆掉` : '⚠️ 3 秒内再按一次 E 确定拆掉'); return true; }
+  demoT = 0; doIt(); toast(`🔨 ${name}拆掉了`); return true;
+}
 function coopPrompt(it) {
+  if (coop.nearSign(player.pos)) return { label: '🐔 这里可以盖鸡舍', sub: '去广场边上的动物小铺买（40 菜币）', can: false };
+  if (it === 'glove' && coop.nearCoop(player.pos)) return demoLabel('coop', '鸡舍', coop.count);
   if (coop.nearNest(player.pos)) {
     const n = coop.eggs + coop.gold;
     return n ? { label: `🥚 收鸡蛋（${coop.eggs} 个${coop.gold ? ` + 🌟 金蛋 ${coop.gold} 个` : ''}）`, sub: `鸡蛋能卖钱，也能吃（体力 +8）`, can: true } : { label: '🥚 鸡蛋窝', sub: coop.hungry ? '鸡饿着就不下蛋 —— 往食槽里加饲料' : '还没有蛋，过一会儿再来', can: false };
@@ -479,6 +489,7 @@ function coopPrompt(it) {
 }
 function coopAction() {
   const it = selItem();
+  if (it === 'glove' && coop.nearCoop(player.pos)) return tryDemolish('coop', '鸡舍', coop.count, () => coop.demolish());
   if (coop.nearNest(player.pos)) {
     const { n, g } = coop.collectEggs(); if (!n && !g) return false;
     let back = 0, backG = 0;
@@ -505,6 +516,7 @@ function ranchPrompt(it) {
     const K = r.K;
     if (r.nearSign(player.pos)) return { label: r.kind === 'cow' ? '🐄 这里可以盖牛棚' : '🐑 这里可以盖羊圈', sub: '去广场边上的动物小铺买', can: false };
     if (!r.built) continue;
+    if (it === 'glove' && r.nearHome(player.pos)) return demoLabel(r.kind, r.homeName, r.count);
     const b = r.nearAnimal(player.pos);
     if (b) { const a = r.info(b), nm = b.baby ? K.baby : K.name;
       if (it === 'knife') return { label: killT > performance.now() && killB === b ? '⚠️ 再按一次 E：确定杀掉' : `🔪 杀${nm}（得到 ${b.baby ? K.meatN[1] : K.meatN[0]} 块${r.kind === 'cow' ? '牛肉' : '羊肉'}）`, sub: '杀掉就没有了', can: true };
@@ -522,6 +534,7 @@ function ranchAction() {
   const it = selItem();
   for (const r of RANCHES) {
     if (!r.built) continue;
+    if (it === 'glove' && r.nearHome(player.pos)) return tryDemolish(r.kind, r.homeName, r.count, () => r.demolish());
     const K = r.K, b = r.nearAnimal(player.pos);
     if (b) { const a = r.info(b);
       if (it === 'knife') {
@@ -664,6 +677,7 @@ $('shopList').addEventListener('click', e => {
     if (it.key === 'knife' && (garden.bag.count('knife') || garden.chest.count('knife'))) { toast('🔪 你已经有菜刀了'); return; }
     if (it.key === 'leash' && (dog.chained || garden.bag.count('leash') || garden.chest.count('leash'))) { toast('⛓️ 你已经有狗链了'); return; }
     if (it.key === 'kennel' && (dog.kennel || garden.bag.count('kennel') || garden.chest.count('kennel'))) { toast('🛖 你已经有一个狗屋了'); return; }
+    if (it.key === 'coopkit') { if (coop.built) { toast('你已经有鸡舍了'); return; } if (!garden.wallet.spend(it.price)) { toast('菜币不够'); return; } coop.rebuild(); renderShop(); renderMoney(); toast('🐔 鸡舍盖好了'); return; }
     if (it.key === 'cowshed' || it.key === 'sheeppen') { const r = it.key === 'cowshed' ? cows : sheep;
       if (r.built) { toast(`你已经有${r.homeName}了`); return; }
       if (!garden.wallet.spend(it.price)) { toast('菜币不够'); return; }
@@ -675,6 +689,7 @@ $('shopList').addEventListener('click', e => {
       r.addAnimal(false); renderShop(); renderMoney(); toast(it.key === 'calf' ? '🐮 买了一头小牛，已经放进牛棚了' : '🐏 买了一只小羊，已经放进羊圈了'); return; }
     if (it.key === 'shears' && (garden.bag.count('shears') || garden.chest.count('shears'))) { toast('✂️ 你已经有剪刀了'); return; }
     if (it.key === 'chick') {
+      if (!coop.built) { toast('要先有鸡舍：拆掉了就在这里再买一个'); return; }
       if (coop.count >= coop.cap) { toast(`🐔 ${coop.name}住满了（${coop.cap} 只）：先升级鸡舍`); return; }
       if (!garden.wallet.spend(it.price)) { toast('菜币不够'); return; }
       coop.addHen(false); toast('🐣 买了一只小鸡，已经放进你的鸡舍了'); renderShop(); renderMoney(); return;
@@ -801,7 +816,7 @@ $('dbgDogReset').onclick = () => { if (confirm('把狗和狗盆都清掉？')) {
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上

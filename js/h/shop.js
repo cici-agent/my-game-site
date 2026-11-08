@@ -9,6 +9,7 @@ export const SHOP_ITEMS = [
   { key: 'spray', price: 15, lv: 1, note: '一次喷 9 块田（周围 3×3）：虫子全赶走，2 小时不来虫' },
   { key: 'candle', price: 5, lv: 1, note: '点在烛台上，能烧半小时' },
   // 动物小铺（用户说：卖动物的店，比如买鸡）
+  { key: 'coopkit', price: 40, lv: 1, note: '鸡舍拆掉以后，在这里再买一个（1 级小鸡窝）', once: true, shop: 'animal', building: true },
   { key: 'chick', price: 15, lv: 1, note: '一只小黄鸡：放进你的鸡舍，20 分钟长成母鸡，会下蛋', animal: true, once: true, shop: 'animal' },
   { key: 'chickfeed', price: 2, lv: 1, note: '一份鸡饲料：倒进鸡舍的食槽（玉米、种子也能喂鸡）', shop: 'animal' },
   { key: 'cowshed', price: 100, lv: 1, note: '在你家空地后面盖一个小牛棚（带牧场）；能升级', once: true, shop: 'animal', building: true },
