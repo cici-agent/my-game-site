@@ -206,7 +206,12 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
     }
     const ds = L.door.style;
     const leaves = ds === 'double' || ds === 'grand' ? [leaf(dx - dw / 2, dw / 2, 1, ds), leaf(dx + dw / 2, dw / 2, -1, ds)] : [leaf(dx - dw / 2, dw, 1, ds)];
-    doors.push({ id: 'front', leaves, x: dx, z: D, w: dw, ang: st.doors.front ? 1 : 0 });
+    // 锁：锁上时门把手旁边挂一把金色的锁
+    const lock = new THREE.Group(); leaves[0].add(lock);
+    const lw = ds === 'double' || ds === 'grand' ? dw / 2 : dw, gold = M({ color: 0xe0b84a, metalness: .75, roughness: .3 });
+    const lb = new THREE.Mesh(BOX, gold); lb.scale.set(.2, .18, .07); lb.position.set(lw - .14, 1.05, .14); lock.add(lb);
+    const sh = new THREE.Mesh(new THREE.TorusGeometry(.065, .018, 6, 14, Math.PI), M({ color: 0xbfc5cc, metalness: .8, roughness: .25 })); sh.position.set(lw - .14, 1.14, .14); lock.add(sh);
+    doors.push({ id: 'front', leaves, x: dx, z: D, w: dw, ang: st.doors.front ? 1 : 0, lock });
     // 门口台阶
     put(tbox(dw + .6, .16 + fy, .9, L.base ? mt('stone') : mt('plank', { color: 0x9a6a3a }), 1.5), [dx, (.16 + fy) / 2, D + .55]);
     if (ds === 'double') add(SPH, M({ color: 0xe0b84a, metalness: .7, roughness: .3 }), [dx + dw / 2 + .45, fy + 1.6, D + .14], [.08, .08, .08]);   // 门铃
@@ -520,7 +525,12 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
   const roomOn = room => !!st.lights[room];
   const DOOR_TEXT = { rope: '薄木板门，用草绳拴着 —— 不太安全', latch: '实木门 + 铁插销 —— 比草绳结实', arch: '拱形木门 + 钥匙锁 —— 要撞很久才撞得开', double: '包铁皮的双开门 + 门铃 —— 很难撞开', grand: '大拱门 + 密码锁 + 警铃 —— 几乎撞不开' };
   function describe(t, item) {
-    if (t.kind === 'door') return { label: doors[0].ang > .5 ? '🚪 关门' : '🚪 开门', sub: DOOR_TEXT[L.door.style], can: true };
+    if (t.kind === 'door') {
+      const locked = !!st.doors.lock, open = doors[0].ang > .5;
+      if (item === 'key') return locked ? { label: '🔓 用钥匙开锁', sub: '这是你自己家的钥匙', can: true } : { label: open ? '🔒 关门、上锁' : '🔒 上锁', sub: '锁上以后，没有钥匙就开不了门', can: true };
+      if (locked) return { label: '🔒 门锁着', sub: '选中背包里的 🔑 钥匙，再按 E 开锁', can: false };
+      return { label: open ? '🚪 关门' : '🚪 开门', sub: DOOR_TEXT[L.door.style] + ' · 选中 🔑 钥匙可以上锁', can: true };
+    }
     if (t.kind === 'cabinet') return { label: `🗄️ 打开${t.name}`, sub: `${t.name}：${cabinet.cap} 格`, can: true };
     if (t.kind === 'safe') return { label: '🔐 打开保险箱', sub: '保险箱：12 格 —— 别人破门也偷不走', can: true };
     if (t.kind === 'bed') return { label: `🛏️ 在${t.name}上睡觉`, sub: `睡觉回体力（${t.name}：每分钟 +${Math.round((BED_RATE[t.type] || .06) * 60)}）· 时间照常走`, can: true };
@@ -535,7 +545,14 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
     }
   }
   function act(t, item, bag) {
-    if (t.kind === 'door') { st.doors.front = !(doors[0].ang > .5); persist(); return { msg: st.doors.front ? '🚪 门开了' : '🚪 门关上了' }; }
+    if (t.kind === 'door') {
+      if (item === 'key') {
+        if (st.doors.lock) { st.doors.lock = false; persist(); return { msg: '🔓 开锁了' }; }
+        st.doors.lock = true; st.doors.front = false; persist(); return { msg: '🔒 门锁上了' };
+      }
+      if (st.doors.lock) return { msg: '🔒 门锁着 —— 选中 🔑 钥匙再按 E' };
+      st.doors.front = !(doors[0].ang > .5); persist(); return { msg: st.doors.front ? '🚪 门开了' : '🚪 门关上了' };
+    }
     if (t.kind === 'cabinet') return { open: 'cabinet' };
     if (t.kind === 'safe') return { open: 'safe' };
     if (t.kind === 'bed') { const [wx, wz] = toWorld(t.bx, t.bz); return { sleep: { name: t.name, top: { bedStraw: .7, bedWood: .82, bedSoft: .97, bedDouble: 1, bedCanopy: 1.1 }[t.type] || .8, rate: BED_RATE[t.type] || .06, x: wx, z: wz, y: t.by, yaw: plot.rot + t.ry } }; }
@@ -554,7 +571,7 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
   let t0 = 0, saveT = 0, roofFade = 1, upFade = 1;
   function update(dt, playerPos, firstPerson = false) {
     t0 += dt;
-    doors.forEach(d => { const target = st.doors[d.id] ? 1 : 0; d.ang += (target - d.ang) * Math.min(1, dt * 6);
+    doors.forEach(d => { d.lock.visible = !!st.doors.lock; const target = st.doors[d.id] ? 1 : 0; d.ang += (target - d.ang) * Math.min(1, dt * 6);
       d.leaves.forEach((p, i) => p.rotation.y = (d.leaves.length > 1 ? (i ? 1 : -1) : -1) * d.ang * 1.6); });
     const dark = darkness();
     for (const k in st.candles) st.candles[k] = Math.max(0, st.candles[k] - dt);   // 管理员的加速只加速菜，不加速蜡烛
