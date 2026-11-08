@@ -201,8 +201,9 @@ function buildBug() {
 }
 
 // ---------- 菜园的位置：在自家空地旁边多围出来的一块地（空地本身留着盖房子） ----------
-const BED_W = 2.6, BED_D = 1.3, GAP_X = .3, GAP_Z = .35, COLS = 4, MARGIN = 1, SIDE_GAP = 3;   // 田和田之间只留一条窄缝
+const BED_W = 1.9, BED_D = 1.9, GAP_X = .3, GAP_Z = .3, COLS = 4, MARGIN = 1, SIDE_GAP = 3;   // 正方形的田，田和田之间只留一条窄缝
 const rowsOf = level => LEVELS[level] / COLS;
+const SPOTS = [[-.5, -.5], [.5, -.5], [0, 0], [-.5, .5], [.5, .5]];   // 一块田里 5 棵菜的位置
 export const gardenSize = level => ({ w: COLS * BED_W + (COLS - 1) * GAP_X + MARGIN * 2, d: rowsOf(level) * BED_D + (rowsOf(level) - 1) * GAP_Z + MARGIN * 2 });
 // 菜园这块地在空地的哪一边（-1 左 / 1 右），以空地自己的坐标算
 export function gardenRect(plot, side, level = 4) {
@@ -315,8 +316,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const g = new THREE.Group(); group.add(g);
     const soilMat = FLAT(0xb48d5c, 4), ridgeMat = M(0xb48d5c, { roughness: 1 });
     const soil = new THREE.Mesh(new THREE.PlaneGeometry(BED_W, BED_D), soilMat); soil.rotation.x = -Math.PI / 2; soil.position.y = .03; soil.receiveShadow = true; g.add(soil);
-    // 两道垄：菜种在垄上
-    [-.28, .28].forEach(z => { const r = part(g, G.box, ridgeMat, [0, .05, z], [BED_W - .2, .07, .32]); r.castShadow = false; r.receiveShadow = true; });
+    // 5 个小土堆（像骰子上的 5 点），菜种在土堆上
+    SPOTS.forEach(([x, z]) => { const r = part(g, G.sph, ridgeMat, [x, .03, z], [.3, .07, .3]); r.castShadow = false; r.receiveShadow = true; });
     const plantsG = new THREE.Group(); plantsG.position.y = .08; g.add(plantsG);
     const bugsG = new THREE.Group(); bugsG.position.y = .08; g.add(bugsG);
     const icon = new THREE.Group(); icon.position.y = 2.1; g.add(icon);
@@ -335,7 +336,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const b = bd.st; bd.key = b.crop;
     if (!b.crop) return;
     for (let k = 0; k < PER_BED; k++) {
-      const p = buildPlant(b.crop); p.root.position.set((k - 2) * .5, 0, k % 2 ? .28 : -.28); p.root.rotation.y = k * 1.3;
+      const p = buildPlant(b.crop); p.root.position.set(SPOTS[k][0], 0, SPOTS[k][1]); p.root.rotation.y = k * 1.3;
       p.root.scale.setScalar(b.crop === 'pumpkin' || b.crop === 'watermelon' ? 1.6 : 1.35);   // 菜做大一点，长的过程看得清楚
       bd.plantsG.add(p.root); bd.plants.push(p);
     }
