@@ -6,7 +6,7 @@ export const MAX = 100;
 const DRAIN = { awake: .02, walk: .03, run: .1, jump: .4, work: .6 };   // 醒着慢慢掉；走路、跑步、跳、干活另外掉
 export const BED_RATE = { bedStraw: .06, bedWood: .09, bedSoft: .12, bedDouble: .16, bedCanopy: .2 };   // 睡觉每秒回多少
 // 吃东西回多少体力
-export const FOOD = { chicken_meat: 15, egg: 8, radish: 4, lettuce: 5, carrot: 6, potato: 8, tomato: 7, corn: 9, strawberry: 6, pumpkin: 20, watermelon: 25, apple: 8, orange: 8, peach: 10, cherry: 6 };
+export const FOOD = { beef: 25, mutton: 20, milk: 12, chicken_meat: 15, egg: 8, radish: 4, lettuce: 5, carrot: 6, potato: 8, tomato: 7, corn: 9, strawberry: 6, pumpkin: 20, watermelon: 25, apple: 8, orange: 8, peach: 10, cherry: 6 };
 
 export function createStamina({ save = true } = {}) {
   const KEY = 'xcn_stamina_v1';

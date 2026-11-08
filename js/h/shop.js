@@ -11,6 +11,12 @@ export const SHOP_ITEMS = [
   // 动物小铺（用户说：卖动物的店，比如买鸡）
   { key: 'chick', price: 15, lv: 1, note: '一只小黄鸡：放进你的鸡舍，20 分钟长成母鸡，会下蛋', animal: true, once: true, shop: 'animal' },
   { key: 'chickfeed', price: 2, lv: 1, note: '一份鸡饲料：倒进鸡舍的食槽（玉米、种子也能喂鸡）', shop: 'animal' },
+  { key: 'cowshed', price: 100, lv: 1, note: '在你家空地后面盖一个小牛棚（带牧场）；能升级', once: true, shop: 'animal', building: true },
+  { key: 'calf', price: 60, lv: 1, note: '一头小牛：30 分钟长大，能挤牛奶（要先有牛棚）', once: true, shop: 'animal', animal: true },
+  { key: 'sheeppen', price: 80, lv: 1, note: '在你家空地后面盖一个小羊圈（带牧场）；能升级', once: true, shop: 'animal', building: true },
+  { key: 'lamb', price: 40, lv: 1, note: '一只小羊：25 分钟长大，毛长满了用剪刀剪（要先有羊圈）', once: true, shop: 'animal', animal: true },
+  { key: 'hay', price: 3, lv: 1, note: '一份草料：倒进牛棚、羊圈的食槽（生菜、胡萝卜、玉米也行）', shop: 'animal' },
+  { key: 'shears', price: 10, lv: 1, note: '剪羊毛用（不会用完）', once: true, shop: 'animal' },
   // 萌宠小屋（用户说：宠物店，现在只有小狗，以后有更多）
   { key: 'puppy', price: 80, lv: 1, note: '一只呆萌的小狗，买了就跟着你（只能养一只）', once: true, shop: 'pet' },
   { shop: 'pet', key: 'kennel', price: 30, lv: 1, note: '小狗窝：先放进背包，选中按 E 放在地上（放好就不能再挪了）；狗晚上回去睡觉；在狗屋前按 E 能升级', once: true },
@@ -24,7 +30,7 @@ export const SHOP_ITEMS = [
 ];
 // 能卖的价格（用户说：背包里除了钥匙，什么都能卖，但卖的价格比买的低）：菜和水果按原价收；小卖部买来的东西按买价的一半
 const BUY = Object.fromEntries(SHOP_ITEMS.map(it => [it.key, it.price]));
-const EXTRA_SELL = { egg: 5, goldegg: 60, chicken_meat: 12 };   // 鸡蛋、金蛋
+const EXTRA_SELL = { egg: 5, goldegg: 60, chicken_meat: 12, milk: 15, wool: 18, beef: 30, mutton: 22 };   // 鸡蛋、金蛋
 export const sellPrice = key => key === 'key' ? 0 : EXTRA_SELL[key] ? EXTRA_SELL[key] : CROPS[key] ? CROPS[key].price : BUY[key] ? Math.max(1, Math.floor(BUY[key] / 2)) : 0;
 
 function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
@@ -33,7 +39,7 @@ function tex(w, h, draw) { const c = document.createElement('canvas'); c.width =
 export const SHOPS = {
   general: { name: '菜鸟小卖部', icon: '🏪', a: '#e8473e', b: '#ffffff', keeper: 'chef', desc: '买种子、树苗、蜡烛、杀虫剂、菜刀；把东西卖掉换菜币' },
   pet: { name: '萌宠小屋', icon: '🐾', a: '#ff7aa8', b: '#ffffff', keeper: 'explorer', desc: '买小狗、狗屋、狗盆、狗粮、狗链、飞盘（以后会有更多宠物）' },
-  animal: { name: '动物小铺', icon: '🐔', a: '#4caf50', b: '#fff4c2', keeper: 'farmer', desc: '买小鸡、鸡饲料（以后还有牛、羊、猪、鸭）' },
+  animal: { name: '动物小铺', icon: '🐔', a: '#4caf50', b: '#fff4c2', keeper: 'farmer', desc: '买小鸡、小牛、小羊、牛棚、羊圈、饲料、剪刀（以后还有猪、鸭）' },
 };
 export const shopOf = it => it.shop || 'general';
 
