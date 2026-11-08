@@ -71,11 +71,11 @@ function buildPondModel(lv) {
   return { group: g, water, R, dock: { x: 0, z: R + .6 } };
 }
 
-export function createPond({ scene, plot, side, isNight = () => false, notify = () => {} }) {
+export function createPond({ scene, plot, side, isNight = () => false, notify = () => {}, display = false }) {
   const KEY = 'xcn_pond_v1';
-  let st = null; try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
-  st ||= { built: false, lv: 1, food: 0, list: [], t: Date.now() };
-  const save = () => { st.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
+  let st = null; if (!display) try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  st ||= display ? { built: true, lv: 1, food: 3, list: [], t: Date.now() } : { built: false, lv: 1, food: 0, list: [], t: Date.now() };   // 摆样子的：最低级的小水塘
+  const save = () => { st.t = Date.now(); if (display) return; try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
   const spot = pondSpot(plot, side);
   const holder = new THREE.Group(); holder.position.set(plot.x, 0, plot.z); holder.rotation.y = plot.rot; scene.add(holder);
   const base = new THREE.Group(); base.position.set(spot.x, 0, spot.z); holder.add(base);

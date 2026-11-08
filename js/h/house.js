@@ -89,7 +89,8 @@ const LEVELS = {
                  { side: 'front', t: -4.6, y0: 4.9, y1: 6.3, w: 1.5, up: true }, { side: 'front', t: -1.6, y0: 4.9, y1: 6.3, w: 1.3, up: true }, { side: 'front', t: 1.6, y0: 4.9, y1: 6.3, w: 1.3, up: true }, { side: 'front', t: 4.6, y0: 4.9, y1: 6.3, w: 1.5, up: true }, { side: 'right', t: 0, y0: 4.9, y1: 6.3, w: 1.5, up: true }] },
 };
 
-export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = true, speed = () => 1, darkness = () => 0, wallet = null, notify = () => {} }) {
+export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = true, speed = () => 1, darkness = () => 0, wallet = null, notify = () => {}, display = false }) {
+  if (display) save = false;   // 别人家 / 没人住的空地：只是摆个小木屋的样子
   const spot = houseSpot();
   const group = new THREE.Group(); group.position.set(plot.x, 0, plot.z); group.rotation.y = plot.rot; scene.add(group);
   const toWorld = (lx, lz) => plotToWorld(plot, spot.x + lx, spot.z + lz);
@@ -98,7 +99,7 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
   // ---------- 存档 ----------
   const KEY = 'xcn_house_v1';
   let st = null;
-  try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  if (!display) try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   if (!st) st = { level: 1, cabinet: [{ key: 'candle', n: 3 }], candles: {}, lights: {}, doors: {}, safe: [], t: Date.now() };
   st.candles = Array.isArray(st.candles) ? { c0: st.candles[0], c1: st.candles[1] } : (st.candles || {});
   st.lights ||= {}; st.doors ||= {}; st.safe ||= [];

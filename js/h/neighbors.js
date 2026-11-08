@@ -3,6 +3,9 @@
 import * as THREE from 'three';
 import { createGarden, chooseSide, plotToWorld } from './garden.js';
 import { buildDog } from './dog.js';
+import { createHouse } from './house.js';
+import { createCoop } from './coop.js';
+import { createPond } from './pond.js';
 
 export function createNet(me) {
   const sb = typeof getSupabase === 'function' ? getSupabase() : null;
@@ -41,34 +44,47 @@ function label(text, color = '#2e5a2e') {
 
 export const DOG_RANGE = 40;   // 用户说：大概 4 个菜园的距离，狗能感应到你
 
-export function createNeighbors({ scene, plots, myIdx, onPath, onPlot, daylight, buildAvatar, onBite = () => {} }) {
-  const homes = new Map();     // user_id → { uid, name, idx, garden, sign, guard, stamp }
+export function createNeighbors({ scene, plots, myIdx, onPath, onPlot, daylight, darkness = () => 0, isNight = () => false, buildAvatar, onBite = () => {} }) {
+  const homes = new Map();     // user_id → 那块空地（有人住的）
+  // 用户说：游戏里每一块空地一开始都有一个小木屋、一块最低级的菜园、一个鸡舍，还有一个最低级的小池塘，别的都没有
+  const EMPTY = () => ({ level: 1, beds: [], t: Date.now() });
+  const lots = plots.map((plot, idx) => {
+    if (idx === myIdx) return null;
+    const side = chooseSide(plot, (x, z) => onPath(x, z, 1.5) || onPlot(x, z, 1));
+    const g = new THREE.Group(); scene.add(g);   // 这块空地的东西都放这里：离得远就整个藏起来（省电）
+    const e = { idx, plot, side, g, uid: null, name: '', sign: null, guard: null, stamp: null };
+    e.house = createHouse({ scene: g, plot, side, display: true, darkness });
+    e.coop = createCoop({ scene: g, plot, side, display: true, isNight });
+    e.pond = createPond({ scene: g, plot, side, display: true, isNight });   // 用户说：每个一开始的家都有一个小池塘
+    e.garden = createGarden({ scene: g, plot, side, daylight, remote: EMPTY() });
+    return e;
+  });
   const others = new Map();    // 在线的人 user_id → { av, tag, to, last }
   const hold = new Map();      // 刚偷过 / 帮过：先别拿他发来的旧样子盖掉
   function makeGuard(dogName, x, z) {
     const m = buildDog(); scene.add(m.root);
     return { m, name: dogName || '看家狗', home: new THREE.Vector3(x, 0, z), pos: new THREE.Vector3(x, 0, z), mode: 'sit', bites: 0, cd: 0, face: 0, t: Math.random() * 9 };
   }
-  function drop(h) { h.garden.dispose(); scene.remove(h.sign); if (h.guard) scene.remove(h.guard.m.root); homes.delete(h.uid); }
+  function vacate(e) {   // 主人走了：变回没人住的样子
+    e.garden.dispose(); e.garden = createGarden({ scene: e.g, plot: e.plot, side: e.side, daylight, remote: EMPTY() });
+    if (e.sign) scene.remove(e.sign); if (e.guard) scene.remove(e.guard.m.root); e.sign = e.guard = null;
+    homes.delete(e.uid); e.uid = null; e.stamp = null;
+  }
   function sync(rows) {
     const seen = new Set();
     for (const r of rows) {
-      const plot = plots[r.plot_index]; if (!plot || r.plot_index === myIdx) continue;
+      const e = lots[r.plot_index]; if (!e) continue;
       seen.add(r.user_id);
-      let h = homes.get(r.user_id);
-      if (h && (h.stamp === r.updated_at || (hold.get(r.user_id) || 0) > Date.now())) { h.name = r.name || h.name; continue; }
-      const keepGuard = h && h.guard && h.idx === r.plot_index ? h.guard : null;
-      if (h) { h.garden.dispose(); scene.remove(h.sign); if (h.guard && !keepGuard) scene.remove(h.guard.m.root); }
-      const side = chooseSide(plot, (x, z) => onPath(x, z, 1.5) || onPlot(x, z, 1));
-      const garden = createGarden({ scene, plot, side, daylight, remote: r.garden || {} });
-      const [sx, sz] = plotToWorld(plot, 0, plot.size / 2 + 2.5), sign = label(`🏡 ${r.name || '邻居'}的家`); sign.position.set(sx, 3.2, sz); scene.add(sign);
-      let guard = keepGuard;
-      if (r.dog && r.dog.has && !guard) { const [gx, gz] = garden.gateWorld(); guard = makeGuard(r.dog.name, gx, gz); }
-      if (guard && !(r.dog && r.dog.has)) { scene.remove(guard.m.root); guard = null; }
-      h = { uid: r.user_id, name: r.name || '邻居', idx: r.plot_index, garden, sign, guard, stamp: r.updated_at };
-      homes.set(r.user_id, h);
+      if (e.uid && e.uid !== r.user_id) vacate(e);
+      if (e.uid === r.user_id && (e.stamp === r.updated_at || (hold.get(r.user_id) || 0) > Date.now())) { e.name = r.name || e.name; continue; }
+      e.garden.dispose(); e.garden = createGarden({ scene: e.g, plot: e.plot, side: e.side, daylight, remote: r.garden || EMPTY() });
+      e.name = r.name || '邻居'; e.uid = r.user_id; e.stamp = r.updated_at;
+      if (!e.sign) { const [sx, sz] = plotToWorld(e.plot, 0, e.plot.size / 2 + 2.5); e.sign = label(`🏡 ${e.name}的家`); e.sign.position.set(sx, 3.2, sz); scene.add(e.sign); }
+      if (r.dog && r.dog.has && !e.guard) { const [gx, gz] = e.garden.gateWorld(); e.guard = makeGuard(r.dog.name, gx, gz); }
+      if (e.guard && !(r.dog && r.dog.has)) { scene.remove(e.guard.m.root); e.guard = null; }
+      homes.set(r.user_id, e);
     }
-    [...homes.values()].forEach(h => { if (!seen.has(h.uid)) drop(h); });
+    [...homes.values()].forEach(e => { if (!seen.has(e.uid)) vacate(e); });
   }
   // 在线的人：小人 + 头上名字
   function onPos(p) {
@@ -78,8 +94,12 @@ export function createNeighbors({ scene, plots, myIdx, onPath, onPlot, daylight,
     o.to.set(p.x, p.y || 0, p.z); o.face = p.face || 0; o.last = performance.now(); o.plot = p.plot;
   }
   function update(dt, player) {
+    lots.forEach(e => {
+      if (!e) return; const d = Math.hypot(player.pos.x - e.plot.x, player.pos.z - e.plot.z);
+      e.g.visible = d < 190; if (d > e.plot.size + 60) return;
+      e.garden.update(dt); e.coop.update(dt); if (e.pond) e.pond.update(dt); try { e.house.update(dt, player.pos, false); } catch (err) {}
+    });
     homes.forEach(h => {
-      h.garden.update(dt);
       const g = h.guard; if (!g) return;
       g.t += dt; g.cd -= dt;
       const dp = Math.hypot(player.pos.x - g.pos.x, player.pos.z - g.pos.z), farFromHome = Math.hypot(player.pos.x - g.home.x, player.pos.z - g.home.z) > DOG_RANGE;
@@ -106,7 +126,9 @@ export function createNeighbors({ scene, plots, myIdx, onPath, onPlot, daylight,
   // 挡路：别人家菜园的栅栏（能跳过去；被撞开了就随便走）。返回挡住你的那家
   function collide(pos) {
     let hit = null;
-    homes.forEach(h => { const x = pos.x, z = pos.z; h.garden.collide(pos); if (x !== pos.x || z !== pos.z) hit = h; });
+    lots.forEach(e => { if (!e || Math.abs(pos.x - e.plot.x) > e.plot.size + 20 || Math.abs(pos.z - e.plot.z) > e.plot.size + 20) return;
+      const x = pos.x, z = pos.z; e.garden.collide(pos); if ((x !== pos.x || z !== pos.z) && e.uid) hit = e;
+      e.house.collide(pos, .45); e.coop.collide(pos); if (e.pond) e.pond.collide(pos); });
     return hit;
   }
   function nearBed(p) { for (const h of homes.values()) { const bd = h.garden.nearest(p.x, p.z); if (bd) return { h, bd, i: h.garden.beds.indexOf(bd) }; } return null; }

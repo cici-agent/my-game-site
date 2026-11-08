@@ -108,14 +108,14 @@ function buildCoop(lv) {
   return { fenceG, group: g, eggs, grain, nestPos: nest.position, troughPos: trough.position, door: { x: 0, z: hz + hd + (legs ? .8 : .3) }, houseBox: { x: 0, z: hz, hw: hw + .1, hd: hd + .1 }, fence: segs, RW, RD };
 }
 
-export function createCoop({ scene, plot, side, isNight = () => false, notify = () => {}, onEscape = () => {} }) {
+export function createCoop({ scene, plot, side, isNight = () => false, notify = () => {}, onEscape = () => {}, display = false }) {
   const KEY = 'xcn_coop_v1';
   let st = null;
-  try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  if (!display) try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   // 一开始每个人都有一个 1 级小鸡窝，还送一只母鸡
   st ||= { lv: 1, feed: 4, eggs: 0, gold: 0, hens: [{ born: Date.now() - GROW * 1000, full: 80, next: Date.now() + EGG_MIN * 1000 }], t: Date.now() };
   if (st.built === undefined) st.built = true;   // 鸡舍能拆（用户说：养动物的地方都要能拆）
-  const save = () => { st.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
+  const save = () => { st.t = Date.now(); if (display) return; try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
   const spot = coopSpot(plot, side);
   const root = new THREE.Group(); root.position.set(plot.x, 0, plot.z); root.rotation.y = plot.rot; scene.add(root);
   const holder = new THREE.Group(); holder.position.set(spot.x, 0, spot.z); root.add(holder);
@@ -130,7 +130,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
       const c = document.createElement('canvas'); c.width = 320; c.height = 120; const x = c.getContext('2d'); x.fillStyle = '#f2e1bd'; x.fillRect(0, 0, 320, 120); x.fillStyle = '#5a3a1a'; x.font = 'bold 34px sans-serif'; x.textAlign = 'center'; x.fillText('🐔 这里可以盖鸡舍', 160, 50); x.font = '26px sans-serif'; x.fillText('去动物小铺买', 160, 92);
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, .52, .05), new THREE.MeshStandardMaterial({ map: t })); b.position.set(0, 1.2, .06); sign.add(b); return; }
     C = buildCoop(st.lv); holder.add(C.group); showStuff();
-    C.gate = createGate({ parent: C.group, x: 0, z: C.RD, axis: 'x', width: 1.1, height: .8, out: 1, key: 'xcn_gate_coop', name: '鸡舍小门' });
+    C.gate = createGate({ parent: C.group, x: 0, z: C.RD, axis: 'x', width: 1.1, height: .8, out: 1, key: display ? null : 'xcn_gate_coop', name: '鸡舍小门' });
     const fk = PEN_FENCE[st.fenceLv || 1].k; C.fenceG.scale.y = fk; C.gate.setHeight(fk);
   }
   function showStuff() {

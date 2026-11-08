@@ -38,7 +38,7 @@ let metMayor = localStorage.getItem(MET_KEY) === '1';
 let homeIdx = parseInt(localStorage.getItem(HOME_KEY), 10);
 if (!(homeIdx >= 0 && homeIdx < PLOTS.length)) {
   if (localStorage.getItem('xcn_garden_v1')) { homeIdx = PLOTS.indexOf(DEFAULT_PLOT); metMayor = true; }
-  else { const free = PLOTS.map((p, i) => i).filter(i => !takenPlots().includes(i)); homeIdx = free[Math.floor(Math.random() * free.length)]; metMayor = false; }
+  else { const free = PLOTS.map((p, i) => i).filter(i => !takenPlots().includes(i)); homeIdx = free[Math.floor(Math.random() * free.length)]; metMayor = false; try { localStorage.setItem('xcn_newbie_pond', '1'); } catch (e) {} }
   try { localStorage.setItem(HOME_KEY, homeIdx); localStorage.setItem(MET_KEY, metMayor ? '1' : '0'); } catch (e) {}
 }
 const homePlot = PLOTS[homeIdx];
@@ -360,6 +360,7 @@ const grillCook = createCooker('grill', 'xcn_cook_grill', k => giveCooked(k, '�
 const houseCook = createCooker('house', 'xcn_cook_house', k => giveCooked(k, '灶台'));
 // 🐟 鱼塘（鱼、虾、螃蟹）
 const pond = createPond({ scene, plot: homePlot, side: gardenSide, isNight: () => darkness() > .55, notify: m => toast(m) });
+if (localStorage.getItem('xcn_newbie_pond') === '1') { pond.build(); try { localStorage.setItem('xcn_newbie_pond', '0'); } catch (e) {} }   // 新手一开始就有一个最低级的小池塘（用户说：每个一开始的家都有）
 const birds = createBirds({ scene, plot: homePlot, side: gardenSide, garden, isNight: () => darkness() > .55, notify: m => toast(m) });
 const loose = createLoose({ scene, plot: homePlot, gateOpen: () => homeGate.open, isNight: () => darkness() > .55, notify: m => toast(m),
   avoid: (x, z) => inPasture(homePlot, PASTURES, x, z, 1.5) || inGarden(homePlot, gardenSide, x, z, 1) || coop.inside({ x, z }) || pond.nearSign({ x, z }) });
@@ -738,7 +739,7 @@ function updateGuide(dt) {
 // 他家有狗：你挖第一棵菜时，狗在 4 个菜园远以内就会冲过来咬你，把你撞开；咬 3 次你就被赶回自己家。
 // 偷菜时被在线的主人看到：1 小时内不能再偷他家的菜。也可以帮别人抓虫、浇水。
 const net = createNet(ME);
-const neighbors = createNeighbors({ scene, plots: PLOTS, myIdx: homeIdx, onPath, onPlot, daylight: () => growLight(), buildAvatar, onBite: (g, h) => {
+const neighbors = createNeighbors({ scene, plots: PLOTS, myIdx: homeIdx, onPath, onPlot, daylight: () => growLight(), darkness: () => darkness(), isNight: () => darkness() > .55, buildAvatar, onBite: (g, h) => {
   const dx = player.pos.x - g.pos.x, dz = player.pos.z - g.pos.z, d = Math.hypot(dx, dz) || 1;
   player.pos.x += dx / d * 3; player.pos.z += dz / d * 3; player.vy = 5; player.ground = false; stamina.use('work', 15);
   if (g.bites >= 3) { g.mode = 'back'; g.bites = 0; player.pos.set(LAY.spawn.x, 0, LAY.spawn.z); player.face = LAY.spawn.yaw; toast(`🐶 被${h.name}家的${g.name}咬了好几口，逃回自己家了！`); }
