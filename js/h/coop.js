@@ -108,7 +108,7 @@ function buildCoop(lv) {
   return { fenceG, group: g, eggs, grain, nestPos: nest.position, troughPos: trough.position, door: { x: 0, z: hz + hd + (legs ? .8 : .3) }, houseBox: { x: 0, z: hz, hw: hw + .1, hd: hd + .1 }, fence: segs, RW, RD };
 }
 
-export function createCoop({ scene, plot, side, isNight = () => false, notify = () => {} }) {
+export function createCoop({ scene, plot, side, isNight = () => false, notify = () => {}, onEscape = () => {} }) {
   const KEY = 'xcn_coop_v1';
   let st = null;
   try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
@@ -162,6 +162,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
     });
   }
   let laid = false, hatched = false;
+  function popAt(i) { const h = st.hens.splice(i, 1)[0], b = birds.splice(i, 1)[0]; if (b) holder.remove(b.m.root); save(); return { h, b }; }
   if (st.t) simulate(Math.max(0, (Date.now() - st.t) / 1000));
 
   // ---------- 每只鸡在院子里走来走去 ----------
@@ -191,6 +192,8 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
   function update(dt) {
     if (!C) return;
     C.gate.update(dt);
+    // 门开着：鸡可能跑出去（用户说的；平均一分半钟跑一只）
+    if (C.gate.open && !isNight() && st.hens.length && Math.random() < dt / 90) { const { h } = popAt(Math.floor(Math.random() * st.hens.length)); const [x, z] = toWorld(0, C.RD + 1.2); onEscape('chicken', h, x, z); notify('🐔 鸡舍的门没关，一只鸡跑出来了！'); return; }
     t0 += dt; tick(dt, Date.now(), false);
     if (laid) { laid = false; showStuff(); notify('🥚 鸡下蛋了！去鸡舍收鸡蛋'); }
     if (hatched) { hatched = false; syncBirds(); showStuff(); notify('🐣 鸡蛋没收，孵出了一只小鸡！'); }
@@ -262,6 +265,9 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
     putBackEggs(n, g) { st.eggs += n; st.gold += g; save(); showStuff(); },
     addFeed(k) { const v = feedValue(k); if (!v) return 0; if (st.feed + v > FEED_MAX) return -1; st.feed += v; save(); showStuff(); return v; },
     canFeed: k => !!feedValue(k), FEED_MAX,
+    inside(p) { if (!C) return false; const [lx, lz] = toLocal(p.x, p.z); return Math.abs(lx) < C.RW + .2 && Math.abs(lz) < C.RD + .2; },
+    takeOut(b) { const i = birds.indexOf(b); if (i < 0) return null; const [x, z] = toWorld(b.x, b.z); return { rec: popAt(i).h, x, z }; },
+    takeBack(rec) { if (!C || st.hens.length >= COOP[st.lv].cap) return false; st.hens.push(rec); save(); syncBirds(); const b = birds[birds.length - 1]; b.x = 0; b.z = C.RD - .8; return true; },
     addHen(adult) { if (!C || st.hens.length >= COOP[st.lv].cap) return false; st.hens.push({ born: adult ? Date.now() - GROW * 1000 : Date.now(), full: 80, next: Date.now() + (EGG_MIN + Math.random() * 300) * 1000 }); save(); syncBirds(); return true; },
     upgrade() { const nx = COOP[st.lv + 1]; if (!nx) return false; st.lv++; save(); build(); syncBirds(); birds.forEach(b => { b.x = 0; b.z = 0; }); return true; },
     nextLevel() { return COOP[st.lv + 1] || null; },

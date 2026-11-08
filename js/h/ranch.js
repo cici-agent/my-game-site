@@ -217,7 +217,7 @@ function buildHome(kind, lv) {
 }
 
 // ---------- 一个牧场（牛的或者羊的） ----------
-export function createRanch({ scene, plot, spot, kind, isNight = () => false, notify = () => {} }) {
+export function createRanch({ scene, plot, spot, kind, isNight = () => false, notify = () => {}, onEscape = () => {} }) {
   const K = SPECIES[kind], KEY = 'xcn_ranch_' + kind + '_v1';
   let st = null; try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   st ||= { built: false, lv: 1, feed: 0, animals: [], t: Date.now() };
@@ -270,6 +270,7 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
     });
   }
   build(); sync();
+  function popAt(i) { const a = st.animals.splice(i, 1)[0], b = beasts.splice(i, 1)[0]; if (b) base.remove(b.m.root); save(); return a; }
   const puffs = [];
   function splash(x, z) { const g = new THREE.Group(); g.position.set(x, 1.1, z); base.add(g); const mat = new THREE.MeshStandardMaterial({ color: 0x8fd3ff, transparent: true, roughness: .1 });
     for (let i = 0; i < 24; i++) { const f = new THREE.Mesh(SPH, mat); f.scale.setScalar(.05 + Math.random() * .05); f.userData.v = new THREE.Vector3((Math.random() - .5) * 2.2, Math.random() * 1.2, (Math.random() - .5) * 2.2); g.add(f); } puffs.push({ g, mat, t: 0 }); }
@@ -280,6 +281,8 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
   function update(dt) {
     if (!st.built) return;
     H.gate.update(dt);
+    // 门开着：动物可能跑出去（用户说的；平均一分半钟跑一只）
+    if (H.gate.open && !isNight() && st.animals.length && Math.random() < dt / 90) { const a = popAt(Math.floor(Math.random() * st.animals.length)); const [x, z] = toWorld(0, K.RD + 1.5); onEscape(kind, a, x, z); notify(`${LOOK[kind].icon} ${H.gate.name}没关，一只${K.name}跑出来了！`); return; }
     t0 += dt; tick(dt, Date.now());
     if ((syncT += dt) > 5) { syncT = 0; sync(); }
     const nReady = st.animals.filter(a => a.ready).length; if (nReady > readyWas) notify(LOOK[kind].ready); readyWas = nReady;
@@ -346,6 +349,9 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
     nearAnimal(p) { if (!st.built) return null; const [lx, lz] = toLocal(p.x, p.z); let best = null, bd = LOOK[kind].near; beasts.forEach(b => { const d = Math.hypot(lx - b.x, lz - b.z); if (d < bd) { bd = d; best = b; } }); return best; },
     info(b) { const a = st.animals[beasts.indexOf(b)]; return a; },
     addFeed(k) { const v = feedFor(kind, k); if (!v) return 0; if (st.feed + v > FEED_MAX) return -1; st.feed += v; save(); showFeed(); return v; },
+    inside(p) { if (!st.built) return false; const [lx, lz] = toLocal(p.x, p.z); return Math.abs(lx) < K.RW + .2 && Math.abs(lz) < K.RD + .2; },
+    takeOut(b) { const i = beasts.indexOf(b); if (i < 0) return null; const [x, z] = toWorld(b.x, b.z); return { rec: popAt(i), x, z }; },
+    takeBack(rec) { if (!st.built || st.animals.length >= K.cap[st.lv]) return false; st.animals.push(rec); save(); sync(); const b = beasts[beasts.length - 1]; b.x = 0; b.z = K.RD - 1.2; return true; },
     addAnimal(adult) { if (!st.built || st.animals.length >= K.cap[st.lv]) return false; const now = Date.now(); st.animals.push({ born: adult ? now - GROW : now, full: 80, ready: false, next: now + (adult ? 3 * 60 * 1000 : GROW + rndEvery()) }); save(); sync(); return true; },
     // 挤奶 / 剪毛：拿到产品，过一阵子才能再挤 / 再长
     harvest(b) { const a = st.animals[beasts.indexOf(b)]; if (!a || !a.ready) return 0; a.ready = false; a.next = Date.now() + rndEvery(); b.act = 'idle'; save(); return kind === 'sheep' ? 2 : 1; },

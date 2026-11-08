@@ -32,6 +32,7 @@ export const SHOP_ITEMS = [
   { key: 'cage', price: 20, lv: 1, note: '鸟笼：走到小鸟旁边按 E 关进去，拿着到处走、看它；关在笼子里的鸟才能卖', shop: 'animal' },
   { key: 'birdhouse', price: 50, lv: 1, note: '鸟屋：放进背包，走到空地里“鸟屋的地方”按 E 立起来；两只好感高的小鸟住进去会下蛋', once: true, shop: 'animal', building: true },
   { key: 'bugnet', price: 10, lv: 1, note: '蝴蝶网：走到蝴蝶旁边按 E 抓（不会用完）；抓到的蝴蝶能卖', once: true, shop: 'animal' },
+  { key: 'rope', price: 8, lv: 1, note: '牵绳：牵住跑出来的动物，带回它的窝（走进围栏就回去了）；也能把窝里的动物牵出来遛（不会用完）', once: true, shop: 'animal' },
   { key: 'hay', price: 3, lv: 1, note: '一份草料：倒进牛棚、羊圈的食槽（生菜、胡萝卜、玉米也行）', shop: 'animal' },
   { key: 'shears', price: 10, lv: 1, note: '剪羊毛用（不会用完）', once: true, shop: 'animal' },
   // 萌宠小屋（用户说：宠物店，现在只有小狗，以后有更多）
