@@ -44,9 +44,11 @@ const EMPTY_BUG = 8 * 3600;         // 空田：没有别的虫时，平均 8 �
 const BUG_EAT = 30 * 60;            // 1 只虫 30 分钟吃掉 1 棵；虫越多吃得越快
 const SHOO_CD = .9;                 // 用手赶虫很慢：每赶走一只要等一会儿
 
-// 生长速度跟着水分走：0 → 停，50% → 1 倍，100% → 1.5 倍；每只虫慢 12%
+// 生长速度跟着水分走：0 → 停，50% → 1 倍，100% → 1.5 倍（最快）；
+// 超过 100% 就是水太多了（再浇、或者以后的雷雨）：越多越慢，160% 只有 0.3 倍；每只虫慢 12%
+export const MOIST_MAX = 1.6;
 export function growRate(b) {
-  const m = b.moist, w = m <= .5 ? m * 2 : 1 + (m - .5);
+  const m = b.moist, w = m <= .5 ? m * 2 : m <= 1 ? 1 + (m - .5) : 1.5 - 1.2 * (m - 1) / (MOIST_MAX - 1);
   return w * Math.max(.2, 1 - .12 * b.bugs);
 }
 
@@ -366,7 +368,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   let chestPos = [0, 0];
 
   // ---------- 每块田：平地上一块深色的土 + 一道道垄（颜色跟着水分变）+ 5 棵菜 + 虫子 ----------
-  const DRY = new THREE.Color(0xb48d5c), WET = new THREE.Color(0x3f2614);
+  const DRY = new THREE.Color(0xb48d5c), WET = new THREE.Color(0x3f2614), SOAK = new THREE.Color(0x1c1410);
   const beds = st.beds.map((b, i) => {
     const g = new THREE.Group(); group.add(g);
     const soilMat = FLAT(0xb48d5c, 4), ridgeMat = M(0xb48d5c, { roughness: 1 });
@@ -404,7 +406,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
 
   // ---------- 时间往前走（游戏秒） ----------
   function stepBed(b, gs) {
-    b.moist = Math.max(0, b.moist - gs / DRY_TIME);
+    b.moist = Math.max(0, b.moist - gs / (b.moist > 1 ? DRY_TIME / 2 : DRY_TIME));
     if (b.guard) b.guard = Math.max(0, b.guard - gs);
     if (!b.crop) { b.eat = 0; return null; }
     const C = CROPS[b.crop];
@@ -514,7 +516,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       if (ev) emit(ev, bd);
       if (bd.key !== b.crop) rebuildPlants(bd);
       bd.plants.forEach((p, k) => { p.root.visible = p.tree || k < b.plants; p.set(b.g, b.phase); });
-      bd.soilMat.color.copy(DRY).lerp(WET, b.moist); bd.ridgeMat.color.copy(bd.soilMat.color).multiplyScalar(1.08);
+      bd.soilMat.color.copy(DRY).lerp(WET, Math.min(1, b.moist)); if (b.moist > 1) bd.soilMat.color.lerp(SOAK, (b.moist - 1) / (MOIST_MAX - 1));
+      bd.soilMat.roughness = b.moist > 1 ? 1 - .7 * (b.moist - 1) / (MOIST_MAX - 1) : 1; bd.ridgeMat.color.copy(bd.soilMat.color).multiplyScalar(1.08);
       syncBugs(bd);
       bd.bugs.forEach(bug => {
         const u = bug.userData; u.a += (Math.sin(anim * .7 + u.x * 9) * .8) * dt;
@@ -588,7 +591,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   const STAGE = g => g < .25 ? '发芽' : g < .6 ? '小苗' : g < 1 ? '长大中' : '成熟';
   function describe(bd) {
     const b = bd.st, wet = Math.round(b.moist * 100);
-    if (!b.crop) return `空的田 · 水分 ${wet}%` + (b.bugs ? ` · 有 ${b.bugs} 只虫` : '');
+    if (!b.crop) return `空的田 · 水分 ${wet}%` + (b.moist > 1.02 ? '（太湿了）' : '') + (b.bugs ? ` · 有 ${b.bugs} 只虫` : '');
     const C = CROPS[b.crop], parts = [`${C.icon} ${C.name}`];
     if (b.phase === 'withered') parts.push('已经枯萎');
     else if (b.phase === 'ripe') parts.push('成熟啦！');
@@ -598,7 +601,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       if (rate <= 0) parts.push('太干了，不长了');
       else parts.push('还要 ' + fmt((1 - b.g) * total / rate / st.speed));
     }
-    parts.push(`水分 ${wet}%`);
+    parts.push(`水分 ${wet}%` + (b.moist > 1.02 ? '（水太多了，长得慢）' : ''));
     if (b.guard > 0) parts.push('🧴 喷过杀虫剂');
     if (b.plants < PER_BED) parts.push(C.kind === 'tree' ? `果子被虫吃掉 ${PER_BED - b.plants} 份` : `被虫吃掉 ${PER_BED - b.plants} 棵`);
     return parts.join(' · ');
@@ -624,7 +627,11 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
         n += x.st.bugs; x.st.bugs = 0; x.st.guard = SPRAY_GUARD; syncBugs(x); burst(x, sprayMat, 18, 1.1); cnt++; });
       return { msg: n ? `🧴 喷了 ${cnt} 块田，${n} 只虫子都跑了；2 小时不会来虫` : `🧴 喷了 ${cnt} 块田，2 小时不会来虫` };
     }
-    if (a.kind === 'water') { b.moist = 1; burst(bd, dropMat, 30, 1.3); return { msg: '💧 浇好水了，土变深了' }; }
+    if (a.kind === 'water') {
+      const over = b.moist >= .99;
+      b.moist = over ? Math.min(MOIST_MAX, b.moist + .3) : 1; burst(bd, dropMat, 30, 1.3);
+      return { msg: over ? '💦 水太多了！菜会长得慢，等它慢慢干一点' : '💧 浇好水了，土变深了' };
+    }
     if (a.kind === 'plant') {
       if (!seedKey) return { pick: true };
       const C = CROPS[seedKey];
@@ -683,7 +690,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // item：'can' 水壶 / 'glove' 手套 / 'seed_xxx' 种子 / 菜 / null
   function plan(bd, item) {
     const b = bd.st;
-    if (item === 'can') return { kind: 'water', label: '💧 浇水' };
+    if (item === 'can') return { kind: 'water', label: bd.st.moist >= .99 ? '💧 浇水（已经很湿了，再浇会太多）' : '💧 浇水' };
     if (item === 'glove') {
       if (b.bugs > 0) return { kind: 'shoo', label: `🧤 抓虫子（${b.bugs} 只）` };
       if (b.crop && b.phase === 'ripe') return { kind: 'harvest', label: `🧤 ${CROPS[b.crop].kind === 'pull' ? '拔' : '摘'}${CROPS[b.crop].name}` };
