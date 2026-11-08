@@ -38,7 +38,15 @@
   #bag .slot { width: 40px; height: 40px; border-radius: 8px; background: rgba(255,255,255,.14); position: relative; display: flex; align-items: center; justify-content: center; font-size: 22px; }
   #bag .slot i { position: absolute; right: 3px; bottom: 1px; font-style: normal; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; }
   #bag .slot em { position: absolute; left: 2px; top: 1px; font-style: normal; font-size: 9px; color: #ffe08a; font-weight: 800; }
-  #bag .slot.seed { background: rgba(255,224,138,.22); }
+  #bag .slot.seed { background: rgba(255,255,255,.1); }
+  /* 种子：牛皮纸小纸袋，上边是锯齿口，中间贴着菜的小图 */
+  #bag .pk { width: 26px; height: 32px; position: relative; display: flex; align-items: center; justify-content: center; margin-top: 3px;
+    background: linear-gradient(#e9d3a0, #d9b978); border-radius: 0 0 4px 4px; box-shadow: inset 0 -3px 0 rgba(120,80,30,.25), 0 1px 2px rgba(0,0,0,.3); }
+  #bag .pk::before { content: ''; position: absolute; left: 0; right: 0; top: -4px; height: 5px;
+    background: linear-gradient(135deg, transparent 50%, #e9d3a0 50%) 0 0 / 5px 5px repeat-x, linear-gradient(225deg, transparent 50%, #e9d3a0 50%) 0 0 / 5px 5px repeat-x; }
+  #bag .pk b { width: 20px; height: 20px; border-radius: 50%; background: #fff8e6; font-size: 13px; display: flex; align-items: center; justify-content: center; border: 1px solid #c9a86a; }
+  #bag .veg { font-size: 26px; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+  body.touch #bag .pk { width: 20px; height: 24px; } body.touch #bag .pk b { width: 15px; height: 15px; font-size: 10px; } body.touch #bag .veg { font-size: 20px; }
   #actBtn { right: 112px; bottom: 50px; background: rgba(255,107,53,.95); font-size: 14px; display: none !important; }
   body.touch #actBtn.show { display: block !important; }
   #pick { position: fixed; inset: 0; z-index: 15; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.25); }

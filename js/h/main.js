@@ -344,7 +344,10 @@ function renderBag() {
   const b = garden.bag, cells = [];
   for (let i = 0; i < b.cap; i++) { const sl = b.slots[i];
     if (!sl) { cells.push('<div class="slot"></div>'); continue; }
-    const it = itemInfo(sl.key); cells.push(`<div class="slot${it.seed ? ' seed' : ''}" title="${it.name}"><span>${it.seed ? it.sub : it.icon}</span><i>${sl.n}</i>${it.seed ? '<em>种子</em>' : ''}</div>`); }
+    const it = itemInfo(sl.key); cells.push(it.seed
+      ? `<div class="slot seed" title="${it.name}"><span class="pk"><b>${it.sub}</b></span><i>${sl.n}</i></div>`     // 种子：一个个小纸袋
+      : `<div class="slot" title="${it.name}"><span class="veg">${it.icon}</span><i>${sl.n}</i></div>`);   // 收获的菜：大大的菜
+  }
   $('bag').innerHTML = cells.join('');
 }
 renderBag();

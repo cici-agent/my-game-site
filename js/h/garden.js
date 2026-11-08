@@ -201,7 +201,7 @@ function buildBug() {
 }
 
 // ---------- 菜园的位置：在自家空地旁边多围出来的一块地（空地本身留着盖房子） ----------
-const BED_W = 2.6, BED_D = 1.3, GAP_X = .7, GAP_Z = .8, COLS = 4, MARGIN = 1.3, SIDE_GAP = 3;
+const BED_W = 2.6, BED_D = 1.3, GAP_X = .3, GAP_Z = .35, COLS = 4, MARGIN = 1, SIDE_GAP = 3;   // 田和田之间只留一条窄缝
 const rowsOf = level => LEVELS[level] / COLS;
 export const gardenSize = level => ({ w: COLS * BED_W + (COLS - 1) * GAP_X + MARGIN * 2, d: rowsOf(level) * BED_D + (rowsOf(level) - 1) * GAP_Z + MARGIN * 2 });
 // 菜园这块地在空地的哪一边（-1 左 / 1 右），以空地自己的坐标算
