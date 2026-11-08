@@ -572,7 +572,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   }
   // 栅栏挡路（门口能进出），跳起来能跨过去
   function collide(pos, pr = .45) {
-    if (pos.y > 2.2 || !rect) return;   // 栅栏跳不过去（不然锁门就没用了）
+    if (pos.y > .7 || !rect) return;   // 用户说：栅栏要能跳过去
     { const dx = pos.x - chestPos[0], dz = pos.z - chestPos[1], d = Math.hypot(dx, dz), m = .65 + pr;   // 箱子挡路
       if (d < m && d > 1e-4) { pos.x = chestPos[0] + dx / d * m; pos.z = chestPos[1] + dz / d * m; } }
     let [lx, lz] = toLocal(pos.x, pos.z);

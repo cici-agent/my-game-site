@@ -141,10 +141,10 @@ PLOTS.forEach((p, idx) => {
 posts.castShadow = panels.castShadow = true;
 scene.add(posts); scene.add(panels);
 const homeGate = plotGates[PLOTS.indexOf(homePlot)];
-// 自家空地的栅栏挡人（跳也跳不过去，不然锁门就没用了）；大门开着才能走过去
+// 自家空地的栅栏挡人，但能跳过去（用户说的）；大门开着才能走过去
 function plotFenceCollide(pos, pr = .45) {
   const p = homePlot, h = p.size / 2, c = Math.cos(p.rot), sn = Math.sin(p.rot), dx = pos.x - p.x, dz = pos.z - p.z;
-  let lx = dx * c - dz * sn, lz = dx * sn + dz * c; if (Math.abs(lx) > h + 2 || Math.abs(lz) > h + 2 || pos.y > 2.2) return;
+  let lx = dx * c - dz * sn, lz = dx * sn + dz * c; if (Math.abs(lx) > h + 2 || Math.abs(lz) > h + 2 || pos.y > .7) return;   // 用户说：栅栏要能跳过去
   const segs = homeGate.passable ? FENCE[PLOTS.indexOf(homePlot)] : FENCE[PLOTS.indexOf(homePlot)].concat([[-PLOT_GATE / 2, h, PLOT_GATE / 2, h]]);
   const ox = lx, oz = lz;
   segs.forEach(([ax, az, bx, bz]) => {
