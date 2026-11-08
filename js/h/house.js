@@ -543,7 +543,7 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
     if (t.kind === 'cabinet') return { label: `🗄️ 打开${t.name}`, sub: `${t.name}：${cabinet.cap} 格`, can: true };
     if (t.kind === 'safe') return { label: '🔐 打开保险箱', sub: '保险箱：12 格 —— 别人破门也偷不走', can: true };
     if (t.kind === 'bed') return { label: `🛏️ 在${t.name}上睡觉`, sub: `睡觉回体力（${t.name}：每分钟 +${Math.round((BED_RATE[t.type] || .06) * 60)}）· 时间照常走`, can: true };
-    if (t.kind === 'stove') return { label: '🍳 灶台', sub: '做饭的玩法以后再做', can: false };
+    if (t.kind === 'stove') return { label: '🍳 灶台', sub: '选中生的东西按 E 做饭', can: false };
     if (t.kind === 'greenhouse') return { label: '🌱 温室', sub: '冬天也能种菜（和天气一起做）', can: false };
     if (t.kind === 'switch') return { label: roomOn(t.room) ? '💡 关灯' : '💡 开灯', sub: `电灯不会烧完 · 电费：每盏开 1 小时 ${POWER_RATE} 菜币（已经交了 ${st.paid || 0} 菜币）`, can: true };
     if (t.kind === 'fire') return { label: st.lights.fire ? '🔥 把壁炉的火灭掉' : '🔥 点壁炉', sub: '又亮又暖', can: true };

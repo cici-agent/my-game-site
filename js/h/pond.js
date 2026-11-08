@@ -143,6 +143,11 @@ export function createPond({ scene, plot, side, isNight = () => false, notify = 
     add(kind, adult) { if (!this.canAdd(kind)) return false; st.list.push({ kind, full: 80, age: adult ? CRITTER[kind].grow * 60 : 0, gold: kind === 'fish' && st.lv === 3 && Math.random() < .08 }); save(); sync(); return true; },
     addFood() { if (st.food >= FOOD_MAX) return false; st.food++; save(); return true; },
     // 用渔网捞一个长大的
+    // 鱼竿用：长大的各有几只；钓到某一种（鱼可能是金色的）；浮漂落在水里的哪儿
+    grownKinds() { const o = {}; st.list.filter(grown).forEach(c => o[c.kind] = (o[c.kind] || 0) + 1); return o; },
+    catchKind(kind) { const i = st.list.findIndex(c => c.kind === kind && grown(c)); if (i < 0) return null; const c = st.list.splice(i, 1)[0]; save(); sync(); return c.gold ? 'goldfish' : CRITTER[c.kind].item; },
+    bobberSpot(p) { const [lx, lz] = toLocal(p.x, p.z), d = Math.hypot(lx, lz) || 1, r = Math.max(.6, Math.min(P.R - .6, d - 2.3)); return toWorld(lx / d * r, lz / d * r); },
+    get inside() { return P ? P.R : 0; },
     catchOne() { const i = st.list.findIndex(grown); if (i < 0) return null; const c = st.list.splice(i, 1)[0]; save(); sync(); return c.gold ? 'goldfish' : CRITTER[c.kind].item; },
     next() { const l = st.lv + 1; return POND[l] ? { lv: l, ...POND[l] } : null; },
     upgrade() { if (!POND[st.lv + 1]) return false; st.lv++; save(); build(); sync(); return true; },

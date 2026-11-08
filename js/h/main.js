@@ -10,6 +10,7 @@ import { createGate, fenceMaterial, PEN_FENCE } from './gate.js';
 import { createDog } from './dog.js';
 import { createCoop, inCoop, COOP } from './coop.js';
 import { createPond, inPond, CRITTER } from './pond.js';
+import { createGrill, createCooker, RECIPES, FUEL, STOVES, grillSpot } from './cook.js';
 import { createRanch, pastureSpots, inPasture, RANCH_FEED, feedFor } from './ranch.js';
 import { createStamina, FOOD, MAX as STA_MAX } from './stamina.js';
 import { createShop, createStore, SHOP_ITEMS, sellPrice, SHOPS, shopOf } from './shop.js';
@@ -337,6 +338,11 @@ const sheep = createRanch({ scene, plot: homePlot, spot: PASTURES.sheep, kind: '
 const pigs = createRanch({ scene, plot: homePlot, spot: PASTURES.pig, kind: 'pig', isNight: () => darkness() > .55, notify: m => toast(m) });
 const ducks = createRanch({ scene, plot: homePlot, spot: PASTURES.duck, kind: 'duck', isNight: () => darkness() > .55, notify: m => toast(m) });
 const RANCHES = [cows, sheep, pigs, ducks];
+// 🔥 做饭：每个人空地里有个烤炉；3 级以上的房子里有灶台（花的柴少、快）
+const giveCooked = (k, where) => { if (!garden.bag.add(k, 1)) garden.chest.add(k, 1); renderBag(); toast(`🍳 ${itemInfo(k).name}做好了！（在${where}）放进背包了`); };
+const grill = createGrill({ scene, plot: homePlot, side: gardenSide });
+const grillCook = createCooker('grill', 'xcn_cook_grill', k => giveCooked(k, '烤炉'));
+const houseCook = createCooker('house', 'xcn_cook_house', k => giveCooked(k, '灶台'));
 // 🐟 鱼塘（鱼、虾、螃蟹）
 const pond = createPond({ scene, plot: homePlot, side: gardenSide, isNight: () => darkness() > .55, notify: m => toast(m) });
 const KIT_OF = { cow: 'cowshed', sheep: 'sheeppen', pig: 'pigsty', duck: 'duckhouse' };
@@ -456,6 +462,7 @@ function select(i) { if (i < 0 || i >= hotbarLen()) return; sel = i; renderBag()
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2000); }
 function doAction() {
   if (sleeping) return wakeUp();
+  if (!shopOpen && !chestOpen && cookAction()) return renderBag();
   if (!shopOpen && !chestOpen && dogAction()) return renderBag();
   if (!shopOpen && !chestOpen && !nearBed && coopAction()) return renderBag();
   if (!shopOpen && !chestOpen && !nearBed && ranchAction()) return renderBag();
@@ -593,6 +600,31 @@ function ranchAction() {
   }
   return false;
 }
+// ---------- 🔥 做饭：在烤炉 / 灶台旁边，选中生的东西按 E 放上去烤；选中木头、煤按 E 加柴 ----------
+function nearCooker() {
+  if (grill.near(player.pos)) return grillCook;
+  if (nearHouse && nearHouse.kind === 'stove') return houseCook;
+  return null;
+}
+function cookPrompt(it) {
+  const c = nearCooker(); if (!c) return null; const S = c.S;
+  if (c.busy) return { label: `🔥 正在${S.name === '烤炉' ? '烤' : '煮'}：${itemInfo(RECIPES[c.busy.raw]).name}`, sub: `还要 ${Math.ceil(c.left())} 秒 · 做好了自动放进背包`, can: false };
+  if (FUEL[it]) return { label: `${itemInfo(it).icon} 加柴（${itemInfo(it).name}算 ${FUEL[it]} 份）`, sub: `${S.name}里现在有 ${c.fuel} 份柴`, can: true };
+  if (RECIPES[it]) { const have = c.fuel + garden.bag.count('wood') * FUEL.wood + garden.bag.count('coal') * FUEL.coal;
+    return have >= S.fuel ? { label: `🍳 把${itemInfo(it).name}放上去 → ${itemInfo(RECIPES[it]).name}`, sub: `用 ${S.fuel} 份柴、${S.time} 秒${c.kind === 'house' ? '（房子里的灶台，省柴又快）' : ''}`, can: true }
+                          : { label: `🍳 柴不够`, sub: `${S.name}要 ${S.fuel} 份柴：去小卖部买木头或者煤`, can: false }; }
+  return { label: `🔥 ${S.name}：有 ${c.fuel} 份柴`, sub: '选中生肉、生鱼、生虾、鸡蛋、土豆、玉米按 E 烧熟 · 选中木头 / 煤按 E 加柴', can: false };
+}
+function cookAction() {
+  const c = nearCooker(); if (!c) return false; const it = selItem();
+  if (c.busy) { toast(`🔥 还在做，再等 ${Math.ceil(c.left())} 秒`); return true; }
+  if (FUEL[it]) { if (!c.addFuel(it)) { toast('柴够多了'); return true; } garden.bag.take(it); toast(`${itemInfo(it).icon} 加了柴（现在 ${c.fuel} 份）`); return true; }
+  if (!RECIPES[it]) return false;
+  // 柴不够：自动从背包里拿木头、煤
+  while (c.fuel < c.S.fuel) { const f = garden.bag.count('wood') ? 'wood' : garden.bag.count('coal') ? 'coal' : null; if (!f) break; garden.bag.take(f); c.addFuel(f); }
+  if (c.fuel < c.S.fuel) { toast(`柴不够：要 ${c.S.fuel} 份，去小卖部买木头或者煤`); return true; }
+  garden.bag.take(it); c.start(it); toast(`🔥 开始做${itemInfo(RECIPES[it]).name}（${c.S.time} 秒）`); stamina.use('work'); return true;
+}
 // ---------- 🐟 鱼塘：挖鱼塘、撒鱼食、用渔网捞、升级、拆 ----------
 function fencePrompt(it) {
   // 用户找不到升级栅栏：走到栅栏旁边，不管拿着什么都会提示（要按两次 E 确认，免得按错花了菜币）
@@ -622,11 +654,52 @@ function fenceAction() {
   if (what === 'home') { fenceLv++; applyFence(); applyFenceGates(); } else what.upgradeFence();
   renderMoney(); toast(`🧱 ${what === 'home' ? '栅栏' : what.fenceName}升级成${name}了！`); return true;
 }
+// 🎣 钓鱼（用户说：站在岸上用鱼竿；等一会儿鱼竿会动，及时收杆就钓到鱼、虾或者螃蟹，螃蟹概率小）
+let fishing = null;
+const bobber = new THREE.Group(); bobber.visible = false; scene.add(bobber);
+{ const top = new THREE.Mesh(new THREE.SphereGeometry(.09, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xe8352b)); bobber.add(top); const bot = new THREE.Mesh(new THREE.SphereGeometry(.09, 12, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), mat(0xffffff)); bobber.add(bot); }
+const fishLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const fishLine = new THREE.Line(fishLineGeo, new THREE.LineBasicMaterial({ color: 0xeeeeee })); fishLine.frustumCulled = false; fishLine.visible = false; scene.add(fishLine);
+const rodMesh = new THREE.Mesh(new THREE.CylinderGeometry(.015, .03, 2.2, 6), mat(0x8a5a2b)); rodMesh.visible = false; scene.add(rodMesh);
+function fishAction() {
+  if (inWater) { toast('🎣 走到岸上再钓'); return true; }
+  if (!fishing) {
+    const [bx, bz] = pond.bobberSpot(player.pos), kinds = pond.grownKinds();
+    fishing = { phase: 'wait', t: 0, biteT: 3 + Math.random() * 5, bx, bz, at: { x: player.pos.x, z: player.pos.z }, none: !Object.keys(kinds).length };
+    if (fishing.none) fishing.biteT = 999;
+    player.face = Math.atan2(bx - player.pos.x, bz - player.pos.z); toast('🎣 甩竿！等浮漂动……'); return true; }
+  if (fishing.phase === 'wait') { fishing = null; toast('🎣 收早了，什么也没钓到'); return true; }
+  // 咬钩了：按种类挑一只（螃蟹概率小）
+  const kinds = pond.grownKinds(), W = { fish: 1, shrimp: 1, crab: .3 }; let tot = 0; for (const k in kinds) tot += W[k] * kinds[k];
+  let r = Math.random() * tot, pick = null; for (const k in kinds) { r -= W[k] * kinds[k]; if (r <= 0) { pick = k; break; } }
+  fishing = null; const item = pick && pond.catchKind(pick);
+  if (!item) { toast('🎣 跑掉了……'); return true; }
+  if (!garden.bag.add(item, 1)) garden.chest.add(item, 1); toast(`🎣 钓到一只${itemInfo(item).name}！${item === 'goldfish' ? ' ✨' : ''}`); stamina.use('work'); return true;
+}
+function updateFishing(dt) {
+  const on = !!fishing && selItem() === 'rod' && Math.hypot(player.pos.x - fishing.at.x, player.pos.z - fishing.at.z) < 2.5;
+  if (fishing && !on) { fishing = null; }
+  bobber.visible = fishLine.visible = rodMesh.visible = !!fishing; if (!fishing) return;
+  fishing.t += dt;
+  if (fishing.phase === 'wait' && fishing.t >= fishing.biteT) { fishing.phase = 'bite'; fishing.biteEnd = fishing.t + 1.6; toast('🎣 浮漂动了！快按 E 收杆！'); }
+  if (fishing.phase === 'bite' && fishing.t > fishing.biteEnd) { fishing = null; toast('🎣 太慢了，鱼跑掉了'); return; }
+  if (fishing.none && fishing.t > 15) { fishing = null; toast('🎣 等了好久都没有上钩：鱼塘里还没有长大的'); return; }
+  const bite = fishing.phase === 'bite', t = fishing.t;
+  bobber.position.set(fishing.bx, .12 + (bite ? -.07 + Math.sin(t * 25) * .06 : Math.sin(t * 2) * .015), fishing.bz);
+  // 鱼竿：从手里斜着伸出去；咬钩时一抖一抖
+  const f = player.face, hx = player.pos.x + Math.sin(f) * .4, hz = player.pos.z + Math.cos(f) * .4, hy = player.pos.y + 1.1;
+  const tipX = hx + Math.sin(f) * 1.6, tipZ = hz + Math.cos(f) * 1.6, tipY = hy + 1.3 + (bite ? Math.sin(t * 30) * .12 : 0);
+  rodMesh.position.set((hx + tipX) / 2, (hy + tipY) / 2, (hz + tipZ) / 2); rodMesh.lookAt(tipX, tipY, tipZ); rodMesh.rotateX(Math.PI / 2);
+  const pa = fishLineGeo.attributes.position; pa.setXYZ(0, tipX, tipY, tipZ); pa.setXYZ(1, bobber.position.x, bobber.position.y + .05, bobber.position.z); pa.needsUpdate = true;
+}
 function pondPrompt(it) {
   if (pond.nearSign(player.pos)) return it === 'pondkit' ? { label: '🏞️ 在这里挖鱼塘', sub: '这块地就是专门挖鱼塘的地方', can: true } : { label: '🏞️ 这里是挖鱼塘的地方', sub: '去动物小铺买鱼塘，放进背包，再到这里按 E 挖', can: false };
   if (!pond.nearEdge(player.pos)) return null;
   if (it === 'glove') return demoLabel('pond', pond.name, pond.count);
-  if (it === 'net') return pond.grownCount ? { label: '🥅 用渔网捞一只', sub: `长大的有 ${pond.grownCount} 只`, can: true } : { label: '🥅 还没有长大的', sub: '鱼苗、小虾、小螃蟹长大了才能捞', can: false };
+  if (it === 'net') return !inWater ? { label: '🥅 渔网要走进水里才能用', sub: '在岸上用 🎣 鱼竿钓', can: false } : pond.grownCount ? { label: '🥅 用渔网捞一只', sub: `长大的有 ${pond.grownCount} 只`, can: true } : { label: '🥅 还没有长大的', sub: '鱼苗、小虾、小螃蟹长大了才能捞', can: false };
+  if (it === 'rod') { if (inWater) return { label: '🎣 站在水里没法钓鱼', sub: '走到岸上再甩竿；水里用 🥅 渔网', can: false };
+    if (!fishing) return { label: '🎣 甩竿', sub: '等浮漂动了，赶紧按 E 收杆 · 螃蟹不太容易钓到', can: true };
+    return fishing.phase === 'bite' ? { label: '🎣 浮漂动了！快收杆！', sub: '现在按 E', can: true } : { label: '🎣 等鱼上钩……', sub: '浮漂动了再按 E（现在收杆什么也钓不到）', can: true }; }
   if (it === 'fishfood') return pond.food >= pond.FOOD_MAX ? { label: '🍚 鱼食够多了', sub: '', can: false } : { label: '🍚 撒一把鱼食', sub: `水里有 ${pond.food} / ${pond.FOOD_MAX} 份 · 饿着就长不大`, can: true };
   const nx = pond.next();
   return nx ? { label: `🏞️ 升级成${nx.name}（${nx.up} 菜币）`, sub: `现在 ${pond.lv} 级 ${pond.name} · 养了 ${pond.count} / ${pond.cap} · 鱼食 ${pond.food} 份${pond.lv === 1 ? ' · 2 级才能养螃蟹' : ''}`, can: true }
@@ -637,7 +710,8 @@ function pondAction() {
   if (pond.nearSign(player.pos) && it === 'pondkit') { garden.bag.take('pondkit'); pond.build(); toast('🏞️ 鱼塘挖好了！去动物小铺买鱼苗、小虾吧'); return true; }
   if (!pond.nearEdge(player.pos)) return false;
   if (it === 'glove') return tryDemolish('pond', pond.name, pond.count, () => pond.demolish());
-  if (it === 'net') { const k = pond.catchOne(); if (!k) { toast('🥅 还没有长大的'); return true; } if (!garden.bag.add(k, 1)) garden.chest.add(k, 1); toast(`🥅 捞到一只${itemInfo(k).name}！${k === 'goldfish' ? ' ✨' : ''}`); stamina.use('work'); return true; }
+  if (it === 'rod') return fishAction();
+  if (it === 'net') { if (!inWater) { toast('🥅 渔网要走进水里才能用；在岸上用鱼竿钓'); return true; } const k = pond.catchOne(); if (!k) { toast('🥅 还没有长大的'); return true; } if (!garden.bag.add(k, 1)) garden.chest.add(k, 1); toast(`🥅 捞到一只${itemInfo(k).name}！${k === 'goldfish' ? ' ✨' : ''}`); stamina.use('work'); return true; }
   if (it === 'fishfood') { if (!pond.addFood()) { toast('🍚 鱼食够多了'); return true; } garden.bag.take('fishfood'); toast(`🍚 撒了一把鱼食（${pond.food} / ${pond.FOOD_MAX}）`); return true; }
   const nx = pond.next(); if (!nx) return false;
   if (!garden.wallet.spend(nx.up)) { toast(`菜币不够：要 ${nx.up}`); return true; }
@@ -672,7 +746,7 @@ function dogPrompt(it) {
   if (dog.near(player.pos)) {
     if (it === 'dogfood') return { label: `🦴 喂${nm}`, sub: dog.status(), can: true };
     if (it === 'frisbee') return { label: '🥏 扔飞盘', sub: `${nm}会跑去捡回来`, can: !dog.frisbeeOut };
-    if (nearHomeFence(player.pos) && !nearGate) return null;   // 在栅栏旁边：先给升级栅栏让位置（狗跟得很近时也能看到）
+    if ((nearHomeFence(player.pos) && !nearGate) || pond.nearEdge(player.pos)) return null;   // 在栅栏、鱼塘旁边：先给升级栅栏、钓鱼让位置（狗跟得很近时也能看到）
     return { label: `🐶 摸摸${nm}`, sub: `${dog.status()} · ${dog.chained ? '被拴着（空着手走到拴它的木桩 / 狗屋门口按 E 解开）' : dog.moodText()}`, can: true };
   }
   if (it === 'frisbee') return dog.has ? { label: '🥏 扔飞盘', sub: dog.frisbeeOut ? `${nm}正在捡` : `${nm}会跑去捡回来`, can: !dog.frisbeeOut } : { label: '🥏 飞盘', sub: '先去小卖部买一只小狗', can: false };
@@ -703,7 +777,7 @@ function dogAction() {
     if (!garden.wallet.spend(up.price)) { toast(`菜币不够：要 ${up.price}`); return true; }
     dog.setKennelLevel(k.lv + 1); renderMoney(); toast(`🛖 狗屋升级成 ${up.name}！`); return true; }
   if (it === 'glove' && dog.nearBowl(player.pos)) { const n = dog.takeBowl(); garden.bag.add('bowl', 1); if (n) garden.bag.add('dogfood', n); toast('🥣 狗盆收起来了'); return true; }
-  if (dog.near(player.pos) && !(nearHomeFence(player.pos) && !nearGate)) { toast(dog.pet()); return true; }
+  if (dog.near(player.pos) && !(nearHomeFence(player.pos) && !nearGate) && !pond.nearEdge(player.pos)) { toast(dog.pet()); return true; }
   return false;
 }
 // 给狗取名（用户说：可以自己给狗取名）：买的时候弹出来；以后点左边的 🐶 条也能改
@@ -787,6 +861,7 @@ $('shopList').addEventListener('click', e => {
       if (!garden.wallet.spend(it.price)) { toast('菜币不够'); return; }
       pond.add(k, false); renderShop(); renderMoney(); toast(`${itemInfo(it.key).icon} 买了${itemInfo(it.key).name}，已经放进鱼塘了`); return; }
     if (it.key === 'net' && (garden.bag.count('net') || garden.chest.count('net'))) { toast('🥅 你已经有渔网了'); return; }
+    if (it.key === 'rod' && (garden.bag.count('rod') || garden.chest.count('rod'))) { toast('🎣 你已经有鱼竿了'); return; }
     if (KIT[it.key] && (KIT[it.key].built || garden.bag.count(it.key) || garden.chest.count(it.key))) { toast(`你已经有${itemInfo(it.key).name}了`); return; }
     const BABY = { calf: cows, lamb: sheep, piglet: pigs, duckling: ducks };
     if (BABY[it.key]) { const r = BABY[it.key];
@@ -925,7 +1000,7 @@ $('dbgDuckLv').onclick = () => { const l = ducks.built ? ducks.lv % 3 + 1 : 1; d
 $('dbgDuck').onclick = () => { if (!ducks.built) ducks.debug.setLevel(1); toast(ducks.addAnimal(true) ? '🦆 送了一只鸭子' : '🦆 鸭棚住满了'); };
 $('dbgFence').onclick = () => { fenceLv = fenceLv % 3 + 1; applyFence(); applyFenceGates(); toast(`🧱 栅栏：${fenceLv} 级 ${FENCE_LV[fenceLv].name}（再点换下一级）`); };
 $('dbgPondLv').onclick = () => { const l = pond.built ? pond.lv % 3 + 1 : 1; pond.debug.setLevel(l); toast(`🏞️ ${pond.name}（再点换下一级）`); };
-$('dbgPondFill').onclick = () => { if (!pond.built) pond.debug.setLevel(1); ['fish', 'shrimp', 'crab', 'fish'].forEach(k => pond.add(k, true)); garden.bag.add('net', 1); garden.bag.add('fishfood', 5); renderBag(); toast(`🐟 放了鱼虾蟹（${pond.count} / ${pond.cap}），送了渔网和鱼食`); };
+$('dbgPondFill').onclick = () => { if (!pond.built) pond.debug.setLevel(1); ['fish', 'shrimp', 'crab', 'fish'].forEach(k => pond.add(k, true)); garden.bag.add('net', 1); garden.bag.add('rod', 1); garden.bag.add('fishfood', 5); renderBag(); toast(`🐟 放了鱼虾蟹（${pond.count} / ${pond.cap}），送了渔网和鱼食`); };
 $('dbgRanchReady').onclick = () => { RANCHES.forEach(r => r.debug.readyNow()); toast('🥛🧶 马上能挤奶、剪毛'); };
 $('dbgRanchStuff').onclick = () => { const ok = garden.bag.add('hay', 10) && (garden.bag.count('shears') || garden.bag.add('shears', 1)) && (garden.bag.count('knife') || garden.bag.add('knife', 1)); renderBag(); toast(ok ? '🎁 送了草料、剪刀、菜刀' : '🎒 背包满了'); };
 $('dbgDogHungry').onclick = () => { dog.debug.setFull(10); toast('🐶 狗饿了'); };
@@ -934,7 +1009,7 @@ $('dbgDogReset').onclick = () => { if (confirm('把狗和狗盆都清掉？')) {
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { get fenceLv() { return fenceLv; }, pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { pondObj: pond, get fishing() { return fishing; }, get inWater() { return inWater; }, grill, grillCook, houseCook, get fenceLv() { return fenceLv; }, pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
@@ -986,6 +1061,7 @@ function step(dt, t) {
   coop.collide(player.pos);
   RANCHES.forEach(r => r.collide(player.pos));
   pond.collide(player.pos);
+  grill.collide(player.pos);
   shops.forEach(s => s.collide(player.pos));
   colliders.forEach(([cx, cz, cr]) => {
     const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
@@ -1046,7 +1122,8 @@ renderer.setAnimationLoop(() => {
   kennelSiteMark.visible = !dog.kennel;
   coop.update(dt);
   RANCHES.forEach(r => r.update(dt));
-  pond.update(dt);
+  pond.update(dt); updateFishing(dt);
+  grill.update(dt, grillCook.busy); grillCook.update(); houseCook.update();
   renderDogHud();
   homeGate.update(dt); HOME_GAPS.forEach(g => g.gate.update(dt));
   step(dt, t);
@@ -1060,7 +1137,7 @@ renderer.setAnimationLoop(() => {
   if (sleeping) { nearBed = null; nearBox = false; nearHouse = null; nearShop = false; nearGate = null; }
   const pr = $('prompt');
   const dogP = !overview && !sleeping && !chestOpen && !shopOpen ? dogPrompt(selItem()) : null;
-  const coopP = !dogP && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? coopPrompt(selItem()) || ranchPrompt(selItem()) || pondPrompt(selItem()) || fencePrompt(selItem()) : null;
+  const coopP = (!overview && !sleeping && !chestOpen && !shopOpen ? cookPrompt(selItem()) : null) || (!dogP && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? coopPrompt(selItem()) || ranchPrompt(selItem()) || pondPrompt(selItem()) || fencePrompt(selItem()) : null);
   if (coopP) { pr.innerHTML = `<b>${coopP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${coopP.label}</b><span>${coopP.sub}</span>`; pr.classList.toggle('dim', !coopP.can); pr.classList.add('show'); $('actBtn').textContent = coopP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', coopP.can); }
   else if (dogP && (!nearBed || DOG_ITEMS.includes(selItem()))) { pr.innerHTML = `<b>${dogP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${dogP.label}</b><span>${dogP.sub}</span>`; pr.classList.toggle('dim', !dogP.can); pr.classList.add('show'); $('actBtn').textContent = dogP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', dogP.can); }
   else if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }

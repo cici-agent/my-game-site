@@ -25,7 +25,8 @@ export const SHOP_ITEMS = [
   { key: 'shrimpling', price: 6, lv: 1, note: '小虾：放进鱼塘，20 分钟长大', once: true, shop: 'animal', animal: true },
   { key: 'crabling', price: 12, lv: 1, note: '小螃蟹：要 2 级鱼塘（有石头）才能养，30 分钟长大', once: true, shop: 'animal', animal: true },
   { key: 'fishfood', price: 2, lv: 1, note: '一把鱼食：在鱼塘边按 E 撒进去', shop: 'animal' },
-  { key: 'net', price: 12, lv: 1, note: '渔网：在鱼塘边按 E 捞一条长大的（不会用完）', once: true, shop: 'animal' },
+  { key: 'net', price: 12, lv: 1, note: '渔网：要走进水里才能用，按 E 捞一只长大的（不会用完）', once: true, shop: 'animal' },
+  { key: 'rod', price: 15, lv: 1, note: '鱼竿：站在岸边甩竿，浮漂动了赶紧按 E 收杆（不会用完）', once: true, shop: 'animal' },
   { key: 'hay', price: 3, lv: 1, note: '一份草料：倒进牛棚、羊圈的食槽（生菜、胡萝卜、玉米也行）', shop: 'animal' },
   { key: 'shears', price: 10, lv: 1, note: '剪羊毛用（不会用完）', once: true, shop: 'animal' },
   // 萌宠小屋（用户说：宠物店，现在只有小狗，以后有更多）
@@ -36,19 +37,21 @@ export const SHOP_ITEMS = [
   { shop: 'pet', key: 'dogfood', price: 3, lv: 1, note: '一份狗粮：放进狗盆，或者直接喂给狗' },
   { shop: 'pet', key: 'frisbee', price: 12, lv: 1, note: '扔出去，狗会去捡回来（不会用完）' },
   { key: 'knife', price: 6, lv: 1, note: '选中菜刀走到鸡旁边，按两次 E 杀鸡，得到鸡肉（不会用完）', once: true },
+  { key: 'wood', price: 2, lv: 1, note: '一块木头：烧火做饭用（算 1 份柴）' },
+  { key: 'coal', price: 5, lv: 1, note: '一块煤：烧火做饭用（算 3 份柴，更耐烧）' },
   { key: 'oil', price: 8, lv: 1, note: '小木屋的油灯用，能亮 2 小时' },
   ...Object.keys(SEED_PRICE).map(k => ({ key: 'seed_' + k, price: SEED_PRICE[k], lv: CROPS[k].lv, note: CROPS[k].kind === 'tree' ? '果树，一块田种一棵' : '' })),
 ];
 // 能卖的价格（用户说：背包里除了钥匙，什么都能卖，但卖的价格比买的低）：菜和水果按原价收；小卖部买来的东西按买价的一半
 const BUY = Object.fromEntries(SHOP_ITEMS.map(it => [it.key, it.price]));
-const EXTRA_SELL = { fish: 12, shrimp: 10, crab: 20, goldfish: 80, egg: 5, goldegg: 60, chicken_meat: 12, milk: 15, wool: 18, beef: 30, mutton: 22, truffle: 40, duckegg: 8, pork: 26, duckmeat: 20 };   // 鸡蛋、金蛋
+const EXTRA_SELL = { steak: 50, lambskewer: 38, roastpork: 42, roastchicken: 22, roastduck: 34, grilledfish: 22, cookedshrimp: 18, steamedcrab: 34, friedegg: 10, boiledduckegg: 14, bakedpotato: 9, roastcorn: 14, fish: 12, shrimp: 10, crab: 20, goldfish: 80, egg: 5, goldegg: 60, chicken_meat: 12, milk: 15, wool: 18, beef: 30, mutton: 22, truffle: 40, duckegg: 8, pork: 26, duckmeat: 20 };   // 鸡蛋、金蛋
 export const sellPrice = key => key === 'key' ? 0 : EXTRA_SELL[key] ? EXTRA_SELL[key] : CROPS[key] ? CROPS[key].price : BUY[key] ? Math.max(1, Math.floor(BUY[key] / 2)) : 0;
 
 function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
 
 // 三家店：菜鸟小卖部（种子、杂货、狗用品）、萌宠小屋（宠物）、动物小铺（农场动物）
 export const SHOPS = {
-  general: { name: '菜鸟小卖部', icon: '🏪', a: '#e8473e', b: '#ffffff', keeper: 'chef', desc: '买种子、树苗、蜡烛、杀虫剂、菜刀；把东西卖掉换菜币' },
+  general: { name: '菜鸟小卖部', icon: '🏪', a: '#e8473e', b: '#ffffff', keeper: 'chef', desc: '买种子、树苗、蜡烛、杀虫剂、菜刀、木头、煤；把东西卖掉换菜币' },
   pet: { name: '萌宠小屋', icon: '🐾', a: '#ff7aa8', b: '#ffffff', keeper: 'explorer', desc: '买小狗、狗屋、狗盆、狗粮、狗链、飞盘（以后会有更多宠物）' },
   animal: { name: '动物小铺', icon: '🐔', a: '#4caf50', b: '#fff4c2', keeper: 'farmer', desc: '买小鸡、小牛、小羊、小猪、小鸭、鱼苗、小虾、小螃蟹，各种动物的家，饲料、剪刀、渔网' },
 };
