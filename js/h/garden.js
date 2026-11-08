@@ -8,18 +8,18 @@
 import * as THREE from 'three';
 
 // ---------- 作物（数值以后后台可改） ----------
-// grow：第一次成熟要多少秒（水分充足、没虫时按 1 倍算）；regrow：摘完再结果要多少秒；picks：能结几次
+// grow：第一次成熟要多少秒（水分充足、没虫时按 1 倍算）；regrow：摘完再结果要多少秒；picks：能结几次 [最少, 最多]，种下时随机定
 // yield：每棵每次收几个；seeds：拔的时候给几颗种子 [最少, 最多]；witherSeed：枯萎时给种子的概率
 export const CROPS = {
   radish:     { name: '小萝卜', icon: '🔴', lv: 1, kind: 'pull', grow: 5 * 60,      yield: 1, seeds: [1, 2], price: 2 },
   lettuce:    { name: '生菜',   icon: '🥬', lv: 1, kind: 'pull', grow: 15 * 60,     yield: 1, seeds: [1, 2], price: 3 },
   carrot:     { name: '胡萝卜', icon: '🥕', lv: 1, kind: 'pull', grow: 30 * 60,     yield: 1, seeds: [1, 2], price: 4 },
   potato:     { name: '土豆',   icon: '🥔', lv: 1, kind: 'pull', grow: 60 * 60,     yield: 2, seeds: [1, 3], price: 4 },
-  tomato:     { name: '番茄',   icon: '🍅', lv: 2, kind: 'pick', grow: 90 * 60,     regrow: 40 * 60, picks: 4, yield: 2, witherSeed: .2, price: 6 },
-  corn:       { name: '玉米',   icon: '🌽', lv: 2, kind: 'pick', grow: 120 * 60,    regrow: 60 * 60, picks: 2, yield: 1, witherSeed: .2, price: 8 },
-  strawberry: { name: '草莓',   icon: '🍓', lv: 3, kind: 'pick', grow: 180 * 60,    regrow: 60 * 60, picks: 5, yield: 2, witherSeed: .2, price: 8 },
-  pumpkin:    { name: '南瓜',   icon: '🎃', lv: 3, kind: 'pick', grow: 6 * 3600,    regrow: 3 * 3600, picks: 2, yield: 1, witherSeed: .2, price: 40 },
-  watermelon: { name: '西瓜',   icon: '🍉', lv: 4, kind: 'pick', grow: 10 * 3600,   regrow: 5 * 3600, picks: 2, yield: 1, witherSeed: .1, price: 70 },
+  tomato:     { name: '番茄',   icon: '🍅', lv: 2, kind: 'pick', grow: 90 * 60,     regrow: 40 * 60, picks: [3, 5], yield: 2, witherSeed: .2, price: 6 },
+  corn:       { name: '玉米',   icon: '🌽', lv: 2, kind: 'pick', grow: 120 * 60,    regrow: 60 * 60, picks: [1, 3], yield: 1, witherSeed: .2, price: 8 },
+  strawberry: { name: '草莓',   icon: '🍓', lv: 3, kind: 'pick', grow: 180 * 60,    regrow: 60 * 60, picks: [4, 6], yield: 2, witherSeed: .2, price: 8 },
+  pumpkin:    { name: '南瓜',   icon: '🎃', lv: 3, kind: 'pick', grow: 6 * 3600,    regrow: 3 * 3600, picks: [1, 3], yield: 1, witherSeed: .2, price: 40 },
+  watermelon: { name: '西瓜',   icon: '🍉', lv: 4, kind: 'pick', grow: 10 * 3600,   regrow: 5 * 3600, picks: [1, 3], yield: 1, witherSeed: .1, price: 70 },
 };
 // 菜园等级：田的数量（第 1 级 12 块，以后每级多 4 块）
 export const LEVELS = { 1: 12, 2: 16, 3: 20, 4: 24 };
@@ -472,11 +472,9 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       const rate = growRate(b), total = b.phase === 'grow' ? C.grow : C.regrow;
       parts.push((b.phase === 'regrow' ? '又在结果 ' : STAGE(b.g) + ' ') + Math.floor(b.g * 100) + '%');
       if (rate <= 0) parts.push('太干了，不长了');
-      else parts.push('还要 ' + fmt((1 - b.g) * total / rate / st.speed));
     }
     parts.push(`水分 ${wet}%`);
     if (b.plants < PER_BED) parts.push(`被虫吃掉 ${PER_BED - b.plants} 棵`);
-    if (C.kind === 'pick' && b.phase !== 'withered') parts.push(`还能结 ${C.picks - b.picks} 次`);
     return parts.join(' · ');
   }
   const fmt = sec => sec < 60 ? Math.ceil(sec) + ' 秒' : sec < 3600 ? Math.ceil(sec / 60) + ' 分钟' : (sec / 3600).toFixed(1) + ' 小时';
@@ -494,7 +492,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       const C = CROPS[seedKey];
       if (C.lv > st.level) return { msg: `🔒 ${C.name}要菜园 ${C.lv} 级才能种` };
       if (!bag.take('seed_' + seedKey)) return { msg: `没有${C.name}种子了` };
-      Object.assign(b, { crop: seedKey, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0 });
+      const pr = C.picks || [1, 1];
+      Object.assign(b, { crop: seedKey, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0, maxPicks: pr[0] + Math.floor(rnd() * (pr[1] - pr[0] + 1)) });
       rebuildPlants(bd); burst(bd, seedMat, 14, .6);
       return { msg: `🌱 种下了 ${PER_BED} 棵${C.name}${b.moist < .05 ? '，记得浇水哦' : ''}` };
     }
@@ -503,14 +502,15 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       const C = CROPS[b.crop], n = b.plants * C.yield, got = [[b.crop, n]];
       let seedN = 0;
       if (C.kind === 'pull') seedN = C.seeds[0] + Math.floor(rnd() * (C.seeds[1] - C.seeds[0] + 1));
-      const lastPick = C.kind === 'pick' && b.picks + 1 >= C.picks;
+      const maxP = b.maxPicks || (C.picks ? C.picks[1] : 1);
+      const lastPick = C.kind === 'pick' && b.picks + 1 >= maxP;
       if (lastPick && rnd() < C.witherSeed) seedN = 1 + Math.floor(rnd() * 2);
       if (seedN) got.push(['seed_' + b.crop, seedN]);
       if (!bag.addAll(got)) return { msg: '🎒 背包满了，装不下了' };
       pop(bd, `+${n} ${C.icon}`);
       let msg = `${C.icon} ${C.kind === 'pull' ? '拔' : '摘'}到 ${n} 个${C.name}` + (seedN ? `，还有 ${seedN} 颗种子` : '');
       if (C.kind === 'pull') { Object.assign(b, { crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0 }); rebuildPlants(bd); }
-      else { b.picks++; if (b.picks >= C.picks) { b.phase = 'withered'; msg += '；结了好多次，它枯萎了'; } else { b.phase = 'regrow'; b.g = 0; msg += '，过一阵还会再结'; } }
+      else { b.picks++; if (b.picks >= maxP) { b.phase = 'withered'; msg += '；结了好多次，它枯萎了'; } else { b.phase = 'regrow'; b.g = 0; msg += '，过一阵还会再结'; } }
       return { msg };
     }
   }

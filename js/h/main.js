@@ -326,7 +326,7 @@ function seedChoices() { return Object.keys(CROPS).filter(k => CROPS[k].lv <= ga
 function openPick() {
   const list = seedChoices();
   $('pickList').innerHTML = list.map((k, i) => { const n = garden.bag.count('seed_' + k), C = CROPS[k];
-    return `<button data-k="${k}" ${n ? '' : 'disabled'}><b>${i + 1}</b><span class="e">${C.icon}</span>${C.name}<small>${n ? '种子 ×' + n : '没有种子'} · ${C.kind === 'pull' ? '拔' : '摘'} · ${fmtT(C.grow)}</small></button>`; }).join('');
+    return `<button data-k="${k}" ${n ? '' : 'disabled'}><b>${i + 1}</b><span class="e">${C.icon}</span>${C.name}<small>${n ? '种子 ×' + n : '没有种子'} · ${C.kind === 'pull' ? '拔' : '摘'}</small></button>`; }).join('');
   $('pickList').querySelectorAll('button').forEach(b => b.onclick = () => choose(b.dataset.k));
   $('pick').classList.add('show'); pickOpen = true; Object.keys(keys).forEach(k => keys[k] = false);
 }
