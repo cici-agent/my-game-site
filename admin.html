@@ -57,6 +57,7 @@
       <button class="admin-tab active" onclick="switchAdminTab(this, 'gamesPanel')">🎮 游戏管理</button>
       <button class="admin-tab" onclick="switchAdminTab(this, 'usersPanel')">👥 用户管理</button>
       <button class="admin-tab" onclick="switchAdminTab(this, 'shopPanel')">🛒 商店价格</button>
+      <button class="admin-tab" onclick="switchAdminTab(this, 'onlinePanel')">🟢 在线玩家 <span id="onlineCount" style="background:#2b8a3e;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;margin-left:4px;">0</span></button>
       <button class="admin-tab" onclick="switchAdminTab(this, 'logPanel')">📋 操作日志</button>
     </div>
 
@@ -112,6 +113,19 @@
         <table class="admin-table">
           <thead><tr><th>商店</th><th>商品</th><th>价格（金币）</th><th>上架</th><th></th></tr></thead>
           <tbody id="shopTableBody"><tr><td colspan="5" style="text-align:center;padding:30px;color:#aaa;">加载中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 在线玩家：实时看谁现在在玩（宇宙 / 菜鸟星球乐园） -->
+    <div class="admin-panel" id="onlinePanel" style="display:none">
+      <div class="panel-header">🟢 在线玩家</div>
+      <div class="panel-body">
+        <p style="color:#888;margin-bottom:12px;">实时更新，不用刷新。只算<b>登录了</b>的玩家；没登录的游客不会显示。同一个人开了好几个页面只算一次。</p>
+        <div id="onlineSummary" style="font-weight:800;margin-bottom:10px;">连接中…</div>
+        <table class="admin-table">
+          <thead><tr><th>玩家</th><th>在哪里</th><th>样子</th><th>在线了多久</th></tr></thead>
+          <tbody id="onlineTableBody"><tr><td colspan="4" style="text-align:center;padding:30px;color:#aaa;">连接中…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -511,6 +525,48 @@
       localStorage.removeItem(LOG_KEY);
       loadLogs();
     }
+
+
+    // ===== 在线玩家：订阅游戏里用的 Realtime 频道，只看不发（不会把管理员自己算进去） =====
+    var ONLINE_ROOMS = [['universe', '🌌 小菜鸟宇宙（开飞船）'], ['park', '🎡 菜鸟星球（游乐园）']];
+    var SHIP_NAMES = { rookie: '新手号', thunder: '雷电号', starry: '星空号' };
+    var onlineState = {}, onlineSince = {}, onlineStarted = false, ITEM_NAMES = { explorer: '小探险家' };
+    function startOnline() {
+      if (onlineStarted) return; onlineStarted = true;
+      var sb = getSupabase(); if (!sb || !sb.channel) { document.getElementById('onlineSummary').textContent = '连不上实时服务'; return; }
+      sb.from('shop_items').select('key,name').then(function (r) { (r.data || []).forEach(function (it) { ITEM_NAMES[it.key] = it.name; }); renderOnline(); });
+      ONLINE_ROOMS.forEach(function (r) {
+        var ch = sb.channel('xcn-' + r[0], { config: { broadcast: { self: false }, presence: { key: 'admin-' + Math.random().toString(36).slice(2, 10) } } });
+        ch.on('presence', { event: 'sync' }, function () { onlineState[r[0]] = ch.presenceState(); renderOnline(); });
+        ch.subscribe(function (st) { if (st === 'SUBSCRIBED') renderOnline(); });
+      });
+      setInterval(renderOnline, 5000);
+    }
+    function fmtDur(ms) { var m = Math.floor(ms / 60000); if (m < 1) return '刚刚上线'; if (m < 60) return m + ' 分钟'; return Math.floor(m / 60) + ' 小时 ' + (m % 60) + ' 分钟'; }
+    function escHtml(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function renderOnline() {
+      var rows = [], seen = {}, now = Date.now(), byRoom = {};
+      ONLINE_ROOMS.forEach(function (r) {
+        var st = onlineState[r[0]] || {}; byRoom[r[0]] = 0;
+        Object.keys(st).forEach(function (k) {
+          var metas = st[k], m = metas && metas[metas.length - 1]; if (!m || !m.id) return;
+          var key = m.id + '@' + r[0]; if (seen[key]) return; seen[key] = 1; byRoom[r[0]]++;
+          if (!onlineSince[key]) onlineSince[key] = now;
+          var look = r[0] === 'universe' ? ('🚀 ' + (SHIP_NAMES[m.ship] || m.ship || '飞船')) : ('🧍 ' + (m.look && m.look.skin ? (ITEM_NAMES[m.look.skin] || m.look.skin) : '小探险家') + (m.look && m.look.decor ? ' + ' + (ITEM_NAMES[m.look.decor] || m.look.decor) : ''));
+          rows.push({ name: m.name || '小菜鸟', where: r[1], look: look, since: onlineSince[key] });
+        });
+      });
+      Object.keys(onlineSince).forEach(function (k) { if (!seen[k]) delete onlineSince[k]; });
+      var people = {}; rows.forEach(function (x) { people[x.name] = 1; });
+      var n = Object.keys(seen).length;
+      document.getElementById('onlineCount').textContent = n;
+      document.getElementById('onlineSummary').textContent = '现在一共 ' + n + ' 人在线：' + ONLINE_ROOMS.map(function (r) { return r[1].split('（')[0] + ' ' + (byRoom[r[0]] || 0) + ' 人'; }).join('，');
+      rows.sort(function (a, b) { return a.since - b.since; });
+      document.getElementById('onlineTableBody').innerHTML = rows.length ? rows.map(function (x) {
+        return '<tr><td><b>' + escHtml(x.name) + '</b></td><td>' + escHtml(x.where) + '</td><td>' + escHtml(x.look) + '</td><td>' + fmtDur(now - x.since) + '</td></tr>';
+      }).join('') : '<tr><td colspan="4" style="text-align:center;padding:30px;color:#aaa;">现在没有登录的玩家在线</td></tr>';
+    }
+    setTimeout(startOnline, 800);
 
     // ===== Tab 切换 =====
     function switchAdminTab(btn, panelId) {
