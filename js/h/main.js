@@ -119,7 +119,8 @@ PLOTS.forEach(p => {
   for (let side = 0; side < 4; side++) for (let k = 0; k < n; k++) {
     const t = -h + k * (p.size / n);
     const [lx, lz] = [[t, -h], [h, t], [-t, h], [-h, -t]][side];
-    const gate = lz === h && Math.abs(lx) < 3;                  // 门口：朝路那条边（本地 +z）中间留空
+    const gate = (lz === h && Math.abs(lx) < 3)                   // 门口：朝路那条边（本地 +z）中间留空
+      || (p === homePlot && lx === gardenSide * h && Math.abs(lz - (h - 3)) < 2.2);   // 我的空地：朝菜园那边也留个口
     const corner = Math.abs(lx) === h && Math.abs(lz) === h;
     const wx = p.x + lx * c + lz * sn, wz = p.z - lx * sn + lz * c;
     posts.setMatrixAt(pi++, m4.compose(v.set(wx, gate ? -5 : (corner ? .45 : .3), wz), q.setFromAxisAngle(up, p.rot), s.set(1, corner ? 1 : .65, 1)));
@@ -249,9 +250,9 @@ const clouds = [];
 const $ = id => document.getElementById(id);
 // ---------- 我的菜园：先放在离出生点最近的那块空地上（以后改成在镇政府领到的那块） ----------
 const garden = createGarden({ scene, plot: homePlot, side: gardenSide });
-// 出生在菜园门口外面，面朝菜园
+// 出生在自家空地里、通往菜园的小路旁边，面朝菜园
 [LAY.spawn.x, LAY.spawn.z] = garden.gateWorld();
-LAY.spawn.yaw = Math.atan2(-homePlot.face[0], -homePlot.face[1]);
+LAY.spawn.yaw = garden.gateYaw();
 
 // 在菜鸟家园里默认是小农民的样子；买了别的皮肤的照样穿自己的皮肤
 const homeSkin = k => (!k || k === 'explorer') ? 'farmer' : k;

@@ -208,7 +208,8 @@ export const gardenSize = level => ({ w: COLS * BED_W + (COLS - 1) * GAP_X + MAR
 export function gardenRect(plot, side, level = 4) {
   const { w, d } = gardenSize(level), h = plot.size / 2;
   const x0 = side > 0 ? h + SIDE_GAP : -h - SIDE_GAP - w;
-  return { x0, x1: x0 + w, z1: h, z0: h - d, cx: x0 + w / 2 };   // 前边（z1）和空地门口那边对齐
+  const xn = side > 0 ? x0 : x0 + w;          // 靠空地的那条边
+  return { x0, x1: x0 + w, z1: h, z0: h - d, cx: x0 + w / 2, xn, gz: h - 3 };   // 前边（z1）和空地门口那边对齐；门在靠空地那条边上，离前边 3 米
 }
 export function plotToWorld(plot, lx, lz) { const c = Math.cos(plot.rot), s = Math.sin(plot.rot); return [plot.x + lx * c + lz * s, plot.z - lx * s + lz * c]; }
 export function worldToPlot(plot, x, z) { const dx = x - plot.x, dz = z - plot.z, c = Math.cos(plot.rot), s = Math.sin(plot.rot); return [dx * c - dz * s, dx * s + dz * c]; }
@@ -280,17 +281,19 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const edges = [[rect.x0, rect.z0, rect.x1, rect.z0], [rect.x1, rect.z0, rect.x1, rect.z1], [rect.x1, rect.z1, rect.x0, rect.z1], [rect.x0, rect.z1, rect.x0, rect.z0]];
     edges.forEach(([ax, az, bx, bz], ei) => {
       const len = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(len / 1.6));
-      const segs = ei === 2 ? [[0, (len - GATE_W) / 2], [(len + GATE_W) / 2, len]] : [[0, len]];
+      // 门：开在靠空地的那条边上（左边是第 3 条边，右边是第 1 条边）
+      const gateEdge = side > 0 ? 3 : 1, gt = side > 0 ? rect.z1 - rect.gz : rect.gz - rect.z0;
+      const segs = ei === gateEdge ? [[0, gt - GATE_W / 2], [gt + GATE_W / 2, len]] : [[0, len]];
       segs.forEach(([t0, t1]) => {
         const k0 = Math.ceil(t0 / (len / n) - 1e-6), k1 = Math.floor(t1 / (len / n) + 1e-6);
         for (let k = k0; k <= k1; k++) { const t = Math.min(t1, Math.max(t0, k * len / n)) / len; part(yard, G.box, fenceMat, [ax + (bx - ax) * t, .45, az + (bz - az) * t], [.12, .9, .12]); }
-        if (t0 === (len - GATE_W) / 2 || t1 === (len + GATE_W) / 2) { const t = (t0 === 0 ? t1 : t0) / len; part(yard, G.box, fenceMat, [ax + (bx - ax) * t, .55, az + (bz - az) * t], [.16, 1.1, .16]); }
+        if (ei === gateEdge) { const t = (t0 === 0 ? t1 : t0) / len; part(yard, G.box, fenceMat, [ax + (bx - ax) * t, .55, az + (bz - az) * t], [.16, 1.1, .16]); }   // 门两边的柱子高一点
         const ang = Math.atan2(bz - az, bx - ax), l = t1 - t0, m = (t0 + t1) / 2 / len;
         [.35, .7].forEach(y => part(yard, G.box, railMat, [ax + (bx - ax) * m, y, az + (bz - az) * m], [l, .07, .05], [0, -ang, 0]));
       });
     });
-    // 门口到空地门口的小路
-    const pathPts = [[rect.cx, rect.z1 + .3], [rect.cx, rect.z1 + 1.8], [0, rect.z1 + 1.8], [0, rect.z1 + .6]];
+    // 从空地（盖房子的地方）走到菜园门口的小路
+    const ph = plot.size / 2, pathPts = [[side * (ph - 2), rect.gz], [rect.xn + side * .8, rect.gz]];
     for (let k = 0; k < pathPts.length - 1; k++) {
       const [ax, az] = pathPts[k], [bx, bz] = pathPts[k + 1], l = Math.hypot(bx - ax, bz - az);
       const p = new THREE.Mesh(new THREE.PlaneGeometry(1.6, l + 1.6), pathMat); p.rotation.set(-Math.PI / 2, 0, Math.atan2(bx - ax, bz - az)); p.position.set((ax + bx) / 2, .025, (az + bz) / 2); p.receiveShadow = true; yard.add(p);
@@ -300,7 +303,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     cg.fillStyle = '#c99a5b'; cg.fillRect(0, 0, 256, 96); cg.strokeStyle = '#7a5230'; cg.lineWidth = 8; cg.strokeRect(4, 4, 248, 88);
     cg.fillStyle = '#4a2e14'; cg.font = 'bold 40px sans-serif'; cg.textAlign = 'center'; cg.textBaseline = 'middle'; cg.fillText(`🥕 我的菜园 Lv${st.level}`, 128, 50);
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
-    const sign = new THREE.Group(); sign.position.set(rect.cx - GATE_W / 2 - 1, 0, rect.z1 + .5); yard.add(sign);
+    const sign = new THREE.Group(); sign.position.set(rect.xn - side * 1.3, 0, rect.gz + GATE_W / 2 + .5); sign.rotation.y = -side * Math.PI / 2; yard.add(sign);   // 牌子朝着空地
     part(sign, G.cyl, M(0x9b6a3c), [0, .65, 0], [.06, 1.3, .06]);
     const board = new THREE.Mesh(new THREE.PlaneGeometry(1.5, .56), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide })); board.position.y = 1.35; sign.add(board);
     beds.forEach((bd, i) => placeBed(bd, i));
@@ -408,10 +411,6 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
         bug.position.set(u.x, .04 + Math.abs(Math.sin(anim * 6 + u.a)) * .01, u.z); bug.rotation.y = u.a;
         bug.scale.set(1.8, 1.8, 1.8 * (1 + Math.sin(anim * 8 + u.a) * .12));
       });
-      // 头上的小图标：有虫 > 熟了 > 要浇水
-      const growing = b.crop && (b.phase === 'grow' || b.phase === 'regrow');
-      setIcon(bd, b.crop && b.bugs ? '🐛' : b.phase === 'ripe' && b.crop ? '✨' : growing && b.moist < .15 ? '💧' : b.phase === 'withered' && b.crop ? '🥀' : null);
-      bd.icon.position.y = 2.1 + Math.sin(anim * 2.5 + i) * .08;
     });
     for (let k = fx.length - 1; k >= 0; k--) {
       const { d, bd } = fx[k]; d.userData.vy -= 9 * dt; d.position.y += d.userData.vy * dt; d.userData.life -= dt;
@@ -442,11 +441,12 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     if (lx < rect.x0 - 2 || lx > rect.x1 + 2 || lz < rect.z0 - 2 || lz > rect.z1 + 2) return;
     const ox = lx, oz = lz;
     const push = (v, line) => Math.abs(v - line) < pr ? line + (v >= line ? pr : -pr) : v;
-    if (lz > rect.z0 - pr && lz < rect.z1 + pr) { lx = push(lx, rect.x0); lx = push(lx, rect.x1); }
-    if (lx > rect.x0 - pr && lx < rect.x1 + pr) {
-      lz = push(lz, rect.z0);
-      if (Math.abs(lx - rect.cx) > GATE_W / 2 - .1) lz = push(lz, rect.z1);   // 门口那一段不挡
+    if (lz > rect.z0 - pr && lz < rect.z1 + pr) {
+      const inGate = Math.abs(lz - rect.gz) < GATE_W / 2 - .1;            // 门口那一段不挡
+      if (!(inGate && rect.xn === rect.x0)) lx = push(lx, rect.x0);
+      if (!(inGate && rect.xn === rect.x1)) lx = push(lx, rect.x1);
     }
+    if (lx > rect.x0 - pr && lx < rect.x1 + pr) { lz = push(lz, rect.z0); lz = push(lz, rect.z1); }
     if (lx !== ox || lz !== oz) { const [wx, wz] = toWorld(lx, lz); pos.x = wx; pos.z = wz; }
   }
 
@@ -523,6 +523,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   buildYard();
   beds.forEach(rebuildPlants);
   // 菜园门口（世界坐标），出生点用
-  const gateWorld = () => toWorld(rect.cx, rect.z1 + 3);
-  return { beds, update, nearest, collide, actionFor, describe, act, bag, debug, on, gateWorld, get level() { return st.level; }, get speed() { return st.speed; } };
+  const gateWorld = () => toWorld(side * (plot.size / 2 - 4), rect.gz);
+  const gateYaw = () => { const [ax, az] = toWorld(0, 0), [bx, bz] = toWorld(side, 0); return Math.atan2(bx - ax, bz - az); };
+  return { beds, update, nearest, collide, actionFor, describe, act, bag, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
 }
