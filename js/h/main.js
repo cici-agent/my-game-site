@@ -595,12 +595,18 @@ function ranchAction() {
 }
 // ---------- 🐟 鱼塘：挖鱼塘、撒鱼食、用渔网捞、升级、拆 ----------
 function fencePrompt(it) {
-  if (it || nearGate || !nearHomeFence(player.pos)) return null;
+  // 用户找不到升级栅栏：现在走到自家栅栏旁边，不管拿着什么都会提示（要按两次 E 确认，免得按错花了菜币）
+  if (nearGate || !nearHomeFence(player.pos)) return null;
   const F = FENCE_LV[fenceLv], nx = FENCE_LV[fenceLv + 1];
-  return nx ? { label: `🧱 把栅栏升级成${nx.name}（${nx.price} 菜币）`, sub: `现在是${F.name}（${F.h} 米）→ ${nx.h} 米高${fenceLv + 1 === 3 ? '，跳不过去' : '，更难跳过去'} · 空手按 E`, can: true } : { label: `🧱 ${F.name}（最高级）`, sub: `${F.h} 米高，谁也跳不过去`, can: false };
+  if (!nx) return { label: `🧱 ${F.name}（最高级）`, sub: `${F.h} 米高，谁也跳不过去`, can: false };
+  if (fenceUpT > performance.now()) return { label: `⚠️ 再按一次 E：花 ${nx.price} 菜币升级成${nx.name}`, sub: `${nx.h} 米高${fenceLv + 1 === 3 ? '，跳不过去' : '，更难跳过去'}`, can: true };
+  return { label: `🧱 升级栅栏：${nx.name}（${nx.price} 菜币）`, sub: `现在是${F.name}（${F.h} 米）→ ${nx.h} 米高${fenceLv + 1 === 3 ? '，跳不过去' : '，更难跳过去'}`, can: true };
 }
+let fenceUpT = 0;
 function fenceAction() {
-  if (selItem() || !nearHomeFence(player.pos)) return false; const nx = FENCE_LV[fenceLv + 1]; if (!nx) return false;
+  if (!nearHomeFence(player.pos)) return false; const nx = FENCE_LV[fenceLv + 1]; if (!nx) return false;
+  if (fenceUpT < performance.now()) { fenceUpT = performance.now() + 3000; toast(`🧱 3 秒内再按一次 E：花 ${nx.price} 菜币升级成${nx.name}`); return true; }
+  fenceUpT = 0;
   if (!garden.wallet.spend(nx.price)) { toast(`菜币不够：要 ${nx.price}`); return true; }
   fenceLv++; applyFence(); applyFenceGates(); renderMoney(); toast(`🧱 栅栏升级成${nx.name}了！`); return true;
 }
@@ -654,6 +660,7 @@ function dogPrompt(it) {
   if (dog.near(player.pos)) {
     if (it === 'dogfood') return { label: `🦴 喂${nm}`, sub: dog.status(), can: true };
     if (it === 'frisbee') return { label: '🥏 扔飞盘', sub: `${nm}会跑去捡回来`, can: !dog.frisbeeOut };
+    if (nearHomeFence(player.pos) && !nearGate) return null;   // 在栅栏旁边：先给升级栅栏让位置（狗跟得很近时也能看到）
     return { label: `🐶 摸摸${nm}`, sub: `${dog.status()} · ${dog.chained ? '被拴着（空着手走到拴它的木桩 / 狗屋门口按 E 解开）' : dog.moodText()}`, can: true };
   }
   if (it === 'frisbee') return dog.has ? { label: '🥏 扔飞盘', sub: dog.frisbeeOut ? `${nm}正在捡` : `${nm}会跑去捡回来`, can: !dog.frisbeeOut } : { label: '🥏 飞盘', sub: '先去小卖部买一只小狗', can: false };
@@ -684,7 +691,7 @@ function dogAction() {
     if (!garden.wallet.spend(up.price)) { toast(`菜币不够：要 ${up.price}`); return true; }
     dog.setKennelLevel(k.lv + 1); renderMoney(); toast(`🛖 狗屋升级成 ${up.name}！`); return true; }
   if (it === 'glove' && dog.nearBowl(player.pos)) { const n = dog.takeBowl(); garden.bag.add('bowl', 1); if (n) garden.bag.add('dogfood', n); toast('🥣 狗盆收起来了'); return true; }
-  if (dog.near(player.pos)) { toast(dog.pet()); return true; }
+  if (dog.near(player.pos) && !(nearHomeFence(player.pos) && !nearGate)) { toast(dog.pet()); return true; }
   return false;
 }
 // 给狗取名（用户说：可以自己给狗取名）：买的时候弹出来；以后点左边的 🐶 条也能改
