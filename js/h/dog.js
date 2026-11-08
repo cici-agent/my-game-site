@@ -113,7 +113,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
   const fv = new THREE.Vector3(); let frisState = null;   // null / 'fly' / 'ground' / 'mouth'
 
   // ---------- 行为 ----------
-  let air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
+  const circ = new THREE.Vector3(); let circA = 0, air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
   const say = (e, dur = 2) => { emote.set(e); emote.visible = true; emoteT = dur; };
   function spawnNear(p) { pos.set(p.x + 1.5, 0, p.z + 1.5); }
   function adopt(name) { if (st.has) return false; Object.assign(st, { has: true, name: name || DOG_NAMES[Math.floor(Math.random() * DOG_NAMES.length)], full: 80, loyal: 10, bowl: st.bowl || null }); save(); D.root.visible = true; placed = false; say('❤️', 3); return true; }
@@ -135,7 +135,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     const r = Math.random();
     if (r < .35) { mode = 'wander'; const a = Math.random() * 6.28, d = 2 + Math.random() * 5; target.set(ppos.x + Math.cos(a) * d, 0, ppos.z + Math.sin(a) * d); timer = 6; }
     else if (r < .5) { mode = 'spin'; timer = 1.6; }
-    else if (r < .62) { mode = 'roll'; timer = 2.2; say('😆', 1.5); }
+    else if (r < .62) { mode = 'circle'; timer = 2.6; circ.set(pos.x - Math.cos(face) * .9, 0, pos.z + Math.sin(face) * .9); circA = Math.atan2(pos.z - circ.z, pos.x - circ.x); say('😆', 1.5); }   // 开心：原地绕个小圈（用户说不要横着打滚）
     else if (r < .78) { mode = 'sit'; timer = 2 + Math.random() * 3; }
     else if (r < .9) { mode = 'sniff'; timer = 2.5; }
     else { mode = 'zoom'; const a = Math.random() * 6.28; target.set(ppos.x + Math.cos(a) * 8, 0, ppos.z + Math.sin(a) * 8); timer = 3; }   // 突然撒欢跑一圈
@@ -164,7 +164,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     if (dP > 60 && mode !== 'guard') spawnNear(ppos);
     timer -= dt;
     // 正在玩的时候饿了：马上不玩了，去找吃的
-    if (st.full < HUNGRY && ['wander', 'zoom', 'spin', 'roll', 'sit', 'sniff', 'follow', 'guard'].includes(mode)) mode = 'idle';
+    if (st.full < HUNGRY && ['wander', 'zoom', 'spin', 'circle', 'sit', 'sniff', 'follow', 'guard'].includes(mode)) mode = 'idle';
     switch (mode) {
       case 'fetch': {
         if (frisState === 'mouth') { mode = 'return'; break; }
@@ -197,7 +197,9 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
       case 'follow': { const d = runTo(ppos.x, ppos.z, dP > 10 ? 9 : 7, dt); if (d < 2.5 || timer <= 0) mode = 'idle'; break; }
       case 'wander': case 'zoom': { const d = runTo(target.x, target.z, mode === 'zoom' ? 10 : 3.2, dt); if (d < .3 || timer <= 0) mode = 'idle'; break; }
       case 'spin': face += dt * 10; moving = 3; if (timer <= 0) mode = 'idle'; break;
-      case 'sit': case 'roll': case 'sniff': if (timer <= 0) mode = 'idle'; break;
+      case 'circle': { circA += dt * 4.2; const nx = circ.x + Math.cos(circA) * .9, nz = circ.z + Math.sin(circA) * .9;
+        face = Math.atan2(nx - pos.x, nz - pos.z); pos.x = nx; pos.z = nz; moving = 5; if (timer <= 0) mode = 'idle'; break; }
+      case 'sit': case 'sniff': if (timer <= 0) mode = 'idle'; break;
       default: if (timer <= 0 || mode === 'idle') { pick(ppos); if (mode === 'idle') timer = .5; }
     }
     // 墙、栅栏挡着
@@ -219,12 +221,9 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     tilt += ((mode === 'sit' || mode === 'guard' ? Math.sin(t0 * 1.3) * .3 : 0) - tilt) * Math.min(1, dt * 3);   // 坐着时歪头看你（呆萌）
     D.head.rotation.z = tilt;
     D.head.rotation.x = mode === 'eat' ? .5 + Math.sin(t0 * 12) * .12 : mode === 'sniff' ? .45 + Math.sin(t0 * 20) * .05 : mode === 'beg' ? -.15 : 0;
-    D.tongue.visible = moving > 4 || mode === 'sit' || mode === 'roll';
+    D.tongue.visible = moving > 4 || mode === 'sit' || mode === 'circle';
     D.body.rotation.x = mode === 'sit' || mode === 'guard' ? -.35 : mode === 'eat' || mode === 'sniff' ? .12 : 0;
-    // 打滚：绕身子中间转（以前绕脚底转，头会钻到地里）
-    const rollA = mode === 'roll' ? Math.sin(Math.min(1, Math.max(0, (2.2 - timer) / 2.2)) * Math.PI) * Math.PI : 0, C = .5;
-    D.body.rotation.z = rollA;
-    if (mode === 'roll') D.body.position.set(C * Math.sin(rollA), C * (1 - Math.cos(rollA)) * .62 + Math.sin(rollA / 2) * .12, 0); else D.body.position.x = 0;
+    D.body.rotation.z = 0; D.body.position.x = 0;
     D.shadow.position.y = .02 - D.body.position.y;
     if (frisState === 'mouth') { const hp = new THREE.Vector3(0, .72, .72).applyEuler(D.root.rotation).multiplyScalar(1.15).add(pos); fris.position.copy(hp); fris.rotation.set(Math.PI / 2, face, 0); }
     if (emoteT > 0) { emoteT -= dt; emote.position.y = 1.55 + Math.sin(t0 * 4) * .05; if (emoteT <= 0) emote.visible = false; }
@@ -259,7 +258,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     throwFrisbee(from, yaw) {
       if (!st.has || frisState) return false;
       fris.visible = true; fris.position.set(from.x + Math.sin(yaw) * .6, from.y + 1.3, from.z + Math.cos(yaw) * .6);
-      fv.set(Math.sin(yaw) * 13, 3.2, Math.cos(yaw) * 13); frisState = 'fly'; mode = 'fetch'; say('❗', 1); return true;
+      fv.set(Math.sin(yaw) * 19, 4.2, Math.cos(yaw) * 19);   // 扔得更远（大约 22 米） frisState = 'fly'; mode = 'fetch'; say('❗', 1); return true;
     },
     debug: { pose(f, m, t = 999) { face = f; mode = m; timer = t; }, setFull(v) { st.full = v; save(); }, setLoyal(v) { st.loyal = v; save(); }, reset() { st = { has: false }; save(); D.root.visible = false; frisState = null; fris.visible = false; showBowl(); } },
     save,
