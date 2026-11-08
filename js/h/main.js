@@ -874,6 +874,8 @@ $('dbgCandle').onclick = () => { const ok = house.debug.giveCandles(garden.bag);
 $('dbgTrees').onclick = () => { if (garden.level < 2) return toast('🔒 菜园 2 级以上才能种果树'); const n = garden.debug.giveTrees(); renderBag(); toast(n ? `🌳 送了 ${n} 种树苗，每种 2 棵` : '🎒 背包满了，先把东西放进箱子'); };
 $('dbgReset').onclick = () => { if (confirm('把菜园和背包都清空，重新开始？')) garden.debug.reset(); };
 $('dbgToggle').onclick = () => $('dbg').classList.toggle('open');
+// 在面板里滑动 / 滚轮时，不要让镜头跟着转、跟着缩放
+['wheel', 'touchstart', 'touchmove', 'pointerdown', 'mousedown'].forEach(ev => $('dbg').addEventListener(ev, e => e.stopPropagation(), { passive: true }));
 function renderDbgHouse() {
   $('dbgHouse').innerHTML = [1, 2, 3, 4, 5].map(l => `<button class="${l === house.level ? 'on' : ''}" data-l="${l}">${l} 级 · ${HOUSE_NAMES[l]}</button>`).join('');
   $('dbgHouse').querySelectorAll('button').forEach(b => b.onclick = () => {

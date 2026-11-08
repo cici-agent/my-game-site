@@ -70,6 +70,10 @@
   #dbg > button { border: 0; background: rgba(60,40,120,.8); color: #fff; padding: 7px 12px; border-radius: 999px; font-weight: 800; cursor: pointer; font-family: inherit; }
   #dbg .body { display: none; margin-top: 6px; background: rgba(255,255,255,.95); color: #333; border-radius: 14px; padding: 10px; text-align: left; width: 250px; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
   #dbg.open .body { display: block; }
+  /* 管理员测试面板：按钮多了，放不下就上下滑动（用户说的） */
+  #dbg .body { max-height: calc(100vh - var(--top-h) - 70px); max-height: calc(100dvh - var(--top-h) - 70px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+  #dbg .body::-webkit-scrollbar { width: 6px; } #dbg .body::-webkit-scrollbar-thumb { background: #c9bfe6; border-radius: 3px; }
+  body.touch #dbg .body { max-height: calc(100vh - var(--top-h) - 170px); max-height: calc(100dvh - var(--top-h) - 170px); }
   #dbg .t { font-size: 12px; color: #777; margin: 6px 0 4px; }
   #dbg .row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
   #dbg .row button { border: 1px solid #ccc; background: #fff; border-radius: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer; font-family: inherit; }
@@ -198,7 +202,7 @@
   <div class="t">房子等级（点一下就换成那一级）</div><div class="row" id="dbgHouse"></div>
   <div class="row"><button id="dbgOil">🛢️ 送灯油</button><button id="dbgStaFull">💪 体力加满</button><button id="dbgStaLow">😩 体力清空</button></div>
   <div class="t">鸡舍</div><div class="row"><button id="dbgCoopLv">🐔 鸡舍换等级</button><button id="dbgChick">🐔 送一只母鸡</button><button id="dbgEggs">🥚 马上下蛋</button><button id="dbgFeed">🌾 送鸡饲料</button></div>
-  <div class="t">牛、羊</div><div class="row"><button id="dbgCowLv">🐄 牛棚换等级</button><button id="dbgCow">🐄 送一头牛</button><button id="dbgSheepLv">🐑 羊圈换等级</button><button id="dbgSheep">🐑 送一只羊</button><button id="dbgPigLv">🐷 猪圈换等级</button><button id="dbgPig">🐷 送一头猪</button><button id="dbgDuckLv">🦆 鸭棚换等级</button><button id="dbgDuck">🦆 送一只鸭</button><button id="dbgFence">🧱 栅栏换等级</button><button id="dbgPondLv">🏞️ 鱼塘换等级</button><button id="dbgPondFill">🐟 放鱼虾蟹 + 渔网</button><button id="dbgRanchReady">🥛 马上能收东西</button><button id="dbgRanchStuff">🎁 草料 + 剪刀 + 菜刀</button></div>
+  <div class="t">牛、羊、猪、鸭、鱼塘、栅栏</div><div class="row"><button id="dbgCowLv">🐄 牛棚换等级</button><button id="dbgCow">🐄 送一头牛</button><button id="dbgSheepLv">🐑 羊圈换等级</button><button id="dbgSheep">🐑 送一只羊</button><button id="dbgPigLv">🐷 猪圈换等级</button><button id="dbgPig">🐷 送一头猪</button><button id="dbgDuckLv">🦆 鸭棚换等级</button><button id="dbgDuck">🦆 送一只鸭</button><button id="dbgFence">🧱 栅栏换等级</button><button id="dbgPondLv">🏞️ 鱼塘换等级</button><button id="dbgPondFill">🐟 放鱼虾蟹 + 渔网</button><button id="dbgRanchReady">🥛 马上能收东西</button><button id="dbgRanchStuff">🎁 草料 + 剪刀 + 菜刀</button></div>
   <div class="t">小狗</div><div class="row"><button id="dbgDog">🐶 送小狗</button><button id="dbgDogStuff">🎁 狗盆 + 狗粮 + 飞盘 + 狗链</button><button id="dbgKennel">🛖 狗屋 / 换等级</button><button id="dbgDogHungry">😢 让它饿</button><button id="dbgDogLoyal">❤️ 忠诚满</button><button id="dbgDogReset">🗑 清掉狗</button></div>
 </div></div>
 <div id="stick"><div class="knob"></div></div>
