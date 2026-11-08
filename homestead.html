@@ -31,6 +31,10 @@
     border: 2px solid #ffd23f; color: #fff; padding: 8px 18px; border-radius: 16px; text-align: center; opacity: 0; pointer-events: none; transition: all .2s; max-width: 92vw; }
   #prompt.show { opacity: 1; transform: translateX(-50%); }
   #prompt b { display: block; font-size: 16px; } #prompt span { display: block; font-size: 13px; opacity: .9; margin-top: 2px; }
+  #guide { position: fixed; left: 50%; top: calc(var(--top-h) + 52px); transform: translateX(-50%); z-index: 10; display: none; align-items: center; gap: 8px; background: rgba(255,248,225,.95); color: #5a3a1a; border: 2px solid #e0a800; border-radius: 20px; padding: 5px 14px 5px 8px; font-weight: 800; font-size: 14px; box-shadow: 0 3px 10px rgba(0,0,0,.2); pointer-events: none; }
+  #guide.show { display: flex; } #guide b { display: inline-block; width: 26px; height: 26px; line-height: 26px; text-align: center; border-radius: 50%; background: #e0a800; color: #fff; font-size: 16px; transition: transform .2s; }
+  #talk { position: fixed; left: 50%; bottom: 130px; transform: translateX(-50%); z-index: 12; display: none; max-width: min(520px, 90vw); background: #fffaf0; color: #3a2a1a; border: 3px solid #8a5a2b; border-radius: 14px; padding: 12px 16px; font-size: 15px; line-height: 1.6; box-shadow: 0 6px 20px rgba(0,0,0,.3); cursor: pointer; }
+  #talk.show { display: block; }
   #toast { position: fixed; left: 50%; top: calc(var(--top-h) + 92px); transform: translateX(-50%) translateY(-6px); z-index: 11; background: rgba(30,70,30,.9); color: #fff;
     padding: 10px 20px; border-radius: 999px; font-weight: 800; font-size: 15px; opacity: 0; transition: all .25s; pointer-events: none; white-space: nowrap; }
   #toast.show { opacity: 1; transform: translateX(-50%); }
@@ -175,6 +179,8 @@
 <div id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 数字键选东西 · 走到田边按 E 使用 · 选中🔑钥匙在门口按 E 锁门 · F 吃选中的菜 · V 第一人称 · 拖动屏幕转视角 · 滚轮缩放 · M 看全景地图</div>
 <div id="prompt"></div>
 <div id="toast"></div>
+<div id="guide"></div>
+<div id="talk"></div>
 <div id="bag"></div>
 <button class="round-btn" id="actBtn">操作</button>
 <div id="chestUI"><div class="box">
@@ -204,7 +210,7 @@
   <div class="t">菜园等级</div><div class="row" id="dbgLv"></div>
   <div class="t">生长速度（只影响你自己的测试）</div><div class="row" id="dbgSp"></div>
   <div class="t">时间（只改你自己看到的）</div><div class="row" id="dbgTime"><button data-h="6.3">早上</button><button data-h="12">中午</button><button data-h="19.6">黄昏</button><button data-h="0">半夜</button><button data-h="real">真实时间</button></div>
-  <div class="row"><button id="dbgSeeds">🎁 送种子</button><button id="dbgTrees">🌳 送树苗</button><button id="dbgCandle">🕯 送蜡烛</button><button id="dbgMoney">🥕 送 100 菜币</button><button id="dbgReset">🗑 重置菜园</button></div>
+  <div class="row"><button id="dbgSeeds">🎁 送种子</button><button id="dbgTrees">🌳 送树苗</button><button id="dbgCandle">🕯 送蜡烛</button><button id="dbgMoney">🥕 送 100 菜币</button><button id="dbgReset">🗑 重置菜园</button><button id="dbgNewbie">🧭 重新当新手（随机换空地、找镇长）</button></div>
   <div class="t">房子等级（点一下就换成那一级）</div><div class="row" id="dbgHouse"></div>
   <div class="row"><button id="dbgOil">🛢️ 送灯油</button><button id="dbgStaFull">💪 体力加满</button><button id="dbgStaLow">😩 体力清空</button></div>
   <div class="t">鸡舍</div><div class="row"><button id="dbgCoopLv">🐔 鸡舍换等级</button><button id="dbgChick">🐔 送一只母鸡</button><button id="dbgEggs">🥚 马上下蛋</button><button id="dbgFeed">🌾 送鸡饲料</button></div>
