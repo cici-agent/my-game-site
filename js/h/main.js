@@ -5,6 +5,7 @@ import { buildAvatar, buildPet } from '../p/avatar.js';
 import { INV, loadInventory } from '../p/inventory.js';
 import { L, createLayout, ribbon } from './layout.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden } from './garden.js';
+import { createHouse, inHouse } from './house.js';
 
 // ---------- 布局：弯弯的主路 + 零零散散的大空地 + 弯弯的小道（见 layout.js） ----------
 // 固定种子的随机数：每次打开布局都一样
@@ -178,7 +179,7 @@ for (let k = 0; k < 140; k++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd
     const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * (WR + 6), x = Math.sin(a) * r, z = Math.cos(a) * r;
     if (onPath(x, z, .2)) continue;
     if (onPlot(x, z, -.3) && rnd() < .8) continue;   // 空地上草少一点
-    if (inGarden(homePlot, gardenSide, x, z, .3)) continue;   // 菜园里没有野草
+    if (inGarden(homePlot, gardenSide, x, z, .3) || inHouse(homePlot, x, z, .6)) continue;   // 菜园里、小木棚里没有野草
     const sc = range(.6, 1.4);
     tufts.setMatrixAt(n, m4.compose(v.set(x, 0, z), q.setFromAxisAngle(up, rnd() * 6.28), s.set(sc, sc * range(.7, 1.4), sc)));
     tufts.setColorAt(n++, col.setHSL(range(.24, .3), range(.45, .6), range(.32, .45)));
@@ -250,6 +251,8 @@ const clouds = [];
 const $ = id => document.getElementById(id);
 // ---------- 我的菜园：先放在离出生点最近的那块空地上（以后改成在镇政府领到的那块） ----------
 const garden = createGarden({ scene, plot: homePlot, side: gardenSide });
+const house = createHouse({ scene, plot: homePlot, speed: () => garden.speed });
+garden.addContainer('cabinet', house.cabinet, () => house.persist());
 // 出生在自家空地里、通往菜园的小路旁边，面朝菜园
 [LAY.spawn.x, LAY.spawn.z] = garden.gateWorld();
 LAY.spawn.yaw = garden.gateYaw();
@@ -320,7 +323,13 @@ function select(i) { if (i < 0 || i >= hotbarLen()) return; sel = i; renderBag()
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2000); }
 function doAction() {
   if (chestOpen) return closeChest();
-  if (!nearBed && nearBox) return openChest();
+  if (!nearBed && nearHouse) {
+    const r = house.act(nearHouse, selItem(), garden.bag);
+    if (r && r.open) return openChest('cabinet');
+    if (r && r.msg) toast(r.msg);
+    return renderBag();
+  }
+  if (!nearBed && nearBox) return openChest('chest');
   if (!nearBed) return;
   const r = garden.useItem(nearBed, selItem());
   if (r && r.msg) toast(r.msg);
@@ -343,7 +352,8 @@ function renderBag() {
 $('bag').addEventListener('pointerdown', e => { if (chestOpen) return; const c = e.target.closest('.slot'); if (c) { e.preventDefault(); select(+c.dataset.i); } });
 
 // ---------- 箱子：走到旁边按 E 打开；拖动格子搬东西，点一下整格搬到另一边 ----------
-let nearBox = false, chestOpen = false, drag2 = null;
+let nearBox = false, nearHouse = null, chestOpen = false, drag2 = null, boxName = 'chest';
+const BOX_TITLE = { chest: '📦 我的箱子', cabinet: '🗄️ 小木柜' };
 function cellHTML(c, i, sl) {
   if (!sl) return `<div class="slot" data-c="${c}" data-i="${i}"></div>`;
   const it = itemInfo(sl.key);
@@ -351,11 +361,13 @@ function cellHTML(c, i, sl) {
                  : `<div class="slot" data-c="${c}" data-i="${i}" title="${it.name}"><span class="veg">${it.icon}</span><i>${sl.n}</i></div>`;
 }
 function renderChest() {
-  const ch = garden.chest, bg = garden.bag;
-  $('chestGrid').innerHTML = Array.from({ length: ch.cap }, (_, i) => cellHTML('chest', i, ch.slots[i])).join('');
+  const ch = garden.box(boxName), bg = garden.bag;
+  $('chestTitle').textContent = BOX_TITLE[boxName];
+  $('chestGrid').style.gridTemplateColumns = `repeat(${ch.cap > 9 ? 6 : 9}, ${isTouch ? 40 : 46}px)`;
+  $('chestGrid').innerHTML = Array.from({ length: ch.cap }, (_, i) => cellHTML(boxName, i, ch.slots[i])).join('');
   $('chestBag').innerHTML = Array.from({ length: bg.cap }, (_, i) => cellHTML('bag', i, bg.slots[i])).join('');
 }
-function openChest() { chestOpen = true; renderChest(); $('chestUI').classList.add('show'); Object.keys(keys).forEach(k => keys[k] = false); }
+function openChest(name = 'chest') { boxName = name; chestOpen = true; renderChest(); $('chestUI').classList.add('show'); Object.keys(keys).forEach(k => keys[k] = false); }
 function closeChest() { chestOpen = false; $('chestUI').classList.remove('show'); renderBag(); }
 $('chestClose').onclick = closeChest;
 $('chestUI').addEventListener('pointerdown', e => {
@@ -373,7 +385,7 @@ addEventListener('pointermove', e => {
 addEventListener('pointerup', e => {
   if (!drag2) return;
   const d = drag2; drag2 = null; d.ghost.remove(); d.el.classList.remove('lift');
-  if (!d.moved) { garden.quickMove(d.c, d.i); renderChest(); return; }            // 点一下：整格搬到另一边
+  if (!d.moved) { garden.quickMove(d.c, d.i, d.c === 'bag' ? boxName : 'bag'); renderChest(); return; }            // 点一下：整格搬到另一边
   const t = document.elementFromPoint(e.clientX, e.clientY)?.closest('#chestUI .slot');
   if (t) garden.moveItem(d.c, d.i, t.dataset.c, +t.dataset.i);
   renderChest();
@@ -389,12 +401,13 @@ function renderDbg() {
 }
 renderDbg();
 $('dbgSeeds').onclick = () => { const n = garden.debug.giveSeeds(); renderBag(); toast(n ? `🎁 送了 ${n} 种种子，每种 5 颗` : '🎒 背包满了，先把东西放进箱子'); };
+$('dbgCandle').onclick = () => { const ok = house.debug.giveCandles(garden.bag); renderBag(); toast(ok ? '🕯️ 送了 3 根蜡烛' : '🎒 背包满了'); };
 $('dbgTrees').onclick = () => { if (garden.level < 2) return toast('🔒 菜园 2 级以上才能种果树'); const n = garden.debug.giveTrees(); renderBag(); toast(n ? `🌳 送了 ${n} 种树苗，每种 2 棵` : '🎒 背包满了，先把东西放进箱子'); };
 $('dbgReset').onclick = () => { if (confirm('把菜园和背包都清空，重新开始？')) garden.debug.reset(); };
 $('dbgToggle').onclick = () => $('dbg').classList.toggle('open');
 setInterval(renderBag, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, homePlot, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, house, homePlot, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const WALK = 7.5, RUN = 12, GRAV = 26, JUMP = 9.5, EDGE = WR - 6;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
@@ -425,6 +438,7 @@ function step(dt, t) {
   // 碰撞：树、灌木、花坛；走到边上就停住
   const pr = .55;
   garden.collide(player.pos);
+  house.collide(player.pos);
   colliders.forEach(([cx, cz, cr]) => {
     const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
     if (d < min && d > 1e-4 && player.pos.y < 1.5) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
@@ -443,7 +457,8 @@ function step(dt, t) {
   }
   // 第三人称镜头：在人物身后，可以抬头看天
   camLook.set(player.pos.x, player.pos.y + 1.5, player.pos.z);
-  const upk = Math.max(0, -cam.pitch), cd = Math.max(8, cam.dist * (1 - upk * .45)), pv = Math.max(cam.pitch, -.12);
+  const inHut = house.inside(player.pos);
+  const upk = inHut ? 0 : Math.max(0, -cam.pitch), cd = inHut ? 7.5 : Math.max(8, cam.dist * (1 - upk * .45)), pv = inHut ? Math.max(cam.pitch, 1.05) : Math.max(cam.pitch, -.12);
   camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(pv), camLook.y + Math.sin(pv) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(pv));
   camPos.y = Math.max(camPos.y, .5);
   if (overview) { camPos.set(player.pos.x * .2, 560, player.pos.z * .2 + 80); camLook.set(player.pos.x * .2, 0, player.pos.z * .2); }
@@ -464,12 +479,15 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
   clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 560) c.position.x = -560; });
   garden.update(dt);
+  house.update(dt, player.pos);
   step(dt, t);
   // 站在哪块田旁边：显示能做什么
   nearBed = overview ? null : garden.nearest(player.pos.x, player.pos.z);
   nearBox = !overview && !nearBed && garden.nearChest(player.pos.x, player.pos.z);
+  nearHouse = !overview && !nearBed ? house.nearThing(player.pos) : null;
   const pr = $('prompt');
   if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
+  else if (nearHouse && !chestOpen) { const d = house.describe(nearHouse, selItem()); pr.innerHTML = `<b>${d.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${d.label}</b><span>${d.sub}</span>`; pr.classList.toggle('dim', !d.can); pr.classList.add('show'); $('actBtn').textContent = d.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', d.can); }
   else if (nearBox && !chestOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}📦 打开箱子</b><span>把背包里的东西放进箱子，或者拿出来</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '打开箱子'; $('actBtn').classList.add('show'); }
   else { pr.classList.remove('show'); $('actBtn').classList.remove('show'); }
   renderer.render(scene, camera);

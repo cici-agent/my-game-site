@@ -83,7 +83,9 @@ export function createBag(cap = 7, stack = 50) {   // 快捷栏一共 9 格：�
   }
   return Object.assign(bag, { count, room, add, take, addAll, tidy });
 }
+const OTHER_ITEMS = { candle: { icon: '🕯️', name: '蜡烛' } };
 export const itemInfo = key => {
+  if (OTHER_ITEMS[key]) return OTHER_ITEMS[key];
   if (key.startsWith('seed_')) { const c = CROPS[key.slice(5)]; return { icon: '🌱', sub: c.icon, name: c.kind === 'tree' ? c.tree + '苗' : c.name + '种子', seed: true }; }
   const c = CROPS[key]; return c ? { icon: c.icon, name: c.name } : { icon: '❓', name: key };
 };
@@ -638,7 +640,11 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
 
   // ---------- 箱子 ----------
   const nearChest = (x, z) => Math.hypot(x - chestPos[0], z - chestPos[1]) < 1.9;
-  const box = name => name === 'chest' ? chest : bag;
+  // 能放东西的地方：背包、箱子，以及别的模块加进来的（比如小木棚里的小木柜）
+  const boxes = { bag: { b: bag, save: null }, chest: { b: chest, save: null } };
+  const box = name => (boxes[name] || boxes.bag).b;
+  const addContainer = (name, b, save) => { boxes[name] = { b, save }; };
+  const saveBox = (...names) => { persist(); names.forEach(n => boxes[n] && boxes[n].save && boxes[n].save()); };
   // 把一格东西拖到另一格：空格就放进去；同一种就叠起来（放不下的留在原地）；不一样就交换
   function moveItem(fc, fi, tc, ti) {
     const F = box(fc), T = box(tc); if (ti >= T.cap) return false;
@@ -647,15 +653,15 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     if (!b) { T.slots[ti] = { key: a.key, n: Math.min(a.n, T.stack) }; a.n -= T.slots[ti].n; if (!a.n) F.slots[fi] = null; }
     else if (b.key === a.key) { const k = Math.min(a.n, T.stack - b.n); b.n += k; a.n -= k; if (!a.n) F.slots[fi] = null; }
     else { if (a.n > T.stack || b.n > F.stack) return false; T.slots[ti] = a; F.slots[fi] = b; }
-    F.tidy(); T.tidy(); persist(); return true;
+    F.tidy(); T.tidy(); saveBox(fc, tc); return true;
   }
   // 点一下：整格搬到另一边（先叠到同一种上，再放空格）
-  function quickMove(fc, fi) {
-    const F = box(fc), T = box(fc === 'chest' ? 'bag' : 'chest'), a = F.slots[fi]; if (!a) return false;
+  function quickMove(fc, fi, tc = fc === 'bag' ? 'chest' : 'bag') {
+    const F = box(fc), T = box(tc), a = F.slots[fi]; if (!a) return false;
     for (let i = 0; i < T.cap && a.n; i++) { const b = T.slots[i]; if (b && b.key === a.key && b.n < T.stack) { const k = Math.min(a.n, T.stack - b.n); b.n += k; a.n -= k; } }
     for (let i = 0; i < T.cap && a.n; i++) if (!T.slots[i]) { const k = Math.min(a.n, T.stack); T.slots[i] = { key: a.key, n: k }; a.n -= k; }
     if (!a.n) F.slots[fi] = null;
-    F.tidy(); T.tidy(); persist(); return !a.n;
+    F.tidy(); T.tidy(); saveBox(fc, tc); return !a.n;
   }
 
   // ---------- 手上拿着什么，按 E 就做什么 ----------
@@ -695,5 +701,5 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 菜园门口（世界坐标），出生点用
   const gateWorld = () => toWorld(side * (plot.size / 2 - 4), rect.gz);
   const gateYaw = () => { const [ax, az] = toWorld(0, 0), [bx, bz] = toWorld(side, 0); return Math.atan2(bx - ax, bz - az); };
-  return { beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
+  return { beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
 }
