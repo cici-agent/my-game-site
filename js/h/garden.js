@@ -15,11 +15,11 @@ export const CROPS = {
   lettuce:    { name: '生菜',   icon: '🥬', lv: 1, kind: 'pull', grow: 15 * 60,     yield: 1, seeds: [1, 2], price: 3 },
   carrot:     { name: '胡萝卜', icon: '🥕', lv: 1, kind: 'pull', grow: 30 * 60,     yield: 1, seeds: [1, 2], price: 4 },
   potato:     { name: '土豆',   icon: '🥔', lv: 1, kind: 'pull', grow: 60 * 60,     yield: 2, seeds: [1, 3], price: 4 },
-  tomato:     { name: '番茄',   icon: '🍅', lv: 2, kind: 'pick', grow: 90 * 60,     regrow: 40 * 60, picks: [3, 5], yield: 2, witherSeed: .2, price: 6 },
-  corn:       { name: '玉米',   icon: '🌽', lv: 2, kind: 'pick', grow: 120 * 60,    regrow: 60 * 60, picks: [1, 3], yield: 1, witherSeed: .2, price: 8 },
-  strawberry: { name: '草莓',   icon: '🍓', lv: 3, kind: 'pick', grow: 180 * 60,    regrow: 60 * 60, picks: [4, 6], yield: 2, witherSeed: .2, price: 8 },
-  pumpkin:    { name: '南瓜',   icon: '🎃', lv: 3, kind: 'pick', grow: 6 * 3600,    regrow: 3 * 3600, picks: [1, 3], yield: 1, witherSeed: .2, price: 40 },
-  watermelon: { name: '西瓜',   icon: '🍉', lv: 4, kind: 'pick', grow: 10 * 3600,   regrow: 5 * 3600, picks: [1, 3], yield: 1, witherSeed: .1, price: 70 },
+  tomato:     { name: '番茄',   icon: '🍅', lv: 2, kind: 'pick', grow: 90 * 60,     regrow: 40 * 60, picks: [3, 5], yield: 2, witherSeed: .08, price: 6 },
+  corn:       { name: '玉米',   icon: '🌽', lv: 2, kind: 'pick', grow: 120 * 60,    regrow: 60 * 60, picks: [1, 3], yield: 1, witherSeed: .08, price: 8 },
+  strawberry: { name: '草莓',   icon: '🍓', lv: 3, kind: 'pick', grow: 180 * 60,    regrow: 60 * 60, picks: [4, 6], yield: 2, witherSeed: .08, price: 8 },
+  pumpkin:    { name: '南瓜',   icon: '🎃', lv: 3, kind: 'pick', grow: 6 * 3600,    regrow: 3 * 3600, picks: [1, 3], yield: 1, witherSeed: .08, price: 40 },
+  watermelon: { name: '西瓜',   icon: '🍉', lv: 4, kind: 'pick', grow: 10 * 3600,   regrow: 5 * 3600, picks: [1, 3], yield: 1, witherSeed: .04, price: 70 },
 };
 // 菜园等级：田的数量（第 1 级 12 块，以后每级多 4 块）
 export const LEVELS = { 1: 12, 2: 16, 3: 20, 4: 24 };
