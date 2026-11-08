@@ -12,6 +12,7 @@ import { createCoop, inCoop, COOP } from './coop.js';
 import { createPond, inPond, CRITTER } from './pond.js';
 import { createBirds, createButterflies } from './birds.js';
 import { createLoose } from './loose.js';
+import { createNet, createNeighbors, DOG_RANGE } from './neighbors.js';
 import { createGrill, createCooker, RECIPES, COOKED_FOOD, FUEL, STOVES, grillSpot } from './cook.js';
 import { createRanch, pastureSpots, inPasture, RANCH_FEED, feedFor } from './ranch.js';
 import { createStamina, FOOD, MAX as STA_MAX } from './stamina.js';
@@ -481,6 +482,7 @@ function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.
 function doAction() {
   if (sleeping) return wakeUp();
   if (!shopOpen && !chestOpen && mayorAction()) return renderBag();
+  if (!shopOpen && !chestOpen && stealAction()) return renderBag();
   if (!shopOpen && !chestOpen && cookAction()) return renderBag();
   if (!shopOpen && !chestOpen && dogAction()) return renderBag();
   if (!shopOpen && !chestOpen && !nearBed && gateFirst) { toast(gateAct(nearGate, selItem())); return renderBag(); }
@@ -710,6 +712,7 @@ function mayorAction() {
   if (!mayor.near(player.pos)) return false;
   if (metMayor) { talk('🏛️ <b>镇长</b>：好好种菜呀！有什么事，随时来广场找我。'); return true; }
   metMayor = true; guideHome = true; homeGate.setLock(false);
+  net.claim(homeIdx).then(ok => { if (ok) publishMe(); else { toast('这块空地刚被别人领走了，镇长给你换一块'); setTimeout(() => location.reload(), 2500); } });
   try { localStorage.setItem(MET_KEY, '1'); localStorage.setItem('xcn_guide_home', '1'); } catch (e) {}
   talk(`🏛️ <b>镇长</b>：欢迎来到菜鸟小镇！<br>这块没人住的空地就分给你啦（${dirWord(homeGateW.x, homeGateW.z)}）。<br>里面给你准备了一个小菜园、一个小鸡窝和一间小木屋，大门钥匙在你背包里。<br>跟着上面的箭头走过去吧！`, 12);
   return true;
@@ -728,6 +731,92 @@ function updateGuide(dt) {
   } else { el.classList.remove('show'); return; }
   const d = Math.hypot(tx - player.pos.x, tz - player.pos.z), ang = (cam.yaw - Math.atan2(tx - player.pos.x, tz - player.pos.z)) * 180 / Math.PI;
   el.innerHTML = `<b style="transform:rotate(${ang.toFixed(0)}deg)">⬆</b><span>🧭 ${text} · ${Math.round(d)} 米</span>`; el.classList.add('show');
+}
+
+// ---------- 🥬 联网：别人家的菜园、偷菜、帮忙（用户说的） ----------
+// 跳过矮栅栏、或者跑着使劲撞开栅栏（很费体力，2 分钟后自己修好），进别人家菜园挖菜；
+// 他家有狗：你挖第一棵菜时，狗在 4 个菜园远以内就会冲过来咬你，把你撞开；咬 3 次你就被赶回自己家。
+// 偷菜时被在线的主人看到：1 小时内不能再偷他家的菜。也可以帮别人抓虫、浇水。
+const net = createNet(ME);
+const neighbors = createNeighbors({ scene, plots: PLOTS, myIdx: homeIdx, onPath, onPlot, daylight: () => growLight(), buildAvatar, onBite: (g, h) => {
+  const dx = player.pos.x - g.pos.x, dz = player.pos.z - g.pos.z, d = Math.hypot(dx, dz) || 1;
+  player.pos.x += dx / d * 3; player.pos.z += dz / d * 3; player.vy = 5; player.ground = false; stamina.use('work', 15);
+  if (g.bites >= 3) { g.mode = 'back'; g.bites = 0; player.pos.set(LAY.spawn.x, 0, LAY.spawn.z); player.face = LAY.spawn.yaw; toast(`🐶 被${h.name}家的${g.name}咬了好几口，逃回自己家了！`); }
+  else toast(`🐶 ${h.name}家的${g.name}咬了你一口！（${g.bites} / 3）`);
+} });
+const banUntil = uid => +(localStorage.getItem('xcn_ban_' + uid) || 0);
+const stolenHere = new Set();   // 这次去过谁家挖了菜（挖第一棵时狗冲过来）
+function stealPrompt(it) {
+  const n = neighbors.nearBed(player.pos); if (!n) return null;
+  const { h, bd } = n, b = bd.st, C = b.crop && CROPS[b.crop], who = `${h.name}家的菜园`;
+  if (it === 'glove' && b.crop && b.phase === 'ripe') {
+    if (banUntil(h.uid) > Date.now()) return { label: `😳 现在不能偷${h.name}家的菜`, sub: `被他发现了，还要 ${Math.ceil((banUntil(h.uid) - Date.now()) / 60000)} 分钟`, can: false };
+    return { label: `🧤 偷偷挖走一棵${C.name}`, sub: `${who} · 还剩 ${b.plants} 棵${h.guard ? ` · 小心他家的狗${h.guard.name}` : ''}`, can: true };
+  }
+  if (it === 'glove' && b.bugs > 0) return { label: `🧤 帮${h.name}抓虫子（${b.bugs} 只）`, sub: who, can: true };
+  if (it === 'can') return { label: `💧 帮${h.name}浇水`, sub: who, can: true };
+  return { label: `🥬 ${who}`, sub: (C ? `${C.name} · ${b.phase === 'ripe' ? '熟了' : '还没熟'}` : '空的田') + ' · 选 🧤 手套挖菜 / 抓虫，选 🪣 水壶浇水', can: false };
+}
+function stealAction() {
+  const n = neighbors.nearBed(player.pos); if (!n) return false;
+  const { h, bd, i } = n, b = bd.st, it = selItem();
+  if (it === 'glove' && b.crop && b.phase === 'ripe') {
+    if (banUntil(h.uid) > Date.now()) { toast(`😳 被${h.name}发现过，1 小时内不能再偷他家的菜`); return true; }
+    const got = h.garden.stealOne(i); if (!got) return true;
+    if (!garden.bag.add(got[0], got[1])) garden.chest.add(got[0], got[1]);
+    neighbors.hold(h.uid); net.send(h.uid, 'steal', i, 1); stamina.use('work');
+    toast(`🤫 挖走了 ${got[1]} 个${itemInfo(got[0]).name}`);
+    if (!stolenHere.has(h.uid)) { stolenHere.add(h.uid); const g = h.guard; if (g && Math.hypot(player.pos.x - g.home.x, player.pos.z - g.home.z) < DOG_RANGE) { g.mode = 'chase'; g.bites = 0; setTimeout(() => toast(`🐶 ${h.name}家的${g.name}冲过来了！快跑！`), 900); } }
+    const owner = neighbors.online(h.uid);
+    if (owner && Math.hypot(owner.x - player.pos.x, owner.z - player.pos.z) < 30) {
+      try { localStorage.setItem('xcn_ban_' + h.uid, Date.now() + 3600e3); } catch (e) {}
+      net.send(h.uid, 'caught'); setTimeout(() => toast(`😳 被${h.name}看到了！1 小时内不能再偷他家的菜`), 1600);
+    }
+    return true;
+  }
+  if (it === 'glove' && b.bugs > 0) { h.garden.helpShoo(i); neighbors.hold(h.uid); net.send(h.uid, 'shoo', i); toast(`👍 帮${h.name}抓走了一只虫子`); return true; }
+  if (it === 'can') { h.garden.helpWater(i); neighbors.hold(h.uid); net.send(h.uid, 'water', i); toast(`💧 帮${h.name}浇了水`); return true; }
+  return false;
+}
+// 跑着使劲撞别人家的栅栏：撞 1 秒就撞开
+let ramT = 0, ramWho = null;
+function ramCheck(dt, hit, running) {
+  if (hit && running && !hit.garden.broken) { if (ramWho !== hit) { ramWho = hit; ramT = 0; } ramT += dt; stamina.use('work', dt * 3);
+    if (ramT > 1) { ramT = 0; hit.garden.breakFence(120); stamina.use('work', 20); toast(`💥 撞开了${hit.name}家菜园的栅栏！（2 分钟后会自己修好）`); } }
+  else if (!hit) { ramT = Math.max(0, ramT - dt); }
+}
+// 主人这边：收到偷菜 / 帮忙的消息，照着改自己的菜园
+async function readInbox() {
+  const rows = await net.inbox(); if (!rows.length) return;
+  const by = {};
+  rows.forEach(e => {
+    const nm = neighbors.nameOf(e.actor_id) || '有人', x = by[nm] ||= { steal: 0, help: 0, caught: 0 };
+    if (e.kind === 'steal') { for (let k = 0; k < (e.n || 1); k++) if (garden.stealOne(e.bed)) x.steal++; }
+    else if (e.kind === 'shoo') { if (garden.helpShoo(e.bed)) x.help++; }
+    else if (e.kind === 'water') { if (garden.helpWater(e.bed)) x.help++; }
+    else if (e.kind === 'caught') x.caught++;
+  });
+  Object.entries(by).forEach(([nm, x], k) => setTimeout(() => toast([x.steal ? `🥕 ${nm}偷了你 ${x.steal} 棵菜` : '', x.help ? `👍 ${nm}帮你干了 ${x.help} 次活` : '', x.caught ? `👀 你抓到${nm}在偷菜！他 1 小时内不能再来` : ''].filter(Boolean).join('，')), k * 2200));
+  publishMe();
+}
+const publishMe = () => net.publish(homeIdx, garden.snapshot(), dog.has ? { has: true, name: dog.name, loyal: dog.loyal } : { has: false });
+async function pullNeighbors() { neighbors.sync(await net.states()); }
+const live = net.presence(p => neighbors.onPos(p));
+if (net.ok) {
+  // 空地以数据库为准：我已经有一块 → 就住那块；我这块被别人住了 → 换一块空的
+  (async () => {
+    const rows = await net.plots(); if (!rows) return;
+    const mine = rows.find(r => r.user_id === net.id), taken = rows.filter(r => r.user_id !== net.id).map(r => r.plot_index);
+    const moveTo = i => { try { localStorage.setItem(HOME_KEY, i); } catch (e) {} location.reload(); };
+    if (mine) { if (mine.plot_index !== homeIdx) moveTo(mine.plot_index); return; }
+    if (taken.includes(homeIdx)) { const free = PLOTS.map((p, i) => i).filter(i => !taken.includes(i)); if (free.length) moveTo(free[Math.floor(Math.random() * free.length)]); return; }
+    if (metMayor) await net.claim(homeIdx);
+    publishMe();
+  })();
+  pullNeighbors(); readInbox();
+  setInterval(pullNeighbors, 20000); setInterval(readInbox, 10000); setInterval(() => { if (metMayor) publishMe(); }, 20000);
+  setInterval(() => live.send({ x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), face: +player.face.toFixed(2), plot: homeIdx, skin: ME && INV.equip ? homeSkin(INV.equip.skin) : 'farmer' }), 400);
+  document.addEventListener('visibilitychange', () => { if (document.hidden && metMayor) publishMe(); });
 }
 // ---------- 🪢 跑出来的动物、牵绳（用户说：门开着动物会跑出来；用牵绳牵回去） ----------
 const HOMES = { chicken: coop, cow: cows, sheep, pig: pigs, duck: ducks };
@@ -1165,7 +1254,7 @@ $('dbgBirdHatch').onclick = () => { birds.debug.hatch(); toast('🐣 鸟屋里�
 $('dbgBird').onclick = () => { birds.debug.bird(); toast(`🐦 飞来一只小鸟（现在 ${birds.count} 只）`); };
 $('dbgBfly').onclick = () => { bfly.debug.add(3); toast(`🦋 多了 3 只蝴蝶（现在 ${bfly.count} 只）`); };
 $('dbgLoose').onclick = () => { if (!garden.bag.count('rope') && !loose.led) garden.bag.add('rope', 1); const [x, z] = frontOf(3); loose.add(['cow', 'sheep', 'pig', 'duck', 'chicken'][Math.floor(Math.random() * 5)], { born: Date.now() - 864e5, full: 80, ready: false, next: Date.now() + 6e5 }, x, z); renderBag(); toast('🪢 送了牵绳，前面跑出来一只动物'); };
-$('dbgNewbie').onclick = () => { try { localStorage.setItem(HOME_KEY, Math.floor(Math.random() * PLOTS.length)); localStorage.setItem(MET_KEY, '0'); } catch (e) {} location.reload(); };
+$('dbgNewbie').onclick = async () => { await net.release(); try { localStorage.setItem(HOME_KEY, Math.floor(Math.random() * PLOTS.length)); localStorage.setItem(MET_KEY, '0'); } catch (e) {} location.reload(); };
 $('dbgRanchStuff').onclick = () => { const ok = garden.bag.add('hay', 10) && (garden.bag.count('shears') || garden.bag.add('shears', 1)) && (garden.bag.count('knife') || garden.bag.add('knife', 1)); renderBag(); toast(ok ? '🎁 送了草料、剪刀、菜刀' : '🎒 背包满了'); };
 $('dbgDogHungry').onclick = () => { dog.debug.setFull(10); toast('🐶 狗饿了'); };
 $('dbgDogLoyal').onclick = () => { dog.debug.setLoyal(100); toast('🐶 忠诚度满了：会帮你看菜园'); };
@@ -1173,7 +1262,7 @@ $('dbgDogReset').onclick = () => { if (confirm('把狗和狗盆都清掉？')) {
 $('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(() => { renderBag(); renderMoney(); }, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { hall, mayor, MAYOR, get metMayor() { return metMayor; }, homeIdx, loose, birds, bfly, get gateFirst() { return gateFirst; }, pondObj: pond, get fishing() { return fishing; }, get inWater() { return inWater; }, grill, grillCook, houseCook, get fenceLv() { return fenceLv; }, pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { neighbors, net, readInbox, hall, mayor, MAYOR, get metMayor() { return metMayor; }, homeIdx, loose, birds, bfly, get gateFirst() { return gateFirst; }, pondObj: pond, get fishing() { return fishing; }, get inWater() { return inWater; }, grill, grillCook, houseCook, get fenceLv() { return fenceLv; }, pond, pigs, ducks, KENNEL_SITE, pastureHit: (x, z, m = 0) => inPasture(homePlot, PASTURES, x, z, m), cows, sheep, shops, coop, dog, homeGate, get nearGate() { return nearGate; }, player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
@@ -1217,7 +1306,7 @@ function step(dt, t) {
   if (sleeping) { player.pos.set(sleeping.x, sleeping.y, sleeping.z); player.vy = 0; }
   // 碰撞：树、灌木、花坛；走到边上就停住
   const pr = .55;
-  garden.collide(player.pos);
+  garden.collide(player.pos); ramCheck(dt, neighbors.collide(player.pos), running);
   house.collide(player.pos);
   plotFenceCollide(player.pos);
   dog.collideKennel(player.pos);
@@ -1286,7 +1375,7 @@ renderer.setAnimationLoop(() => {
   kennelSiteMark.visible = !dog.kennel;
   coop.update(dt);
   RANCHES.forEach(r => r.update(dt));
-  pond.update(dt); updateFishing(dt); birds.update(dt, player.pos, player.face, selItem()); bfly.update(dt); loose.update(dt, player); looseHome(); mayor.update(dt); updateGuide(dt);
+  pond.update(dt); updateFishing(dt); birds.update(dt, player.pos, player.face, selItem()); bfly.update(dt); loose.update(dt, player); looseHome(); mayor.update(dt); neighbors.update(dt, player); updateGuide(dt);
   grill.update(dt, grillCook.busy); grillCook.update(); houseCook.update();
   renderDogHud();
   homeGate.update(dt); HOME_GAPS.forEach(g => g.gate.update(dt));
@@ -1302,7 +1391,7 @@ renderer.setAnimationLoop(() => {
   if (sleeping) { nearBed = null; nearBox = false; nearHouse = null; nearShop = false; nearGate = null; }
   const pr = $('prompt');
   const dogP = !overview && !sleeping && !chestOpen && !shopOpen ? dogPrompt(selItem()) : null;
-  const coopP = (!overview && !sleeping && !chestOpen && !shopOpen ? mayorPrompt() || cookPrompt(selItem()) : null) || (!gateFirst && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? birdPrompt(selItem()) || loosePrompt(selItem()) : null) || (!gateFirst && !dogP && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? coopPrompt(selItem()) || ranchPrompt(selItem()) || pondPrompt(selItem()) || fencePrompt(selItem()) : null);
+  const coopP = (!overview && !sleeping && !chestOpen && !shopOpen ? mayorPrompt() || stealPrompt(selItem()) || cookPrompt(selItem()) : null) || (!gateFirst && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? birdPrompt(selItem()) || loosePrompt(selItem()) : null) || (!gateFirst && !dogP && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? coopPrompt(selItem()) || ranchPrompt(selItem()) || pondPrompt(selItem()) || fencePrompt(selItem()) : null);
   if (coopP) { pr.innerHTML = `<b>${coopP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${coopP.label}</b><span>${coopP.sub}</span>`; pr.classList.toggle('dim', !coopP.can); pr.classList.add('show'); $('actBtn').textContent = coopP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', coopP.can); }
   else if (dogP && (!nearBed || DOG_ITEMS.includes(selItem()))) { pr.innerHTML = `<b>${dogP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${dogP.label}</b><span>${dogP.sub}</span>`; pr.classList.toggle('dim', !dogP.can); pr.classList.add('show'); $('actBtn').textContent = dogP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', dogP.can); }
   else if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
