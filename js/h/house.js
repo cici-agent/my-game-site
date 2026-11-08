@@ -6,10 +6,11 @@ import { createBag, plotToWorld, worldToPlot } from './garden.js';
 
 // 小木棚在空地里的位置（空地自己的坐标：门朝 +z，也就是朝路那边）
 const HW = 2.6, HD = 2.25, WALL_H = 2.3, DOOR_W = 1.0, DOOR_H = 1.95;
-export function houseSpot(plot) { return { x: 0, z: -2 }; }
+const SC = 1.35;   // 整个小木棚放大 1.35 倍：人能舒服地走进去，但和人比还是小小的（里面约 7×6 米，墙高 3.1 米）
+export function houseSpot(plot) { return { x: 0, z: -3 }; }
 export function inHouse(plot, x, z, m = 0) {
   const c = houseSpot(plot), [lx, lz] = worldToPlot(plot, x, z);
-  return Math.abs(lx - c.x) < HW + m && Math.abs(lz - c.z) < HD + m;
+  return Math.abs(lx - c.x) < HW * SC + m && Math.abs(lz - c.z) < HD * SC + m;
 }
 
 const CANDLE_LIFE = 3 * 3600;      // 一根蜡烛能烧 3 小时（按游戏时间算，管理员加速时也会烧得快）
@@ -40,9 +41,9 @@ const M = (o) => new THREE.MeshStandardMaterial({ roughness: .9, ...o });
 export function createHouse({ scene, plot, rnd = Math.random, save = true, speed = () => 1 }) {
   const spot = houseSpot(plot);
   const group = new THREE.Group(); group.position.set(plot.x, 0, plot.z); group.rotation.y = plot.rot; scene.add(group);
-  const root = new THREE.Group(); root.position.set(spot.x, 0, spot.z); group.add(root);
-  const toWorld = (lx, lz) => plotToWorld(plot, spot.x + lx, spot.z + lz);
-  const toLocal = (x, z) => { const [a, b] = worldToPlot(plot, x, z); return [a - spot.x, b - spot.z]; };
+  const root = new THREE.Group(); root.position.set(spot.x, 0, spot.z); root.scale.setScalar(SC); group.add(root);
+  const toWorld = (lx, lz) => plotToWorld(plot, spot.x + lx * SC, spot.z + lz * SC);
+  const toLocal = (x, z) => { const [a, b] = worldToPlot(plot, x, z); return [(a - spot.x) / SC, (b - spot.z) / SC]; };
   const add = (geo, mat, p, s, r, parent = root) => { const m = new THREE.Mesh(geo, mat); m.position.set(...p); if (s) m.scale.set(...s); if (r) m.rotation.set(...r); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
   const BOX = new THREE.BoxGeometry(1, 1, 1), CYL = new THREE.CylinderGeometry(1, 1, 1, 10), SPH = new THREE.SphereGeometry(1, 12, 8);
 
@@ -143,7 +144,7 @@ export function createHouse({ scene, plot, rnd = Math.random, save = true, speed
     add(CYL, M({ color: 0x2d2d2d, metalness: .5 }), [0, .02, .24], [.08, .03, .08], null, g);
     const wax = add(CYL, M({ color: 0xfaf3df, roughness: .6 }), [0, .14, .24], [.035, .22, .035], null, g);
     const flame = new THREE.Mesh(new THREE.ConeGeometry(.03, .09, 8), new THREE.MeshBasicMaterial({ color: 0xffc04d })); flame.position.set(0, .3, .24); g.add(flame);
-    const light = new THREE.PointLight(0xffb45a, 0, 6, 1.6); light.position.set(0, .35, .3); g.add(light);
+    const light = new THREE.PointLight(0xffb45a, 0, 9, 1.4); light.position.set(0, .35, .3); g.add(light);
     return { g, wax, flame, light, i, local: [x + Math.sin(ry) * .3, z + Math.cos(ry) * .3] };
   });
 
@@ -152,8 +153,9 @@ export function createHouse({ scene, plot, rnd = Math.random, save = true, speed
     { x: bed.position.x, z: bed.position.z, hx: .95, hz: .55 },
     { x: cab.position.x, z: cab.position.z, hx: .5, hz: .3 },
   ];
-  function collide(pos, pr = .4) {
-    if (pos.y > 2.6) return;
+  function collide(pos, pr0 = .45) {
+    const pr = pr0 / SC;
+    if (pos.y > WALL_H * SC) return;
     let [lx, lz] = toLocal(pos.x, pos.z);
     if (Math.abs(lx) > HW + 2 || Math.abs(lz) > HD + 2) return;
     const ox = lx, oz = lz;
