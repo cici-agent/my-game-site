@@ -6,6 +6,7 @@ import { INV, loadInventory } from '../p/inventory.js';
 import { L, createLayout, ribbon } from './layout.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden } from './garden.js';
 import { createHouse, inHouse } from './house.js';
+import { createShop, SHOP_ITEMS, sellPrice } from './shop.js';
 
 // ---------- 布局：弯弯的主路 + 零零散散的大空地 + 弯弯的小道（见 layout.js） ----------
 // 固定种子的随机数：每次打开布局都一样
@@ -253,6 +254,9 @@ const $ = id => document.getElementById(id);
 const garden = createGarden({ scene, plot: homePlot, side: gardenSide });
 const house = createHouse({ scene, plot: homePlot, speed: () => garden.speed });
 garden.addContainer('cabinet', house.cabinet, () => house.persist());
+// 小卖部：在广场上，背对第一条路，面朝广场中间
+const shopAng = Math.atan2(LAY.roads[1].pts[8].x, LAY.roads[1].pts[8].z) + Math.PI * .8;
+const shop = createShop({ scene, x: Math.sin(shopAng) * 13, z: Math.cos(shopAng) * 13, face: shopAng + Math.PI, buildAvatar });
 // 出生在自家空地里、通往菜园的小路旁边，面朝菜园
 [LAY.spawn.x, LAY.spawn.z] = garden.gateWorld();
 LAY.spawn.yaw = garden.gateYaw();
@@ -283,6 +287,7 @@ addEventListener('keydown', e => {
   if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
   if (e.code === 'KeyM' && !e.repeat && !chestOpen) overview = !overview;   // M：俯瞰整个小镇
   if (e.code === 'Escape' && chestOpen) closeChest();
+  if (e.code === 'Escape' && shopOpen) closeShop();
 });
 addEventListener('keyup', e => keys[e.code] = false);
 addEventListener('blur', () => Object.keys(keys).forEach(k => keys[k] = false));
@@ -322,7 +327,9 @@ function selItem() { if (sel < TOOLS.length) return TOOLS[sel].key; const sl = g
 function select(i) { if (i < 0 || i >= hotbarLen()) return; sel = i; renderBag(); const it = selItem(); toast(it ? (sel < TOOLS.length ? TOOLS[sel].name : itemInfo(it).name) : '空格子'); }
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2000); }
 function doAction() {
+  if (shopOpen) return closeShop();
   if (chestOpen) return closeChest();
+  if (!nearBed && nearShop) return openShop();
   if (!nearBed && nearHouse) {
     const r = house.act(nearHouse, selItem(), garden.bag);
     if (r && r.open) return openChest('cabinet');
@@ -351,7 +358,46 @@ function renderBag() {
 }
 $('bag').addEventListener('pointerdown', e => { if (chestOpen) return; const c = e.target.closest('.slot'); if (c) { e.preventDefault(); select(+c.dataset.i); } });
 
+// ---------- 小卖部：买种子、树苗、蜡烛、杀虫剂；把菜卖掉换菜币 ----------
+function renderMoney() { $('money').innerHTML = `<b>🥕 ${garden.wallet.get()}</b> 菜币`; }
+function renderShop() {
+  $('shopMoney').textContent = garden.wallet.get();
+  document.querySelectorAll('#shopUI .tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === shopTab));
+  if (shopTab === 'buy') {
+    $('shopList').innerHTML = SHOP_ITEMS.map((it, i) => { const info = itemInfo(it.key), lock = it.lv > garden.level, poor = garden.wallet.get() < it.price;
+      return `<div class="row${lock ? ' lock' : ''}"><span class="ic">${info.seed ? `<span class="pk"><b>${info.sub}</b></span>` : info.icon}</span>
+        <span class="nm">${info.name}<small>${lock ? `菜园 ${it.lv} 级才能买` : it.note || ''}</small></span><span class="pr">🥕 ${it.price}</span>
+        <button data-i="${i}" data-n="1" ${lock || poor ? 'disabled' : ''}>买 1 个</button><button data-i="${i}" data-n="5" ${lock || garden.wallet.get() < it.price * 5 ? 'disabled' : ''}>买 5 个</button></div>`; }).join('');
+  } else {
+    const rows = []; const seen = new Set();
+    garden.bag.slots.forEach(sl => { if (!sl || seen.has(sl.key) || !sellPrice(sl.key)) return; seen.add(sl.key);
+      const info = itemInfo(sl.key), n = garden.bag.count(sl.key), p = sellPrice(sl.key);
+      rows.push(`<div class="row"><span class="ic">${info.icon}</span><span class="nm">${info.name}<small>背包里有 ${n} 个</small></span><span class="pr">🥕 ${p} / 个</span>
+        <button data-k="${sl.key}" data-n="1">卖 1 个</button><button data-k="${sl.key}" data-n="${n}">全部卖掉（${n * p}）</button></div>`); });
+    $('shopList').innerHTML = rows.join('') || '<div class="empty">背包里没有能卖的菜。去菜园收一些吧！</div>';
+  }
+}
+$('shopList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (shopTab === 'buy') {
+    const it = SHOP_ITEMS[+b.dataset.i], n = +b.dataset.n, cost = it.price * n;
+    if (garden.bag.room(it.key) < n) { toast('🎒 背包放不下了，先把东西放进箱子'); return; }
+    if (!garden.wallet.spend(cost)) { toast('菜币不够'); return; }
+    garden.bag.add(it.key, n); toast(`买到 ${n} 个${itemInfo(it.key).name}，花了 ${cost} 菜币`);
+  } else {
+    const k = b.dataset.k, n = +b.dataset.n;
+    if (garden.bag.take(k, n)) { garden.wallet.add(sellPrice(k) * n); toast(`卖掉 ${n} 个${itemInfo(k).name}，得到 ${sellPrice(k) * n} 菜币`); }
+  }
+  renderShop(); renderBag(); renderMoney();
+});
+document.querySelectorAll('#shopUI .tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.t; renderShop(); });
+function openShop() { shopOpen = true; renderShop(); $('shopUI').classList.add('show'); Object.keys(keys).forEach(k => keys[k] = false); }
+function closeShop() { shopOpen = false; $('shopUI').classList.remove('show'); }
+$('shopClose').onclick = closeShop;
+renderMoney(); setInterval(renderMoney, 1000);
+
 // ---------- 箱子：走到旁边按 E 打开；拖动格子搬东西，点一下整格搬到另一边 ----------
+let nearShop = false, shopOpen = false, shopTab = 'buy';
 let nearBox = false, nearHouse = null, chestOpen = false, drag2 = null, boxName = 'chest';
 const BOX_TITLE = { chest: '📦 我的箱子', cabinet: '🗄️ 小木柜' };
 function cellHTML(c, i, sl) {
@@ -401,13 +447,14 @@ function renderDbg() {
 }
 renderDbg();
 $('dbgSeeds').onclick = () => { const n = garden.debug.giveSeeds(); renderBag(); toast(n ? `🎁 送了 ${n} 种种子，每种 5 颗` : '🎒 背包满了，先把东西放进箱子'); };
+$('dbgMoney').onclick = () => { garden.wallet.add(100); renderMoney(); toast('🥕 送了 100 菜币'); };
 $('dbgCandle').onclick = () => { const ok = house.debug.giveCandles(garden.bag); renderBag(); toast(ok ? '🕯️ 送了 3 根蜡烛' : '🎒 背包满了'); };
 $('dbgTrees').onclick = () => { if (garden.level < 2) return toast('🔒 菜园 2 级以上才能种果树'); const n = garden.debug.giveTrees(); renderBag(); toast(n ? `🌳 送了 ${n} 种树苗，每种 2 棵` : '🎒 背包满了，先把东西放进箱子'); };
 $('dbgReset').onclick = () => { if (confirm('把菜园和背包都清空，重新开始？')) garden.debug.reset(); };
 $('dbgToggle').onclick = () => $('dbg').classList.toggle('open');
 setInterval(renderBag, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, house, homePlot, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, house, shop, homePlot, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const WALK = 7.5, RUN = 12, GRAV = 26, JUMP = 9.5, EDGE = WR - 6;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
@@ -419,7 +466,7 @@ function step(dt, t) {
   if (keys.KeyA || keys.ArrowLeft) mx -= 1;
   if (keys.KeyD || keys.ArrowRight) mx += 1;
   if (joy.id !== null) { mx = joy.x; my = joy.y; }
-  if (chestOpen) mx = my = 0;
+  if (chestOpen || shopOpen) mx = my = 0;
   const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
   const running = keys.ShiftLeft || keys.ShiftRight;
   const speed = (running ? RUN : WALK) * Math.min(1, len);
@@ -439,6 +486,7 @@ function step(dt, t) {
   const pr = .55;
   garden.collide(player.pos);
   house.collide(player.pos);
+  shop.collide(player.pos);
   colliders.forEach(([cx, cz, cr]) => {
     const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
     if (d < min && d > 1e-4 && player.pos.y < 1.5) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
@@ -480,13 +528,16 @@ renderer.setAnimationLoop(() => {
   clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 560) c.position.x = -560; });
   garden.update(dt);
   house.update(dt, player.pos);
+  shop.update(dt);
   step(dt, t);
   // 站在哪块田旁边：显示能做什么
   nearBed = overview ? null : garden.nearest(player.pos.x, player.pos.z);
   nearBox = !overview && !nearBed && garden.nearChest(player.pos.x, player.pos.z);
   nearHouse = !overview && !nearBed ? house.nearThing(player.pos) : null;
+  nearShop = !overview && !nearBed && shop.near(player.pos);
   const pr = $('prompt');
   if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
+  else if (nearShop && !shopOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}🏪 进小卖部</b><span>买种子、树苗、蜡烛、杀虫剂；把菜卖掉换菜币</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '进小卖部'; $('actBtn').classList.add('show'); }
   else if (nearHouse && !chestOpen) { const d = house.describe(nearHouse, selItem()); pr.innerHTML = `<b>${d.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${d.label}</b><span>${d.sub}</span>`; pr.classList.toggle('dim', !d.can); pr.classList.add('show'); $('actBtn').textContent = d.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', d.can); }
   else if (nearBox && !chestOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}📦 打开箱子</b><span>把背包里的东西放进箱子，或者拿出来</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '打开箱子'; $('actBtn').classList.add('show'); }
   else { pr.classList.remove('show'); $('actBtn').classList.remove('show'); }

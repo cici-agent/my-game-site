@@ -39,6 +39,7 @@ const BUG_FIGHT = 6;                // 一块田虫子到 6 只就开始打架
 const BUG_CALM = 3;                 // 打到剩 3 只左右就不打了
 const BUG_FLY = 4;                  // 4 只以上开始有虫往外飞
 const BUG_HARD_MAX = 9;
+const SPRAY_GUARD = 2 * 3600;      // 喷过杀虫剂的田 2 小时不来虫
 const EMPTY_BUG = 8 * 3600;         // 空田：没有别的虫时，平均 8 小时才可能来一只
 const BUG_EAT = 30 * 60;            // 1 只虫 30 分钟吃掉 1 棵；虫越多吃得越快
 const SHOO_CD = .9;                 // 用手赶虫很慢：每赶走一只要等一会儿
@@ -83,7 +84,7 @@ export function createBag(cap = 7, stack = 50) {   // 快捷栏一共 9 格：�
   }
   return Object.assign(bag, { count, room, add, take, addAll, tidy });
 }
-const OTHER_ITEMS = { candle: { icon: '🕯️', name: '蜡烛' } };
+const OTHER_ITEMS = { candle: { icon: '🕯️', name: '蜡烛' }, spray: { icon: '🧴', name: '杀虫剂' } };
 export const itemInfo = key => {
   if (OTHER_ITEMS[key]) return OTHER_ITEMS[key];
   if (key.startsWith('seed_')) { const c = CROPS[key.slice(5)]; return { icon: '🌱', sub: c.icon, name: c.kind === 'tree' ? c.tree + '苗' : c.name + '种子', seed: true }; }
@@ -300,6 +301,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   let st = null;
   try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   if (!st || !st.beds) st = { level: 1, speed: 1, beds: [], bag: null, t: Date.now() };
+  if (st.coins === undefined) st.coins = 30;   // 菜币：刚来送 30 个；不能和金币换
   while (st.beds.length < LEVELS[4]) st.beds.push({ crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, moist: 0, bugs: 0, eat: 0 });
   const bag = createBag();
   // 以前存的背包可能比 7 格多，多出来的放不下；第一次来送一些种子
@@ -403,6 +405,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // ---------- 时间往前走（游戏秒） ----------
   function stepBed(b, gs) {
     b.moist = Math.max(0, b.moist - gs / DRY_TIME);
+    if (b.guard) b.guard = Math.max(0, b.guard - gs);
     if (!b.crop) { b.eat = 0; return null; }
     const C = CROPS[b.crop];
     let event = null;
@@ -426,7 +429,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 虫子从一块田跑到旁边的田（70% 落到旁边的田，30% 落到菜园里随便哪块）
   function landSomewhere(list, from) {
     const nb = neighbors(list, from), to = nb.length && rnd() < .7 ? nb[Math.floor(rnd() * nb.length)] : list[Math.floor(rnd() * list.length)];
-    if (to && to !== from && to.bugs < BUG_HARD_MAX) { to.bugs++; return to; }
+    if (to && to !== from && to.bugs < BUG_HARD_MAX && !(to.guard > 0)) { to.bugs++; return to; }
     return null;
   }
   // 整个菜园的虫子：来虫、打架、往外飞
@@ -438,7 +441,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const crowd = 1 + .15 * Math.min(total, 10);                 // 菜园里虫越多，来得越勤（最多快 2.5 倍，免得一下子全是虫）
     const events = [];
     list.forEach(b => {
-      if (b.bugs >= BUG_HARD_MAX) return;
+      if (b.bugs >= BUG_HARD_MAX || b.guard > 0) return;
       let per;
       if (b.crop && b.phase !== 'withered') {
         // 一轮生长里来虫的概率 p（种下时在 40%~60% 之间随机定）→ 换算成平均多久来一只
@@ -472,6 +475,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   const fx = [];
   const dropGeo = new THREE.SphereGeometry(.05, 6, 4), dropMat = new THREE.MeshBasicMaterial({ color: 0x7cc8ff, transparent: true, opacity: .85 });
   const seedMat = new THREE.MeshBasicMaterial({ color: 0xe8c77a });
+  const sprayMat = new THREE.MeshBasicMaterial({ color: 0xd8f5c0, transparent: true, opacity: .7 });
   function burst(bd, mat, n, y0) {
     for (let k = 0; k < n; k++) {
       const d = new THREE.Mesh(dropGeo, mat); d.position.set((rnd() - .5) * BED_W, y0 + rnd() * .4, (rnd() - .5) * BED_D);
@@ -595,6 +599,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       else parts.push('还要 ' + fmt((1 - b.g) * total / rate / st.speed));
     }
     parts.push(`水分 ${wet}%`);
+    if (b.guard > 0) parts.push('🧴 喷过杀虫剂');
     if (b.plants < PER_BED) parts.push(C.kind === 'tree' ? `果子被虫吃掉 ${PER_BED - b.plants} 份` : `被虫吃掉 ${PER_BED - b.plants} 棵`);
     return parts.join(' · ');
   }
@@ -608,6 +613,11 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       const list = st.beds.slice(0, LEVELS[st.level]);
       if (rnd() < .35 && landSomewhere(list, b)) return { msg: '👋 虫子飞到别的田上去了…' + (b.bugs ? `这块还有 ${b.bugs} 只` : '') };
       return { msg: b.bugs ? `👋 赶走了一只虫子，还有 ${b.bugs} 只` : '👋 这块田的虫子都赶走啦！' };
+    }
+    if (a.kind === 'spray') {
+      if (!bag.take('spray')) return { msg: '没有杀虫剂了，去小卖部买' };
+      const n = b.bugs; b.bugs = 0; b.guard = SPRAY_GUARD; syncBugs(bd); burst(bd, sprayMat, 26, 1.1);
+      return { msg: n ? `🧴 喷完了，${n} 只虫子都跑了；2 小时不会来虫` : '🧴 喷好了，2 小时不会来虫' };
     }
     if (a.kind === 'water') { b.moist = 1; burst(bd, dropMat, 30, 1.3); return { msg: '💧 浇好水了，土变深了' }; }
     if (a.kind === 'plant') {
@@ -675,6 +685,10 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       if (b.crop && b.phase === 'withered') return { kind: 'clear', label: '🧤 拔掉枯苗' };
       return { kind: null, label: '🧤 这里没有虫子', msg: b.crop ? '这块田没有虫子，菜还没熟' : '这块田没有虫子' };
     }
+    if (item === 'spray') {
+      if (b.guard > 0 && !b.bugs) return { kind: null, label: '🧴 刚喷过，还不用喷', msg: '这块田刚喷过杀虫剂，暂时不会来虫' };
+      return { kind: 'spray', label: b.bugs ? `🧴 喷杀虫剂（${b.bugs} 只虫）` : '🧴 喷杀虫剂（预防）' };
+    }
     if (item && item.startsWith('seed_')) {
       const k = item.slice(5), C = CROPS[k];
       if (b.crop) return { kind: null, label: `${C.icon} 这里已经有菜了`, msg: '这块田已经种了菜，不能再种' };
@@ -689,6 +703,12 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     return act(bd, p.seed, p.kind);
   }
 
+  const wallet = {
+    get: () => st.coins,
+    spend(n) { if (st.coins < n) return false; st.coins -= n; persist(); return true; },
+    add(n) { st.coins += n; persist(); },
+  };
+
   const debug = {
     setLevel(l) { st.level = l; buildYard(); persist(); },
     setSpeed(v) { st.speed = v; persist(); },
@@ -701,5 +721,5 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 菜园门口（世界坐标），出生点用
   const gateWorld = () => toWorld(side * (plot.size / 2 - 4), rect.gz);
   const gateYaw = () => { const [ax, az] = toWorld(0, 0), [bx, bz] = toWorld(side, 0); return Math.atan2(bx - ax, bz - az); };
-  return { beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
+  return { wallet, beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateYaw, get level() { return st.level; }, get speed() { return st.speed; } };
 }
