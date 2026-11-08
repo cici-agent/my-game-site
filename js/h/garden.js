@@ -25,8 +25,16 @@ export const CROPS = {
 export const LEVELS = { 1: 12, 2: 16, 3: 20, 4: 24 };
 const PER_BED = 5;
 const DRY_TIME = 3 * 3600;          // 浇一次水，大约 3 小时从全湿到全干
-const BUG_EVERY = 50 * 60;          // 平均 50 分钟可能来一只虫（原来 20 分钟，用户说太多）
-const BUG_MAX = 5;
+// 虫子规则（用户定的）：
+//   菜园里没有别的虫时，一棵菜长一轮大约 40%~60% 会来一只虫；菜园里种的菜越多越容易来，菜很少就不太来
+//   菜园里已经有虫了，新虫来得更勤；虫越多越容易来
+//   一块田里虫太多会互相打架，慢慢减少到一定数量，然后开始往外飞（飞到别的田，或者飞走）
+//   所以空的田也会有虫，但比种了菜的田少；空田上的虫不吃东西
+const BUG_FIGHT = 6;                // 一块田虫子到 6 只就开始打架
+const BUG_CALM = 3;                 // 打到剩 3 只左右就不打了
+const BUG_FLY = 4;                  // 4 只以上开始有虫往外飞
+const BUG_HARD_MAX = 9;
+const EMPTY_BUG = 8 * 3600;         // 空田：没有别的虫时，平均 8 小时才可能来一只
 const BUG_EAT = 30 * 60;            // 1 只虫 30 分钟吃掉 1 棵；虫越多吃得越快
 const SHOO_CD = .9;                 // 用手赶虫很慢：每赶走一只要等一会儿
 
@@ -347,7 +355,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // ---------- 时间往前走（游戏秒） ----------
   function stepBed(b, gs) {
     b.moist = Math.max(0, b.moist - gs / DRY_TIME);
-    if (!b.crop) { b.bugs = 0; return null; }
+    if (!b.crop) { b.eat = 0; return null; }
     const C = CROPS[b.crop];
     let event = null;
     if (b.phase === 'grow' || b.phase === 'regrow') {
@@ -355,18 +363,57 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       if (b.g >= 1) { b.g = 1; b.phase = 'ripe'; event = 'ripe'; }
     }
     if (b.phase !== 'withered') {
-      if (b.bugs < BUG_MAX && rnd() < 1 - Math.exp(-gs / BUG_EVERY)) { b.bugs++; event = event || 'bug'; }
       if (b.bugs > 0) {
         b.eat += gs * b.bugs;
         while (b.eat >= BUG_EAT && b.plants > 0) { b.eat -= BUG_EAT; b.plants--; event = 'eaten'; }
-        if (b.plants <= 0) { Object.assign(b, { crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0 }); event = 'allEaten'; }
+        if (b.plants <= 0) { Object.assign(b, { crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, eat: 0 }); event = 'allEaten'; }
       } else b.eat = 0;
     }
     return event;
   }
+  // 旁边的田（上下左右）
+  const neighbors = (list, b) => { const i = list.indexOf(b), c = i % COLS, r = Math.floor(i / COLS), rows = list.length / COLS;
+    return [[c - 1, r], [c + 1, r], [c, r - 1], [c, r + 1]].filter(([x, y]) => x >= 0 && x < COLS && y >= 0 && y < rows).map(([x, y]) => list[y * COLS + x]); };
+  // 虫子从一块田跑到旁边的田（70% 落到旁边的田，30% 落到菜园里随便哪块）
+  function landSomewhere(list, from) {
+    const nb = neighbors(list, from), to = nb.length && rnd() < .7 ? nb[Math.floor(rnd() * nb.length)] : list[Math.floor(rnd() * list.length)];
+    if (to && to !== from && to.bugs < BUG_HARD_MAX) { to.bugs++; return to; }
+    return null;
+  }
+  // 整个菜园的虫子：来虫、打架、往外飞
+  const hz = (gs, per) => 1 - Math.exp(-gs / per);            // 平均 per 秒发生一次，在 gs 秒里发生的概率
+  function stepBugs(list, gs) {
+    const planted = list.filter(b => b.crop && b.phase !== 'withered').length;
+    const density = .4 + 1.2 * planted / list.length;           // 种得少 → 0.4 倍；种满 → 1.6 倍
+    const total = list.reduce((n, b) => n + b.bugs, 0);
+    const crowd = 1 + .15 * Math.min(total, 10);                 // 菜园里虫越多，来得越勤（最多快 2.5 倍，免得一下子全是虫）
+    const events = [];
+    list.forEach(b => {
+      if (b.bugs >= BUG_HARD_MAX) return;
+      let per;
+      if (b.crop && b.phase !== 'withered') {
+        // 一轮生长里来虫的概率 p（种下时在 40%~60% 之间随机定）→ 换算成平均多久来一只
+        const C = CROPS[b.crop], cycle = b.phase === 'regrow' ? C.regrow : C.grow, p = b.bugP || .5;
+        per = cycle / -Math.log(1 - p) / Math.max(.2, growRate(b));   // 长得慢（缺水）时按实际要长的时间算
+      } else per = EMPTY_BUG;
+      if (rnd() < hz(gs, per / (density * crowd))) { b.bugs++; events.push(['bug', b]); }
+    });
+    list.forEach(b => {
+      // 打架：太多了就慢慢减少
+      if (b.bugs >= BUG_FIGHT) { if (rnd() < hz(gs, 8 * 60 / (b.bugs - BUG_CALM))) { b.bugs--; events.push(['fight', b]); } }
+      // 往外飞：一部分落到别的田（包括空田），一部分飞走
+      if (b.bugs >= BUG_FLY && rnd() < hz(gs, 15 * 60)) {
+        b.bugs--;
+        if (rnd() < .6) { const to = landSomewhere(list, b); if (to) events.push(['flyIn', to]); }
+        events.push(['flyOut', b]);
+      }
+    });
+    return events;
+  }
   {
     const away = Math.min(2 * 86400, Math.max(0, (Date.now() - (st.t || Date.now())) / 1000));
-    for (let left = away; left > 0; left -= 60) st.beds.forEach(b => stepBed(b, Math.min(60, left)));
+    const list = st.beds.slice(0, LEVELS[st.level]);
+    for (let left = away; left > 0; left -= 60) { const g = Math.min(60, left); list.forEach(b => stepBed(b, g)); stepBugs(list, g); }
   }
 
   const listeners = [];
@@ -386,6 +433,11 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   const pops = [];
   function pop(bd, text) { const sp = textSprite(text); sp.position.set(0, 1.2, 0); bd.g.add(sp); pops.push({ sp, bd, t: 0 }); }
 
+  const flyers = [];
+  function flyAway(bd) {
+    const bug = buildBug(); bug.position.set((rnd() - .5) * BED_W, .1, (rnd() - .5) * BED_D); bd.g.add(bug);
+    flyers.push({ bug, bd, t: 0, dx: rnd() - .5, dz: rnd() - .5 });
+  }
   function setIcon(bd, ch) {
     if (bd.iconCh === ch) return;
     bd.iconCh = ch; bd.icon.clear(); if (ch) bd.icon.add(iconSprite(ch));
@@ -394,6 +446,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   function update(dt) {
     anim += dt;
     const gs = dt * st.speed, active = LEVELS[st.level];
+    const bugEvents = stepBugs(st.beds.slice(0, active), gs);
+    bugEvents.forEach(([kind, b]) => { const bd = beds.find(x => x.st === b); if (kind === 'flyOut' && bd) flyAway(bd); if (kind === 'bug' || kind === 'flyIn') emit('bug', bd); });
     beds.forEach((bd, i) => {
       const on = i < active; bd.g.visible = on;
       if (!on) return;
@@ -414,6 +468,12 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     for (let k = fx.length - 1; k >= 0; k--) {
       const { d, bd } = fx[k]; d.userData.vy -= 9 * dt; d.position.y += d.userData.vy * dt; d.userData.life -= dt;
       if (d.position.y < .06 || d.userData.life <= 0) { bd.g.remove(d); fx.splice(k, 1); }
+    }
+    for (let k = flyers.length - 1; k >= 0; k--) {
+      const f = flyers[k]; f.t += dt;
+      f.bug.position.x += f.dx * dt * 2; f.bug.position.z += f.dz * dt * 2; f.bug.position.y = .1 + f.t * 1.5 + Math.sin(f.t * 12) * .1;
+      f.bug.rotation.y += dt * 6;
+      if (f.t > 2.5) { f.bd.g.remove(f.bug); flyers.splice(k, 1); }
     }
     for (let k = pops.length - 1; k >= 0; k--) {
       const p = pops[k]; p.t += dt; p.sp.position.y = 1.2 + p.t * 1.4; p.sp.material.opacity = Math.max(0, 1 - p.t / 1.4);
@@ -453,7 +513,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   let shooCd = 0;
   function actionFor(bd) {
     const b = bd.st;
-    if (b.crop && b.bugs > 0) return { kind: 'shoo', label: `赶走虫子（还有 ${b.bugs} 只）` };
+    if (b.bugs > 0) return { kind: 'shoo', label: `赶走虫子（还有 ${b.bugs} 只）` };
     if (b.crop && b.phase === 'ripe') return { kind: 'harvest', label: CROPS[b.crop].kind === 'pull' ? `拔${CROPS[b.crop].name}` : `摘${CROPS[b.crop].name}` };
     if (b.crop && b.phase === 'withered') return { kind: 'clear', label: '拔掉枯掉的苗' };
     if (!b.crop) return { kind: 'plant', label: '种菜' };
@@ -462,7 +522,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   const STAGE = g => g < .25 ? '发芽' : g < .6 ? '小苗' : g < 1 ? '长大中' : '成熟';
   function describe(bd) {
     const b = bd.st, wet = Math.round(b.moist * 100);
-    if (!b.crop) return `空的田 · 水分 ${wet}%`;
+    if (!b.crop) return `空的田 · 水分 ${wet}%` + (b.bugs ? ` · 有 ${b.bugs} 只虫` : '');
     const C = CROPS[b.crop], parts = [`${C.icon} ${C.name}`];
     if (b.phase === 'withered') parts.push('已经枯萎');
     else if (b.phase === 'ripe') parts.push('成熟啦！');
@@ -482,8 +542,10 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const b = bd.st, a = actionFor(bd);
     if (a.kind === 'shoo') {
       if (shooCd > performance.now()) return { msg: '🐛 慢慢来…', soft: true };
-      shooCd = performance.now() + SHOO_CD * 1000; b.bugs--; syncBugs(bd);
-      return { msg: b.bugs ? `👋 赶走了一只虫子，还有 ${b.bugs} 只` : '👋 虫子都赶走啦！' };
+      shooCd = performance.now() + SHOO_CD * 1000; b.bugs--; syncBugs(bd); flyAway(bd);
+      const list = st.beds.slice(0, LEVELS[st.level]);
+      if (rnd() < .35 && landSomewhere(list, b)) return { msg: '👋 虫子飞到别的田上去了…' + (b.bugs ? `这块还有 ${b.bugs} 只` : '') };
+      return { msg: b.bugs ? `👋 赶走了一只虫子，还有 ${b.bugs} 只` : '👋 这块田的虫子都赶走啦！' };
     }
     if (a.kind === 'water') { b.moist = 1; burst(bd, dropMat, 30, 1.3); return { msg: '💧 浇好水了，土变深了' }; }
     if (a.kind === 'plant') {
@@ -492,11 +554,11 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       if (C.lv > st.level) return { msg: `🔒 ${C.name}要菜园 ${C.lv} 级才能种` };
       if (!bag.take('seed_' + seedKey)) return { msg: `没有${C.name}种子了` };
       const pr = C.picks || [1, 1];
-      Object.assign(b, { crop: seedKey, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0, maxPicks: pr[0] + Math.floor(rnd() * (pr[1] - pr[0] + 1)) });
+      Object.assign(b, { crop: seedKey, g: 0, phase: 'grow', plants: PER_BED, picks: 0, eat: 0, bugP: .4 + rnd() * .2, maxPicks: pr[0] + Math.floor(rnd() * (pr[1] - pr[0] + 1)) });
       rebuildPlants(bd); burst(bd, seedMat, 14, .6);
       return { msg: `🌱 种下了 ${PER_BED} 棵${C.name}${b.moist < .05 ? '，记得浇水哦' : ''}` };
     }
-    if (a.kind === 'clear') { Object.assign(b, { crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0 }); rebuildPlants(bd); return { msg: '🧹 枯苗拔掉了，可以种新的了' }; }
+    if (a.kind === 'clear') { Object.assign(b, { crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, eat: 0 }); rebuildPlants(bd); return { msg: '🧹 枯苗拔掉了，可以种新的了' }; }
     if (a.kind === 'harvest') {
       const C = CROPS[b.crop], n = b.plants * C.yield, got = [[b.crop, n]];
       let seedN = 0;
@@ -508,8 +570,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       if (!bag.addAll(got)) return { msg: '🎒 背包满了，装不下了' };
       pop(bd, `+${n} ${C.icon}`);
       let msg = `${C.icon} ${C.kind === 'pull' ? '拔' : '摘'}到 ${n} 个${C.name}` + (seedN ? `，还有 ${seedN} 颗种子` : '');
-      if (C.kind === 'pull') { Object.assign(b, { crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, bugs: 0, eat: 0 }); rebuildPlants(bd); }
-      else { b.picks++; if (b.picks >= maxP) { b.phase = 'withered'; msg += '；结了好多次，它枯萎了'; } else { b.phase = 'regrow'; b.g = 0; msg += '，过一阵还会再结'; } }
+      if (C.kind === 'pull') { Object.assign(b, { crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, eat: 0 }); rebuildPlants(bd); }
+      else { b.picks++; if (b.picks >= maxP) { b.phase = 'withered'; msg += '；结了好多次，它枯萎了'; } else { b.phase = 'regrow'; b.g = 0; b.bugP = .4 + rnd() * .2; msg += '，过一阵还会再结'; } }
       return { msg };
     }
   }
