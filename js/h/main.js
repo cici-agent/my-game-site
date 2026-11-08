@@ -437,6 +437,7 @@ function renderBag() {
 $('bag').addEventListener('pointerdown', e => { if (chestOpen) return; const c = e.target.closest('.slot'); if (c) { e.preventDefault(); select(+c.dataset.i); } });
 
 // ---------- 🐔 鸡舍：收鸡蛋、往食槽加饲料、摸摸小鸡、升级 ----------
+let killT = 0, killB = null;
 function coopPrompt(it) {
   if (coop.nearNest(player.pos)) {
     const n = coop.eggs + coop.gold;
@@ -447,6 +448,7 @@ function coopPrompt(it) {
     return { label: `🌾 食槽：${coop.feed} / ${coop.FEED_MAX} 份`, sub: '选中 鸡饲料 / 玉米 / 种子 按 E 倒进去', can: false };
   }
   const b = coop.nearChicken(player.pos);
+  if (b && it === 'knife') return { label: killT > performance.now() && killB === b ? '⚠️ 再按一次 E：确定杀掉' : (b.baby ? '🔪 杀小鸡（得到 1 块鸡肉）' : '🔪 杀鸡（得到 2 块鸡肉）'), sub: '杀掉就没有了 · 鸡肉能吃（体力 +15）也能卖', can: true };
   if (b) return { label: b.baby ? '🐣 摸摸小鸡' : '🐔 摸摸母鸡', sub: b.baby ? '小鸡 20 分钟长成母鸡' : '吃饱了才会下蛋', can: true };
   if (coop.nearCoop(player.pos)) { const nx = coop.nextLevel();
     return nx ? { label: `🐔 升级鸡舍：${nx.name}（${nx.price} 菜币）`, sub: `现在 ${coop.lv} 级 ${coop.name} · 住了 ${coop.count} / ${coop.cap} 只 · 升级后能住 ${nx.cap} 只`, can: true }
@@ -465,6 +467,10 @@ function coopAction() {
   }
   if (coop.nearTrough(player.pos) && coop.canFeed(it)) { const v = coop.addFeed(it); if (v < 0) { toast('🌾 食槽装不下了'); return true; } garden.bag.take(it); toast(`🌾 倒进食槽了（${coop.feed} / ${coop.FEED_MAX} 份）`); return true; }
   const b = coop.nearChicken(player.pos);
+  if (b && it === 'knife') {   // 杀鸡：按两次 E 确认（免得按错）
+    if (!(killT > performance.now() && killB === b)) { killT = performance.now() + 3000; killB = b; toast('⚠️ 3 秒内再按一次 E 确定杀掉'); return true; }
+    killT = 0; const meat = coop.kill(b); let got = 0; for (let i = 0; i < meat; i++) if (garden.bag.add('chicken_meat', 1) || garden.chest.add('chicken_meat', 1)) got++;
+    toast(`🍗 得到 ${got} 块鸡肉`); stamina.use('work'); return true; }
   if (b) { coop.pet(b); toast(b.baby ? '🐣 叽叽叽～' : '🐔 咯咯哒～'); return true; }
   if (coop.nearCoop(player.pos)) { const nx = coop.nextLevel(); if (!nx) return false;
     if (!garden.wallet.spend(nx.price)) { toast(`菜币不够：要 ${nx.price}`); return true; }
@@ -479,6 +485,9 @@ const KENNEL_UP = lv => dog.KENNEL[lv + 1];
 function frontOf(d = 1.4) { return [player.pos.x + Math.sin(player.face) * d, player.pos.z + Math.cos(player.face) * d]; }
 function dogPrompt(it) {
   const nm = dog.name;
+  // 狗链（用户说：拴上时狗链从背包里拿走，解开后回到背包；拴狗它会不开心）
+  if (dog.chained && dog.near(player.pos) && (!it || it === 'glove')) return { label: `⛓️ 解开${nm}`, sub: '狗链会回到背包里', can: true };
+  if (it === 'leash' && dog.near(player.pos) && !dog.chained) return { label: `⛓️ 把${nm}拴起来`, sub: `${dog.kennel && Math.hypot(dog.pos.x - dog.kennel.x, dog.pos.z - dog.kennel.z) < 8 ? '拴在狗屋门口' : '在这里钉个小木桩拴着'} · 它会有点不开心（忠诚 -5）`, can: true };
   if (it === 'dogfood' && dog.nearBowl(player.pos)) return { label: '🦴 往狗盆里加狗粮', sub: `盆里有 ${dog.bowl.food} / 5 份`, can: true };
   if (it === 'bowl') return { label: dog.bowl ? '🥣 把狗盆挪到这里' : '🥣 把狗盆放在这里', sub: '狗饿了会自己来吃', can: true };
   if (it === 'kennel') return dog.kennel ? { label: '🛖 你已经放了一个狗屋', sub: '狗屋放好以后就不能再挪了', can: false } : { label: '🛖 把狗屋放在这里', sub: '门会朝着你 · ⚠️ 放好以后就不能再挪了', can: true };
@@ -486,7 +495,6 @@ function dogPrompt(it) {
   if (dog.nearKennel(player.pos) && !dog.near(player.pos)) { const k = dog.kennel, up = KENNEL_UP(k.lv);
     return up ? { label: `🛖 升级狗屋：${up.name}（${up.price} 菜币）`, sub: `现在是 ${k.lv} 级 ${dog.KENNEL[k.lv].name}${dog.mode === 'sleep' ? ` · ${nm}在里面睡觉 💤` : ''}`, can: true }
               : { label: `🛖 ${dog.KENNEL[k.lv].name}（最高级）`, sub: dog.mode === 'sleep' ? `${nm}在里面睡觉 💤` : '晚上狗会回来睡觉', can: false }; }
-  if (it === 'leash' && dog.near(player.pos)) return dog.chained ? { label: `⛓️ 解开${nm}`, sub: '解开以后它会跟着你到处跑', can: true } : { label: `⛓️ 把${nm}拴起来`, sub: dog.kennel && Math.hypot(dog.pos.x - dog.kennel.x, dog.pos.z - dog.kennel.z) < 8 ? '拴在狗屋门口；只能在狗链那一圈里走' : '在这里钉个小木桩拴着；只能在狗链那一圈里走', can: true };
   if (dog.near(player.pos)) {
     if (it === 'dogfood') return { label: `🦴 喂${nm}`, sub: dog.status(), can: true };
     if (it === 'frisbee') return { label: '🥏 扔飞盘', sub: `${nm}会跑去捡回来`, can: !dog.frisbeeOut };
@@ -501,9 +509,11 @@ function dogPrompt(it) {
 function dogAction() {
   const it = selItem();
   if (nearBed && !DOG_ITEMS.includes(it)) return false;
+  if (dog.chained && dog.near(player.pos) && (!it || it === 'glove')) { dog.untie(); if (!garden.bag.add('leash', 1)) garden.chest.add('leash', 1); toast(`⛓️ 解开了，${dog.name}好开心（狗链回到背包里了）`); return true; }
+  if (it === 'leash' && dog.near(player.pos) && !dog.chained) { garden.bag.take('leash'); const k = dog.tie(); toast(`⛓️ 把${dog.name}拴${k ? '在狗屋门口' : '在这里'}了 · ${dog.name}有点不开心（忠诚 -5）`);
+    if (dog.bowl && Math.hypot(dog.bowl.x - dog.pos.x, dog.bowl.z - dog.pos.z) > 4) setTimeout(() => toast('🥣 狗盆离得太远，它够不着：把狗盆挪近一点'), 1800); return true; }
   if (it === 'dogfood' && dog.nearBowl(player.pos)) { if (dog.bowl.food >= 5) { toast('🥣 狗盆满了'); return true; } garden.bag.take('dogfood'); toast(`🦴 加了一份狗粮（盆里 ${dog.fillBowl()} / 5）`); return true; }
   if (dog.near(player.pos) && it === 'dogfood') { if (dog.full >= 95) { toast(`🐶 ${dog.name}已经吃饱了`); return true; } garden.bag.take('dogfood'); toast(dog.feed()); return true; }
-  if (it === 'leash' && dog.near(player.pos)) { if (dog.chained) { dog.untie(); toast(`⛓️ 解开了，${dog.name}好开心`); } else { const k = dog.tie(); toast(k ? `⛓️ 把${dog.name}拴在狗屋门口了` : `⛓️ 把${dog.name}拴在这里了`); if (dog.bowl && Math.hypot(dog.bowl.x - dog.pos.x, dog.bowl.z - dog.pos.z) > 4) setTimeout(() => toast('🥣 狗盆离得太远，它够不着：把狗盆挪近一点'), 1800); } return true; }
   if (it === 'frisbee') {
     if (!dog.has) { toast('🥏 先去小卖部买一只小狗'); return true; }
     if (dog.frisbeeOut) { toast(`🐶 ${dog.name}正在捡飞盘`); return true; }
@@ -589,7 +599,8 @@ $('shopList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   if (shopTab === 'buy') {
     const it = SHOP_ITEMS[+b.dataset.i], n = +b.dataset.n, cost = it.price * n;
-    if (it.key === 'leash' && (garden.bag.count('leash') || garden.chest.count('leash'))) { toast('⛓️ 你已经有狗链了'); return; }
+    if (it.key === 'knife' && (garden.bag.count('knife') || garden.chest.count('knife'))) { toast('🔪 你已经有菜刀了'); return; }
+    if (it.key === 'leash' && (dog.chained || garden.bag.count('leash') || garden.chest.count('leash'))) { toast('⛓️ 你已经有狗链了'); return; }
     if (it.key === 'kennel' && (dog.kennel || garden.bag.count('kennel') || garden.chest.count('kennel'))) { toast('🛖 你已经有一个狗屋了'); return; }
     if (it.key === 'chick') {
       if (coop.count >= coop.cap) { toast(`🐔 ${coop.name}住满了（${coop.cap} 只）：先升级鸡舍`); return; }

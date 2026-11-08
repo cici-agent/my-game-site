@@ -18,12 +18,13 @@ export const SHOP_ITEMS = [
   { key: 'bowl', price: 10, lv: 1, note: '放在地上，往里面加狗粮，狗饿了自己去吃' },
   { key: 'dogfood', price: 3, lv: 1, note: '一份狗粮：放进狗盆，或者直接喂给狗' },
   { key: 'frisbee', price: 12, lv: 1, note: '扔出去，狗会去捡回来（不会用完）' },
+  { key: 'knife', price: 6, lv: 1, note: '选中菜刀走到鸡旁边，按两次 E 杀鸡，得到鸡肉（不会用完）', once: true },
   { key: 'oil', price: 8, lv: 1, note: '小木屋的油灯用，能亮 2 小时' },
   ...Object.keys(SEED_PRICE).map(k => ({ key: 'seed_' + k, price: SEED_PRICE[k], lv: CROPS[k].lv, note: CROPS[k].kind === 'tree' ? '果树，一块田种一棵' : '' })),
 ];
 // 能卖的价格（用户说：背包里除了钥匙，什么都能卖，但卖的价格比买的低）：菜和水果按原价收；小卖部买来的东西按买价的一半
 const BUY = Object.fromEntries(SHOP_ITEMS.map(it => [it.key, it.price]));
-const EXTRA_SELL = { egg: 5, goldegg: 60 };   // 鸡蛋、金蛋
+const EXTRA_SELL = { egg: 5, goldegg: 60, chicken_meat: 12 };   // 鸡蛋、金蛋
 export const sellPrice = key => key === 'key' ? 0 : EXTRA_SELL[key] ? EXTRA_SELL[key] : CROPS[key] ? CROPS[key].price : BUY[key] ? Math.max(1, Math.floor(BUY[key] / 2)) : 0;
 
 function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }

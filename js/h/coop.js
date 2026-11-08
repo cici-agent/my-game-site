@@ -161,6 +161,14 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
     });
   }
   build(); syncBirds();
+  // 一团白羽毛散开（不吓人）
+  const puffs = [];
+  function puff(x, z) {
+    const g = new THREE.Group(); g.position.set(x, .3, z); holder.add(g);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, roughness: 1 });
+    for (let i = 0; i < 14; i++) { const f = new THREE.Mesh(SPH, mat); f.scale.set(.05, .015, .09); f.userData.v = new THREE.Vector3((Math.random() - .5) * 2, 1 + Math.random() * 1.5, (Math.random() - .5) * 2); f.rotation.set(Math.random() * 3, Math.random() * 3, 0); g.add(f); }
+    puffs.push({ g, mat, t: 0 });
+  }
 
   let t0 = 0, saveT = 0, growT = 0;
   function update(dt) {
@@ -196,6 +204,9 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
       b.m.head.rotation.x = b.act === 'peck' ? Math.max(0, Math.sin(t0 * 9 + b.ph)) * 1.1 : 0;
       b.m.wings.forEach((w, k) => w.rotation.z = b.act === 'flap' ? (k ? -1 : 1) * (.3 + Math.sin(t0 * 30) * .5) : 0);
     });
+    for (let k = puffs.length - 1; k >= 0; k--) { const p = puffs[k]; p.t += dt;
+      p.g.children.forEach(f => { f.userData.v.y -= 2.5 * dt; f.position.addScaledVector(f.userData.v, dt); f.rotation.x += dt * 3; });
+      p.mat.opacity = Math.max(0, 1 - p.t / 1.6); if (p.t > 1.6) { holder.remove(p.g); puffs.splice(k, 1); } }
     if ((saveT += dt) > 5) { saveT = 0; save(); }
   }
 
@@ -230,6 +241,12 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
     upgrade() { const nx = COOP[st.lv + 1]; if (!nx) return false; st.lv++; save(); build(); syncBirds(); birds.forEach(b => { b.x = 0; b.z = 0; }); return true; },
     nextLevel() { return COOP[st.lv + 1] || null; },
     pet(b) { b.act = 'flap'; b.t = .8; },
+    // 杀鸡（用户说：动物都可以杀，杀鸡得到鸡肉）：鸡变成一团羽毛飞散，母鸡给 2 块鸡肉，小鸡 1 块
+    kill(b) {
+      const i = birds.indexOf(b); if (i < 0) return 0;
+      const meat = b.baby ? 1 : 2; puff(b.x, b.z);
+      holder.remove(b.m.root); birds.splice(i, 1); st.hens.splice(i, 1); save(); return meat;
+    },
     debug: { setLevel(l) { st.lv = l; while (st.hens.length > COOP[l].cap) st.hens.pop(); save(); build(); syncBirds(); }, layNow() { st.hens.forEach(h => { h.next = 0; h.born = Math.min(h.born, Date.now() - GROW * 1000); h.full = Math.max(h.full, 60); }); }, reset() { localStorage.removeItem(KEY); } },
     entrance: () => toWorld(0, C.RD + 1.2),
   };

@@ -347,7 +347,8 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
       if (st.kennel && dist2(pos, st.kennel) < 8) { const [cx, cz] = kToWorld(0, KENNEL[st.kennel.lv].D + .35); st.chain = { x: cx, z: cz, k: true }; }
       else st.chain = { x: pos.x, z: pos.z, k: false };
       if (mode === 'follow' || mode === 'guard' || mode === 'fetch' || mode === 'return') mode = 'idle';
-      save(); say('😐', 1.5); return st.chain.k;
+      st.loyal = Math.max(0, st.loyal - 5);   // 用户说：拴狗它对你的好感会下降
+      save(); say('😢', 1.8); return st.chain.k;
     },
     untie() { st.chain = null; save(); say('😆', 2); mode = 'circle'; timer = 2; circ.set(pos.x - .9, 0, pos.z); circA = 0; },
     throwFrisbee(from, yaw) {
