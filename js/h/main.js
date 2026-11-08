@@ -533,6 +533,7 @@ function ranchPrompt(it) {
     const b = r.nearAnimal(player.pos);
     if (b) { const a = r.info(b), nm = b.baby ? K.baby : K.name, [prod, verb] = PRODUCT[r.kind];
       if (it === 'knife') return { label: killT > performance.now() && killB === b ? '⚠️ 再按一次 E：确定杀掉' : `🔪 杀${nm}（得到 ${b.baby ? K.meatN[1] : K.meatN[0]} 块${MEAT_NAME[K.meat]}）`, sub: '杀掉就没有了', can: true };
+      if (r.kind === 'pig' && r.dirt(b) > .15) { if (it === 'can') return { label: `🚿 给${nm}洗澡`, sub: '在泥坑里玩脏了 · 太脏的话拱松露会慢一点', can: true }; if (!(a && a.ready)) return { label: `🐷 ${nm}身上好脏`, sub: '选中 🪣 水壶按 E 给它洗澡', can: false }; }
       if (a && a.ready) { if (r.kind !== 'sheep') return { label: `${r.look.prod} ${verb}`, sub: `${itemInfo(prod).name}能卖钱`, can: true };
         return it === 'shears' ? { label: '✂️ 剪羊毛（2 团）', sub: '剪完以后会慢慢再长出来', can: true } : { label: '🧶 羊毛长满了', sub: '选中 ✂️ 剪刀按 E 剪羊毛', can: false }; }
       return { label: `${ic} 摸摸${nm}`, sub: b.baby ? `${K.grow} 分钟长大` : a && a.full < 20 ? '饿了 —— 往食槽里加吃的' : '吃饱了才会有收获', can: true }; }
@@ -556,6 +557,7 @@ function ranchAction() {
         if (!(killT > performance.now() && killB === b)) { killT = performance.now() + 3000; killB = b; toast('⚠️ 3 秒内再按一次 E 确定杀掉'); return true; }
         killT = 0; const n = r.kill(b); let got = 0; for (let i = 0; i < n; i++) if (garden.bag.add(K.meat, 1) || garden.chest.add(K.meat, 1)) got++;
         toast(`${itemInfo(K.meat).icon} 得到 ${got} 块${MEAT_NAME[K.meat]}`); stamina.use('work'); return true; }
+      if (r.kind === 'pig' && it === 'can' && r.dirt(b) > .15) { r.wash(b); toast(`🚿 给${b.baby ? K.baby : K.name}洗干净了！哼哼～`); stamina.use('work'); return true; }
       if (a && a.ready && (r.kind !== 'sheep' || it === 'shears')) { const n = r.harvest(b), [prod, verb, unit] = PRODUCT[r.kind]; let got = 0; for (let i = 0; i < n; i++) if (garden.bag.add(prod, 1) || garden.chest.add(prod, 1)) got++;
         toast(`${r.look.prod} ${verb}：得到 ${got} ${unit}`); stamina.use('work'); return true; }
       if (a && a.ready) return false;

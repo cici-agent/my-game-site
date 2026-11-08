@@ -122,8 +122,12 @@ function buildPig(baby) {
   part(head, CYL, D, [0, -.04, .24], [.12, .1, .12], [Math.PI / 2, 0, 0]); [-1, 1].forEach(s => part(head, SPH, M(0xa5405a), [s * .045, -.04, .3], [.025, .035, .015]));
   eyes(head, .11, .07, .2, .045);
   [-1, 1].forEach(s => part(head, new THREE.ConeGeometry(.08, .16, 4), P, [s * .16, .25, -.02], null, [.3, 0, s * .4]));
+  // 身上的泥点（玩泥巴以后慢慢变多，洗了就没了）
+  const mudMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1, transparent: true, opacity: 0 }), mud = [];
+  [[.25, .55, .1, .14], [-.28, .5, -.15, .16], [.1, .78, -.2, .13], [-.15, .7, .25, .11], [.3, .4, -.3, .12], [-.2, .35, .3, .1], [0, .8, .15, .12]].forEach(([x, y, z, r]) => {
+    const d = part(body, SPH, mudMat, [x * 1.05, y, z], [r, r * .55, r]); d.lookAt(d.position.clone().multiplyScalar(2)); d.castShadow = false; mud.push(d); });
   root.scale.setScalar(baby ? .55 : 1);
-  return { root, body, head, legs, tail };
+  return { root, body, head, legs, tail, mudMat };
 }
 // 鸭子：黄白色、橘色扁嘴、会在池塘里游
 function buildDuck(baby) {
@@ -189,7 +193,7 @@ function buildHome(kind, lv) {
     const s1 = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, 4.6, 18), M(0xcfd6dd, { metalness: .3 })); s1.position.y = 2.3; s1.castShadow = true; silo.add(s1);
     const s2 = new THREE.Mesh(new THREE.SphereGeometry(.9, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), M(0x8a96a3)); s2.position.y = 4.6; silo.add(s2); }
   // 猪圈：一个泥坑（3 级还有个小滑梯）；鸭棚：一个池塘（越高级越大，3 级有小木码头）
-  if (LK.mud) { const mud = new THREE.Mesh(new THREE.CircleGeometry(1, 28), M(0x7a5a38, { roughness: .6 })); mud.rotation.x = -Math.PI / 2; mud.scale.set(1.4 + lv * .5, 1 + lv * .3, 1); mud.position.set(RW * .35, .02, RD * .25); g.add(mud);
+  if (LK.mud) { g.userData.mud = { x: RW * .35, z: RD * .25, rx: (1.4 + lv * .5) * .8, rz: (1 + lv * .3) * .8 }; const mud = new THREE.Mesh(new THREE.CircleGeometry(1, 28), M(0x7a5a38, { roughness: .6 })); mud.rotation.x = -Math.PI / 2; mud.scale.set(1.4 + lv * .5, 1 + lv * .3, 1); mud.position.set(RW * .35, .02, RD * .25); g.add(mud);
     if (lv === 3) { box(.5, .06, 2, M(0xffd23f), [RW * .35 - 1.6, .5, RD * .25], [0, 0, .45]); box(.08, 1, .08, M(0xffd23f), [RW * .35 - 2.05, .5, RD * .25 - .3]); } }
   if (LK.pond) { const pond = new THREE.Mesh(new THREE.CircleGeometry(1, 32), M(0x6fbfe6, { roughness: .15, metalness: .1 })); pond.rotation.x = -Math.PI / 2; pond.scale.set(1.6 + lv * .5, 1.1 + lv * .3, 1); pond.position.set(RW * .3, .03, RD * .2); g.add(pond);
     const rim = new THREE.Mesh(new THREE.RingGeometry(.97, 1.08, 32), M(0x9a8a6a)); rim.rotation.x = -Math.PI / 2; rim.scale.copy(pond.scale); rim.position.set(pond.position.x, .035, pond.position.z); g.add(rim);
@@ -207,7 +211,7 @@ function buildHome(kind, lv) {
   box(.08, 1.1, .08, wood, [0, .55, 0], null, sign);
   const st = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 96; const x = c.getContext('2d'); x.fillStyle = '#f2e1bd'; x.fillRect(0, 0, 256, 96); x.fillStyle = '#5a3a1a'; x.font = 'bold 44px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(LK.icon + ' ' + K.home[lv], 128, 50); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   box(1, .38, .05, new THREE.MeshStandardMaterial({ map: st }), [0, 1.05, .05], null, sign);
-  return { pond: g.userData.pond, group: g, hay, troughPos: trough.position, door: { x: H.position.x, z: hz + d / 2 + .8 }, houseBox: { x: H.position.x, z: hz, hw: w / 2 + .1, hd: d / 2 + .1 }, sleep: { x: H.position.x, z: hz }, fence: segs, roofH: h + rise };
+  return { mud: g.userData.mud, pond: g.userData.pond, group: g, hay, troughPos: trough.position, door: { x: H.position.x, z: hz + d / 2 + .8 }, houseBox: { x: H.position.x, z: hz, hw: w / 2 + .1, hd: d / 2 + .1 }, sleep: { x: H.position.x, z: hz }, fence: segs, roofH: h + rise };
 }
 
 // ---------- 一个牧场（牛的或者羊的） ----------
@@ -245,7 +249,7 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
     st.animals.forEach(a => {
       a.full = Math.max(0, a.full - dt * HUNGER);
       if (a.full < 50 && st.feed > 0) { st.feed--; a.full = Math.min(100, a.full + MEAL); }
-      if (now - a.born >= GROW && !a.ready && now >= a.next) { if (a.full >= 20) a.ready = true; else a.next = now + 5 * 60 * 1000; }
+      if (now - a.born >= GROW && !a.ready && now >= a.next) { if (a.full >= 20 && !(a.dirt >= .9 && Math.random() < .5)) a.ready = true; else a.next = now + 5 * 60 * 1000; }   // 太脏的小猪不太爱干活，拱松露慢一点
     });
   }
   if (st.built) { let left = Math.max(0, (Date.now() - st.t) / 1000); while (left > 0) { const s = Math.min(60, left); left -= s; tick(s, Date.now() - left * 1000); } }
@@ -264,6 +268,8 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
   }
   build(); sync();
   const puffs = [];
+  function splash(x, z) { const g = new THREE.Group(); g.position.set(x, 1.1, z); base.add(g); const mat = new THREE.MeshStandardMaterial({ color: 0x8fd3ff, transparent: true, roughness: .1 });
+    for (let i = 0; i < 24; i++) { const f = new THREE.Mesh(SPH, mat); f.scale.setScalar(.05 + Math.random() * .05); f.userData.v = new THREE.Vector3((Math.random() - .5) * 2.2, Math.random() * 1.2, (Math.random() - .5) * 2.2); g.add(f); } puffs.push({ g, mat, t: 0 }); }
   function puff(x, z, color) { const g = new THREE.Group(); g.position.set(x, .6, z); base.add(g); const mat = new THREE.MeshStandardMaterial({ color, transparent: true, roughness: 1 });
     for (let i = 0; i < 16; i++) { const f = new THREE.Mesh(SPH, mat); f.scale.setScalar(.08 + Math.random() * .08); f.userData.v = new THREE.Vector3((Math.random() - .5) * 2.5, 1 + Math.random() * 1.5, (Math.random() - .5) * 2.5); g.add(f); } puffs.push({ g, mat, t: 0 }); }
 
@@ -284,9 +290,12 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
       } else {
         if (b.act === 'sleep') b.act = 'idle';
         if (b.t <= 0) { const k = Math.random(); b.act = k < .4 ? 'walk' : k < .85 ? 'graze' : 'idle'; b.t = 2 + Math.random() * 4;
+          if (H.mud && Math.random() < .3) { b.act = 'walk'; b.toMud = true; b.tx = H.mud.x + (Math.random() - .5) * H.mud.rx; b.tz = H.mud.z + (Math.random() - .5) * H.mud.rz; b.t = 12; }   // 小猪去泥坑里玩
           if (b.act === 'walk') { b.tx = (Math.random() * 2 - 1) * (RW - .9); b.tz = (Math.random() * 2 - 1) * (RD - .9); if (a.full < 50 && st.feed > 0) { b.tx = H.troughPos.x + (Math.random() - .5); b.tz = H.troughPos.z - .9; } } }
         if (b.act === 'walk') { const dx = b.tx - b.x, dz = b.tz - b.z, d = Math.hypot(dx, dz);
-          if (d > .05) { const want = Math.atan2(dx, dz); let df = want - b.face; while (df > Math.PI) df -= 6.283; while (df < -Math.PI) df += 6.283; b.face += df * Math.min(1, dt * 3); const s = Math.min(d, K.speed * (b.baby ? .8 : 1) * dt); b.x += Math.sin(b.face) * s; b.z += Math.cos(b.face) * s; } else b.act = 'graze'; }
+          if (d > .05) { const want = Math.atan2(dx, dz); let df = want - b.face; while (df > Math.PI) df -= 6.283; while (df < -Math.PI) df += 6.283; b.face += df * Math.min(1, dt * 3); const s = Math.min(d, K.speed * (b.baby ? .8 : 1) * dt); b.x += Math.sin(b.face) * s; b.z += Math.cos(b.face) * s; } else if (b.toMud) { b.toMud = false; b.act = 'wallow'; b.t = 4 + Math.random() * 4; } else b.act = 'graze'; }
+        // 在泥坑里打滚：身上越来越脏
+        if (b.act === 'wallow') { a.dirt = Math.min(1, (a.dirt || 0) + dt * .12); }
         b.x = Math.max(-RW + .7, Math.min(RW - .7, b.x)); b.z = Math.max(-RD + .7, Math.min(RD - .7, b.z));
         const ex = hb.hw + .5 - Math.abs(b.x - hb.x), ez = hb.hd + .5 - Math.abs(b.z - hb.z); if (ex > 0 && ez > 0) { if (ex < ez) b.x = hb.x + Math.sign(b.x - hb.x || 1) * (hb.hw + .5); else b.z = hb.z + Math.sign(b.z - hb.z || 1) * (hb.hd + .5); }
       }
@@ -297,6 +306,8 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
       const inPond = H.pond && ((b.x - H.pond.x) / H.pond.rx) ** 2 + ((b.z - H.pond.z) / H.pond.rz) ** 2 < 1;   // 鸭子在池塘里：浮在水上游
       m.body.position.y = b.act === 'sleep' ? LOOK[kind].sleepY : inPond ? -.12 : walk ? Math.abs(Math.sin(ph)) * .03 : 0;
       if (inPond) m.legs.forEach(l => l.rotation.x = 0);
+      if (b.act === 'wallow') { m.body.rotation.z = Math.sin(t0 * 2.5 + b.ph) * .6; m.body.position.y = -.12; m.legs.forEach((l, k) => l.rotation.x = Math.sin(t0 * 6 + k) * .6); } else m.body.rotation.z = 0;
+      if (m.mudMat) m.mudMat.opacity = Math.min(1, (a.dirt || 0) * 1.3);
       m.head.rotation.x = b.act === 'graze' ? .7 + Math.sin(t0 * 5 + b.ph) * .08 : b.act === 'sleep' ? .35 : 0;
       m.tail.rotation.z = Math.sin(t0 * 3 + b.ph) * .4;
       if (m.wool) { const g = a.ready ? 1 : Math.max(0, Math.min(1, 1 - (a.next - Date.now()) / ((K.every[0] + K.every[1]) / 2 * 60000))); m.wool.scale.setScalar(.55 + .45 * g); m.wool.visible = g > .05; }
@@ -336,6 +347,9 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
     kill(b) { const i = beasts.indexOf(b); if (i < 0) return 0; const n = b.baby ? K.meatN[1] : K.meatN[0]; puff(b.x, b.z, kind === 'pig' ? 0xffd1dc : 0xffffff); base.remove(b.m.root); beasts.splice(i, 1); st.animals.splice(i, 1); save(); return n; },
     // 拆掉：动物、饲料都没有了，回到空地 + 小木牌
     demolish() { if (!st.built) return 0; const n = st.animals.length; st.built = false; st.animals = []; st.feed = 0; st.lv = 1; save(); sync(); build(); return n; },
+    // 洗澡（用户说：猪在泥里玩会变脏，你可以给它洗）：用水壶
+    dirt(b) { const a = st.animals[beasts.indexOf(b)]; return a ? a.dirt || 0 : 0; },
+    wash(b) { const a = st.animals[beasts.indexOf(b)]; if (!a) return false; a.dirt = 0; save(); splash(b.x, b.z); b.act = 'idle'; b.t = 1.5; return true; },
     pet(b) { b.act = 'idle'; b.t = 1.5; b.face += Math.PI * .1; },
     upgrade() { if (!K.cap[st.lv + 1]) return false; st.lv++; save(); build(); sync(); beasts.forEach(b => { b.x = 0; b.z = K.RD * .3; }); return true; },
     next() { const l = st.lv + 1; return K.cap[l] ? { lv: l, name: K.home[l], cap: K.cap[l], price: K.up[l] } : null; },
