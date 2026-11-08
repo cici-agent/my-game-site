@@ -129,7 +129,7 @@ function duckStall(x, z, rot = 0) {
   return { group: g, ducks, kind: 'duck' };
 }
 // ---------------- 🎡 幸运大转盘 ----------------
-export const WHEEL_PRIZES = ['🪙 5', '🪙 10', '🎁 再转一次', '🪙 20', '🧸 小熊', '🪙 50', '😅 谢谢', '🪙 10'];
+export const WHEEL_PRIZES = ['🪙 1', '🪙 2', '🎁 再转一次', '🪙 4', '🪙 3', '🪙 10', '😅 谢谢', '🪙 2'];
 function wheelStall(x, z, rot = 0) {
   const g = booth('🎡 幸运转盘', '#ae3ec9'); g.position.set(x, 0, z); g.rotation.y = rot;
   const W = new THREE.Group(); W.position.set(0, 2.2, 3.45); g.add(W);
