@@ -470,6 +470,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       const rate = growRate(b), total = b.phase === 'grow' ? C.grow : C.regrow;
       parts.push((b.phase === 'regrow' ? '又在结果 ' : STAGE(b.g) + ' ') + Math.floor(b.g * 100) + '%');
       if (rate <= 0) parts.push('太干了，不长了');
+      else parts.push('还要 ' + fmt((1 - b.g) * total / rate / st.speed));
     }
     parts.push(`水分 ${wet}%`);
     if (b.plants < PER_BED) parts.push(`被虫吃掉 ${PER_BED - b.plants} 棵`);
