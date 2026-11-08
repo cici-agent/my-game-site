@@ -514,6 +514,10 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
     });
     solids.filter(b => b.floor === 'all' || b.floor === fl).forEach(b => { const ex = b.hx + pr - Math.abs(lx - b.x), ez = b.hz + pr - Math.abs(lz - b.z);
       if (ex > 0 && ez > 0) { if (ex < ez) lx = b.x + Math.sign(lx - b.x || 1) * (b.hx + pr); else lz = b.z + Math.sign(lz - b.z || 1) * (b.hz + pr); } });
+    // 阳台：三面栏杆挡住，不能穿过去掉下楼（栏杆在 x=±1.95、z=D+1.75）
+    if (L.balcony && pos.y > fyNow() + floorH - .8 && lz > L.D - .05 && Math.abs(lx) < 2.4) {
+      const m = .3; lx = Math.max(-1.95 + m, Math.min(1.95 - m, lx)); lz = Math.min(L.D + 1.75 - m, lz);
+    }
     if (lx !== ox || lz !== oz) { const [wx, wz] = toWorld(lx, lz); pos.x = wx; pos.z = wz; }
   }
   function inside(pos) { const [lx, lz] = toLocal(pos.x, pos.z); return Math.abs(lx) < L.W - .1 && Math.abs(lz) < L.D - .1; }
