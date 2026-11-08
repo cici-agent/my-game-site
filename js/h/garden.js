@@ -616,8 +616,13 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     }
     if (a.kind === 'spray') {
       if (!bag.take('spray')) return { msg: '没有杀虫剂了，去小卖部买' };
-      const n = b.bugs; b.bugs = 0; b.guard = SPRAY_GUARD; syncBugs(bd); burst(bd, sprayMat, 26, 1.1);
-      return { msg: n ? `🧴 喷完了，${n} 只虫子都跑了；2 小时不会来虫` : '🧴 喷好了，2 小时不会来虫' };
+      // 一次喷 9 块田：自己这块 + 周围 8 块（3×3）
+      const i0 = beds.indexOf(bd), c0 = i0 % COLS, r0 = Math.floor(i0 / COLS), active = LEVELS[st.level];
+      let n = 0, cnt = 0;
+      beds.forEach((x, i) => { if (i >= active) return; const c = i % COLS, r = Math.floor(i / COLS);
+        if (Math.abs(c - c0) > 1 || Math.abs(r - r0) > 1) return;
+        n += x.st.bugs; x.st.bugs = 0; x.st.guard = SPRAY_GUARD; syncBugs(x); burst(x, sprayMat, 18, 1.1); cnt++; });
+      return { msg: n ? `🧴 喷了 ${cnt} 块田，${n} 只虫子都跑了；2 小时不会来虫` : `🧴 喷了 ${cnt} 块田，2 小时不会来虫` };
     }
     if (a.kind === 'water') { b.moist = 1; burst(bd, dropMat, 30, 1.3); return { msg: '💧 浇好水了，土变深了' }; }
     if (a.kind === 'plant') {
@@ -687,7 +692,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     }
     if (item === 'spray') {
       if (b.guard > 0 && !b.bugs) return { kind: null, label: '🧴 刚喷过，还不用喷', msg: '这块田刚喷过杀虫剂，暂时不会来虫' };
-      return { kind: 'spray', label: b.bugs ? `🧴 喷杀虫剂（${b.bugs} 只虫）` : '🧴 喷杀虫剂（预防）' };
+      return { kind: 'spray', label: '🧴 喷杀虫剂（周围 9 块田）' };
     }
     if (item && item.startsWith('seed_')) {
       const k = item.slice(5), C = CROPS[k];

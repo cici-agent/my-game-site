@@ -6,7 +6,7 @@ import { CROPS } from './garden.js';
 // 种子 / 树苗的价格（菜币）
 const SEED_PRICE = { radish: 3, lettuce: 4, carrot: 5, potato: 6, tomato: 10, corn: 12, strawberry: 14, pumpkin: 30, watermelon: 50, apple: 40, orange: 50, peach: 70, cherry: 90 };
 export const SHOP_ITEMS = [
-  { key: 'spray', price: 15, lv: 1, note: '喷一块田：虫子全赶走，2 小时不来虫' },
+  { key: 'spray', price: 15, lv: 1, note: '一次喷 9 块田（周围 3×3）：虫子全赶走，2 小时不来虫' },
   { key: 'candle', price: 5, lv: 1, note: '小木棚里点的蜡烛，烧 3 小时' },
   ...Object.keys(SEED_PRICE).map(k => ({ key: 'seed_' + k, price: SEED_PRICE[k], lv: CROPS[k].lv, note: CROPS[k].kind === 'tree' ? '果树，一块田种一棵' : '' })),
 ];
