@@ -4,6 +4,7 @@
 // 数字是 Claude 定的（现实里的秒），以后可以改
 import * as THREE from 'three';
 import { plotToWorld, worldToPlot } from './garden.js';
+import { createGate } from './gate.js';
 
 export const SPECIES = {
   cow: { name: '牛', baby: '小牛', home: { 1: '小牛棚', 2: '红色牛棚', 3: '大牧场牛棚' }, cap: { 1: 1, 2: 3, 3: 6 }, up: { 2: 150, 3: 300 },
@@ -17,6 +18,11 @@ export const RANCH_FEED = { hay: 1, lettuce: 1, carrot: 1, corn: 2 };
 
 // ---------- 牧场放在哪：自家空地后面（或者菜园对面那一边），入口朝着空地 ----------
 export function pastureSpots(plot, side, isBlocked) {
+  // 用户说：不要放在外面，把地扩大，牛圈羊圈都放在自家空地里 —— 放在空地后面两个角，入口朝房子那边
+  const h = plot.size / 2;
+  return { cow: { x: -side * (h - 10), z: -(h - 9), rot: 0 }, sheep: { x: side * (h - 9), z: -(h - 8.5), rot: 0 } };
+}
+export function pastureSpotsOutside(plot, side, isBlocked) {
   const h = plot.size / 2, C = SPECIES.cow, S = SPECIES.sheep;
   const options = [
     { cow: { x: -(C.RW + .6), z: -h - 1.8 - C.RD, rot: 0 }, sheep: { x: S.RW + .6, z: -h - 1.8 - S.RD, rot: 0 } },
@@ -171,6 +177,7 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, .52, .05), new THREE.MeshStandardMaterial({ map: t })); b.position.set(0, 1.2, .06); placeholder.add(b);
       placeholder.position.set(0, 0, K.RD - .5); H = null; return; }
     H = buildHome(kind, st.lv); base.add(H.group); showFeed();
+    H.gate = createGate({ parent: H.group, x: 0, z: K.RD, axis: 'x', width: 2.3, height: 1, double: true, out: 1, key: 'xcn_gate_' + kind, name: K.home[st.lv] + '的门' });
   }
   function showFeed() { if (!H) return; H.hay.visible = st.feed > 0; H.hay.scale.y = Math.max(.25, Math.min(1, st.feed / 8)); }
   // 离线：饿、吃食槽、产奶 / 长毛
@@ -203,6 +210,7 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
   let t0 = 0, saveT = 0, syncT = 0, readyWas = 0;
   function update(dt) {
     if (!st.built) return;
+    H.gate.update(dt);
     t0 += dt; tick(dt, Date.now());
     if ((syncT += dt) > 5) { syncT = 0; sync(); }
     const nReady = st.animals.filter(a => a.ready).length; if (nReady > readyWas) notify(kind === 'cow' ? '🥛 奶牛可以挤奶了' : '🧶 羊毛长好了，可以剪了'); readyWas = nReady;
@@ -241,7 +249,7 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
   function collide(p, pr = .45) {
     if (!st.built) return;
     let [lx, lz] = toLocal(p.x, p.z); if (Math.abs(lx) > K.RW + 2 || Math.abs(lz) > K.RD + 2) return; const ox = lx, oz = lz;
-    if (p.y < .7) H.fence.forEach(([ax, az, bx, bz]) => { const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, rx = lx - ax, rz = lz - az, t = rx * ux + rz * uz, n = rx * -uz + rz * ux;
+    if (p.y < .7) (H.gate.passable ? H.fence : H.fence.concat([[-1.2, K.RD, 1.2, K.RD]])).forEach(([ax, az, bx, bz]) => { const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, rx = lx - ax, rz = lz - az, t = rx * ux + rz * uz, n = rx * -uz + rz * ux;
       if (t < -pr || t > len + pr || Math.abs(n) > pr) return; const push = (n >= 0 ? pr : -pr) - n; lx += -uz * push; lz += ux * push; });
     const hb = H.houseBox, ex = hb.hw + pr - Math.abs(lx - hb.x), ez = hb.hd + pr - Math.abs(lz - hb.z);
     if (ex > 0 && ez > 0 && p.y < H.roofH) { if (ex < ez) lx = hb.x + Math.sign(lx - hb.x || 1) * (hb.hw + pr); else lz = hb.z + Math.sign(lz - hb.z || 1) * (hb.hd + pr); }
@@ -249,7 +257,7 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
   }
   const near = (p, pt, r) => { const [lx, lz] = toLocal(p.x, p.z); return Math.hypot(lx - pt.x, lz - pt.z) < r; };
   return {
-    kind, K, update, collide,
+    kind, K, update, collide, get gate() { return st.built && H ? H.gate : null; },
     get built() { return st.built; }, get lv() { return st.lv; }, get homeName() { return K.home[st.lv]; }, get cap() { return K.cap[st.lv]; }, get count() { return st.animals.length; }, get feed() { return st.feed; }, FEED_MAX,
     build() { if (st.built) return false; st.built = true; st.lv = 1; st.feed = 4; save(); build(); return true; },
     nearHome(p) { return st.built && (near(p, H.door, 1.8)); },

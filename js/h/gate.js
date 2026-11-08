@@ -19,7 +19,7 @@ let LM = null;
 
 // parent：放在谁的坐标里（空地/菜园自己的坐标）；x、z：门中间；axis：门沿着 'x' 还是 'z' 方向；
 // width：门洞宽；double：两扇；outX/outZ：门往哪边开（朝外）；key：存开关状态用；live：能不能开关
-export function createGate({ parent, x, z, axis = 'x', width = 2.4, height = 1.15, double = false, out = 1, key = null, live = true, shadow = true }) {
+export function createGate({ parent, x, z, axis = 'x', width = 2.4, height = 1.15, double = false, out = 1, key = null, live = true, shadow = true, name = '栅栏门' }) {
   LM ||= leafMat();
   const frame = new THREE.Group(); frame.position.set(x, 0, z); frame.rotation.y = axis === 'z' ? -Math.PI / 2 : 0; parent.add(frame);
   // frame 里：门沿着 frame 的 x；frame 的 +z 在 axis='z' 时是外面的 -x，所以要反一下
@@ -49,7 +49,7 @@ export function createGate({ parent, x, z, axis = 'x', width = 2.4, height = 1.1
   apply();
   const center = new THREE.Vector3();
   return {
-    get open() { return open; },
+    name, get open() { return open; },
     get passable() { return ang > .6; },     // 门开到一大半才能走过去
     get locked() { return locked; },
     toggle() { if (locked) return false; open = !open; save(); return open; },

@@ -30,7 +30,7 @@ const gardenSide = chooseSide(homePlot, (x, z) => onPath(x, z, 1.5) || onPlot(x,
 // 三家店的位置：广场外面的草坪上（用户说：商店不要在中间的圆里，移到草坪上），挨在一起，靠近我家那边，面朝广场
 const SHOP_SPOTS = (() => {
   const cand = [], homeA = Math.atan2(homePlot.x, homePlot.z);
-  for (let r = 30; r <= 64; r += 2) for (let a = 0; a < 6.283; a += .03) { const x = Math.sin(a) * r, z = Math.cos(a) * r; if (!onPath(x, z, 7.5) && !onPlot(x, z, 8.5) && Math.hypot(x - homePlot.x, z - homePlot.z) > homePlot.size / 2 + 24) cand.push({ x, z, r, a, face: a + Math.PI }); }
+  for (let r = 30; r <= 64; r += 2) for (let a = 0; a < 6.283; a += .03) { const x = Math.sin(a) * r, z = Math.cos(a) * r; if (!onPath(x, z, 7.5) && !onPlot(x, z, 8.5)) cand.push({ x, z, r, a, face: a + Math.PI }); }
   const angD = a => { let d = Math.abs(a - homeA) % 6.283; return Math.min(d, 6.283 - d); };
   cand.sort((p, q) => (p.r + angD(p.a) * 25) - (q.r + angD(q.a) * 25));
   const out = [cand[0]];
@@ -125,19 +125,18 @@ for (let k = 0; k < 16; k++) {   // 放射状石板缝
 // ---------- 空地块：浅一点的草坪 + 一圈木栅栏（用户说：一竖一竖的木桩改成一整圈栅栏，门口有大栅栏门，能用钥匙锁） ----------
 const plotLawn = flatMat(0xa3db74, 2), plotBorder = flatMat(0x8cc462, 1);
 const FENCE_H = 1.15, PLOT_GATE = 6;   // 栅栏高度；空地大门宽 6 米（两扇）
+const HOME_GAPS = [];
 // 每块空地四条边，去掉门口，剩下的一段段栅栏（空地自己的坐标）
 function fenceSegs(p) {
   const h = p.size / 2, out = [];
   const sides = [[-h, -h, h, -h, []], [h, -h, h, h, []], [h, h, -h, h, [[h - PLOT_GATE / 2, h + PLOT_GATE / 2]]], [-h, h, -h, -h, []]];
   if (p === homePlot) { const gs = gardenSide > 0 ? 1 : 3, a = sides[gs], gz = h - 3;   // 自家空地朝菜园那边留个口（接菜园的小路，菜园有自己的栅栏门）
     a[4].push(gardenSide > 0 ? [h + gz - 2.2, h + gz + 2.2] : [h - gz - 2.2, h - gz + 2.2]);
-    // 朝牧场那边也留个口（走过去就是牧场的入口）
-    ['cow', 'sheep'].forEach(k => { const sp = PASTURES[k], RD = k === 'cow' ? 5 : 4.5, ex = sp.x + RD * Math.sin(sp.rot), ez = sp.z + RD * Math.cos(sp.rot);
-      if (Math.abs(sp.rot) < .1) sides[0][4].push([ex + h - 1.6, ex + h + 1.6]);
-      else if (Math.abs(Math.abs(sp.rot) - Math.PI) < .1) sides[2][4].push([h - ex - 1.6, h - ex + 1.6]);
-      else if (sp.x > 0) sides[1][4].push([ez + h - 1.6, ez + h + 1.6]); else sides[3][4].push([h - ez - 1.6, h - ez + 1.6]); }); }
-  sides.forEach(([ax, az, bx, bz, gaps]) => {
+    }
+  sides.forEach(([ax, az, bx, bz, gaps], si) => {
     const len = Math.hypot(bx - ax, bz - az); let t = 0;
+    // 自家空地的其他口子（菜园、牧场那边）：记下来，每个口子都装一扇能关的栅栏门（用户说：有口子就要有门）
+    if (p === homePlot) gaps.forEach(([g0, g1]) => { if (si === 2 && Math.abs((g0 + g1) / 2 - h) < .1) return; HOME_GAPS.push({ si, a: [ax + (bx - ax) * g0 / len, az + (bz - az) * g0 / len], b: [ax + (bx - ax) * g1 / len, az + (bz - az) * g1 / len] }); });
     gaps.sort((u, w) => u[0] - w[0]).concat([[len, len]]).forEach(([g0, g1]) => { if (g0 - t > .05) out.push([ax + (bx - ax) * t / len, az + (bz - az) * t / len, ax + (bx - ax) * g0 / len, az + (bz - az) * g0 / len]); t = g1; });
   });
   return out;
@@ -160,7 +159,9 @@ PLOTS.forEach((p, idx) => {
   // 大门：在朝路那边（本地 +z）中间；只有自己家的能开关、上锁；别人家的先关着
   const holder = new THREE.Group(); holder.position.set(p.x, 0, p.z); holder.rotation.y = p.rot; scene.add(holder);
   const mine = p === homePlot;
-  plotGates.push(createGate({ parent: holder, x: 0, z: p.size / 2, axis: 'x', width: PLOT_GATE - .2, height: FENCE_H, double: true, out: 1, key: mine ? 'xcn_gate_plot' : null, live: mine, shadow: mine }));
+  plotGates.push(createGate({ parent: holder, x: 0, z: p.size / 2, axis: 'x', width: PLOT_GATE - .2, height: FENCE_H, double: true, out: 1, key: mine ? 'xcn_gate_plot' : null, live: mine, shadow: mine, name: '大门' }));
+  if (mine) HOME_GAPS.forEach((gp, i) => { const [ax, az] = gp.a, [bx, bz] = gp.b, along = gp.si === 0 || gp.si === 2;
+    gp.gate = createGate({ parent: holder, x: (ax + bx) / 2, z: (az + bz) / 2, axis: along ? 'x' : 'z', width: Math.hypot(bx - ax, bz - az) - .2, height: FENCE_H, double: Math.hypot(bx - ax, bz - az) > 3.5, out: gp.si === 0 ? -1 : gp.si === 2 ? 1 : gp.si === 1 ? 1 : -1, key: 'xcn_gate_plot_' + i, name: '空地侧门' }); });
 });
 posts.castShadow = panels.castShadow = true;
 scene.add(posts); scene.add(panels);
@@ -169,7 +170,7 @@ const homeGate = plotGates[PLOTS.indexOf(homePlot)];
 function plotFenceCollide(pos, pr = .45) {
   const p = homePlot, h = p.size / 2, c = Math.cos(p.rot), sn = Math.sin(p.rot), dx = pos.x - p.x, dz = pos.z - p.z;
   let lx = dx * c - dz * sn, lz = dx * sn + dz * c; if (Math.abs(lx) > h + 2 || Math.abs(lz) > h + 2 || pos.y > .7) return;   // 用户说：栅栏要能跳过去
-  const segs = homeGate.passable ? FENCE[PLOTS.indexOf(homePlot)] : FENCE[PLOTS.indexOf(homePlot)].concat([[-PLOT_GATE / 2, h, PLOT_GATE / 2, h]]);
+  const segs = (homeGate.passable ? FENCE[PLOTS.indexOf(homePlot)] : FENCE[PLOTS.indexOf(homePlot)].concat([[-PLOT_GATE / 2, h, PLOT_GATE / 2, h]])).concat(HOME_GAPS.filter(gp => !gp.gate.passable).map(gp => [...gp.a, ...gp.b]));
   const ox = lx, oz = lz;
   segs.forEach(([ax, az, bx, bz]) => {
     const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, rx = lx - ax, rz = lz - az, t = rx * ux + rz * uz, n = rx * -uz + rz * ux;
@@ -306,7 +307,7 @@ garden.addContainer('safe', house.safe, () => house.persist());
 const stamina = createStamina();
 // 🐶 宠物狗（用户定的：要非常可爱呆萌；饿了自己去狗盆吃；不饿自己玩；忠诚度高帮你看菜园）
 const dog = createDog({ scene, isNight: () => darkness() > .55, groundAt: p => house.groundAt(p), collide: p => { house.collide(p, .35); garden.collide(p, .35); plotFenceCollide(p, .35); dog.collideYard(p, .3); },
-  guardSpot: () => { const [x, z] = garden.gateWorld(); return { x, z }; }, homeCenter: () => ({ x: homePlot.x, z: homePlot.z }),
+  guardSpot: () => { const [x, z] = garden.gateWorld(); return { x, z }; }, homeCenter: () => ({ x: homePlot.x, z: homePlot.z }), homeR: homePlot.size * .72,
   notify: m => { if (!nearBed) toast(m); }, onFrisbeeBack: () => {} });
 // 🐔 鸡舍（用户说：每个玩家一开始都有一个最低级的鸡舍，只能养鸡）
 const coop = createCoop({ scene, plot: homePlot, side: gardenSide, isNight: () => darkness() > .55, notify: m => toast(m) });
@@ -314,6 +315,12 @@ const coop = createCoop({ scene, plot: homePlot, side: gardenSide, isNight: () =
 const cows = createRanch({ scene, plot: homePlot, spot: PASTURES.cow, kind: 'cow', isNight: () => darkness() > .55, notify: m => toast(m) });
 const sheep = createRanch({ scene, plot: homePlot, spot: PASTURES.sheep, kind: 'sheep', isNight: () => darkness() > .55, notify: m => toast(m) });
 const RANCHES = [cows, sheep];
+// 空地变大了（地图换了）：以前自己放在地上的狗盆、狗屋、拴狗的木桩都收回背包，重新放一次（只做一次）
+try { if (localStorage.getItem('xcn_layout_v') !== '2') {
+  if (dog.kennel) { const lv = dog.takeKennel(); if (!garden.bag.add('kennel', 1)) garden.chest.add('kennel', 1); localStorage.setItem('xcn_kennel_bag_lv', String(lv)); }
+  if (dog.bowl) { const n = dog.takeBowl(); if (!garden.bag.add('bowl', 1)) garden.chest.add('bowl', 1); if (n) garden.chest.add('dogfood', n); }
+  if (dog.chained) { dog.untie(); if (!garden.bag.add('leash', 1)) garden.chest.add('leash', 1); }
+  localStorage.setItem('xcn_layout_v', '2'); } } catch (e) {}
 // 修 bug 补偿：之前有个版本扔飞盘会把飞盘弄丢，有狗却哪里都找不到飞盘的，还一个（只做一次）
 try { if (dog.has && !localStorage.getItem('xcn_fris_fix1')) { if (!garden.bag.count('frisbee') && !garden.chest.count('frisbee') && !house.cabinet.count('frisbee')) { if (!garden.bag.add('frisbee', 1)) garden.chest.add('frisbee', 1); } localStorage.setItem('xcn_fris_fix1', '1'); } } catch (e) {}
 let sleeping = null, firstPerson = false;
@@ -716,7 +723,9 @@ renderMoney(); setInterval(renderMoney, 1000);
 
 // ---------- 箱子：走到旁边按 E 打开；拖动格子搬东西，点一下整格搬到另一边 ----------
 let nearShop = false, shopOpen = false, shopTab = 'buy';
-let nearGate = null; const GATE_NAME = g => g === homeGate ? '大门' : '菜园栅栏门';
+let nearGate = null; const GATE_NAME = g => g.name || '栅栏门';
+// 所有能开关的门：大门、空地侧门、菜园门、鸡舍小门、牛棚羊圈的门、狗狗乐园的小门
+const allGates = () => [garden.gate, homeGate, ...HOME_GAPS.map(g => g.gate), coop.gate, cows.gate, sheep.gate, dog.yardGate].filter(Boolean);
 // 栅栏门：E 开关；选中 🔑 钥匙按 E 上锁 / 开锁
 function gateInfo(g, item) {
   const nm = GATE_NAME(g);
@@ -925,14 +934,14 @@ renderer.setAnimationLoop(() => {
   coop.update(dt);
   RANCHES.forEach(r => r.update(dt));
   renderDogHud();
-  homeGate.update(dt);
+  homeGate.update(dt); HOME_GAPS.forEach(g => g.gate.update(dt));
   step(dt, t);
   // 站在哪块田旁边：显示能做什么
   nearBed = overview ? null : garden.nearest(player.pos.x, player.pos.z);
   nearBox = !overview && !nearBed && garden.nearChest(player.pos.x, player.pos.z);
   nearHouse = !overview && !nearBed ? house.nearThing(player.pos) : null;
   nearShop = !overview && !nearBed ? shops.find(s => s.near(player.pos)) || false : false;
-  nearGate = overview || nearBed ? null : [garden.gate, homeGate].filter(Boolean).map(g => [g, g.dist(player.pos.x, player.pos.z) - (g === homeGate ? .8 : 0)]).filter(([, d]) => d < 1.9).sort((a, b) => a[1] - b[1]).map(([g]) => g)[0] || null;
+  nearGate = overview || nearBed ? null : allGates().map(g => [g, g.dist(player.pos.x, player.pos.z) - (g === homeGate ? .8 : 0)]).filter(([, d]) => d < 1.9).sort((a, b) => a[1] - b[1]).map(([g]) => g)[0] || null;
   if (nearGate) { nearBox = false; nearHouse = null; nearShop = false; }
   if (sleeping) { nearBed = null; nearBox = false; nearHouse = null; nearShop = false; nearGate = null; }
   const pr = $('prompt');

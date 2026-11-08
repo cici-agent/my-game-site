@@ -7,9 +7,9 @@ export const L = {
   roadW: 5,          // 主路宽度
   laneW: 2.4,        // 小道宽度
   worldR: 330,       // 小镇范围
-  plotMin: 28,       // 空地边长 28~36 米，大小不一（以后放小屋 + 菜园 + 动物圈）
-  plotMax: 36,
-  count: 32,         // 先做 32 块空地
+  plotMin: 64,       // 空地边长 64~72 米（用户说：把地扩得特别大，能放牛圈、羊圈和以后更多的东西）
+  plotMax: 72,
+  count: 24,         // 地大了，先做 24 块
 };
 
 export function createLayout(rnd) {
