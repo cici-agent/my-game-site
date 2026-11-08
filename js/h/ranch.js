@@ -11,16 +11,32 @@ export const SPECIES = {
     RW: 6, RD: 5, product: 'milk', every: [25, 35], meat: 'beef', meatN: [3, 1], grow: 30, sound: '哞～', speed: 1.1 },
   sheep: { name: '羊', baby: '小羊', home: { 1: '小羊圈', 2: '羊圈', 3: '山坡牧场' }, cap: { 1: 2, 2: 4, 3: 8 }, up: { 2: 120, 3: 250 },
     RW: 5, RD: 4.5, product: 'wool', every: [35, 45], meat: 'mutton', meatN: [2, 1], grow: 25, sound: '咩～', speed: 1 },
+  // 用户说：再多做一些动物和它们的家
+  pig: { name: '猪', baby: '小猪', home: { 1: '小猪圈', 2: '猪圈', 3: '小猪乐园' }, cap: { 1: 1, 2: 3, 3: 6 }, up: { 2: 120, 3: 260 },
+    RW: 5, RD: 4.5, product: 'truffle', every: [30, 40], meat: 'pork', meatN: [3, 1], grow: 25, sound: '哼哼～', speed: 1 },
+  duck: { name: '鸭子', baby: '小鸭', home: { 1: '小鸭棚', 2: '鸭棚', 3: '鸭子小屋' }, cap: { 1: 2, 2: 5, 3: 10 }, up: { 2: 90, 3: 200 },
+    RW: 5.5, RD: 4.5, product: 'duckegg', every: [25, 32], meat: 'duckmeat', meatN: [2, 1], grow: 20, sound: '嘎嘎～', speed: 1.1 },
+};
+// 每种动物的小细节（图标、提示、样子）
+export const LOOK = {
+  cow: { icon: '🐄', prod: '🥛', ready: '🥛 奶牛可以挤奶了', grass: 0x86c65a, babyS: .5, sleepY: -.45, emoY: 2.1, styles: { 1: [3.2, 2.4, 2.4, 'open'], 2: [4.4, 3, 3, 'barn'], 3: [5.4, 3.4, 3.6, 'barn'] }, wall: { open: 0x9a6a3c, barn: 0xc23626 }, roof: { open: 0xc23626, barn: 0x5a2a18 }, near: 1.8 },
+  sheep: { icon: '🐑', prod: '🧶', ready: '🧶 羊毛长好了，可以剪了', grass: 0x93cf62, babyS: .55, sleepY: -.3, emoY: 1.45, styles: { 1: [2.8, 2, 1.9, 'straw'], 2: [3.6, 2.4, 2.4, 'house'], 3: [4.4, 2.8, 2.8, 'house'] }, wall: { straw: 0xe0c890, house: 0xf6efe0 }, roof: { straw: 0xd8b25a, house: 0x4f7fbf }, near: 1.4 },
+  pig: { icon: '🐷', prod: '🍄', ready: '🍄 小猪拱出松露了！', grass: 0x9bc768, babyS: .55, sleepY: -.25, emoY: 1.3, styles: { 1: [2.4, 2, 1.7, 'straw'], 2: [3.2, 2.4, 2.2, 'house'], 3: [4, 2.6, 2.6, 'house'] }, wall: { straw: 0xc49766, house: 0xffd1dc }, roof: { straw: 0x8a5a2b, house: 0xc25a7a }, near: 1.4, mud: true },
+  duck: { icon: '🦆', prod: '🥚', ready: '🥚 鸭子下蛋了', grass: 0x93cf62, babyS: .6, sleepY: -.08, emoY: .95, styles: { 1: [2.2, 1.8, 1.5, 'straw'], 2: [3, 2.2, 2, 'house'], 3: [3.6, 2.6, 2.4, 'house'] }, wall: { straw: 0xc49766, house: 0xf6efe0 }, roof: { straw: 0x5a8a3a, house: 0x3f86d8 }, near: 1.1, pond: true },
 };
 const HUNGER = 100 / 2400, MEAL = 50, FEED_MAX = 20;
 // 牛羊吃的东西：草料 1 份；生菜、胡萝卜 1 份；玉米 2 份
 export const RANCH_FEED = { hay: 1, lettuce: 1, carrot: 1, corn: 2 };
+// 猪还爱吃土豆、南瓜；鸭子吃鸡饲料、生菜、种子
+export const FEEDS = { cow: RANCH_FEED, sheep: RANCH_FEED, pig: { hay: 1, potato: 2, pumpkin: 3, carrot: 1, corn: 2, lettuce: 1 }, duck: { chickfeed: 1, lettuce: 1, corn: 2 } };
+export const feedFor = (kind, k) => FEEDS[kind][k] || (kind === 'duck' && k && k.startsWith('seed_') ? 1 : 0);
 
 // ---------- 牧场放在哪：自家空地后面（或者菜园对面那一边），入口朝着空地 ----------
 export function pastureSpots(plot, side, isBlocked) {
   // 用户说：不要放在外面，把地扩大，牛圈羊圈都放在自家空地里 —— 放在空地后面两个角，入口朝房子那边
   const h = plot.size / 2;
-  return { cow: { x: -side * (h - 10), z: -(h - 9), rot: 0 }, sheep: { x: side * (h - 9), z: -(h - 8.5), rot: 0 } };
+  return { cow: { x: -side * (h - 10), z: -(h - 9), rot: 0 }, sheep: { x: side * (h - 9), z: -(h - 8.5), rot: 0 },
+    pig: { x: -side * (h - 8), z: 4, rot: side * -Math.PI / 2 }, duck: { x: side * (h - 9), z: 4, rot: side * Math.PI / 2 } };   // 猪圈、鸭棚在空地两边中间，入口朝房子
 }
 export function pastureSpotsOutside(plot, side, isBlocked) {
   const h = plot.size / 2, C = SPECIES.cow, S = SPECIES.sheep;
@@ -39,7 +55,7 @@ export function pastureSpotsOutside(plot, side, isBlocked) {
 // 某个点在不在牧场里（种花种草时避开）
 export function inPasture(plot, spots, x, z, m = 0) {
   const [lx, lz] = worldToPlot(plot, x, z);
-  return ['cow', 'sheep'].some(k => { const sp = spots[k], K = SPECIES[k], c = Math.cos(sp.rot), s = Math.sin(sp.rot), dx = lx - sp.x, dz = lz - sp.z;
+  return Object.keys(spots).some(k => { const sp = spots[k], K = SPECIES[k], c = Math.cos(sp.rot), s = Math.sin(sp.rot), dx = lx - sp.x, dz = lz - sp.z;
     const a = dx * c - dz * s, b = dx * s + dz * c; return Math.abs(a) < K.RW + m && Math.abs(b) < K.RD + m; });
 }
 
@@ -94,7 +110,38 @@ function buildSheep(baby) {
   root.scale.setScalar(baby ? .6 : 1);
   return { root, body, head, legs, tail, wool };
 }
-export const ANIMAL_MODELS = { cow: buildCow, sheep: buildSheep };
+// 小猪：粉粉圆圆、大鼻子、卷尾巴
+function buildPig(baby) {
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const P = M(0xffb3c4), D = M(0xef8aa3);
+  part(body, SPH, P, [0, .5, 0], [.36, .32, .48]);
+  const legs = [[-.18, .25], [.18, .25], [-.18, -.25], [.18, -.25]].map(([x, z]) => { const l = new THREE.Group(); l.position.set(x, .3, z); body.add(l); part(l, CYL, P, [0, -.15, 0], [.08, .3, .08]); part(l, CYL, D, [0, -.29, 0], [.085, .04, .085]); return l; });
+  const tail = new THREE.Group(); tail.position.set(0, .62, -.47); body.add(tail); part(tail, new THREE.TorusGeometry(.06, .015, 6, 14, Math.PI * 1.6), D, [0, .04, -.03], null, [0, Math.PI / 2, 0]);
+  const head = new THREE.Group(); head.position.set(0, .66, .42); body.add(head);
+  part(head, SPH, P, [0, 0, 0], [.28, .26, .25]);
+  part(head, CYL, D, [0, -.04, .24], [.12, .1, .12], [Math.PI / 2, 0, 0]); [-1, 1].forEach(s => part(head, SPH, M(0xa5405a), [s * .045, -.04, .3], [.025, .035, .015]));
+  eyes(head, .11, .07, .2, .045);
+  [-1, 1].forEach(s => part(head, new THREE.ConeGeometry(.08, .16, 4), P, [s * .16, .25, -.02], null, [.3, 0, s * .4]));
+  root.scale.setScalar(baby ? .55 : 1);
+  return { root, body, head, legs, tail };
+}
+// 鸭子：黄白色、橘色扁嘴、会在池塘里游
+function buildDuck(baby) {
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const W = M(baby ? 0xffe066 : 0xfffaf0), O = M(0xff8a2a);
+  part(body, SPH, W, [0, .28, 0], [.2, .17, .28]);
+  part(body, SPH, W, [0, .36, -.24], [.09, .07, .1], [-.6, 0, 0]);
+  [-1, 1].forEach(s => part(body, SPH, M(baby ? 0xf5cf3a : 0xeee6d2), [s * .17, .3, -.02], [.05, .1, .18]));
+  const legs = [-1, 1].map(s => { const l = new THREE.Group(); l.position.set(s * .07, .14, 0); body.add(l); part(l, CYL, O, [0, -.06, 0], [.015, .12, .015]); part(l, new THREE.BoxGeometry(.08, .01, .09), O, [0, -.12, .03]); return l; });
+  const tail = new THREE.Group(); tail.position.set(0, .4, -.28); body.add(tail);
+  const head = new THREE.Group(); head.position.set(0, .5, .18); body.add(head);
+  part(head, SPH, W, [0, 0, 0], [.12, .12, .12]);
+  part(head, SPH, O, [0, -.02, .13], [.06, .025, .07]);
+  eyes(head, .055, .03, .09, .022);
+  root.scale.setScalar(baby ? .7 : 1.15);
+  return { root, body, head, legs, tail };
+}
+export const ANIMAL_MODELS = { cow: buildCow, sheep: buildSheep, pig: buildPig, duck: buildDuck };
 
 // 头上冒的小图标（🥛、🧶、💤）
 const EMO = {};
@@ -107,7 +154,7 @@ function buildHome(kind, lv) {
   const K = SPECIES[kind], g = new THREE.Group(), { RW, RD } = K;
   const box = (w, h, d, mat, p, r, parent = g) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(...p); if (r) m.rotation.set(...r); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
   // 草地颜色深一点，表示是牧场
-  const grass = new THREE.Mesh(new THREE.PlaneGeometry(RW * 2, RD * 2), M(kind === 'cow' ? 0x86c65a : 0x93cf62, { roughness: 1 })); grass.rotation.x = -Math.PI / 2; grass.position.y = .015; grass.receiveShadow = true; g.add(grass);
+  const LK = LOOK[kind], grass = new THREE.Mesh(new THREE.PlaneGeometry(RW * 2, RD * 2), M(LK.grass, { roughness: 1 })); grass.rotation.x = -Math.PI / 2; grass.position.y = .015; grass.receiveShadow = true; g.add(grass);
   // 木头围栏（两道横木），前面（+z，朝空地）中间留个口
   const wood = M(0x9a6a3c), FH = 1;
   const segs = [[-RW, RD, -1.2, RD], [1.2, RD, RW, RD], [RW, RD, RW, -RD], [RW, -RD, -RW, -RD], [-RW, -RD, -RW, RD]];
@@ -115,9 +162,9 @@ function buildHome(kind, lv) {
     [.4, .82].forEach(y => box(len, .1, .07, wood, [mx, y, mz], [0, ang, 0]));
     const n = Math.max(1, Math.round(len / 1.5)); for (let i = 0; i <= n; i++) box(.12, FH + .1, .12, wood, [ax + (bx - ax) * i / n, (FH + .1) / 2, az + (bz - az) * i / n]); });
   // 棚子：门朝 +z，靠在后边
-  const S = kind === 'cow' ? { 1: [3.2, 2.4, 2.4, 'open'], 2: [4.4, 3, 3, 'barn'], 3: [5.4, 3.4, 3.6, 'barn'] }[lv] : { 1: [2.8, 2, 1.9, 'straw'], 2: [3.6, 2.4, 2.4, 'house'], 3: [4.4, 2.8, 2.8, 'house'] }[lv];
+  const S = LK.styles[lv];
   const [w, d, h, style] = S, hz = -RD + d / 2 + .5, H = new THREE.Group(); H.position.set(-RW * .25, 0, hz); g.add(H);
-  const wallC = { open: 0x9a6a3c, barn: 0xc23626, straw: 0xe0c890, house: 0xf6efe0 }[style], roofC = { open: 0xc23626, barn: 0x5a2a18, straw: 0xd8b25a, house: lv === 3 ? 0x3f6fb5 : 0x4f7fbf }[style];
+  const wallC = LK.wall[style], roofC = LK.roof[style];
   const wallM = M(wallC), roofM = M(roofC), white = M(0xffffff), rise = h * .45;
   if (style === 'open') {   // 只有柱子和屋顶的小棚
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([i, j]) => box(.16, h, .16, wood, [i * (w / 2 - .1), h / 2, j * (d / 2 - .1)], null, H));
@@ -141,6 +188,14 @@ function buildHome(kind, lv) {
   if (lv === 3 && kind === 'cow') { const silo = new THREE.Group(); silo.position.set(RW * .55, 0, hz); g.add(silo);
     const s1 = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, 4.6, 18), M(0xcfd6dd, { metalness: .3 })); s1.position.y = 2.3; s1.castShadow = true; silo.add(s1);
     const s2 = new THREE.Mesh(new THREE.SphereGeometry(.9, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), M(0x8a96a3)); s2.position.y = 4.6; silo.add(s2); }
+  // 猪圈：一个泥坑（3 级还有个小滑梯）；鸭棚：一个池塘（越高级越大，3 级有小木码头）
+  if (LK.mud) { const mud = new THREE.Mesh(new THREE.CircleGeometry(1, 28), M(0x7a5a38, { roughness: .6 })); mud.rotation.x = -Math.PI / 2; mud.scale.set(1.4 + lv * .5, 1 + lv * .3, 1); mud.position.set(RW * .35, .02, RD * .25); g.add(mud);
+    if (lv === 3) { box(.5, .06, 2, M(0xffd23f), [RW * .35 - 1.6, .5, RD * .25], [0, 0, .45]); box(.08, 1, .08, M(0xffd23f), [RW * .35 - 2.05, .5, RD * .25 - .3]); } }
+  if (LK.pond) { const pond = new THREE.Mesh(new THREE.CircleGeometry(1, 32), M(0x6fbfe6, { roughness: .15, metalness: .1 })); pond.rotation.x = -Math.PI / 2; pond.scale.set(1.6 + lv * .5, 1.1 + lv * .3, 1); pond.position.set(RW * .3, .03, RD * .2); g.add(pond);
+    const rim = new THREE.Mesh(new THREE.RingGeometry(.97, 1.08, 32), M(0x9a8a6a)); rim.rotation.x = -Math.PI / 2; rim.scale.copy(pond.scale); rim.position.set(pond.position.x, .035, pond.position.z); g.add(rim);
+    if (lv >= 2) for (let i = 0; i < 4; i++) box(.04, .7, .04, M(0x4f8f3a), [pond.position.x + pond.scale.x * .9, .35, pond.position.z - .4 + i * .25]);
+    if (lv === 3) box(1.6, .08, .5, M(0x8a5a2b), [pond.position.x - pond.scale.x * .6, .2, pond.position.z]);
+    g.userData.pond = { x: pond.position.x, z: pond.position.z, rx: pond.scale.x * .85, rz: pond.scale.y * .85 }; }
   if (lv === 3 && kind === 'sheep') { const hill = new THREE.Mesh(new THREE.SphereGeometry(2.4, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), M(0x7dbb4f, { roughness: 1 })); hill.scale.y = .35; hill.position.set(RW * .5, 0, -RD * .4); hill.receiveShadow = true; g.add(hill); }
   // 食槽（院子前面左边）
   const trough = new THREE.Group(); trough.position.set(-RW + 1.4, 0, RD - 1.3); g.add(trough);
@@ -150,9 +205,9 @@ function buildHome(kind, lv) {
   // 门口的小木牌
   const sign = new THREE.Group(); sign.position.set(1.8, 0, RD + .4); g.add(sign);
   box(.08, 1.1, .08, wood, [0, .55, 0], null, sign);
-  const st = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 96; const x = c.getContext('2d'); x.fillStyle = '#f2e1bd'; x.fillRect(0, 0, 256, 96); x.fillStyle = '#5a3a1a'; x.font = 'bold 44px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText((kind === 'cow' ? '🐄 ' : '🐑 ') + K.home[lv], 128, 50); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const st = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 96; const x = c.getContext('2d'); x.fillStyle = '#f2e1bd'; x.fillRect(0, 0, 256, 96); x.fillStyle = '#5a3a1a'; x.font = 'bold 44px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(LK.icon + ' ' + K.home[lv], 128, 50); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   box(1, .38, .05, new THREE.MeshStandardMaterial({ map: st }), [0, 1.05, .05], null, sign);
-  return { group: g, hay, troughPos: trough.position, door: { x: H.position.x, z: hz + d / 2 + .8 }, houseBox: { x: H.position.x, z: hz, hw: w / 2 + .1, hd: d / 2 + .1 }, sleep: { x: H.position.x, z: hz }, fence: segs, roofH: h + rise };
+  return { pond: g.userData.pond, group: g, hay, troughPos: trough.position, door: { x: H.position.x, z: hz + d / 2 + .8 }, houseBox: { x: H.position.x, z: hz, hw: w / 2 + .1, hd: d / 2 + .1 }, sleep: { x: H.position.x, z: hz }, fence: segs, roofH: h + rise };
 }
 
 // ---------- 一个牧场（牛的或者羊的） ----------
@@ -173,9 +228,14 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
     if (!st.built) { placeholder = new THREE.Group(); base.add(placeholder);
       const p = new THREE.Mesh(new THREE.BoxGeometry(.1, 1.2, .1), M(0x9a6a3c)); p.position.y = .6; placeholder.add(p);
       const c = document.createElement('canvas'); c.width = 320; c.height = 120; const x = c.getContext('2d'); x.fillStyle = '#f2e1bd'; x.fillRect(0, 0, 320, 120); x.fillStyle = '#5a3a1a'; x.font = 'bold 34px sans-serif'; x.textAlign = 'center';
-      x.fillText(kind === 'cow' ? '🐄 这里可以盖牛棚' : '🐑 这里可以盖羊圈', 160, 50); x.font = '26px sans-serif'; x.fillText('去动物小铺买', 160, 92);
+      x.fillText(`${LOOK[kind].icon} 这里盖${K.home[1].slice(1)}`, 160, 50); x.font = '26px sans-serif'; x.fillText('去动物小铺买', 160, 92);
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, .52, .05), new THREE.MeshStandardMaterial({ map: t })); b.position.set(0, 1.2, .06); placeholder.add(b);
-      placeholder.position.set(0, 0, K.RD - .5); H = null; return; }
+      p.position.z = K.RD - .5; b.position.z = K.RD - .5 + .06;
+      // 地上画出这块地的边（一圈虚线木条），告诉大家这里是盖它的地方
+      const om = M(0xc9a66b); for (const [x0, z0, x1, z1] of [[-K.RW, -K.RD, K.RW, -K.RD], [K.RW, -K.RD, K.RW, K.RD], [K.RW, K.RD, -K.RW, K.RD], [-K.RW, K.RD, -K.RW, -K.RD]]) {
+        const len = Math.hypot(x1 - x0, z1 - z0), n = Math.floor(len / 1.2); for (let i = 0; i < n; i++) { const t = (i + .25) / n, t2 = (i + .75) / n;
+          const d = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1 - x0) ? (t2 - t) * len : .12, .04, Math.abs(z1 - z0) ? (t2 - t) * len : .12), om); d.position.set(x0 + (x1 - x0) * (t + t2) / 2, .02, z0 + (z1 - z0) * (t + t2) / 2); placeholder.add(d); } }
+      H = null; return; }
     H = buildHome(kind, st.lv); base.add(H.group); showFeed();
     H.gate = createGate({ parent: H.group, x: 0, z: K.RD, axis: 'x', width: 2.3, height: 1, double: true, out: 1, key: 'xcn_gate_' + kind, name: K.home[st.lv] + '的门' });
   }
@@ -213,7 +273,7 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
     H.gate.update(dt);
     t0 += dt; tick(dt, Date.now());
     if ((syncT += dt) > 5) { syncT = 0; sync(); }
-    const nReady = st.animals.filter(a => a.ready).length; if (nReady > readyWas) notify(kind === 'cow' ? '🥛 奶牛可以挤奶了' : '🧶 羊毛长好了，可以剪了'); readyWas = nReady;
+    const nReady = st.animals.filter(a => a.ready).length; if (nReady > readyWas) notify(LOOK[kind].ready); readyWas = nReady;
     const night = isNight(), { RW, RD } = K, hb = H.houseBox, sp = H.sleep;
     beasts.forEach((b, i) => {
       const a = st.animals[i], r = b.m.root; if (!a) return;
@@ -230,17 +290,20 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
         b.x = Math.max(-RW + .7, Math.min(RW - .7, b.x)); b.z = Math.max(-RD + .7, Math.min(RD - .7, b.z));
         const ex = hb.hw + .5 - Math.abs(b.x - hb.x), ez = hb.hd + .5 - Math.abs(b.z - hb.z); if (ex > 0 && ez > 0) { if (ex < ez) b.x = hb.x + Math.sign(b.x - hb.x || 1) * (hb.hw + .5); else b.z = hb.z + Math.sign(b.z - hb.z || 1) * (hb.hd + .5); }
       }
-      if (b.baby) { const k = Math.min(1, (Date.now() - a.born) / GROW); r.scale.setScalar((kind === 'cow' ? .5 : .55) + .4 * k); }
+      if (b.baby) { const k = Math.min(1, (Date.now() - a.born) / GROW); r.scale.setScalar(LOOK[kind].babyS + .4 * k); }
       r.position.set(b.x, 0, b.z); r.rotation.y = b.face;
       const walk = b.act === 'walk', ph = t0 * 7 + b.ph, m = b.m;
       m.legs.forEach((l, k) => l.rotation.x = b.act === 'sleep' ? (k < 2 ? -1.3 : 1.3) : walk ? Math.sin(ph + (k === 0 || k === 3 ? 0 : Math.PI)) * .45 : 0);
-      m.body.position.y = b.act === 'sleep' ? (kind === 'cow' ? -.45 : -.3) : walk ? Math.abs(Math.sin(ph)) * .03 : 0;
+      const inPond = H.pond && ((b.x - H.pond.x) / H.pond.rx) ** 2 + ((b.z - H.pond.z) / H.pond.rz) ** 2 < 1;   // 鸭子在池塘里：浮在水上游
+      m.body.position.y = b.act === 'sleep' ? LOOK[kind].sleepY : inPond ? -.12 : walk ? Math.abs(Math.sin(ph)) * .03 : 0;
+      if (inPond) m.legs.forEach(l => l.rotation.x = 0);
       m.head.rotation.x = b.act === 'graze' ? .7 + Math.sin(t0 * 5 + b.ph) * .08 : b.act === 'sleep' ? .35 : 0;
       m.tail.rotation.z = Math.sin(t0 * 3 + b.ph) * .4;
       if (m.wool) { const g = a.ready ? 1 : Math.max(0, Math.min(1, 1 - (a.next - Date.now()) / ((K.every[0] + K.every[1]) / 2 * 60000))); m.wool.scale.setScalar(.55 + .45 * g); m.wool.visible = g > .05; }
       // 头上的小图标：能挤奶 / 能剪毛 / 睡觉
-      const e = b.act === 'sleep' ? '💤' : a.ready ? (kind === 'cow' ? '🥛' : '🧶') : null;
-      b.em.visible = !!e; if (e && b.em.material.map !== emoTex(e)) { b.em.material.map = emoTex(e); b.em.material.needsUpdate = true; } b.em.position.y = (kind === 'cow' ? 2.1 : 1.45) + Math.sin(t0 * 3 + b.ph) * .05;
+      const e = b.act === 'sleep' ? '💤' : a.ready ? LOOK[kind].prod : null;
+      b.em.visible = false;   // 用户说：动物、宠物头上不要显示状态（比如睡觉）
+      if (false) b.em.visible = !!e; if (e && b.em.material.map !== emoTex(e)) { b.em.material.map = emoTex(e); b.em.material.needsUpdate = true; } b.em.position.y = LOOK[kind].emoY + Math.sin(t0 * 3 + b.ph) * .05;
     });
     for (let k = puffs.length - 1; k >= 0; k--) { const p = puffs[k]; p.t += dt; p.g.children.forEach(f => { f.userData.v.y -= 2.5 * dt; f.position.addScaledVector(f.userData.v, dt); }); p.mat.opacity = Math.max(0, 1 - p.t / 1.6); if (p.t > 1.6) { base.remove(p.g); puffs.splice(k, 1); } }
     if ((saveT += dt) > 5) { saveT = 0; save(); }
@@ -262,14 +325,15 @@ export function createRanch({ scene, plot, spot, kind, isNight = () => false, no
     build() { if (st.built) return false; st.built = true; st.lv = 1; st.feed = 4; save(); build(); return true; },
     nearHome(p) { return st.built && (near(p, H.door, 1.8)); },
     nearTrough(p) { return st.built && near(p, H.troughPos, 1.6); },
-    nearSign(p) { return !st.built && near(p, { x: 0, z: K.RD - .5 }, 2); },
-    nearAnimal(p) { if (!st.built) return null; const [lx, lz] = toLocal(p.x, p.z); let best = null, bd = kind === 'cow' ? 1.8 : 1.4; beasts.forEach(b => { const d = Math.hypot(lx - b.x, lz - b.z); if (d < bd) { bd = d; best = b; } }); return best; },
+    nearSign(p) { if (st.built) return false; const [lx, lz] = toLocal(p.x, p.z); return Math.abs(lx) < K.RW + 1 && Math.abs(lz) < K.RD + 1; },
+    nearAnimal(p) { if (!st.built) return null; const [lx, lz] = toLocal(p.x, p.z); let best = null, bd = LOOK[kind].near; beasts.forEach(b => { const d = Math.hypot(lx - b.x, lz - b.z); if (d < bd) { bd = d; best = b; } }); return best; },
     info(b) { const a = st.animals[beasts.indexOf(b)]; return a; },
-    addFeed(k) { const v = RANCH_FEED[k] || 0; if (!v) return 0; if (st.feed + v > FEED_MAX) return -1; st.feed += v; save(); showFeed(); return v; },
+    addFeed(k) { const v = feedFor(kind, k); if (!v) return 0; if (st.feed + v > FEED_MAX) return -1; st.feed += v; save(); showFeed(); return v; },
     addAnimal(adult) { if (!st.built || st.animals.length >= K.cap[st.lv]) return false; const now = Date.now(); st.animals.push({ born: adult ? now - GROW : now, full: 80, ready: false, next: now + (adult ? 3 * 60 * 1000 : GROW + rndEvery()) }); save(); sync(); return true; },
     // 挤奶 / 剪毛：拿到产品，过一阵子才能再挤 / 再长
     harvest(b) { const a = st.animals[beasts.indexOf(b)]; if (!a || !a.ready) return 0; a.ready = false; a.next = Date.now() + rndEvery(); b.act = 'idle'; save(); return kind === 'sheep' ? 2 : 1; },
-    kill(b) { const i = beasts.indexOf(b); if (i < 0) return 0; const n = b.baby ? K.meatN[1] : K.meatN[0]; puff(b.x, b.z, kind === 'cow' ? 0xffffff : 0xfbfaf7); base.remove(b.m.root); beasts.splice(i, 1); st.animals.splice(i, 1); save(); return n; },
+    canFeed: k => !!feedFor(kind, k), look: LOOK[kind],
+    kill(b) { const i = beasts.indexOf(b); if (i < 0) return 0; const n = b.baby ? K.meatN[1] : K.meatN[0]; puff(b.x, b.z, kind === 'pig' ? 0xffd1dc : 0xffffff); base.remove(b.m.root); beasts.splice(i, 1); st.animals.splice(i, 1); save(); return n; },
     // 拆掉：动物、饲料都没有了，回到空地 + 小木牌
     demolish() { if (!st.built) return 0; const n = st.animals.length; st.built = false; st.animals = []; st.feed = 0; st.lv = 1; save(); sync(); build(); return n; },
     pet(b) { b.act = 'idle'; b.t = 1.5; b.face += Math.PI * .1; },

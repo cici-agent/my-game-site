@@ -9,13 +9,17 @@ export const SHOP_ITEMS = [
   { key: 'spray', price: 15, lv: 1, note: '一次喷 9 块田（周围 3×3）：虫子全赶走，2 小时不来虫' },
   { key: 'candle', price: 5, lv: 1, note: '点在烛台上，能烧半小时' },
   // 动物小铺（用户说：卖动物的店，比如买鸡）
-  { key: 'coopkit', price: 40, lv: 1, note: '鸡舍拆掉以后，在这里再买一个（1 级小鸡窝）', once: true, shop: 'animal', building: true },
+  { key: 'coopkit', price: 40, lv: 1, note: '鸡舍拆掉以后，在这里再买一个：放进背包，走到鸡舍那块地按 E 盖', once: true, shop: 'animal', building: true },
   { key: 'chick', price: 15, lv: 1, note: '一只小黄鸡：放进你的鸡舍，20 分钟长成母鸡，会下蛋', animal: true, once: true, shop: 'animal' },
   { key: 'chickfeed', price: 2, lv: 1, note: '一份鸡饲料：倒进鸡舍的食槽（玉米、种子也能喂鸡）', shop: 'animal' },
-  { key: 'cowshed', price: 100, lv: 1, note: '在你家空地后面盖一个小牛棚（带牧场）；能升级', once: true, shop: 'animal', building: true },
+  { key: 'cowshed', price: 100, lv: 1, note: '放进背包，走到空地里牛棚那块地（后面的角上）按 E 盖；能升级', once: true, shop: 'animal', building: true },
   { key: 'calf', price: 60, lv: 1, note: '一头小牛：30 分钟长大，能挤牛奶（要先有牛棚）', once: true, shop: 'animal', animal: true },
-  { key: 'sheeppen', price: 80, lv: 1, note: '在你家空地后面盖一个小羊圈（带牧场）；能升级', once: true, shop: 'animal', building: true },
+  { key: 'sheeppen', price: 80, lv: 1, note: '放进背包，走到空地里羊圈那块地（后面的另一个角）按 E 盖；能升级', once: true, shop: 'animal', building: true },
   { key: 'lamb', price: 40, lv: 1, note: '一只小羊：25 分钟长大，毛长满了用剪刀剪（要先有羊圈）', once: true, shop: 'animal', animal: true },
+  { key: 'pigsty', price: 90, lv: 1, note: '放进背包，走到空地里猪圈那块地（一边的中间）按 E 盖；带泥坑', once: true, shop: 'animal', building: true },
+  { key: 'piglet', price: 40, lv: 1, note: '一只小猪：25 分钟长大，会拱出松露（要先有猪圈）', once: true, shop: 'animal', animal: true },
+  { key: 'duckhouse', price: 70, lv: 1, note: '放进背包，走到空地里鸭棚那块地（另一边的中间）按 E 盖；带池塘', once: true, shop: 'animal', building: true },
+  { key: 'duckling', price: 20, lv: 1, note: '一只小鸭：20 分钟长大，会下鸭蛋（要先有鸭棚）', once: true, shop: 'animal', animal: true },
   { key: 'hay', price: 3, lv: 1, note: '一份草料：倒进牛棚、羊圈的食槽（生菜、胡萝卜、玉米也行）', shop: 'animal' },
   { key: 'shears', price: 10, lv: 1, note: '剪羊毛用（不会用完）', once: true, shop: 'animal' },
   // 萌宠小屋（用户说：宠物店，现在只有小狗，以后有更多）
@@ -31,7 +35,7 @@ export const SHOP_ITEMS = [
 ];
 // 能卖的价格（用户说：背包里除了钥匙，什么都能卖，但卖的价格比买的低）：菜和水果按原价收；小卖部买来的东西按买价的一半
 const BUY = Object.fromEntries(SHOP_ITEMS.map(it => [it.key, it.price]));
-const EXTRA_SELL = { egg: 5, goldegg: 60, chicken_meat: 12, milk: 15, wool: 18, beef: 30, mutton: 22 };   // 鸡蛋、金蛋
+const EXTRA_SELL = { egg: 5, goldegg: 60, chicken_meat: 12, milk: 15, wool: 18, beef: 30, mutton: 22, truffle: 40, duckegg: 8, pork: 26, duckmeat: 20 };   // 鸡蛋、金蛋
 export const sellPrice = key => key === 'key' ? 0 : EXTRA_SELL[key] ? EXTRA_SELL[key] : CROPS[key] ? CROPS[key].price : BUY[key] ? Math.max(1, Math.floor(BUY[key] / 2)) : 0;
 
 function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
@@ -40,7 +44,7 @@ function tex(w, h, draw) { const c = document.createElement('canvas'); c.width =
 export const SHOPS = {
   general: { name: '菜鸟小卖部', icon: '🏪', a: '#e8473e', b: '#ffffff', keeper: 'chef', desc: '买种子、树苗、蜡烛、杀虫剂、菜刀；把东西卖掉换菜币' },
   pet: { name: '萌宠小屋', icon: '🐾', a: '#ff7aa8', b: '#ffffff', keeper: 'explorer', desc: '买小狗、狗屋、狗盆、狗粮、狗链、飞盘（以后会有更多宠物）' },
-  animal: { name: '动物小铺', icon: '🐔', a: '#4caf50', b: '#fff4c2', keeper: 'farmer', desc: '买小鸡、小牛、小羊、牛棚、羊圈、饲料、剪刀（以后还有猪、鸭）' },
+  animal: { name: '动物小铺', icon: '🐔', a: '#4caf50', b: '#fff4c2', keeper: 'farmer', desc: '买小鸡、小牛、小羊、小猪、小鸭，鸡舍、牛棚、羊圈、猪圈、鸭棚，饲料、剪刀' },
 };
 export const shopOf = it => it.shop || 'general';
 

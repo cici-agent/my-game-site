@@ -147,7 +147,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
 
   // ---------- 行为 ----------
   const circ = new THREE.Vector3(); let entering = false, napT = 0, zzT = 0, fetchT = 0, circA = 0, air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
-  const say = (e, dur = 2) => { emote.set(e); emote.visible = true; emoteT = dur; };
+  const say = (e, dur = 2) => {};   // 用户说：动物、宠物头上不要显示状态（比如睡觉、开心、饿了）
   function spawnNear(p) { pos.set(p.x + 1.5, 0, p.z + 1.5); }
   function adopt(name) { if (st.has) return false; Object.assign(st, { has: true, name: name || DOG_NAMES[Math.floor(Math.random() * DOG_NAMES.length)], full: 80, loyal: 10, bowl: st.bowl || null }); save(); D.root.visible = true; placed = false; say('❤️', 3); return true; }
   let placed = false;

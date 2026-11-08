@@ -245,7 +245,7 @@ export function createCoop({ scene, plot, side, isNight = () => false, notify = 
     get hungry() { return st.hens.filter(h => h.full < 20).length; },
     update, collide,
     get built() { return st.built; }, get gate() { return C ? C.gate : null; },
-    nearSign(p) { return !C && near(p, { x: 0, z: 0 }, 2); },
+    nearSign(p) { return !C && near(p, { x: 0, z: 0 }, 3.8); },
     nearNest(p) { return !!C && near(p, C.nestPos, 1.4); },
     nearTrough(p) { return !!C && near(p, C.troughPos, 1.3); },
     nearCoop(p) { return !!C && (near(p, C.door, 1.5) || near(p, { x: C.houseBox.x, z: C.houseBox.z + C.houseBox.hd + .4 }, 1.6)); },
