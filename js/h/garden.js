@@ -316,10 +316,8 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     const g = new THREE.Group(); group.add(g);
     const soilMat = FLAT(0xb48d5c, 4), ridgeMat = M(0xb48d5c, { roughness: 1 });
     const soil = new THREE.Mesh(new THREE.PlaneGeometry(BED_W, BED_D), soilMat); soil.rotation.x = -Math.PI / 2; soil.position.y = .03; soil.receiveShadow = true; g.add(soil);
-    // 5 个小土堆（像骰子上的 5 点），菜种在土堆上
-    SPOTS.forEach(([x, z]) => { const r = part(g, G.sph, ridgeMat, [x, .03, z], [.3, .07, .3]); r.castShadow = false; r.receiveShadow = true; });
-    const plantsG = new THREE.Group(); plantsG.position.y = .08; g.add(plantsG);
-    const bugsG = new THREE.Group(); bugsG.position.y = .08; g.add(bugsG);
+    const plantsG = new THREE.Group(); plantsG.position.y = .035; g.add(plantsG);
+    const bugsG = new THREE.Group(); bugsG.position.y = .035; g.add(bugsG);
     const icon = new THREE.Group(); icon.position.y = 2.1; g.add(icon);
     return { i, st: b, g, soilMat, ridgeMat, plantsG, bugsG, icon, iconCh: null, plants: [], bugs: [], key: null, lx: 0, lz: 0, wx: 0, wz: 0 };
   });
