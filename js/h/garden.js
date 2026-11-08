@@ -59,7 +59,7 @@ export function createBag(cap = 7, stack = 50) {   // 快捷栏一共 9 格：�
   const count = key => bag.slots.reduce((n, s) => n + (s && s.key === key ? s.n : 0), 0);
   function room(key) {
     let r = 0; bag.slots.forEach(s => { if (s && s.key === key) r += stack - s.n; });
-    return r + (cap - used()) * stack;
+    return r + (bag.cap - used()) * stack;   // 用 bag.cap：房子升级时柜子会变大
   }
   function add(key, n) {
     if (room(key) < n) return false;
@@ -86,7 +86,7 @@ export function createBag(cap = 7, stack = 50) {   // 快捷栏一共 9 格：�
   }
   return Object.assign(bag, { count, room, add, take, addAll, tidy });
 }
-const OTHER_ITEMS = { candle: { icon: '🕯️', name: '蜡烛' }, spray: { icon: '🧴', name: '杀虫剂' } };
+const OTHER_ITEMS = { candle: { icon: '🕯️', name: '蜡烛' }, oil: { icon: '🛢️', name: '灯油' }, spray: { icon: '🧴', name: '杀虫剂' } };
 export const itemInfo = key => {
   if (OTHER_ITEMS[key]) return OTHER_ITEMS[key];
   if (key.startsWith('seed_')) { const c = CROPS[key.slice(5)]; return { icon: '🌱', sub: c.icon, name: c.kind === 'tree' ? c.tree + '苗' : c.name + '种子', seed: true }; }

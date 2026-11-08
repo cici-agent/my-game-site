@@ -5,9 +5,10 @@ import { buildAvatar, buildPet } from '../p/avatar.js';
 import { INV, loadInventory } from '../p/inventory.js';
 import { L, createLayout, ribbon } from './layout.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden } from './garden.js';
-import { createHouse, inHouse } from './house.js';
+import { createHouse, inHouse, HOUSE_NAMES } from './house.js';
+import { createStamina, FOOD, MAX as STA_MAX } from './stamina.js';
 import { createShop, SHOP_ITEMS, sellPrice } from './shop.js';
-import { createSky, growLight, phaseOf, clockText, gameHour, jumpTo, resetTime } from './sky.js';
+import { createSky, growLight, phaseOf, clockText, gameHour, jumpTo, resetTime, darkness } from './sky.js';
 
 // ---------- 布局：弯弯的主路 + 零零散散的大空地 + 弯弯的小道（见 layout.js） ----------
 // 固定种子的随机数：每次打开布局都一样
@@ -246,8 +247,11 @@ const clouds = []; let cloudMat = null;
 const $ = id => document.getElementById(id);
 // ---------- 我的菜园：先放在离出生点最近的那块空地上（以后改成在镇政府领到的那块） ----------
 const garden = createGarden({ scene, plot: homePlot, side: gardenSide, daylight: () => growLight() });
-const house = createHouse({ scene, plot: homePlot, speed: () => garden.speed });
+const house = createHouse({ scene, plot: homePlot, side: gardenSide, speed: () => garden.speed, darkness: () => darkness() });
 garden.addContainer('cabinet', house.cabinet, () => house.persist());
+garden.addContainer('safe', house.safe, () => house.persist());
+const stamina = createStamina();
+let sleeping = null, firstPerson = false;
 // 小卖部：在广场上，背对第一条路，面朝广场中间
 const shopAng = Math.atan2(LAY.roads[1].pts[8].x, LAY.roads[1].pts[8].z) + Math.PI * .8;
 const shop = createShop({ scene, x: Math.sin(shopAng) * 13, z: Math.cos(shopAng) * 13, face: shopAng + Math.PI, buildAvatar });
@@ -280,6 +284,9 @@ addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
   if (e.code === 'KeyM' && !e.repeat && !chestOpen) overview = !overview;   // M：俯瞰整个小镇
+  if (e.code === 'KeyV' && !e.repeat) toggleView();                          // V：第一人称 / 第三人称
+  if (e.code === 'KeyF' && !e.repeat && !chestOpen && !shopOpen) eatSelected();   // F：吃掉选中的菜
+  if (sleeping && /^(Key[WASD]|Arrow|Space)/.test(e.code)) wakeUp();
   if (e.code === 'Escape' && chestOpen) closeChest();
   if (e.code === 'Escape' && shopOpen) closeShop();
 });
@@ -295,7 +302,7 @@ canvas.addEventListener('pointermove', e => {
   drag.x = e.clientX; drag.y = e.clientY;
 });
 ['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => drag = null));
-canvas.addEventListener('wheel', e => { cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * .006, 9, 28); }, { passive: true });
+canvas.addEventListener('wheel', e => { if (firstPerson) return; cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * .006, 9, 28); }, { passive: true });
 
 // 触屏：摇杆 + 跳跃键
 const stick = $('stick'), knob = stick.querySelector('.knob'), joy = { x: 0, y: 0, id: null };
@@ -321,19 +328,22 @@ function selItem() { if (sel < TOOLS.length) return TOOLS[sel].key; const sl = g
 function select(i) { if (i < 0 || i >= hotbarLen()) return; sel = i; renderBag(); const it = selItem(); toast(it ? (sel < TOOLS.length ? TOOLS[sel].name : itemInfo(it).name) : '空格子'); }
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2000); }
 function doAction() {
+  if (sleeping) return wakeUp();
   if (shopOpen) return closeShop();
   if (chestOpen) return closeChest();
   if (!nearBed && nearShop) return openShop();
   if (!nearBed && nearHouse) {
     const r = house.act(nearHouse, selItem(), garden.bag);
-    if (r && r.open) return openChest('cabinet');
+    if (r && r.open) return openChest(r.open);
+    if (r && r.sleep) return goSleep(r.sleep);
     if (r && r.msg) toast(r.msg);
     return renderBag();
   }
   if (!nearBed && nearBox) return openChest('chest');
-  if (!nearBed) return;
+  if (!nearBed) return eatSelected();
   const r = garden.useItem(nearBed, selItem());
   if (r && r.msg) toast(r.msg);
+  if (r && r.ok !== false && !/没有|不能|🔒|满了/.test(r.msg || '')) stamina.use('work');
   renderBag();
 }
 $('actBtn').addEventListener('click', () => doAction());
@@ -352,13 +362,39 @@ function renderBag() {
 }
 $('bag').addEventListener('pointerdown', e => { if (chestOpen) return; const c = e.target.closest('.slot'); if (c) { e.preventDefault(); select(+c.dataset.i); } });
 
+// ---------- 体力：睡觉、吃东西、第一人称 ----------
+const Y_AXIS = new THREE.Vector3(0, 1, 0), Q_LIE = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, Math.PI / 2, 'XYZ'));
+function goSleep(s) {
+  if (stamina.value >= STA_MAX - .5) return toast('💪 体力是满的，还不困');
+  sleeping = s; stamina.sleep(s.rate); Object.keys(keys).forEach(k => keys[k] = false);
+  document.body.classList.add('sleeping'); toast(`💤 躺下睡觉了 —— 时间照常走，睡够了按 E 起床`);
+}
+function wakeUp() {
+  if (!sleeping) return; const s = sleeping; sleeping = null; stamina.wake(); document.body.classList.remove('sleeping');
+  player.pos.set(s.x + Math.sin(s.yaw) * 1.5, s.y, s.z + Math.cos(s.yaw) * 1.5); player.vy = 0;
+  toast(`☀️ 起床了，体力 ${Math.round(stamina.value)}`);
+}
+function eatSelected() {
+  const k = selItem(); if (!FOOD[k]) return;
+  if (stamina.value >= STA_MAX - .5) return toast('😊 已经吃饱了');
+  if (!garden.bag.take(k)) return;
+  const n = stamina.eat(k); renderBag(); toast(`😋 吃了 1 个${itemInfo(k).name}，体力 +${Math.round(n)}`);
+}
+function toggleView() { firstPerson = !firstPerson; $('viewBtn').textContent = firstPerson ? '🎥 第三人称 (V)' : '👁️ 第一人称 (V)'; toast(firstPerson ? '👁️ 第一人称：用自己的眼睛看' : '🎥 第三人称'); }
+$('viewBtn').onclick = toggleView;
+let staShown = -1;
+function renderSta() {
+  const v = Math.round(stamina.value); if (v === staShown && !sleeping) return; staShown = v;
+  const el = $('sta'); el.querySelector('i').style.width = v + '%'; el.querySelector('b').textContent = v;
+  el.classList.toggle('low', v < 25); el.classList.toggle('zero', v <= 0); el.classList.toggle('zz', !!sleeping);
+}
 // ---------- 小卖部：买种子、树苗、蜡烛、杀虫剂；把菜卖掉换菜币 ----------
 function renderMoney() { $('money').innerHTML = `<b>🥕 ${garden.wallet.get()}</b> 菜币`; }
 function renderShop() {
   $('shopMoney').textContent = garden.wallet.get();
   document.querySelectorAll('#shopUI .tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === shopTab));
   if (shopTab === 'buy') {
-    $('shopList').innerHTML = SHOP_ITEMS.map((it, i) => { const info = itemInfo(it.key), lock = it.lv > garden.level, poor = garden.wallet.get() < it.price;
+    $('shopList').innerHTML = SHOP_ITEMS.map((it, i) => { const info = itemInfo(it.key), lock = false, poor = garden.wallet.get() < it.price;
       return `<div class="row${lock ? ' lock' : ''}"><span class="ic">${info.seed ? `<span class="pk"><b>${info.sub}</b></span>` : info.icon}</span>
         <span class="nm">${info.name}<small>${lock ? `菜园 ${it.lv} 级才能买` : it.note || ''}</small></span><span class="pr">🥕 ${it.price}</span>
         <button data-i="${i}" data-n="1" ${lock || poor ? 'disabled' : ''}>买 1 个</button><button data-i="${i}" data-n="5" ${lock || garden.wallet.get() < it.price * 5 ? 'disabled' : ''}>买 5 个</button></div>`; }).join('');
@@ -393,7 +429,7 @@ renderMoney(); setInterval(renderMoney, 1000);
 // ---------- 箱子：走到旁边按 E 打开；拖动格子搬东西，点一下整格搬到另一边 ----------
 let nearShop = false, shopOpen = false, shopTab = 'buy';
 let nearBox = false, nearHouse = null, chestOpen = false, drag2 = null, boxName = 'chest';
-const BOX_TITLE = { chest: '📦 我的箱子', cabinet: '🗄️ 小木柜' };
+const BOX_TITLE = { chest: '📦 我的箱子', get cabinet() { return `🗄️ 柜子（${HOUSE_NAMES[house.level]} · ${house.cabinet.cap} 格）`; }, safe: '🔐 保险箱（12 格）' };
 function cellHTML(c, i, sl) {
   if (!sl) return `<div class="slot" data-c="${c}" data-i="${i}"></div>`;
   const it = itemInfo(sl.key);
@@ -446,9 +482,23 @@ $('dbgCandle').onclick = () => { const ok = house.debug.giveCandles(garden.bag);
 $('dbgTrees').onclick = () => { if (garden.level < 2) return toast('🔒 菜园 2 级以上才能种果树'); const n = garden.debug.giveTrees(); renderBag(); toast(n ? `🌳 送了 ${n} 种树苗，每种 2 棵` : '🎒 背包满了，先把东西放进箱子'); };
 $('dbgReset').onclick = () => { if (confirm('把菜园和背包都清空，重新开始？')) garden.debug.reset(); };
 $('dbgToggle').onclick = () => $('dbg').classList.toggle('open');
+function renderDbgHouse() {
+  $('dbgHouse').innerHTML = [1, 2, 3, 4, 5].map(l => `<button class="${l === house.level ? 'on' : ''}" data-l="${l}">${l} 级 · ${HOUSE_NAMES[l]}</button>`).join('');
+  $('dbgHouse').querySelectorAll('button').forEach(b => b.onclick = () => {
+    if (sleeping) wakeUp();
+    const l = +b.dataset.l, up = l > house.level; house.debug.setLevel(l); renderDbgHouse();
+    // 人在房子里面的话，挪到门口，免得卡在墙里
+    if (house.inside(player.pos) || Math.hypot(player.pos.x - house.doorWorld()[0], player.pos.z - house.doorWorld()[1]) < 16) { [player.pos.x, player.pos.z] = house.doorWorld(); player.pos.y = 0; }
+    toast(`🏠 房子${up ? '升级' : '变'}成 ${l} 级：${HOUSE_NAMES[l]}`);
+  });
+}
+renderDbgHouse();
+$('dbgOil').onclick = () => { const ok = garden.bag.add('oil', 3); renderBag(); toast(ok ? '🛢️ 送了 3 瓶灯油' : '🎒 背包满了'); };
+$('dbgStaFull').onclick = () => { stamina.set(STA_MAX); toast('💪 体力满了'); };
+$('dbgStaLow').onclick = () => { stamina.set(0); toast('😩 体力用光了：走路会很慢'); };
 setInterval(renderBag, 1500);
 // 自动测试用（只有网址带 ?test 才有）
-if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, house, shop, homePlot, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
+if (new URLSearchParams(location.search).has('test')) window.__home = { player, garden, house, shop, homePlot, stamina, cam, toggleView, goSleep, wakeUp, eatSelected, get sleeping() { return sleeping; }, openShop, act: () => doAction(), select: i => select(i), openChest, closeChest };
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
@@ -456,7 +506,7 @@ function renderClock() { const h = gameHour(), p = phaseOf(h); $('clock').innerH
 renderClock(); setInterval(renderClock, 1000);
 document.querySelectorAll('#dbgTime button').forEach(b => b.onclick = () => { if (b.dataset.h === 'real') resetTime(); else jumpTo(+b.dataset.h); renderClock(); toast(b.dataset.h === 'real' ? '回到真实时间' : `跳到 ${b.textContent}`); });
 
-const WALK = 7.5, RUN = 12, GRAV = 26, JUMP = 9.5, EDGE = WR - 6;
+const WALK = 7.5, RUN = 12, TIRED = 2.2, GRAV = 26, JUMP = 9.5, EDGE = WR - 6;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
 camera.position.set(LAY.spawn.x - Math.sin(LAY.spawn.yaw) * 13, 5.5, LAY.spawn.z - Math.cos(LAY.spawn.yaw) * 13);
 function step(dt, t) {
@@ -466,22 +516,28 @@ function step(dt, t) {
   if (keys.KeyA || keys.ArrowLeft) mx -= 1;
   if (keys.KeyD || keys.ArrowRight) mx += 1;
   if (joy.id !== null) { mx = joy.x; my = joy.y; }
-  if (chestOpen || shopOpen) mx = my = 0;
+  if (chestOpen || shopOpen || sleeping) mx = my = 0;
   const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
-  const running = keys.ShiftLeft || keys.ShiftRight;
-  const speed = (running ? RUN : WALK) * Math.min(1, len);
+  // 体力：用光了走得很慢、跑不动、跳不起来；快用光时也跑不快
+  const tired = stamina.empty, running = (keys.ShiftLeft || keys.ShiftRight) && !tired;
+  const speed = (tired ? TIRED : running ? (stamina.value < 15 ? WALK * 1.2 : RUN) : WALK) * Math.min(1, len);
+  stamina.update(dt, Math.min(1, len), running);
   const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
   const vx = (fx * my - fz * mx) * speed, vz = (fz * my + fx * mx) * speed;
   player.pos.x += vx * dt; player.pos.z += vz * dt;
   if (len > .05) {
     let d = Math.atan2(vx, vz) - player.face; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
     player.face += d * Math.min(1, dt * 12);
-    if (my > .3 && !drag) { let dy = player.face - cam.yaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2; cam.yaw += dy * dt * 1.2; }
+    if (firstPerson) player.face = cam.yaw;
+    else if (my > .3 && !drag) { let dy = player.face - cam.yaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2; cam.yaw += dy * dt * 1.2; }
   }
   // 跳跃 / 重力
-  if (keys.Space && player.ground) { player.vy = JUMP; player.ground = false; }
+  if (keys.Space && player.ground && !sleeping && !tired) { player.vy = JUMP; player.ground = false; stamina.use('jump'); }
   player.vy -= GRAV * dt; player.pos.y += player.vy * dt;
-  if (player.pos.y <= 0) { player.pos.y = 0; player.vy = 0; player.ground = true; }
+  // 脚下的高度：房子的地板、楼梯、二楼（上台阶时直接迈上去）
+  const gy = house.groundAt(player.pos);
+  if (player.pos.y <= gy || (player.ground && player.pos.y - gy < .45 && player.vy <= 0)) { player.pos.y = gy; player.vy = 0; player.ground = true; } else player.ground = false;
+  if (sleeping) { player.pos.set(sleeping.x, sleeping.y, sleeping.z); player.vy = 0; }
   // 碰撞：树、灌木、花坛；走到边上就停住
   const pr = .55;
   garden.collide(player.pos);
@@ -494,6 +550,11 @@ function step(dt, t) {
   const r = Math.hypot(player.pos.x, player.pos.z); if (r > EDGE) { player.pos.x *= EDGE / r; player.pos.z *= EDGE / r; }
 
   me.root.position.copy(player.pos); me.root.rotation.set(0, player.face, 0);
+  if (sleeping) {   // 躺在床上：头朝枕头那头
+    me.root.quaternion.setFromAxisAngle(Y_AXIS, sleeping.yaw).multiply(Q_LIE);
+    me.root.position.set(sleeping.x + Math.cos(sleeping.yaw) * .75, sleeping.y + sleeping.top, sleeping.z - Math.sin(sleeping.yaw) * .75);
+  }
+  me.root.visible = !firstPerson || overview;
   if (me.rig.shadow) { me.rig.shadow.position.y = .02 - player.pos.y; me.rig.shadow.material.opacity = .25 / (1 + player.pos.y * .3); }
   me.animate(dt, Math.min(1, speed / WALK), !player.ground, false);
   if (pet) {
@@ -505,6 +566,12 @@ function step(dt, t) {
   }
   // 第三人称镜头：在人物身后，可以抬头看天
   camLook.set(player.pos.x, player.pos.y + 1.5, player.pos.z);
+  if (firstPerson && !overview) {   // 第一人称：眼睛的位置，往镜头方向看
+    const eyeY = sleeping ? sleeping.y + 1.2 : player.pos.y + 1.55, p = THREE.MathUtils.clamp(cam.pitch - .3, -1.2, 1.2);
+    camera.position.set(player.pos.x, eyeY, player.pos.z);
+    camera.lookAt(player.pos.x + Math.sin(cam.yaw) * Math.cos(p), eyeY - Math.sin(p), player.pos.z + Math.cos(cam.yaw) * Math.cos(p));
+    return;
+  }
   const inHut = house.inside(player.pos);
   const upk = inHut ? 0 : Math.max(0, -cam.pitch), cd = inHut ? 7.5 : Math.max(8, cam.dist * (1 - upk * .45)), pv = inHut ? Math.max(cam.pitch, 1.05) : Math.max(cam.pitch, -.12);
   camPos.set(camLook.x - Math.sin(cam.yaw) * cd * Math.cos(pv), camLook.y + Math.sin(pv) * cd, camLook.z - Math.cos(cam.yaw) * cd * Math.cos(pv));
@@ -528,7 +595,8 @@ renderer.setAnimationLoop(() => {
   clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 560) c.position.x = -560; });
   sky.update(dt);
   garden.update(dt);
-  house.update(dt, player.pos);
+  house.update(dt, player.pos, firstPerson && !overview);
+  renderSta();
   shop.update(dt);
   step(dt, t);
   // 站在哪块田旁边：显示能做什么
@@ -536,11 +604,14 @@ renderer.setAnimationLoop(() => {
   nearBox = !overview && !nearBed && garden.nearChest(player.pos.x, player.pos.z);
   nearHouse = !overview && !nearBed ? house.nearThing(player.pos) : null;
   nearShop = !overview && !nearBed && shop.near(player.pos);
+  if (sleeping) { nearBed = null; nearBox = false; nearHouse = null; nearShop = false; }
   const pr = $('prompt');
   if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
   else if (nearShop && !shopOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}🏪 进小卖部</b><span>买种子、树苗、蜡烛、杀虫剂；把菜卖掉换菜币</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '进小卖部'; $('actBtn').classList.add('show'); }
   else if (nearHouse && !chestOpen) { const d = house.describe(nearHouse, selItem()); pr.innerHTML = `<b>${d.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${d.label}</b><span>${d.sub}</span>`; pr.classList.toggle('dim', !d.can); pr.classList.add('show'); $('actBtn').textContent = d.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', d.can); }
   else if (nearBox && !chestOpen) { pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E · '}📦 打开箱子</b><span>把背包里的东西放进箱子，或者拿出来</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '打开箱子'; $('actBtn').classList.add('show'); }
+  else if (sleeping) { pr.innerHTML = `<b>💤 正在${sleeping.name}上睡觉</b><span>体力每分钟 +${Math.round(sleeping.rate * 60)} · 按 E 或走路起床</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '起床'; $('actBtn').classList.add('show'); }
+  else if (FOOD[selItem()] && !chestOpen && !shopOpen) { const k = selItem(); pr.innerHTML = `<b>${isTouch ? '点按钮 · ' : 'E / F · '}😋 吃掉 1 个${itemInfo(k).name}</b><span>体力 +${FOOD[k]}</span>`; pr.classList.remove('dim'); pr.classList.add('show'); $('actBtn').textContent = '吃掉'; $('actBtn').classList.add('show'); }
   else { pr.classList.remove('show'); $('actBtn').classList.remove('show'); }
   renderer.render(scene, camera);
 });
