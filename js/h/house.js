@@ -7,7 +7,7 @@ import { createBag, plotToWorld, worldToPlot } from './garden.js';
 import { BED_RATE } from './stamina.js';
 
 export const HOUSE_NAMES = { 1: '小木棚', 2: '小木屋', 3: '砖瓦小屋', 4: '两层小楼', 5: '花园小别墅' };
-const CANDLE_LIFE = 3600, OIL_LIFE = 2 * 3600;   // 现实里的秒：蜡烛烧 1 小时，油灯 2 小时（不跟着管理员加速走）
+const CANDLE_LIFE = 30 * 60, OIL_LIFE = 2 * 3600;   // 现实里的秒：蜡烛只烧半小时（用户定的），油灯 2 小时（不跟着管理员加速走）
 // 电费（用户说：用电灯的房子要交电费，但要特别低）：每盏电灯开着，每个现实小时 0.5 菜币；攒够 1 菜币自动扣
 export const POWER_RATE = .5;
 const CAB_CAP = { 1: 9, 2: 18, 3: 27, 4: 45, 5: 72 };
@@ -331,7 +331,9 @@ export function createHouse({ scene, plot, side = 1, rnd = Math.random, save = t
       if (r && r.thing) things.push({ ...r.thing, type: f.type, bx: f.x, bz: f.z, by: fy + (f.up ? floorH : 0), ry: f.ry || 0, x: f.x + (r.thing.dx || 0) * Math.cos(f.ry || 0) + (r.thing.dz || 0) * Math.sin(f.ry || 0), z: f.z - (r.thing.dx || 0) * Math.sin(f.ry || 0) + (r.thing.dz || 0) * Math.cos(f.ry || 0), floor: f.up ? 1 : 0, id: f.id || f.type + f.x, room: f.room });
     });
     things.push({ kind: 'door', x: dx, z: D, floor: 0, id: 'front' });
-    lights.forEach(l => { if (l.kind === 'candle' || l.kind === 'oil') { if (st.candles[l.id] === undefined) st.candles[l.id] = (l.kind === 'oil' ? OIL_LIFE : CANDLE_LIFE) * (lights.indexOf(l) ? .6 : 1); } });
+    lights.forEach(l => { if (l.kind === 'candle' || l.kind === 'oil') { const max = l.kind === 'oil' ? OIL_LIFE : CANDLE_LIFE;
+      if (st.candles[l.id] === undefined) st.candles[l.id] = max * (lights.indexOf(l) ? .6 : 1);
+      st.candles[l.id] = Math.min(st.candles[l.id], max); } });   // 以前按老规则点的蜡烛，剩下的时间也不能超过现在的上限
   }
 
   // ---------- 家具库 ----------
