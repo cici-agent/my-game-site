@@ -274,7 +274,7 @@ let overview = false;
 const cam = { yaw: LAY.spawn.yaw, pitch: .3, dist: 13 };   // 离得远一点：整个人从头到脚都看得见   // 相机在玩家南边，看向北边的广场
 addEventListener('keydown', e => {
   keys[e.code] = true;
-  { const m = /^Digit(\d)$/.exec(e.code); if (m && !e.repeat) select((+m[1] + 9) % 10); }   // 1~9 选第 1~9 格，0 选第 10 格
+  { const m = /^Digit([1-9])$/.exec(e.code); if (m && !e.repeat) select(+m[1] - 1); }   // 1~9 选第 1~9 格
   if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) doAction();
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
@@ -327,7 +327,7 @@ $('actBtn').addEventListener('click', () => doAction());
 // 快捷栏
 function renderBag() {
   const b = garden.bag, cells = [];
-  const num = i => i < 10 ? `<u>${(i + 1) % 10}</u>` : '';
+  const num = i => `<u>${i + 1}</u>`;
   TOOLS.forEach((t, i) => cells.push(`<div class="slot tool${sel === i ? ' on' : ''}" data-i="${i}" title="${t.name}">${num(i)}<span class="veg">${t.icon}</span></div>`));
   for (let k = 0; k < b.cap; k++) { const i = k + TOOLS.length, sl = b.slots[k], on = sel === i ? ' on' : '';
     if (!sl) { cells.push(`<div class="slot${on}" data-i="${i}">${num(i)}</div>`); continue; }
