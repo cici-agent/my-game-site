@@ -282,7 +282,7 @@ garden.addContainer('cabinet', house.cabinet, () => house.persist());
 garden.addContainer('safe', house.safe, () => house.persist());
 const stamina = createStamina();
 // 🐶 宠物狗（用户定的：要非常可爱呆萌；饿了自己去狗盆吃；不饿自己玩；忠诚度高帮你看菜园）
-const dog = createDog({ scene, groundAt: p => house.groundAt(p), collide: p => house.collide(p, .35),
+const dog = createDog({ scene, groundAt: p => house.groundAt(p), collide: p => { house.collide(p, .35); garden.collide(p, .35); plotFenceCollide(p, .35); },
   guardSpot: () => { const [x, z] = garden.gateWorld(); return { x, z }; }, homeCenter: () => ({ x: homePlot.x, z: homePlot.z }),
   notify: m => { if (!nearBed) toast(m); }, onFrisbeeBack: () => { if (!garden.bag.add('frisbee', 1)) garden.chest.add('frisbee', 1); renderBag(); } });
 let sleeping = null, firstPerson = false;
@@ -312,6 +312,7 @@ const keys = {};
 let overview = false;
 const cam = { yaw: LAY.spawn.yaw, pitch: .3, dist: 13 };   // 离得远一点：整个人从头到脚都看得见   // 相机在玩家南边，看向北边的广场
 addEventListener('keydown', e => {
+  if ($('nameUI').classList.contains('show')) return;   // 正在打狗的名字
   keys[e.code] = true;
   { const m = /^Digit([1-9])$/.exec(e.code); if (m && !e.repeat) select(+m[1] - 1); }   // 1~9 选第 1~9 格
   if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) doAction();
@@ -431,9 +432,21 @@ function dogAction() {
   if (dog.near(player.pos)) { toast(dog.pet()); return true; }
   return false;
 }
+// 给狗取名（用户说：可以自己给狗取名）：买的时候弹出来；以后点左边的 🐶 条也能改
+function askDogName(isNew) {
+  const ui = $('nameUI'), inp = $('nameInput');
+  $('nameTitle').textContent = isNew ? '🐶 你有了一只小狗！给它取个名字吧' : `🐶 给${dog.name}改个名字`;
+  inp.value = isNew ? '' : dog.name; inp.placeholder = dog.name; ui.classList.add('show'); Object.keys(keys).forEach(k => keys[k] = false);
+  setTimeout(() => inp.focus(), 50);
+  const done = ok => { ui.classList.remove('show'); const n = inp.value.trim().slice(0, 8);
+    if (ok && n) dog.rename(n); toast(isNew ? `🐶 ${dog.name}来到你家了！它会跟着你` : `🐶 现在它叫${dog.name}`); renderDogHud(true); };
+  $('nameOk').onclick = () => done(true); $('nameSkip').onclick = () => done(false);
+  inp.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); };
+}
+$('dogHud').onclick = () => dog.has && askDogName(false);
 let dogHudT = 0;
-function renderDogHud() {
-  if ((dogHudT -= 1) > 0) return; dogHudT = 20;
+function renderDogHud(now) {
+  if (!now && (dogHudT -= 1) > 0) return; dogHudT = 20;
   const el = $('dogHud'); el.style.display = dog.has ? '' : 'none'; if (!dog.has) return;
   el.innerHTML = `🐶 <b>${dog.name}</b> 🍖 ${Math.round(dog.full)}% · ❤️ ${Math.round(dog.loyal)}`;
   el.classList.toggle('hungry', dog.full < 40);
@@ -490,7 +503,7 @@ $('shopList').addEventListener('click', e => {
     if (it.key === 'puppy') {
       if (dog.has) { toast(`🐶 你已经有${dog.name}了`); return; }
       if (!garden.wallet.spend(it.price)) { toast('菜币不够'); return; }
-      dog.adopt(); toast(`🐶 买到一只小狗：${dog.name}！它会跟着你`); renderShop(); renderMoney(); return;
+      dog.adopt(); renderShop(); renderMoney(); closeShop(); askDogName(true); return;
     }
     if (garden.bag.room(it.key) < n) { toast('🎒 背包放不下了，先把东西放进箱子'); return; }
     if (!garden.wallet.spend(cost)) { toast('菜币不够'); return; }
@@ -590,7 +603,7 @@ function renderDbgHouse() {
 renderDbgHouse();
 $('dbgOil').onclick = () => { const ok = garden.bag.add('oil', 3); renderBag(); toast(ok ? '🛢️ 送了 3 瓶灯油' : '🎒 背包满了'); };
 $('dbgStaFull').onclick = () => { stamina.set(STA_MAX); toast('💪 体力满了'); };
-$('dbgDog').onclick = () => { if (dog.has) return toast(`🐶 已经有${dog.name}了`); dog.adopt(); toast(`🐶 送你一只小狗：${dog.name}`); };
+$('dbgDog').onclick = () => { if (dog.has) return toast(`🐶 已经有${dog.name}了`); dog.adopt(); askDogName(true); };
 $('dbgDogStuff').onclick = () => { const ok = garden.bag.add('bowl', 1) && garden.bag.add('dogfood', 10) && garden.bag.add('frisbee', 1); renderBag(); toast(ok ? '🎁 送了狗盆、10 份狗粮、飞盘' : '🎒 背包满了，先把东西放进箱子'); };
 $('dbgDogHungry').onclick = () => { dog.debug.setFull(10); toast('🐶 狗饿了'); };
 $('dbgDogLoyal').onclick = () => { dog.debug.setLoyal(100); toast('🐶 忠诚度满了：会帮你看菜园'); };

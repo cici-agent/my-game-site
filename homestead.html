@@ -119,6 +119,16 @@
   #dogHud { position: fixed; left: 16px; top: calc(var(--top-h) + 160px); z-index: 9; background: rgba(120,70,20,.72); color: #fff; padding: 5px 12px; border-radius: 999px; font-size: 13px; }
   #dogHud.hungry { background: rgba(200,60,40,.85); animation: staBlink 1.2s infinite; }
   body.touch #dogHud { top: calc(var(--top-h) + 206px); }
+  #dogHud { cursor: pointer; }
+  #nameUI { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.35); }
+  #nameUI.show { display: flex; }
+  #nameUI .box { background: #fff7e8; border-radius: 20px; padding: 22px 24px; width: min(340px, 86vw); display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+  #nameTitle { font-weight: 900; font-size: 17px; color: #4a2c12; }
+  #nameInput { font-size: 20px; padding: 10px 14px; border-radius: 12px; border: 2px solid #e0c890; font-family: inherit; outline: none; }
+  #nameInput:focus { border-color: #ff8c42; }
+  #nameUI .btns { display: flex; gap: 10px; justify-content: flex-end; }
+  #nameUI button { border: 0; border-radius: 999px; padding: 9px 18px; font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; }
+  #nameSkip { background: #eee; color: #555; } #nameOk { background: #ff8c42; color: #fff; }
   body.sleeping canvas { filter: brightness(.55) saturate(.7); transition: filter 1s; }
   #chestUI { position: fixed; inset: 0; z-index: 15; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.3); }
   #chestUI.show { display: flex; }
@@ -168,7 +178,12 @@
 <div id="clock"></div>
 <div id="sta" title="体力：走路、跑步、干活会用掉；睡觉、吃菜能回来"><span>💪</span><div class="bar"><i></i></div><b>100</b></div>
 <button id="viewBtn">👁️ 第一人称 (V)</button>
-<div id="dogHud" style="display: none"></div>
+<div id="dogHud" style="display: none" title="点一下给狗改名"></div>
+<div id="nameUI"><div class="box">
+  <div id="nameTitle">🐶 给小狗取个名字吧</div>
+  <input id="nameInput" maxlength="8" autocomplete="off" aria-label="小狗的名字">
+  <div class="btns"><button id="nameSkip">先不取</button><button id="nameOk">就叫这个</button></div>
+</div></div>
 <div id="shopUI"><div class="box">
   <div class="hd">🏪 菜鸟小卖部<span class="mo">🥕 <b id="shopMoney">0</b> 菜币</span><button id="shopClose">✕</button></div>
   <div class="tabs"><button data-t="buy">买东西</button><button data-t="sell">卖菜</button></div>

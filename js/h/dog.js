@@ -113,7 +113,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
   const fv = new THREE.Vector3(); let frisState = null;   // null / 'fly' / 'ground' / 'mouth'
 
   // ---------- 行为 ----------
-  let mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
+  let air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
   const say = (e, dur = 2) => { emote.set(e); emote.visible = true; emoteT = dur; };
   function spawnNear(p) { pos.set(p.x + 1.5, 0, p.z + 1.5); }
   function adopt(name) { if (st.has) return false; Object.assign(st, { has: true, name: name || DOG_NAMES[Math.floor(Math.random() * DOG_NAMES.length)], full: 80, loyal: 10, bowl: st.bowl || null }); save(); D.root.visible = true; placed = false; say('❤️', 3); return true; }
@@ -201,14 +201,19 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
       default: if (timer <= 0 || mode === 'idle') { pick(ppos); if (mode === 'idle') timer = .5; }
     }
     // 墙、栅栏挡着
+    // 栅栏、墙挡着；被栅栏挡住时跳过去（用户说：狗不能穿过栅栏，但能跳过去）
+    jumpCd = Math.max(0, jumpCd - dt);
+    const bx = pos.x, bz = pos.z;
     collide(pos);
-    pos.y = groundAt(pos);
+    const gy = groundAt(pos), pushed = Math.hypot(pos.x - bx, pos.z - bz);
+    if (air) { vy -= 22 * dt; pos.y += vy * dt; if (pos.y <= gy) { pos.y = gy; air = false; vy = 0; } }
+    else { pos.y = gy; if (pushed > .02 && moving > 0 && jumpCd <= 0) { air = true; vy = 6.8; jumpCd = 1.2; } }
     D.root.rotation.y = face;
     // ---------- 动画：摇尾巴、甩耳朵、迈腿、歪头、吐舌头 ----------
     const happy = st.full >= HUNGRY ? .5 + st.loyal / 100 : .15;
     D.tail.rotation.z = Math.sin(t0 * (8 + happy * 14)) * (.3 + happy * .5);
     const run = Math.min(1, moving / 6), step = t0 * (moving > 6 ? 18 : 12);
-    D.legs.forEach((l, i) => l.rotation.x = moving ? Math.sin(step + (i === 0 || i === 3 ? 0 : Math.PI)) * (.5 + run * .3) : 0);
+    D.legs.forEach((l, i) => l.rotation.x = air ? (i < 2 ? -.9 : .9) : moving ? Math.sin(step + (i === 0 || i === 3 ? 0 : Math.PI)) * (.5 + run * .3) : 0);   // 跳起来时前腿往前伸、后腿往后蹬
     D.ears.forEach((e, i) => e.rotation.x = Math.sin(step + i) * .25 * run - run * .3);
     D.body.position.y = moving ? Math.abs(Math.sin(step)) * .06 : 0;
     tilt += ((mode === 'sit' || mode === 'guard' ? Math.sin(t0 * 1.3) * .3 : 0) - tilt) * Math.min(1, dt * 3);   // 坐着时歪头看你（呆萌）
@@ -216,8 +221,10 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
     D.head.rotation.x = mode === 'eat' ? .5 + Math.sin(t0 * 12) * .12 : mode === 'sniff' ? .45 + Math.sin(t0 * 20) * .05 : mode === 'beg' ? -.15 : 0;
     D.tongue.visible = moving > 4 || mode === 'sit' || mode === 'roll';
     D.body.rotation.x = mode === 'sit' || mode === 'guard' ? -.35 : mode === 'eat' || mode === 'sniff' ? .12 : 0;
-    D.body.rotation.z = mode === 'roll' ? Math.sin((2.2 - timer) / 2.2 * Math.PI) * Math.PI : 0;
-    if (mode === 'roll') D.body.position.y = .15;
+    // 打滚：绕身子中间转（以前绕脚底转，头会钻到地里）
+    const rollA = mode === 'roll' ? Math.sin(Math.min(1, Math.max(0, (2.2 - timer) / 2.2)) * Math.PI) * Math.PI : 0, C = .5;
+    D.body.rotation.z = rollA;
+    if (mode === 'roll') D.body.position.set(C * Math.sin(rollA), C * (1 - Math.cos(rollA)) * .62 + Math.sin(rollA / 2) * .12, 0); else D.body.position.x = 0;
     D.shadow.position.y = .02 - D.body.position.y;
     if (frisState === 'mouth') { const hp = new THREE.Vector3(0, .72, .72).applyEuler(D.root.rotation).multiplyScalar(1.15).add(pos); fris.position.copy(hp); fris.rotation.set(Math.PI / 2, face, 0); }
     if (emoteT > 0) { emoteT -= dt; emote.position.y = 1.55 + Math.sin(t0 * 4) * .05; if (emoteT <= 0) emote.visible = false; }
@@ -228,7 +235,7 @@ export function createDog({ scene, groundAt = () => 0, collide = () => {}, guard
   const api = {
     get has() { return st.has; }, get name() { return st.name; }, get full() { return st.full; }, get loyal() { return st.loyal; }, get mode() { return mode; }, get pos() { return pos; },
     get bowl() { return st.bowl; }, get frisbeeOut() { return !!frisState; },
-    adopt, update,
+    adopt, update, rename(n) { st.name = n; save(); say('❤️', 2); },
     near(p) { return st.has && D.root.visible && dist2(pos, p) < 2.2; },
     nearBowl(p) { return st.bowl && dist2(st.bowl, p) < 1.6; },
     status() { return `饱 ${Math.round(st.full)}% · 忠诚 ${Math.round(st.loyal)}${st.loyal >= 70 ? ' ❤️' : ''}`; },
