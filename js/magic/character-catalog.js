@@ -13,6 +13,9 @@ export const OUTFITS = [
   { id: 'travel', name: '旅行便装', english: 'Travelling Clothes', description: '换上便于行动的日常服装，出发去探索。' },
 ];
 
+export const PATHFINDER = { id: 'pathfinder', name: '五阶岔路斜襟短袍',
+  description: '哈利的五阶探索套装，搭配长靴与岔路练习杖。' };
+
 export const WANDS = [
   { id: 'holly', name: '冬青木魔杖', english: 'Holly', description: '冬青木 · 凤凰羽毛杖芯' },
   { id: 'vine', name: '葡萄藤木魔杖', english: 'Vine', description: '葡萄藤木 · 火龙的心弦杖芯' },
@@ -25,6 +28,7 @@ export function normalizeSelection(value) {
   const hero = HEROES.find(item => item.id === value?.hero) ?? HEROES[0];
   return {
     hero: hero.id,
+    ...(value?.hero === 'harry' && value.look === PATHFINDER.id ? { look: PATHFINDER.id } : {}),
     outfit: OUTFITS.find(item => item.id === value?.outfit)?.id ?? 'robe',
     wand: WANDS.find(item => item.id === value?.wand)?.id ?? hero.defaultWand,
   };

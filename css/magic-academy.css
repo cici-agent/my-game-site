@@ -82,6 +82,15 @@ button, a { font-family: inherit; }
 #actBtn { position: fixed; z-index: 19; right: 28px; bottom: 45px; width: 76px; height: 76px; border-radius: 50%; border: 2px solid rgba(255,248,222,.75);
   display: none; place-items: center; align-content: center; background: radial-gradient(circle at 35% 30%, #8d7be8, #4a397f); color: #fff8de; font-size: 25px; font-weight: 900;
   box-shadow: 0 0 28px rgba(111,91,211,.75); cursor: pointer; }
+#castBtn { position: fixed; z-index: 19; right: 116px; bottom: 58px; }
+#castBtn[hidden] { display: none; }
+#castBtn:disabled { opacity: .56; cursor: default; }
+#castBtn kbd { margin-left: .35em; color: #ecdbb1; }
+body.touch #castBtn kbd { display: none; }
+@media (max-width: 760px) {
+  #castBtn { right: 18px; bottom: 316px; min-height: 42px; }
+  body.on-campus #castBtn { right: 94px; bottom: 42px; }
+}
 #actBtn.show { display: grid; animation: actPulse 1.4s infinite; }
 #actBtn small { display: block; font-size: 9px; letter-spacing: .12em; }
 @keyframes actPulse { 50% { transform: scale(1.06); box-shadow: 0 0 38px rgba(229,196,107,.72); } }

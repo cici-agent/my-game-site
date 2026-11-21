@@ -171,6 +171,7 @@
   box-shadow: 0 0 0 1px #afac9c;
   background: repeating-linear-gradient(80deg, #ffffff0c 0 1px, transparent 1px 3px), linear-gradient(105deg, #252734 0 70%, #7d2632 71% 84%, #cab78a 85% 89%, #60232d 90%);
 }
+[data-choice="pathfinder"] .wardrobe-outfit-swatch { background: linear-gradient(130deg, #48261d 0 58%, #c59654 59% 66%, #713e2c 67%); }
 [data-choice="uniform"] .wardrobe-outfit-swatch { background: repeating-linear-gradient(130deg, #ffffff13 0 1px, transparent 1px 3px), linear-gradient(110deg, #656563 0 66%, #f3efe0 67% 80%, #8f3d3a 81% 93%, #c0a775 94%); }
 [data-choice="travel"] .wardrobe-outfit-swatch { background: repeating-linear-gradient(90deg, #ffffff14 0 1px, transparent 1px 2px), linear-gradient(110deg, #625246 0 56%, #ad9473 57% 70%, #554b3c 71%); }
 .wardrobe-wand-swatch { display: block; position: relative; width: 48px; height: 13px; transform: rotate(-7deg); }
@@ -224,3 +225,5 @@
   .wardrobe-main { height: max(135px, calc(100dvh - 155px)); }
   .wardrobe-footer { padding-block: 7px; }
 }
+
+.character-studio-link{display:inline-block;color:inherit;text-underline-offset:3px;font-size:.875rem;margin:.25rem 0}

@@ -215,6 +215,12 @@ function makeBatch(group, kit) {
   }
   function part(shape,x,y,z,w,h,d,tint,mat='plain',rx=0,ry=0,rz=0) {
     object.position.set(x,y,z); object.rotation.set(rx,ry,rz); object.scale.set(w,h,d); emit(shape,mat,tint);
+    // Register thin floor coverings from the geometry actually built in this room.
+    const top = y+h*.5;
+    if (shape === 'box' && mat === 'plain' && !rx && !ry && !rz &&
+        h < .08 && top > .006 && top < .08 && y-h*.5 < .05 && w>.03 && d>.03) {
+      kit.coverings.push({level:group.position.y, x,z, halfW:w*.5, halfD:d*.5, top});
+    }
   }
   function beam(x1,y1,z1,x2,y2,z2,width,tint,mat='plain') {
     from.set(x1,y1,z1); to.set(x2,y2,z2).sub(from);
@@ -395,11 +401,54 @@ function buildFloor(floor, group, kit, solids, shaftOnly = false) {
 
 // Builds floors as they enter view. Usage starts in the entrance hall, and only
 // the tower currently being climbed needs to be resident on a student's phone.
+function receiveFootContacts(material, soles) {
+  // Shade the surface itself, so the contact follows stair treads and carpet
+  // edges, never a floating quad. The shoe material is a separate draw.
+  material.onBeforeCompile = shader => {
+    shader.uniforms.actorSoles = {value:soles};
+    shader.vertexShader = 'varying vec3 vContactWorld;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', `
+      #include <project_vertex>
+      vec4 contactPosition = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+        contactPosition = instanceMatrix * contactPosition;
+      #endif
+      vContactWorld = (modelMatrix * contactPosition).xyz;
+    `);
+    shader.fragmentShader = `
+      varying vec3 vContactWorld;
+      uniform vec3 actorSoles[4];
+      float footOcclusion(vec3 heel, vec3 toe) {
+        vec2 line = toe.xz - heel.xz;
+        float t = clamp(dot(vContactWorld.xz-heel.xz, line)/max(.0001,dot(line,line)),0.,1.);
+        vec3 foot = mix(heel,toe,t);
+        float height = foot.y-vContactWorld.y;
+        if (height < -.013 || height > .40) return 0.;
+        vec2 delta = foot.xz-vContactWorld.xz;
+        float dist2 = dot(delta,delta);
+        float gap = max(height,0.);
+        float width = .13 + gap*.28;
+        float core = .48 * exp(-dist2/(width*width))*(1.-smoothstep(.012,.16,gap));
+        float penumbra = .19 * exp(-dist2/.060)*(1.-smoothstep(.025,.40,gap));
+        return core + penumbra;
+      }
+    ` + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
+      if (dot(vContactWorld.xz-actorSoles[0].xz,vContactWorld.xz-actorSoles[0].xz)<2.25) {
+        float left = footOcclusion(actorSoles[0],actorSoles[1]);
+        float right = footOcclusion(actorSoles[2],actorSoles[3]);
+        outgoingLight *= (1.-left)*(1.-right);
+      }
+      #include <opaque_fragment>
+    `);
+  };
+}
+
 export function buildCastleInterior() {
   const group=new THREE.Group(), solids=[];
   group.name='HogwartsCastleInterior';
   const kit={
-    atlas:makeAtlas(),
+    coverings:[], atlas:makeAtlas(),
     carvingMaterial:new THREE.MeshStandardMaterial({vertexColors:true,side:THREE.DoubleSide,roughness:.88}),
     shapes:{box:new THREE.BoxGeometry(1,1,1),round:new THREE.CylinderGeometry(.5,.5,1,12),
       orb:new THREE.SphereGeometry(.5,12,8),cone:new THREE.ConeGeometry(.5,1,12),
@@ -407,6 +456,23 @@ export function buildCastleInterior() {
     materials:{plain:new THREE.MeshStandardMaterial({roughness:.76}),
       glow:new THREE.MeshBasicMaterial({color:0xffffff}),halo:lamplight(),sky:enchantedSky(),masonry:masonry(false),floor:masonry(true)},
   };
+  const soles = Array.from({length:4},()=>new THREE.Vector3(1e5,1e5,1e5));
+  receiveFootContacts(kit.materials.floor, soles);
+  receiveFootContacts(kit.materials.plain, soles);
+  function updateFootContacts(readSoles) {
+    if (!readSoles?.(soles)) for (const sole of soles) sole.set(1e5,1e5,1e5);
+  }
+  function coveringHeight(position) {
+    let height=0;
+    for(const covering of kit.coverings) {
+      if(Math.abs(covering.level-position.y)>.005) continue;
+      const edge = Math.min(covering.halfW-Math.abs(position.x-covering.x),
+                            covering.halfD-Math.abs(position.z-covering.z));
+      const blend = THREE.MathUtils.smoothstep(edge,-.22,.035);
+      height = Math.max(height,covering.top*blend);
+    }
+    return height;
+  }
   const built=new Map(), stairwells=new Map();
   function realize(floor, shaftOnly=false) {
     const cache=shaftOnly?stairwells:built;
@@ -449,5 +515,5 @@ export function buildCastleInterior() {
     warm.intensity=26+Math.sin(time*2.12)*.65;
   }
   update({x:0,y:0,z:12});
-  return {group,solids,update};
+  return {group,solids,update,coveringHeight,updateFootContacts};
 }

@@ -11,8 +11,8 @@
 <link rel="stylesheet" href="css/magic-wardrobe.css">
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+  "three": "./vendor/three-0.187.0/build/three.module.js",
+  "three/addons/": "./vendor/three-0.187.0/examples/jsm/"
 } }
 </script>
 </head>
@@ -21,7 +21,7 @@
 <div id="transition"><div class="transition-star">✦</div></div>
 
 <header class="hud">
-  <div class="brand"><span class="brand-mark">🦉</span><div><b>魔法学院星球</b><small>小菜鸟宇宙 · 入学序章</small></div></div>
+  <div class="brand"><span class="brand-mark">🦉</span><div><b>魔法学院星球</b><small id="academySubtitle">小菜鸟宇宙 · 入学序章</small></div></div>
   <div class="hud-actions">
     <button type="button" id="openWardrobe" class="universe" aria-haspopup="dialog" aria-controls="wardrobe">角色衣装室</button>
     <button id="mute" class="round" title="声音">🔊</button>
@@ -87,16 +87,17 @@
 <div id="prompt"></div>
 <div id="toast"></div>
 
-<div id="stick" aria-label="移动摇杆"><div class="knob"></div></div>
+<div id="stick" aria-label="移动摇杆，轻推走路，推到底跑步"><div class="knob"></div></div>
+<button id="castBtn" class="universe" type="button" hidden aria-keyshortcuts="F" title="站定后挥动魔杖（F）">挥杖施法 <kbd>F</kbd></button>
 <button id="actBtn" aria-label="互动">E<small>互动</small></button>
 
-<div class="help">WASD / 方向键移动 · 拖动画面转视角 · E 互动 · Shift 加速</div>
+<div class="help">WASD / 方向键移动 · 拖动画面转视角 · E 互动 · 按住 Shift 跑步</div>
 <div class="fan-note">非官方同人互动体验 · 3D 场景与模型为原创制作</div>
 
 <dialog id="wardrobe" aria-labelledby="wardrobeTitle">
   <div class="wardrobe-layout">
     <header class="wardrobe-header">
-      <div><span class="wardrobe-academy">霍格沃茨魔法学校</span><h2 id="wardrobeTitle" tabindex="-1">角色衣装室</h2></div>
+      <div><span class="wardrobe-academy">霍格沃茨魔法学校</span><h2 id="wardrobeTitle" tabindex="-1">角色衣装室</h2><a href="character-studio/index.html" target="_blank" rel="noopener" class="character-studio-link">角色动作工作室</a></div>
       <button type="button" id="wardrobeClose" class="wardrobe-close" aria-label="关闭衣装室" title="关闭衣装室">×</button>
     </header>
     <div class="wardrobe-main">
