@@ -55,3 +55,10 @@ python3 tools/blender/motion/student_motion.py new-student.glb new-student-anima
 - 完整接入步骤见 [制作包说明](../tools/blender/motion/使用说明.md)，模型支持的表情命名见 [表情映射](../js/magic/portrait-expression.js)。
 - 使用 Three.js 时，通过 loadCharacter 返回的 canCast 判断是否有施法动作，站定时调用 cast()，每帧继续调用 animateTravel(dt, distance)。固定造型随人物选择存档。
 - 从仓库根目录运行 `python3 tools/character-studio/package-kit.py`，可按当前模型和运行时重新生成线上下载包。试用页源码和构建入口位于 tools/character-studio。
+
+
+## 赫敏的精细学院造型
+
+衣装室中选择赫敏和「格兰芬多学院礼袍」即可保存这套造型。直接打开 `magic-academy.html?arrival=castle&look=scholar` 可穿这套校服进城堡。角色工作室的 `character-studio/hermione.html#run` 和 `#cast` 分别播放跑步和施法；可切换面部特写、半速和杖尖轨迹。
+
+模型取自赫敏自己的脸部纹理和定位点，沿用学院动作骨架及精细角色的握姿，按赫敏的腿长校准步幅。发梢和校袍下摆的次级动作、眼睑和嘴唇的表情均烘焙在 GLB 内。重建方法见 [赫敏模型源文件](../tools/blender/hermione/README.md)。

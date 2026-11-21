@@ -62,3 +62,32 @@ test('the workshop outfit ships as a complete fixed look with the shared movemen
     assert.ok(clip?.channels.some(channel => channel.target.node === model.nodes.findIndex(node => node.name === 'Hips')));
   }
 });
+
+
+test('the scholar look belongs to Hermione and carries her own animated hair, face, robe and wand', () => {
+  assert.equal(normalizeSelection({hero:'hermione',look:'scholar'}).look, 'scholar');
+  assert.equal(normalizeSelection({hero:'harry',look:'scholar'}).look, undefined);
+  assert.equal(normalizeSelection({hero:'hermione',look:'pathfinder'}).look, undefined);
+  const model = readModel('hermione-scholar');
+  const meshes = new Map(model.nodes.filter(node => node.mesh !== undefined)
+    .map(node => [node.name, model.meshes[node.mesh]]));
+  assert.ok(meshes.has('Hermione_Vine_Wand'));
+  assert.ok(meshes.has('Hermione_Oxford_L') && meshes.has('Hermione_Oxford_R'));
+  for (const [nodeName,shape] of [
+    ['Portrait','FaceCheekLiftL'],
+    ['Hermione_Chestnut_Crown_and_Curls','HairSettle'],
+    ['Hermione_Gryffindor_Robe_and_Hood','RobeAir']
+  ]) {
+    assert.ok(meshes.get(nodeName)?.extras?.targetNames?.includes(shape));
+    const node = model.nodes.findIndex(n => n.name === nodeName);
+    for (const name of ['Run','Cast']) {
+      assert.ok(model.animations.find(a => a.name === name).channels.some(c =>
+        c.target.node === node && c.target.path === 'weights'));
+    }
+  }
+  const standard = readModel('hermione');
+  for (const name of ['Run','Walk']) {
+    assert.equal(model.animations.find(c => c.name === name).extras.groundSpeed,
+      standard.animations.find(c => c.name === name).extras.groundSpeed);
+  }
+});

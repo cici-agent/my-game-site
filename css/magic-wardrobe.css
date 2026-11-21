@@ -227,3 +227,5 @@
 }
 
 .character-studio-link{display:inline-block;color:inherit;text-underline-offset:3px;font-size:.875rem;margin:.25rem 0}
+
+[data-choice="scholar"] .wardrobe-outfit-swatch { background: linear-gradient(125deg, #262831 0 54%, #712a32 55% 67%, #bb9959 68% 73%, #34333b 74%); }
