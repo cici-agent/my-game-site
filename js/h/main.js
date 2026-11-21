@@ -215,6 +215,24 @@ function plotFenceCollide(pos, pr = .45) {
   if (lx !== ox || lz !== oz) { pos.x = p.x + lx * c + lz * sn; pos.z = p.z - lx * sn + lz * c; }
 }
 
+// 别人家 / 没人住的空地：四周的栅栏也挡人（用户说：每块地的栏杆都能穿过去 —— 以前只有自己家的挡）。能跳过去；路口的口子能走
+function otherFenceCollide(pos, pr = .45) {
+  if (pos.y > FENCE_LV[1].jump) return;
+  PLOTS.forEach((p, i) => {
+    if (p === homePlot) return;
+    const h = p.size / 2, c = Math.cos(p.rot), sn = Math.sin(p.rot), dx = pos.x - p.x, dz = pos.z - p.z;
+    let lx = dx * c - dz * sn, lz = dx * sn + dz * c; if (Math.abs(lx) > h + 2 || Math.abs(lz) > h + 2) return;
+    if (Math.abs(lx) < h - 2 && Math.abs(lz) < h - 2) return;   // 在空地里面、离栅栏远：不用算
+    const ox = lx, oz = lz;
+    FENCE[i].forEach(([ax, az, bx, bz]) => {
+      const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, rx = lx - ax, rz = lz - az, t = rx * ux + rz * uz, n = rx * -uz + rz * ux;
+      if (t < -pr || t > len + pr || Math.abs(n) > pr) return;
+      const push = (n >= 0 ? pr : -pr) - n; lx += -uz * push; lz += ux * push;
+    });
+    if (lx !== ox || lz !== oz) { pos.x = p.x + lx * c + lz * sn; pos.z = p.z - lx * sn + lz * c; }
+  });
+}
+
 // ---------- 花 ----------
 const FLOWER_COLORS = [0xff6b8a, 0xffd23f, 0xffffff, 0xb48cff, 0xff8c42, 0x6fc3ff, 0xff4d6d, 0xffb3d1];
 const flowerSpots = [];
@@ -438,6 +456,7 @@ addEventListener('keydown', e => {
   if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
   if (e.code === 'KeyM' && !e.repeat && !chestOpen) overview = !overview;   // M：俯瞰整个小镇
   if (e.code === 'KeyT' && !e.repeat) teleportHome();                       // T：传送回家
+  if (e.code === 'KeyG' && !e.repeat) teleportPlaza();                      // G：传送到市中心广场
   if (e.code === 'KeyV' && !e.repeat) toggleView();                          // V：第一人称 / 第三人称
   if (e.code === 'KeyF' && !e.repeat && !chestOpen && !shopOpen) eatSelected();   // F：吃掉选中的菜
   if (sleeping && /^(Key[WASD]|Arrow|Space)/.test(e.code)) wakeUp();
@@ -866,6 +885,16 @@ function teleportHome() {
   toast(`✨ 传送回家了（体力 -${TP_COST}）`);
 }
 $('tpBtn').onclick = teleportHome;
+// 传送到市中心（中间那个圆形广场，用户说的）：一样要体力过一半，一样扣体力
+function teleportPlaza() {
+  if (sleeping || chestOpen || shopOpen) return;
+  if (stamina.value <= TP_MIN) { toast(`💪 体力要超过 ${TP_MIN} 才能传送（现在 ${Math.floor(stamina.value)}）· 吃点东西或者睡一觉`); return; }
+  stamina.set(stamina.value - TP_COST); if (loose.led) loose.unlead();
+  const a = Math.atan2(ROAD_SPAWN.x, ROAD_SPAWN.z); player.pos.set(Math.sin(a) * 7, 0, Math.cos(a) * 7); player.vy = 0; player.face = a + Math.PI; cam.yaw = player.face;
+  overview = false; $('tpFlash').classList.remove('go'); void $('tpFlash').offsetWidth; $('tpFlash').classList.add('go');
+  toast(`✨ 传送到市中心的广场了（体力 -${TP_COST}）`);
+}
+$('tpPlazaBtn').onclick = teleportPlaza;
 // ---------- 🪢 跑出来的动物、牵绳（用户说：门开着动物会跑出来；用牵绳牵回去） ----------
 const HOMES = { chicken: coop, cow: cows, sheep, pig: pigs, duck: ducks };
 const homeNameOf = k => k === 'chicken' ? coop.name : HOMES[k].homeName;
@@ -1359,7 +1388,7 @@ function step(dt, t) {
     player.pos.x += vx * dt / nStep; player.pos.z += vz * dt / nStep;
     garden.collide(player.pos); ramHit = neighbors.collide(player.pos) || ramHit;
     house.collide(player.pos);
-    plotFenceCollide(player.pos);
+    plotFenceCollide(player.pos); otherFenceCollide(player.pos);
     dog.collideKennel(player.pos);
     dog.collideYard(player.pos);
     coop.collide(player.pos);
