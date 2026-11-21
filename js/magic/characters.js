@@ -38,7 +38,7 @@ function prepareStudioMesh(node) {
   node.frustumCulled = false;
   const materials = [].concat(node.material);
   node.castShadow = materials.some(material =>
-    /^(Atelier \/ (coat|wool|collar|shirt|leather|pants|boot|sole)$|harry_skin$|HF umber hair roots$|Fabric_(robe|hood|knit|trousers)$|Hermione \| (polished oxford leather|scalp skin)$)/i.test(material.name));
+    /^(Atelier \/ (coat|wool|collar|shirt|leather|pants|boot|sole)$|harry_skin$|HF umber hair roots$|Fabric_(robe|hood|knit|trousers)$|Hermione \| (polished oxford leather|scalp skin)$|Ron \| (scalp skin|leather|quarter|photographed copper roots)$)/i.test(material.name));
   node.receiveShadow = true;
   for (const material of materials) {
     if (/^HF fibre /i.test(material.name)) {
