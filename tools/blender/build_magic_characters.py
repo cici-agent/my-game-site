@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 import struct
 import sys
+from tempfile import TemporaryDirectory
 
 import bpy
 from mathutils import Vector
@@ -770,12 +771,19 @@ def build(hero):
     bpy.context.scene.frame_set(0)
     path=OUTPUT / (hero+".glb")
     path.parent.mkdir(parents=True,exist_ok=True)
-    bpy.ops.export_scene.gltf(filepath=str(path),export_format="GLB",export_materials="EXPORT",
-                              export_animations=True,export_animation_mode="ACTIONS",export_merge_animation="ACTION",
-                              export_apply=False,export_cameras=False,export_lights=False,
-                              export_yup=True,export_force_sampling=True,export_frame_step=2,
-                              export_def_bones=True,export_anim_single_armature=True)
-    size,tris=prepare_defaults(path,hero)
+    from motion.student_motion import convert
+    # Export all wardrobe choices, then fit the library to this body and soles.
+    # Publish only after the entire rig and all movement clips are ready.
+    with TemporaryDirectory(dir=path.parent) as staging:
+        base_glb=Path(staging) / path.name
+        bpy.ops.export_scene.gltf(filepath=str(base_glb),export_format="GLB",export_materials="EXPORT",
+                                  export_animations=True,export_animation_mode="ACTIONS",export_merge_animation="ACTION",
+                                  export_apply=False,export_cameras=False,export_lights=False,
+                                  export_yup=True,export_force_sampling=True,export_frame_step=2,
+                                  export_def_bones=True,export_anim_single_armature=True)
+        _,tris=prepare_defaults(base_glb,hero)
+        convert(HERE / 'motion' / 'student-motion.npz', base_glb, path)
+    size=path.stat().st_size
     print(f"{hero}: {path}, {size:,} bytes, {tris:,} triangles (all wardrobe options)",flush=True)
 
 

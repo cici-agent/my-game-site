@@ -37,12 +37,28 @@ for (const hero of HEROES) {
         assert.ok(primitive.attributes.WEIGHTS_0 >= 0 && primitive.attributes.JOINTS_0 >= 0);
       }
     }
-    for (const clip of ['Idle', 'Walk']) {
+    for (const clip of ['Idle', 'Walk', 'Run', 'Cast']) {
       const animation = model.animations.find(item => item.name === clip);
       assert.ok(animation?.channels.some(channel => channel.target.path === 'rotation'));
       assert.ok(animation.samplers.some(sampler => model.accessors[sampler.input].max[0] > .5));
     }
+    const walk = model.animations.find(clip => clip.name === 'Walk');
+    const run = model.animations.find(clip => clip.name === 'Run');
+    assert.ok(Number.isFinite(walk.extras?.groundSpeed) && walk.extras.groundSpeed > 0);
+    assert.ok(Number.isFinite(run.extras?.groundSpeed) && run.extras.groundSpeed > walk.extras.groundSpeed);
     assert.ok(model.images.every(image => image.bufferView >= 0), 'textures must travel with the model');
     assert.ok(model.images.some(image => image.name.includes(hero.id)), 'missing personal portrait maps');
   });
 }
+
+test('the workshop outfit ships as a complete fixed look with the shared movement actions', () => {
+  const model = readModel('harry-pathfinder');
+  const names = new Set(model.nodes.map(node => node.name));
+  for (const name of ['Hips', 'Pathfinder_Boot_L', 'Pathfinder_Boot_R', 'HF_Pathfinder_Wand_05']) {
+    assert.ok(names.has(name), 'missing workshop component ' + name);
+  }
+  for (const name of ['Idle', 'Walk', 'Run', 'Cast']) {
+    const clip = model.animations.find(animation => animation.name === name);
+    assert.ok(clip?.channels.some(channel => channel.target.node === model.nodes.findIndex(node => node.name === 'Hips')));
+  }
+});

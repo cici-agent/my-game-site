@@ -1,6 +1,8 @@
-import { AnimationMixer, MathUtils } from 'three';
+import { AnimationMixer } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { OUTFITS, WANDS, normalizeSelection } from './character-catalog.js';
+import { createCharacterMotion } from './character-motion.js';
+import { createWandGesture } from './wand-gesture.js';
+import { OUTFITS, WANDS, PATHFINDER, normalizeSelection } from './character-catalog.js';
 export { HEROES, OUTFITS, WANDS } from './character-catalog.js';
 
 const loader = new GLTFLoader();
@@ -30,20 +32,59 @@ export function releaseModel(root) {
   for (const geometry of geometries) geometry.dispose();
 }
 
-export async function loadCharacter(value) {
-  const selection = normalizeSelection(value);
-  const url = new URL(`../../assets/3d/magic/characters/${selection.hero}.glb`, import.meta.url);
-  const { scene: root, animations } = await loader.loadAsync(url.href);
+function prepareStudioMesh(node) {
+  // The third-person camera follows this single actor. Avoid evaluating a
+  // skinned and morphed bounding sphere for every detailed submesh on first draw.
+  node.frustumCulled = false;
+  const materials = [].concat(node.material);
+  node.castShadow = materials.some(material =>
+    /^(Atelier \/ (coat|wool|collar|shirt|leather|pants|boot|sole)$|harry_skin$|HF umber hair roots$)/i.test(material.name));
+  node.receiveShadow = true;
+  for (const material of materials) {
+    if (/^HF fibre /i.test(material.name)) {
+      material.transparent = true;
+      material.opacity = .72;
+      material.depthWrite = false;
+      node.receiveShadow = false;
+    } else if (/ink brown layered hair/i.test(material.name)) {
+      material.alphaTest = .035;
+      material.transparent = true;
+      material.depthWrite = false;
+      node.receiveShadow = false;
+    }
+  }
+}
+
+function prepareWardrobe(root, selection) {
+  const variants = (prefix, options) => options.map(({ id }) => {
+    const node = root.getObjectByName(`${prefix}_${id}`);
+    if (!node) throw new Error(`Missing ${prefix}_${id} in ${selection.hero}`);
+    return [id, node];
+  });
+  const outfits = variants('Outfit', OUTFITS), wands = variants('Wand', WANDS);
+  function setEquipment({ outfit, wand }) {
+    for (const [id, node] of outfits) node.visible = id === outfit;
+    for (const [id, node] of wands) node.visible = id === wand;
+  }
+  setEquipment(selection);
+  return { setEquipment };
+}
+
+export async function loadCharacter(value, { look } = {}) {
+  const selection = normalizeSelection(look === PATHFINDER.id ? { ...value, hero: 'harry', look } : value);
+  const studio = selection.look === PATHFINDER.id;
+  const id = studio ? 'harry-pathfinder' : selection.hero;
+  const url = new URL(`../../assets/3d/magic/characters/${id}.glb`, import.meta.url);
+  const { scene: root, animations, parser } = await loader.loadAsync(url.href);
   const mixer = new AnimationMixer(root);
   try {
-    const variants = (prefix, options) => options.map(({ id }) => {
-      const node = root.getObjectByName(`${prefix}_${id}`);
-      if (!node) throw new Error(`Missing ${prefix}_${id} in ${selection.hero}`);
-      return [id, node];
-    });
-    const outfits = variants('Outfit', OUTFITS), wands = variants('Wand', WANDS);
+    const equipment = studio ? { look: PATHFINDER.id } : prepareWardrobe(root, selection);
     root.traverse(node => {
       if (!node.isMesh) return;
+      if (studio) {
+        prepareStudioMesh(node);
+        return;
+      }
       node.castShadow = true;
       node.receiveShadow = true;
       // Alternative equipment is masked on export for stand-alone GLB viewers.
@@ -51,32 +92,40 @@ export async function loadCharacter(value) {
         if (material.opacity === 0) material.opacity = 1;
       }
     });
-    function setEquipment({ outfit, wand }) {
-      for (const [id, node] of outfits) node.visible = id === outfit;
-      for (const [id, node] of wands) node.visible = id === wand;
-    }
-    setEquipment(selection);
-
-    const idle = mixer.clipAction(animations.find(clip => clip.name === 'Idle')).play();
-    const walk = mixer.clipAction(animations.find(clip => clip.name === 'Walk')).play();
-    walk.setEffectiveWeight(0);
+    const motion = createCharacterMotion(mixer, animations, parser.json.animations);
+    const gesture = createWandGesture(mixer, animations);
     const seatJoints = ['ThighL', 'ThighR', 'ShinL', 'ShinR'].map((name, index) => {
       const bone = root.getObjectByName(name);
-      return bone && {bone, rest:bone.rotation.x, angle:index < 2 ? -1.34 : 1.37};
+      return bone && {
+        bone, standing: bone.quaternion.clone(),
+        seatedX: bone.rotation.x + (index < 2 ? -1.34 : 1.37),
+      };
     }).filter(Boolean);
-    let movement = 0;
     let wasSeated = false;
+    function animateTravel(dt, distance = 0, _air = false, seated = false) {
+      if (wasSeated) {
+        for (const joint of seatJoints) joint.bone.quaternion.copy(joint.standing);
+      }
+      if (seated || distance > .000001) gesture?.cancel();
+      motion.update(dt, seated ? 0 : distance, 1 - (gesture?.advance(dt) ?? 0));
+      if (seated) {
+        for (const joint of seatJoints) {
+          joint.standing.copy(joint.bone.quaternion);
+          joint.bone.rotation.x = joint.seatedX;
+        }
+      }
+      wasSeated = seated;
+    }
     return {
-      root, setEquipment,
-      animate(dt, speed = 0, _air = false, seated = false) {
-        if (wasSeated && !seated) for (const joint of seatJoints) joint.bone.rotation.x = joint.rest;
-        movement = MathUtils.damp(movement, Math.min(1, speed), 14, dt);
-        idle.setEffectiveWeight(1 - movement);
-        walk.setEffectiveWeight(movement);
-        walk.setEffectiveTimeScale(Math.max(.65, speed));
-        mixer.update(dt);
-        if (seated) for (const joint of seatJoints) joint.bone.rotation.x = joint.rest + joint.angle;
-        wasSeated = seated;
+      root, ...equipment, walkSpeed: motion.walkSpeed, runSpeed: motion.runSpeed,
+      animateTravel, readSoleContacts: motion.readSoleContacts,
+      canCast: !!gesture, get casting() { return gesture?.active === true; },
+      cast: () => !wasSeated && (gesture?.start() ?? false),
+      cancelCast: () => gesture?.cancel(),
+      resetMotion() { gesture?.stop(); motion.reset(); },
+      // Existing preview callers express movement as a fraction of walk speed.
+      animate(dt, movement = 0, air = false, seated = false) {
+        animateTravel(dt, Math.max(0, movement) * motion.walkSpeed * dt, air, seated);
       },
       dispose() {
         mixer.stopAllAction();

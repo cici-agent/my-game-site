@@ -12,7 +12,8 @@ import { rideSeconds, rideSceneAt, routeProgress } from './express-ride.js';
 import { arrivalGreeting, buildWelcomeParty } from './welcome.js';
 import { buildAvatar } from '../p/avatar.js';
 import { loadCharacter, releaseModel } from './characters.js';
-import { normalizeSelection, readSelection, writeSelection } from './character-catalog.js';
+import { DEFAULT_WALK_SPEED, DEFAULT_RUN_SPEED, GAME_GAIT_RATE } from './character-motion.js';
+import { PATHFINDER, normalizeSelection, readSelection, writeSelection } from './character-catalog.js';
 import { createWardrobe } from './wardrobe.js';
 import * as sfx from '../u/sfx.js';
 
@@ -60,8 +61,10 @@ const stationLoad = loadHighFidelityStation();
 const trainLoad = loadHighFidelityTrain();
 const avatar = { root: new THREE.Group(), model: null };
 scene.add(avatar.root);
-const player = { pos: world.points.start.clone(), face: Math.PI, moving: false };
+let intendedSpeed = 0;
+const player = { pos: world.points.start.clone(), face: Math.PI, speed: 0, moving: false };
 avatar.root.position.copy(player.pos);
+avatar.root.rotation.y = player.face;
 
 const chapters = [
   { eyebrow: '第一章 · 入学来信后的清晨', title: '国王十字车站', text: '九号和十号站台之间只有一堵再普通不过的砖墙。知道秘密的人，才会鼓起勇气径直走向它。', objective: '靠近 9 和 10 号牌正中间的砖墙，互动穿墙' },
@@ -77,47 +80,99 @@ const state = {
   willowUntil: 0, transition: false, area: 'grounds',
 };
 const keys = {};
-const cam = { yaw: 0, pitch: .32, dist: 12 };
+const cam = { yaw: 0, pitch: .32, dist: 8.8 };
 let drag = null, near = null, toastTimer = 0, elapsed = 0, last = performance.now();
 const tmp = new THREE.Vector3(), prev = new THREE.Vector3(), move = new THREE.Vector3(), target = new THREE.Vector3();
 
 const entry = new URLSearchParams(location.search);
 const arrival = entry.get('arrival');
+const tryStudioLook = entry.get('look') === PATHFINDER.id;
+// Indoor tracking already scales the zoom by .55. Keep the workshop outfit
+// in a full-body view on arrival, with the ordinary orbit and zoom controls.
+if (tryStudioLook) cam.dist = arrival === 'castle' ? 7.8 : 5.6;
 const directSceneEntry = arrival === 'lake' || arrival === 'castle' || ['2', '3'].includes(entry.get('chapter'));
 let equipped = readSelection() ?? (directSceneEntry ? normalizeSelection() : null);
+function stopTravel() {
+  if (player.moving || player.speed > 0) avatar.model?.resetMotion?.();
+  intendedSpeed = 0;
+  player.speed = 0;
+  player.moving = false;
+}
+
+function clearMovementInput() {
+  for (const key of Object.keys(keys)) keys[key] = false;
+  drag = null;
+  joy.id = null;
+  joy.x = joy.y = 0;
+  knob.style.transform = '';
+  if (avatar.model?.casting) avatar.model.resetMotion();
+  stopTravel();
+}
+
+function updateAcademySubtitle() {
+  const subtitle = avatar.model?.look === 'pathfinder' ? '哈利 · 五阶岔路斜襟短袍'
+    : state.chapter === 5 ? '小菜鸟宇宙 · 校园探索' : '小菜鸟宇宙 · 入学序章';
+  $('academySubtitle').textContent = subtitle;
+}
+
 function wearModel(model) {
+  stopTravel();
   model.root.rotation.y = 0;
   avatar.root.add(model.root);
   avatar.model?.dispose();
   avatar.model = model;
+  updateAcademySubtitle();
 }
 
 function useFallbackIfNeeded() {
   if (avatar.model) return;
   const fallback = buildAvatar('hogwarts-student', { hand: 'wand' });
+  // The procedural fallback takes stride intensity; the normal models take metres.
+  fallback.walkSpeed = DEFAULT_WALK_SPEED;
+  fallback.runSpeed = DEFAULT_RUN_SPEED;
+  fallback.animateTravel = (dt, distance = 0, air = false, seated = false) =>
+    fallback.animate(distance > 0 ? dt * GAME_GAIT_RATE : dt,
+      dt > 0 ? distance / (dt * fallback.walkSpeed) : 0, air, seated);
   fallback.dispose = () => releaseModel(fallback.root);
   wearModel(fallback);
 }
 
 const wardrobe = createWardrobe({
   getSelection: () => equipped ?? normalizeSelection(),
-  onOpen() {
-    for (const key of Object.keys(keys)) keys[key] = false;
-    drag = null;
-    joy.id = null; joy.x = joy.y = 0; knob.style.transform = '';
-    player.moving = false;
-  },
+  onOpen: clearMovementInput,
   onApply(selection, model) {
     wearModel(model);
     equipped = normalizeSelection(selection);
+    if (tryStudioLook && !equipped.look) {
+      const locationAfterChange = new URL(location.href);
+      locationAfterChange.searchParams.delete('look');
+      history.replaceState(history.state, '', locationAfterChange);
+    }
     if (!writeSelection(equipped)) toast('本次装扮已穿戴。浏览器暂时无法保存选择。');
   },
   onClose: useFallbackIfNeeded,
 });
 async function restoreCharacter() {
+  if (tryStudioLook) {
+    try {
+      const outfit = normalizeSelection({ ...equipped, hero: 'harry', look: PATHFINDER.id });
+      const model = await loadCharacter(outfit);
+      if (avatar.model) model.dispose();
+      else {
+        equipped = outfit;
+        wearModel(model);
+      }
+      return true;
+    } catch (error) {
+      console.warn('人物工作室的造型暂时无法加载。', error);
+      toast('工作室造型暂时无法加载，已返回普通角色。');
+    }
+  }
   if (!equipped) return false;
   try {
-    wearModel(await loadCharacter(equipped));
+    const model = await loadCharacter(equipped);
+    if (avatar.model) model.dispose();
+    else wearModel(model);
     return true;
   } catch (error) {
     console.warn('已保存的人物暂时无法加载，重新打开衣装室。', error);
@@ -199,7 +254,7 @@ function setChapter(index) {
   document.body.classList.toggle('on-campus', index === 5);
   document.body.classList.toggle('crossing', index >= 2 && index <= 4);
   document.body.classList.toggle('lake-crossing', index === 4);
-  document.querySelector('.brand small').textContent = index === 5 ? '小菜鸟宇宙 · 校园探索' : '小菜鸟宇宙 · 入学序章';
+  updateAcademySubtitle();
   $('campusHud').hidden = index !== 5;
   const c = chapters[index];
   $('chapterEyebrow').textContent = c.eyebrow; $('chapterTitle').textContent = c.title;
@@ -236,7 +291,7 @@ function crossBarrier() {
     cam.yaw = fromPlatform ? Math.PI : 1.08;
     cam.pitch = .18;
     player.face = cam.yaw + Math.PI;
-    avatar.root.position.copy(player.pos);
+    avatar.root.position.copy(player.pos); avatar.root.rotation.y = player.face;
     updateCamera(1);
     if (state.chapter === 0) setChapter(1);
     sfx.chime([523, 659, 784, 1047]); toast(fromPlatform ? '你回到了车站大厅' : '你穿过砖墙，来到了九又四分之三站台');
@@ -314,6 +369,7 @@ function setArea(area) {
 }
 
 function placePlayer(point, yaw = 0, pitch = .14) {
+  stopTravel();
   player.pos.copy(point);
   player.face = yaw + Math.PI;
   avatar.root.rotation.y = player.face;
@@ -348,7 +404,7 @@ function restartStory() {
   setArea('grounds');
   state.train = state.boat = 0; state.cinematic = false; state.transition = false;
   world.train.setProgress(0); world.boat.setProgress(0); avatar.root.visible = true;
-  player.pos.copy(world.points.start); cam.yaw = 0; cam.pitch = .32; cam.dist = 12;
+  placePlayer(world.points.start, 0, .32); cam.dist = 8.8;
   document.body.classList.remove('story-complete'); setChapter(0); toast('📖 入学故事重新开始');
 }
 
@@ -400,6 +456,7 @@ function action() {
   if (state.cinematic || state.transition) return;
   near = findNear();
   if (!near) return;
+  avatar.model?.cancelCast?.();
   if (near.type === 'barrier') crossBarrier();
   else if (near.type === 'train') boardTrain();
   else if (near.type === 'boat') boardBoat();
@@ -421,10 +478,11 @@ addEventListener('keydown', event => {
   sfx.unlock(); keys[event.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) event.preventDefault();
   if (event.code === 'KeyE' && !event.repeat) action();
+  if (event.code === 'KeyF' && !event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey) castSpell();
   if (event.code === 'Escape') $('story').classList.toggle('collapsed');
 });
 addEventListener('keyup', event => keys[event.code] = false);
-addEventListener('blur', () => { for (const code of Object.keys(keys)) keys[code] = false; });
+addEventListener('blur', clearMovementInput);
 renderer.domElement.addEventListener('pointerdown', event => {
   sfx.unlock(); drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
   renderer.domElement.setPointerCapture(event.pointerId);
@@ -437,7 +495,7 @@ renderer.domElement.addEventListener('pointermove', event => {
 });
 renderer.domElement.addEventListener('pointerup', () => drag = null);
 renderer.domElement.addEventListener('pointercancel', () => drag = null);
-renderer.domElement.addEventListener('wheel', event => cam.dist = THREE.MathUtils.clamp(cam.dist + event.deltaY * .012, 7, 23), { passive: true });
+renderer.domElement.addEventListener('wheel', event => cam.dist = THREE.MathUtils.clamp(cam.dist + event.deltaY * .012, 5.6, 23), { passive: true });
 
 const stick = $('stick'), knob = stick.querySelector('.knob'), joy = { x: 0, y: 0, id: null };
 function moveJoy(event) {
@@ -450,6 +508,26 @@ stick.addEventListener('pointerdown', event => { joy.id = event.pointerId; stick
 stick.addEventListener('pointermove', event => { if (event.pointerId === joy.id) moveJoy(event); });
 function endJoy(event) { if (event.pointerId !== joy.id) return; joy.id = null; joy.x = joy.y = 0; knob.style.transform = ''; }
 stick.addEventListener('pointerup', endJoy); stick.addEventListener('pointercancel', endJoy);
+const castButton = $('castBtn');
+function hasTravelInput() {
+  if (joy.id !== null) return Math.hypot(joy.x, joy.y) > .08;
+  return keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD ||
+    keys.ArrowUp || keys.ArrowDown || keys.ArrowLeft || keys.ArrowRight;
+}
+function castSpell() {
+  if (!sceneReady || wardrobe.isOpen || atlas.isOpen || state.cinematic || state.transition) return;
+  if (!avatar.model?.canCast || player.moving || hasTravelInput()) return;
+  sfx.unlock();
+  avatar.model.cast();
+}
+function updateCastControl() {
+  const model = avatar.model;
+  const hidden = !model?.canCast || state.cinematic || state.transition;
+  const disabled = !!(model?.casting || player.moving || hasTravelInput());
+  if (castButton.hidden !== hidden) castButton.hidden = hidden;
+  if (castButton.disabled !== disabled) castButton.disabled = disabled;
+}
+castButton.addEventListener('click', castSpell);
 $('actBtn').onclick = action; $('restart').onclick = restartStory;
 $('lakeStart').onclick = startAtLake;
 $('skipExpress').onclick = () => {
@@ -492,8 +570,9 @@ function moveOutdoors(dx, dz) {
 
 function updatePlayer(dt) {
   if (state.cinematic || state.transition) {
-    player.moving = false;
-    avatar.model?.animate(dt, 0, false, state.chapter === 4);
+    avatar.model?.cancelCast?.();
+    stopTravel();
+    avatar.model?.animateTravel(dt, 0, false, state.chapter === 4);
     return;
   }
   let forward = 0, side = 0;
@@ -503,22 +582,47 @@ function updatePlayer(dt) {
   if (keys.KeyA || keys.ArrowLeft) side -= 1;
   if (joy.id !== null) { forward = joy.y; side = joy.x; }
   move.set(-Math.sin(cam.yaw) * forward + Math.cos(cam.yaw) * side, 0, -Math.cos(cam.yaw) * forward - Math.sin(cam.yaw) * side);
-  let amount = Math.min(1, move.length()); player.moving = amount > .08;
-  if (player.moving) {
-    prev.copy(player.pos);
-    const speed = keys.ShiftLeft || keys.ShiftRight ? 11 : 7;
-    move.normalize();
-    const distance = speed * dt * amount;
-    if (state.area === 'castle') moveInCastle(player.pos, move.x * distance, move.z * distance, interior.solids);
-    else moveOutdoors(move.x * distance, move.z * distance);
-    player.face = Math.atan2(move.x, move.z);
-    amount = Math.min(1, Math.hypot(player.pos.x - prev.x, player.pos.z - prev.z) / Math.max(.001, speed * dt));
-    player.moving = amount > .01;
+  const amount = Math.min(1, move.length());
+  const walkSpeed = avatar.model?.walkSpeed ?? DEFAULT_WALK_SPEED;
+  const runSpeed = avatar.model?.runSpeed ?? DEFAULT_RUN_SPEED;
+  let targetSpeed = 0;
+  if (amount > .08) {
+    avatar.model?.cancelCast?.();
+    const requestedFace = Math.atan2(move.x, move.z);
+    const remaining = Math.atan2(Math.sin(requestedFace - player.face), Math.cos(requestedFace - player.face));
+    // Take shorter steps into a tight turn, and let a reversal pivot before accelerating.
+    const turnRate = THREE.MathUtils.lerp(8, 4.7, Math.min(1, player.speed / runSpeed));
+    const turn = THREE.MathUtils.clamp(remaining, -turnRate * dt, turnRate * dt);
+    player.face += turn;
+    if (joy.id !== null) {
+      const walk = walkSpeed * THREE.MathUtils.smoothstep(amount, .08, .72);
+      const sprint = THREE.MathUtils.smoothstep(amount, .72, 1);
+      targetSpeed = THREE.MathUtils.lerp(walk, runSpeed, sprint);
+    } else {
+      targetSpeed = (keys.ShiftLeft || keys.ShiftRight ? runSpeed : walkSpeed) * amount;
+    }
+    targetSpeed *= Math.max(0, Math.cos(remaining - turn));
   }
+  const wasSpeed = intendedSpeed;
+  const acceleration = targetSpeed > wasSpeed ? walkSpeed * 3.8 : runSpeed * 2.8;
+  intendedSpeed += THREE.MathUtils.clamp(targetSpeed - wasSpeed, -acceleration * dt, acceleration * dt);
+  const distance = .5 * (wasSpeed + intendedSpeed) * dt;
+  let travelled = 0;
+  if (distance > 0) {
+    prev.copy(player.pos);
+    const dx = Math.sin(player.face) * distance, dz = Math.cos(player.face) * distance;
+    if (state.area === 'castle') moveInCastle(player.pos, dx, dz, interior.solids);
+    else moveOutdoors(dx, dz);
+    travelled = Math.hypot(player.pos.x - prev.x, player.pos.z - prev.z);
+    // Sliding along a wall preserves the free component of travel. Absorb all
+    // momentum when the wall completely blocks the requested displacement.
+    if (travelled < distance * .001) intendedSpeed = 0;
+  }
+  player.speed = dt > 0 ? travelled / dt : 0;
+  player.moving = travelled > .00001;
   avatar.root.position.copy(player.pos);
-  const turn = player.face - avatar.root.rotation.y;
-  avatar.root.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt * 12);
-  avatar.model?.animate(dt, player.moving && (keys.ShiftLeft || keys.ShiftRight) ? amount * 1.5 : amount);
+  avatar.root.rotation.y = player.face;
+  avatar.model?.animateTravel(dt, travelled);
 }
 
 function updateStory(dt) {
@@ -563,10 +667,7 @@ const atlas = createCastleAtlas({
   grounds: world.grounds.places, gate: world.points.castle,
   context: () => ({ area:state.area, position:player.pos, yaw:cam.yaw }),
   onTravel: travelTo, onRestart: restartStory,
-  onOpen() {
-    for (const key of Object.keys(keys)) keys[key] = false;
-    drag = null; joy.id = null; joy.x = joy.y = 0; knob.style.transform = '';
-  },
+  onOpen: clearMovementInput,
 });
 let lastLocation = '';
 function updateCampusLocation() {
@@ -608,7 +709,7 @@ function updateCamera(dt) {
     target.copy(boat.position); target.x += nx * 22; target.z += nz * 22; target.y += 6.8;
   } else {
     const inside = state.area === 'castle';
-    target.copy(player.pos); target.y += inside ? 1.68 : 1.8;
+    target.copy(player.pos); target.y += inside ? 1.2 : 1.45;
     const onApproach = !inside && state.chapter === 5 && Math.abs(player.pos.x + 42) < 6 &&
       (onWestPier(player.pos.x, player.pos.z) || onBridge(player.pos.x, player.pos.z));
     const lookUp = onApproach ? 2.7 * Math.max(0, Math.cos(cam.yaw)) : 0;
@@ -637,9 +738,13 @@ function tick() {
     return;
   }
   elapsed += dt;
-  updatePlayer(dt); updateStory(dt); updateCamera(dt);
-  if (state.area === 'castle') interior.update(player.pos, elapsed);
-  else world.update(dt, elapsed, { willowActive: elapsed < state.willowUntil });
+  updatePlayer(dt); updateStory(dt); updateCamera(dt); updateCastControl();
+  if (state.area === 'castle') {
+    interior.update(player.pos, elapsed);
+    if (!state.cinematic) avatar.root.position.y = player.pos.y + interior.coveringHeight(player.pos);
+    const showFeet = avatar.root.visible && !state.cinematic && !state.transition;
+    interior.updateFootContacts(showFeet ? avatar.model?.readSoleContacts : null);
+  } else world.update(dt, elapsed, { willowActive: elapsed < state.willowUntil });
   updateCampusLocation();
   renderer.render(scene, camera);
 }
@@ -659,7 +764,7 @@ else setChapter(0);
 if (state.completed) $('map').classList.add('unlocked');
 
 camera.position.set(0, 8, 145); updateCamera(1);
-const choosingOnArrival = !equipped;
+const choosingOnArrival = !equipped && !tryStudioLook;
 if (choosingOnArrival) wardrobe.open({ firstTime: true });
 Promise.all([characterLoad, stationLoad, trainLoad, new Promise(resolve => setTimeout(resolve, 650))]).then(([restored]) => {
   sceneReady = true;
@@ -676,7 +781,10 @@ tick();
 window.__magic = {
   state, player, world,
   get character() { return avatar.model?.root; },
-  get equipment() { return equipped && { ...equipped }; },
+  get equipment() {
+    return avatar.model?.look === 'pathfinder'
+      ? { hero: 'harry', look: 'pathfinder' } : equipped && { ...equipped };
+  },
   get stationAsset() { return stationAsset; },
   get trainAsset() { return trainAsset; },
   restartStory, jumpTo,

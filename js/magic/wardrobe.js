@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HEROES, OUTFITS, WANDS, loadCharacter } from './characters.js';
-import { normalizeSelection } from './character-catalog.js';
+import { PATHFINDER, normalizeSelection } from './character-catalog.js';
 
 const $ = id => document.getElementById(id);
 
@@ -145,21 +145,26 @@ export function createWardrobe({ getSelection, onApply, onOpen, onClose }) {
     }
   }
   buttons('wardrobeHeroes', HEROES, 'hero');
-  buttons('wardrobeOutfits', OUTFITS, 'outfit', 'wardrobe-outfit-swatch');
+  buttons('wardrobeOutfits', [...OUTFITS, PATHFINDER], 'outfit', 'wardrobe-outfit-swatch');
   buttons('wardrobeWands', WANDS, 'wand', 'wardrobe-wand-swatch');
 
   function paint() {
     const hero = HEROES.find(item => item.id === selection.hero);
-    const outfit = OUTFITS.find(item => item.id === selection.outfit);
+    const fixed = selection.look === PATHFINDER.id;
+    const outfit = fixed ? PATHFINDER : OUTFITS.find(item => item.id === selection.outfit);
     const wand = WANDS.find(item => item.id === selection.wand);
     for (const button of dialog.querySelectorAll('[data-choice]')) {
-      button.setAttribute('aria-pressed', String(selection[button.dataset.group] === button.dataset.choice));
+      const { group, choice } = button.dataset;
+      if (choice === PATHFINDER.id) button.hidden = selection.hero !== 'harry';
+      const selected = group === 'outfit' && fixed ? PATHFINDER.id : selection[group];
+      button.setAttribute('aria-pressed', String(selected === choice));
     }
     $('wardrobeName').textContent = hero.name;
     $('wardrobeEnglish').textContent = hero.english;
     $('wardrobeHeroDetail').textContent = hero.description;
     $('wardrobeOutfitDetail').textContent = outfit.description;
-    $('wardrobeWandDetail').textContent = wand.description;
+    $('wardrobeWands').hidden = fixed;
+    $('wardrobeWandDetail').textContent = fixed ? '套装专属 · 岔路练习杖' : wand.description;
     $('wardrobeCanvas').setAttribute('aria-label', hero.name + '的三维模型，可拖动或用左右方向键旋转');
     $('wardrobeApply').disabled = !preview || busy;
     $('wardrobeOptions').inert = busy;
@@ -207,7 +212,7 @@ export function createWardrobe({ getSelection, onApply, onOpen, onClose }) {
       const model = await loadCharacter({ ...selection });
       if (!dialog.open || current !== version) { model.dispose(); return; }
       preview = model;
-      preview.setEquipment(selection);
+      preview.setEquipment?.(selection);
       stage.setModel(preview);
       canLeave = false;
       notify();
@@ -225,15 +230,23 @@ export function createWardrobe({ getSelection, onApply, onOpen, onClose }) {
     }
   }
   function choose(group, item) {
-    if (busy || selection[group] === item.id) return;
-    selection[group] = item.id;
+    if (busy) return;
+    const current = group === 'outfit' ? selection.look ?? selection.outfit : selection[group];
+    if (current === item.id) return;
     if (group === 'hero') {
-      selection.wand = item.defaultWand;
+      selection = normalizeSelection({ hero: item.id, outfit: selection.outfit, wand: item.defaultWand });
       refreshModel();
-      return;
+    } else if (group === 'outfit' && (selection.look || item.id === PATHFINDER.id)) {
+      if (selection.hero !== 'harry') return;
+      selection = item.id === PATHFINDER.id
+        ? { ...selection, look: PATHFINDER.id }
+        : normalizeSelection({ ...selection, look: undefined, outfit: item.id });
+      refreshModel();
+    } else {
+      selection[group] = item.id;
+      preview?.setEquipment?.(selection);
+      paint();
     }
-    preview?.setEquipment(selection);
-    paint();
   }
   function setShot(value) {
     shot = value;

@@ -1,0 +1,2 @@
+Walking and running were adapted for these characters from Carnegie Mellon University Graphics Lab Motion Capture Database trials 02_01 and 02_03. The data used in this project was obtained from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217.
+https://mocap.cs.cmu.edu/
