@@ -13,7 +13,7 @@ import { arrivalGreeting, buildWelcomeParty } from './welcome.js';
 import { buildAvatar } from '../p/avatar.js';
 import { loadCharacter, releaseModel } from './characters.js';
 import { DEFAULT_WALK_SPEED, DEFAULT_RUN_SPEED, GAME_GAIT_RATE } from './character-motion.js';
-import { PATHFINDER, normalizeSelection, readSelection, writeSelection } from './character-catalog.js';
+import { HEROES, fixedLook, normalizeSelection, readSelection, writeSelection } from './character-catalog.js';
 import { createWardrobe } from './wardrobe.js';
 import * as sfx from '../u/sfx.js';
 
@@ -86,7 +86,7 @@ const tmp = new THREE.Vector3(), prev = new THREE.Vector3(), move = new THREE.Ve
 
 const entry = new URLSearchParams(location.search);
 const arrival = entry.get('arrival');
-const tryStudioLook = entry.get('look') === PATHFINDER.id;
+const tryStudioLook = fixedLook(entry.get('look'));
 // Indoor tracking already scales the zoom by .55. Keep the workshop outfit
 // in a full-body view on arrival, with the ordinary orbit and zoom controls.
 if (tryStudioLook) cam.dist = arrival === 'castle' ? 7.8 : 5.6;
@@ -110,7 +110,8 @@ function clearMovementInput() {
 }
 
 function updateAcademySubtitle() {
-  const subtitle = avatar.model?.look === 'pathfinder' ? '哈利 · 五阶岔路斜襟短袍'
+  const look = fixedLook(avatar.model?.look);
+  const subtitle = look ? HEROES.find(hero => hero.id === look.hero).name.split('·')[0] + ' · ' + look.name
     : state.chapter === 5 ? '小菜鸟宇宙 · 校园探索' : '小菜鸟宇宙 · 入学序章';
   $('academySubtitle').textContent = subtitle;
 }
@@ -143,7 +144,7 @@ const wardrobe = createWardrobe({
   onApply(selection, model) {
     wearModel(model);
     equipped = normalizeSelection(selection);
-    if (tryStudioLook && !equipped.look) {
+    if (tryStudioLook && equipped.look !== tryStudioLook.id) {
       const locationAfterChange = new URL(location.href);
       locationAfterChange.searchParams.delete('look');
       history.replaceState(history.state, '', locationAfterChange);
@@ -155,7 +156,7 @@ const wardrobe = createWardrobe({
 async function restoreCharacter() {
   if (tryStudioLook) {
     try {
-      const outfit = normalizeSelection({ ...equipped, hero: 'harry', look: PATHFINDER.id });
+      const outfit = normalizeSelection({ ...equipped, hero: tryStudioLook.hero, look: tryStudioLook.id });
       const model = await loadCharacter(outfit);
       if (avatar.model) model.dispose();
       else {
@@ -782,8 +783,8 @@ window.__magic = {
   state, player, world,
   get character() { return avatar.model?.root; },
   get equipment() {
-    return avatar.model?.look === 'pathfinder'
-      ? { hero: 'harry', look: 'pathfinder' } : equipped && { ...equipped };
+    const look = fixedLook(avatar.model?.look);
+    return look ? { hero: look.hero, look: look.id } : equipped && { ...equipped };
   },
   get stationAsset() { return stationAsset; },
   get trainAsset() { return trainAsset; },

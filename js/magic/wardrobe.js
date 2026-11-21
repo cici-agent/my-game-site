@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HEROES, OUTFITS, WANDS, loadCharacter } from './characters.js';
-import { PATHFINDER, normalizeSelection } from './character-catalog.js';
+import { FIXED_LOOKS, fixedLook, normalizeSelection } from './character-catalog.js';
 
 const $ = id => document.getElementById(id);
 
@@ -145,18 +145,19 @@ export function createWardrobe({ getSelection, onApply, onOpen, onClose }) {
     }
   }
   buttons('wardrobeHeroes', HEROES, 'hero');
-  buttons('wardrobeOutfits', [...OUTFITS, PATHFINDER], 'outfit', 'wardrobe-outfit-swatch');
+  buttons('wardrobeOutfits', [...OUTFITS, ...FIXED_LOOKS], 'outfit', 'wardrobe-outfit-swatch');
   buttons('wardrobeWands', WANDS, 'wand', 'wardrobe-wand-swatch');
 
   function paint() {
     const hero = HEROES.find(item => item.id === selection.hero);
-    const fixed = selection.look === PATHFINDER.id;
-    const outfit = fixed ? PATHFINDER : OUTFITS.find(item => item.id === selection.outfit);
+    const fixed = fixedLook(selection.look);
+    const outfit = fixed ?? OUTFITS.find(item => item.id === selection.outfit);
     const wand = WANDS.find(item => item.id === selection.wand);
     for (const button of dialog.querySelectorAll('[data-choice]')) {
       const { group, choice } = button.dataset;
-      if (choice === PATHFINDER.id) button.hidden = selection.hero !== 'harry';
-      const selected = group === 'outfit' && fixed ? PATHFINDER.id : selection[group];
+      const owner = group === 'outfit' && fixedLook(choice);
+      if (owner) button.hidden = selection.hero !== owner.hero;
+      const selected = group === 'outfit' && fixed ? fixed.id : selection[group];
       button.setAttribute('aria-pressed', String(selected === choice));
     }
     $('wardrobeName').textContent = hero.name;
@@ -164,7 +165,7 @@ export function createWardrobe({ getSelection, onApply, onOpen, onClose }) {
     $('wardrobeHeroDetail').textContent = hero.description;
     $('wardrobeOutfitDetail').textContent = outfit.description;
     $('wardrobeWands').hidden = fixed;
-    $('wardrobeWandDetail').textContent = fixed ? '套装专属 · 岔路练习杖' : wand.description;
+    $('wardrobeWandDetail').textContent = fixed ? '套装专属 · ' + fixed.wandLabel : wand.description;
     $('wardrobeCanvas').setAttribute('aria-label', hero.name + '的三维模型，可拖动或用左右方向键旋转');
     $('wardrobeApply').disabled = !preview || busy;
     $('wardrobeOptions').inert = busy;
@@ -236,10 +237,11 @@ export function createWardrobe({ getSelection, onApply, onOpen, onClose }) {
     if (group === 'hero') {
       selection = normalizeSelection({ hero: item.id, outfit: selection.outfit, wand: item.defaultWand });
       refreshModel();
-    } else if (group === 'outfit' && (selection.look || item.id === PATHFINDER.id)) {
-      if (selection.hero !== 'harry') return;
-      selection = item.id === PATHFINDER.id
-        ? { ...selection, look: PATHFINDER.id }
+    } else if (group === 'outfit' && (selection.look || fixedLook(item.id))) {
+      const fixed = fixedLook(item.id);
+      if (fixed && fixed.hero !== selection.hero) return;
+      selection = fixed
+        ? { ...selection, look: fixed.id }
         : normalizeSelection({ ...selection, look: undefined, outfit: item.id });
       refreshModel();
     } else {

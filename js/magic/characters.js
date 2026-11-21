@@ -2,7 +2,7 @@ import { AnimationMixer } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createCharacterMotion } from './character-motion.js';
 import { createWandGesture } from './wand-gesture.js';
-import { OUTFITS, WANDS, PATHFINDER, normalizeSelection } from './character-catalog.js';
+import { OUTFITS, WANDS, fixedLook, normalizeSelection } from './character-catalog.js';
 export { HEROES, OUTFITS, WANDS } from './character-catalog.js';
 
 const loader = new GLTFLoader();
@@ -38,7 +38,7 @@ function prepareStudioMesh(node) {
   node.frustumCulled = false;
   const materials = [].concat(node.material);
   node.castShadow = materials.some(material =>
-    /^(Atelier \/ (coat|wool|collar|shirt|leather|pants|boot|sole)$|harry_skin$|HF umber hair roots$)/i.test(material.name));
+    /^(Atelier \/ (coat|wool|collar|shirt|leather|pants|boot|sole)$|harry_skin$|HF umber hair roots$|Fabric_(robe|hood|knit|trousers)$|Hermione \| (polished oxford leather|scalp skin)$)/i.test(material.name));
   node.receiveShadow = true;
   for (const material of materials) {
     if (/^HF fibre /i.test(material.name)) {
@@ -71,14 +71,15 @@ function prepareWardrobe(root, selection) {
 }
 
 export async function loadCharacter(value, { look } = {}) {
-  const selection = normalizeSelection(look === PATHFINDER.id ? { ...value, hero: 'harry', look } : value);
-  const studio = selection.look === PATHFINDER.id;
-  const id = studio ? 'harry-pathfinder' : selection.hero;
+  const override = fixedLook(look);
+  const selection = normalizeSelection(override ? { ...value, hero: override.hero, look } : value);
+  const studio = fixedLook(selection.look);
+  const id = studio?.asset ?? selection.hero;
   const url = new URL(`../../assets/3d/magic/characters/${id}.glb`, import.meta.url);
   const { scene: root, animations, parser } = await loader.loadAsync(url.href);
   const mixer = new AnimationMixer(root);
   try {
-    const equipment = studio ? { look: PATHFINDER.id } : prepareWardrobe(root, selection);
+    const equipment = studio ? { look: studio.id } : prepareWardrobe(root, selection);
     root.traverse(node => {
       if (!node.isMesh) return;
       if (studio) {
