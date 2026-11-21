@@ -130,6 +130,12 @@
   body.touch #sta { top: calc(var(--top-h) + 132px); }
   #viewBtn { position: fixed; left: 16px; top: calc(var(--top-h) + 124px); z-index: 9; border: 0; background: rgba(40,40,60,.7); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 13px; cursor: pointer; font-family: inherit; }
   body.touch #viewBtn { top: calc(var(--top-h) + 170px); }
+  #tpBtn { position: fixed; left: 16px; top: calc(var(--top-h) + 160px); z-index: 9; border: 0; background: rgba(120,70,200,.8); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  body.touch #tpBtn { top: calc(var(--top-h) + 206px); }
+  #mapTip { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 10; display: none; background: rgba(30,30,40,.82); color: #fff; padding: 8px 16px; border-radius: 14px; font-size: 14px; pointer-events: none; }
+  #mapTip.show { display: block; }
+  #tpFlash { position: fixed; inset: 0; z-index: 30; pointer-events: none; background: radial-gradient(circle, rgba(255,255,255,.95), rgba(180,140,255,.7)); opacity: 0; }
+  #tpFlash.go { animation: tpf .9s ease-out; } @keyframes tpf { 0% { opacity: 1; } 100% { opacity: 0; } }
   #dogHud { position: fixed; left: 16px; top: calc(var(--top-h) + 160px); z-index: 9; background: rgba(120,70,20,.72); color: #fff; padding: 5px 12px; border-radius: 999px; font-size: 13px; }
   #dogHud.hungry { background: rgba(200,60,40,.85); animation: staBlink 1.2s infinite; }
   body.touch #dogHud { top: calc(var(--top-h) + 206px); }
@@ -176,7 +182,7 @@
 </div>
 <div id="devTag">🚧 建设中 · 只有管理员能看到</div>
 <button id="takeoff">🚀 起飞</button>
-<div id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 数字键选东西 · 走到田边按 E 使用 · 选中🔑钥匙在门口按 E 锁门 · F 吃选中的菜 · V 第一人称 · 拖动屏幕转视角 · 滚轮缩放 · M 看全景地图</div>
+<div id="hint">WASD / 方向键走路 · 空格跳 · Shift 跑 · 数字键选东西 · 走到田边按 E 使用 · 选中🔑钥匙在门口按 E 锁门 · F 吃选中的菜 · V 第一人称 · 拖动屏幕转视角 · 滚轮缩放 · M 看全景地图 · T 传送回家（体力要过一半）</div>
 <div id="prompt"></div>
 <div id="toast"></div>
 <div id="guide"></div>
@@ -194,6 +200,9 @@
 <div id="clock"></div>
 <div id="sta" title="体力：走路、跑步、干活会用掉；睡觉、吃菜能回来"><span>💪</span><div class="bar"><i></i></div><b>100</b></div>
 <button id="viewBtn">👁️ 第一人称 (V)</button>
+<button id="tpBtn">🏠 传送回家 (T)</button>
+<div id="mapTip">📍 红色的是你现在在的地方 · <b style="color:#f5b800">黄框</b>是你的空地 · 按 T 传送回家 · 再按 M 回去</div>
+<div id="tpFlash"></div>
 <div id="dogHud" style="display: none" title="点一下给狗改名"></div>
 <div id="nameUI"><div class="box">
   <div id="nameTitle">🐶 给小狗取个名字吧</div>

@@ -437,6 +437,7 @@ addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
   if (e.code === 'KeyM' && !e.repeat && !chestOpen) overview = !overview;   // M：俯瞰整个小镇
+  if (e.code === 'KeyT' && !e.repeat) teleportHome();                       // T：传送回家
   if (e.code === 'KeyV' && !e.repeat) toggleView();                          // V：第一人称 / 第三人称
   if (e.code === 'KeyF' && !e.repeat && !chestOpen && !shopOpen) eatSelected();   // F：吃掉选中的菜
   if (sleeping && /^(Key[WASD]|Arrow|Space)/.test(e.code)) wakeUp();
@@ -829,6 +830,42 @@ if (net.ok) {
   setInterval(() => live.send({ x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), face: +player.face.toFixed(2), plot: homeIdx, skin: ME && INV.equip ? homeSkin(INV.equip.skin) : 'farmer' }), 400);
   document.addEventListener('visibilitychange', () => { if (document.hidden && metMayor) publishMe(); });
 }
+
+// ---------- 🗺️ 大地图（M）：标出你现在在哪、哪块是你的空地；🏠 传送回家（用户说的） ----------
+const mapMarks = new THREE.Group(); mapMarks.visible = false; scene.add(mapMarks);
+function mapLabel(text, bg, fg, w = 64) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 136; const x = c.getContext('2d');
+  x.fillStyle = bg; x.beginPath(); x.roundRect(6, 6, 500, 124, 60); x.fill(); x.lineWidth = 10; x.strokeStyle = '#ffffff'; x.stroke();
+  x.fillStyle = fg; x.font = 'bold 64px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, 256, 72);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false })); s.scale.set(w, w * 136 / 512, 1); s.renderOrder = 20; mapMarks.add(s); return s;
+}
+const meMark = mapLabel('📍 你在这里', '#e8473e', '#ffffff', 80);
+const meRing = new THREE.Mesh(new THREE.RingGeometry(5, 8, 32), new THREE.MeshBasicMaterial({ color: 0xe8473e, depthTest: false, transparent: true }));
+meRing.rotation.x = -Math.PI / 2; meRing.renderOrder = 19; mapMarks.add(meRing);
+const homeMark = mapLabel('🏡 我的空地', '#f5b800', '#3a2a00', 80); homeMark.position.set(homePlot.x, 50, homePlot.z);
+{ const g = new THREE.Group(); g.position.set(homePlot.x, 1.5, homePlot.z); g.rotation.y = homePlot.rot; mapMarks.add(g);
+  const m = new THREE.MeshBasicMaterial({ color: 0xf5b800, depthTest: false }), S = homePlot.size, T = 3.5;
+  [[0, S / 2, S + T, T], [0, -S / 2, S + T, T], [S / 2, 0, T, S + T], [-S / 2, 0, T, S + T]].forEach(([x, z, w, d]) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, .5, d), m); b.position.set(x, 0, z); b.renderOrder = 19; g.add(b); }); }
+[...shops, hall].forEach(s => { const K = SHOPS[s.kind], [x, z] = (s.door || s.front)(); mapLabel(`${K.icon} ${K.name}`, '#ffffff', '#3a3a3a', 40).position.set(x, 30, z); });
+function updateMap(t) {
+  mapMarks.visible = overview; $('mapTip').classList.toggle('show', overview);
+  if (!overview) return;
+  meMark.position.set(player.pos.x, 70, player.pos.z); meRing.position.set(player.pos.x, 1, player.pos.z);
+  const k = 1 + .25 * Math.sin(t * 5); meRing.scale.set(k, k, k);
+}
+// 传送回家：体力要超过一半，传一次很费体力
+const TP_MIN = 50, TP_COST = 35;
+function teleportHome() {
+  if (sleeping || chestOpen || shopOpen) return;
+  if (!metMayor) { toast('🏛️ 你还没有自己的空地：先去镇政府找镇长'); return; }
+  if (stamina.value <= TP_MIN) { toast(`💪 体力要超过 ${TP_MIN} 才能传送（现在 ${Math.floor(stamina.value)}）· 吃点东西或者睡一觉`); return; }
+  stamina.set(stamina.value - TP_COST); if (loose.led) loose.unlead();
+  const [x, z] = garden.gateWorld(); player.pos.set(x, 0, z); player.vy = 0; player.face = garden.gateYaw(); cam.yaw = player.face;
+  overview = false; $('tpFlash').classList.remove('go'); void $('tpFlash').offsetWidth; $('tpFlash').classList.add('go');
+  toast(`✨ 传送回家了（体力 -${TP_COST}）`);
+}
+$('tpBtn').onclick = teleportHome;
 // ---------- 🪢 跑出来的动物、牵绳（用户说：门开着动物会跑出来；用牵绳牵回去） ----------
 const HOMES = { chicken: coop, cow: cows, sheep, pig: pigs, duck: ducks };
 const homeNameOf = k => k === 'chicken' ? coop.name : HOMES[k].homeName;
@@ -1299,7 +1336,6 @@ function step(dt, t) {
   stamina.update(dt, Math.min(1, len), running);
   const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
   const vx = (fx * my - fz * mx) * speed, vz = (fz * my + fx * mx) * speed;
-  player.pos.x += vx * dt; player.pos.z += vz * dt;
   if (len > .05) {
     let d = Math.atan2(vx, vz) - player.face; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
     player.face += d * Math.min(1, dt * 12);
@@ -1316,21 +1352,27 @@ function step(dt, t) {
   if (player.pos.y <= gy || (player.ground && player.pos.y - gy < .45 && player.vy <= 0)) { player.pos.y = gy; player.vy = 0; player.ground = true; } else player.ground = false;
   if (sleeping) { player.pos.set(sleeping.x, sleeping.y, sleeping.z); player.vy = 0; }
   // 碰撞：树、灌木、花坛；走到边上就停住
-  const pr = .55;
-  garden.collide(player.pos); ramCheck(dt, neighbors.collide(player.pos), running);
-  house.collide(player.pos);
-  plotFenceCollide(player.pos);
-  dog.collideKennel(player.pos);
-  dog.collideYard(player.pos);
-  coop.collide(player.pos);
-  RANCHES.forEach(r => r.collide(player.pos));
-  pond.collide(player.pos);
-  grill.collide(player.pos); birds.collide(player.pos);
-  shops.forEach(s => s.collide(player.pos)); hall.collide(player.pos);
-  colliders.forEach(([cx, cz, cr]) => {
-    const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
-    if (d < min && d > 1e-4 && player.pos.y < 1.5) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
-  });
+  // 用户说：有的菜园栏杆能穿过去 —— 卡的时候一帧走得太远，会直接跨过栅栏那条线。现在一小步一小步地走，每一步都挡一下
+  const pr = .55, nStep = Math.max(1, Math.min(12, Math.ceil(Math.hypot(vx, vz) * dt / .15)));
+  let ramHit = null;
+  for (let k = 0; k < nStep; k++) {
+    player.pos.x += vx * dt / nStep; player.pos.z += vz * dt / nStep;
+    garden.collide(player.pos); ramHit = neighbors.collide(player.pos) || ramHit;
+    house.collide(player.pos);
+    plotFenceCollide(player.pos);
+    dog.collideKennel(player.pos);
+    dog.collideYard(player.pos);
+    coop.collide(player.pos);
+    RANCHES.forEach(r => r.collide(player.pos));
+    pond.collide(player.pos);
+    grill.collide(player.pos); birds.collide(player.pos);
+    shops.forEach(s => s.collide(player.pos)); hall.collide(player.pos);
+    colliders.forEach(([cx, cz, cr]) => {
+      const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
+      if (d < min && d > 1e-4 && player.pos.y < 1.5) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
+    });
+  }
+  ramCheck(dt, ramHit, running);
   const r = Math.hypot(player.pos.x, player.pos.z); if (r > EDGE) { player.pos.x *= EDGE / r; player.pos.z *= EDGE / r; }
 
   me.root.position.copy(player.pos); me.root.rotation.set(0, player.face, 0);
@@ -1386,7 +1428,7 @@ renderer.setAnimationLoop(() => {
   kennelSiteMark.visible = !dog.kennel;
   coop.update(dt);
   RANCHES.forEach(r => r.update(dt));
-  pond.update(dt); updateFishing(dt); birds.update(dt, player.pos, player.face, selItem()); bfly.update(dt); loose.update(dt, player); looseHome(); mayor.update(dt); neighbors.update(dt, player); updateGuide(dt);
+  pond.update(dt); updateFishing(dt); birds.update(dt, player.pos, player.face, selItem()); bfly.update(dt); loose.update(dt, player); looseHome(); mayor.update(dt); neighbors.update(dt, player); updateMap(t); updateGuide(dt);
   grill.update(dt, grillCook.busy); grillCook.update(); houseCook.update();
   renderDogHud();
   homeGate.update(dt); HOME_GAPS.forEach(g => g.gate.update(dt));
