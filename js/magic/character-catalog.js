@@ -20,6 +20,10 @@ export const FIXED_LOOKS = [PATHFINDER, {
   id: 'scholar', hero: 'hermione', asset: 'hermione-scholar',
   name: '格兰芬多学院礼袍', wandLabel: '葡萄藤木魔杖',
   description: '赫敏的格兰芬多校服，搭配栗色卷发与雕有藤叶的葡萄藤木魔杖。',
+}, {
+  id: 'keeper', hero: 'ron', asset: 'ron-weasley',
+  name: '格兰芬多男生校服', wandLabel: '柳木魔杖',
+  description: '罗恩的学院长袍配灰色针织衫、条纹领带和系带皮鞋，右手拿着刻有六道握纹的柳木魔杖。',
 }];
 
 export function fixedLook(id) {

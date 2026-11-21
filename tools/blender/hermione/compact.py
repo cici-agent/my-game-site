@@ -16,7 +16,7 @@ def material_textures(obj):
             if k.endswith('Texture') and 'index' in v:yield v,'index'
             else:yield from material_textures(v)
 
-def pack(source,output):
+def pack(source,output, character='Hermione Granger'):
     a=Asset(source);d=a.doc
     # Detached equipment is left in the construction file so departments can
     # operate independently. Only meshes reached by a scene belong to the delivery.
@@ -51,5 +51,5 @@ def pack(source,output):
     for v in d['bufferViews']:
         lo=v.get('byteOffset',0);data=a.bin[lo:lo+v['byteLength']]
         buf.extend(bytes(-len(buf)%4));v['byteOffset']=len(buf);buf.extend(data)
-    d['asset']['generator']='Academy character workshop • Hermione Granger'
+    d['asset']['generator']='Academy character workshop • ' + character
     write_glb(d,buf,output)

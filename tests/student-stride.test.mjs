@@ -35,7 +35,7 @@ function walkHeights(character) {
   });
 }
 
-for (const name of ['harry', 'hermione', 'ron', 'harry-pathfinder', 'hermione-scholar']) {
+for (const name of ['harry', 'hermione', 'ron', 'harry-pathfinder', 'hermione-scholar', 'ron-weasley']) {
   test(`${name} transfers weight smoothly through both heels and the loop seam`, () => {
     const heights = walkHeights(name);
     const extent = Math.max(...heights) - Math.min(...heights);

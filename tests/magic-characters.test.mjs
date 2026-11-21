@@ -91,3 +91,35 @@ test('the scholar look belongs to Hermione and carries her own animated hair, fa
       standard.animations.find(c => c.name === name).extras.groundSpeed);
   }
 });
+
+test('Ron wears his own school uniform and keeps the willow wand in his casting hand', () => {
+  assert.equal(normalizeSelection({hero:'ron', look:'keeper'}).look, 'keeper');
+  for (const hero of ['harry', 'hermione']) {
+    assert.equal(normalizeSelection({hero, look:'keeper'}).look, undefined);
+  }
+  const model = readModel('ron-weasley');
+  const nodes = new Map(model.nodes.map((node, index) => [node.name, {...node, index}]));
+  const mesh = name => model.meshes[nodes.get(name)?.mesh];
+  for (const name of ['Ron_School_Trousers', 'Ron_VNeck_Shirt_and_Tie', 'Ron_Derby_L', 'Ron_Derby_R']) {
+    assert.ok(mesh(name), name);
+  }
+  const wand = nodes.get('Ron_Willow_Wand');
+  assert.equal(wand.extras.wood, 'willow');
+  assert.ok(wand.extras.shaftLength > .35 && wand.extras.shaftLength < .36);
+  assert.ok(model.skins[wand.skin].joints.includes(nodes.get('HandR').index));
+  assert.ok(mesh('Portrait').extras.targetNames.includes('FaceCheekLiftL'));
+  const animations = new Map(model.animations.map(clip => [clip.name, clip]));
+  const ordinary = readModel('ron');
+  for (const name of ['Walk', 'Run']) {
+    assert.equal(animations.get(name).extras.groundSpeed,
+      ordinary.animations.find(clip => clip.name === name).extras.groundSpeed);
+  }
+  for (const name of ['Run', 'Cast']) {
+    for (const part of ['Portrait', 'Ron_Gryffindor_Robe', 'Ron_Swept_Copper_Waves']) {
+      assert.ok(animations.get(name).channels.some(c => c.target.node === nodes.get(part).index
+        && c.target.path === 'weights'), name + ' should animate ' + part);
+    }
+  }
+  assert.ok(model.images.some(im => /ron/i.test(im.name) && im.bufferView >= 0));
+  assert.ok(model.images.every(im => im.bufferView >= 0));
+});

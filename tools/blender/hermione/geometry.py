@@ -51,6 +51,9 @@ class Builder:
     def prim(self,d,f,mat):
         attrs={}
         for k,v in d.items():
+            if k=='JOINTS_0':
+                # glTF reserves zero for unused slots in the four joint influences.
+                v=np.where(d['WEIGHTS_0']>0, v, 0)
             attrs[k]=self.accessor(v,{'POSITION':'VEC3','NORMAL':'VEC3','TEXCOORD_0':'VEC2','TEXCOORD_1':'VEC2','JOINTS_0':'VEC4','WEIGHTS_0':'VEC4'}[k],5121 if k=='JOINTS_0' else 5126)
         return dict(attributes=attrs,indices=self.accessor(f,'SCALAR',5123 if np.max(f)<65536 else 5125),material=mat)
     def skin(self,n,j):

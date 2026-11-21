@@ -62,3 +62,9 @@ python3 tools/blender/motion/student_motion.py new-student.glb new-student-anima
 衣装室中选择赫敏和「格兰芬多学院礼袍」即可保存这套造型。直接打开 `magic-academy.html?arrival=castle&look=scholar` 可穿这套校服进城堡。角色工作室的 `character-studio/hermione.html#run` 和 `#cast` 分别播放跑步和施法；可切换面部特写、半速和杖尖轨迹。
 
 模型取自赫敏自己的脸部纹理和定位点，沿用学院动作骨架及精细角色的握姿，按赫敏的腿长校准步幅。发梢和校袍下摆的次级动作、眼睑和嘴唇的表情均烘焙在 GLB 内。重建方法见 [赫敏模型源文件](../tools/blender/hermione/README.md)。
+
+## 罗恩的精细学院造型
+
+在衣装室选罗恩，再选「格兰芬多男生校服」。他的红发、带雀斑的脸、校袍、长裤和系带皮鞋与柳木魔杖一起载入。工作室提供[跑步](../character-studio/ron.html#run)、[施法](../character-studio/ron.html#cast)和[面部特写](../character-studio/ron.html#face)，也可以[穿这套校服进城堡](../magic-academy.html?arrival=castle&look=keeper)。
+
+使用 Python 3、NumPy 和 Pillow，在仓库根目录运行 `python3 tools/blender/ron/build.py` 可从学院共用骨架和罗恩的标准模型、纹理及面部定位点重建。可使用 `--output` 指定其他 GLB 输出路径。
