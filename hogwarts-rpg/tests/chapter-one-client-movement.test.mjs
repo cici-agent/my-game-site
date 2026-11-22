@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { getPlatformIntro, getPlatformWallAdvice } from '../chapter-one/client/platform-dialogue.mjs';
 import { resolveAreaId, getWorldArea } from '../chapter-one/world-atlas.mjs';
 import { iconMarkup } from '../chapter-one/client/ui-icons.mjs';
 
@@ -13,9 +14,9 @@ const snapshot=(revision=2,sceneId='SC01',sequence=-1)=>({character:character(re
 async function until(condition){for(let n=0;n<30&&!condition();n++)await Promise.resolve();assert.ok(condition(),'network/render boundary not reached');}
 function harness(){
  const nodes=new Map(),requests=[],packets=[],sent=[],rejected=[],snapshots=[],skillStatuses=[];let takes=0,clock=1000;
- const element=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,textContent:'',innerHTML:'',value:'',style:{},dataset:{},classList:{toggle(){}},addEventListener(){},querySelector:x=>element(id+':'+x),querySelectorAll(selector){return id==='quick-menu'&&selector==='button[data-panel]'?['character','inventory','skills','map'].map(panel=>{const button=element(`${id}:${panel}`);button.dataset.panel=panel;return button;}):[];},insertAdjacentHTML(where,html){this.innerHTML=where==='afterbegin'?html+this.innerHTML:this.innerHTML+html;},append(){},remove(){}});return nodes.get(id);};
+ const element=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,textContent:'',innerHTML:'',value:'',style:{},dataset:{},classList:{toggle(){}},setAttribute(name,value){this[name]=String(value);},getAttribute(name){return this[name]??null;},focus(){this.focused=true;},addEventListener(){},querySelector:x=>element(id+':'+x),querySelectorAll(selector){return id==='quick-menu'&&selector==='button[data-panel]'?['character','inventory','skills','map'].map(panel=>{const button=element(`${id}:${panel}`);button.dataset.panel=panel;return button;}):[];},insertAdjacentHTML(where,html){this.innerHTML=where==='afterbegin'?html+this.innerHTML:this.innerHTML+html;},append(){},remove(){}});return nodes.get(id);};
  const renderer={setAbilityRequestStatus(...args){skillStatuses.push(args);},takeMovementPacket(){takes++;return packets.shift()??{position:{x:0,y:0,z:0,yaw:0},steps:[],sprint:false,flying:false};},noteMovementSent(...args){sent.push(structuredClone(args));},rejectMovement(...args){rejected.push(structuredClone(args));},setSnapshot(...args){snapshots.push(structuredClone(args));return Promise.resolve();},setBlocked(){},getPose(){return{x:0,y:0,z:0,yaw:0};}};
- const context=vm.createContext({resolveAreaId,getWorldArea,iconMarkup,crypto,structuredClone,URL,AbortSignal,console,performance:{now:()=>clock},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},
+ const context=vm.createContext({getPlatformIntro,getPlatformWallAdvice,resolveAreaId,getWorldArea,iconMarkup,crypto,structuredClone,URL,AbortSignal,console,performance:{now:()=>clock},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},
  document:{getElementById:element,addEventListener(){},createElement:element},localStorage:{getItem:()=>JSON.stringify({token:'a'.repeat(64),characterId:'A'}),setItem(){}},location:{href:'https://game.test/stone.html'},
  createSound:()=>({status:{state:'locked'},setScene(){},updateMotion(){},unlock(){},consume(){},cue(){}}),__renderer:renderer,
  fetch:(url,options)=>{const job=defer();requests.push({url,options,...job});return job.promise;},

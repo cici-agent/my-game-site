@@ -21,6 +21,7 @@ import { trainPassengers, trainConversationTargets } from '../chapter-one/client
 import { runtimeQuests, getSceneView } from '../chapter-one/online/catalog.mjs';
 import { replayAreaMovement } from '../chapter-one/online/location.mjs';
 import * as people from '../chapter-one/people.mjs';
+import { createMouseLook } from '../chapter-one/client/mouse-look.mjs';
 
 // Execute the complete production controller and frame loop. Only the browser,
 // GPU and asset construction boundaries are replaced; Three's cameras/rays,
@@ -50,10 +51,12 @@ function avatar(heroId) {
     dispose() { calls.dispose++; root.removeFromParent(); },
   };
 }
-async function harness(t, { encounter = null, members = [], request = null, boatMotion = null } = {}) {
+async function harness(t, { encounter = null, members = [], request = null, boatMotion = null, pointerLock = false } = {}) {
   let now = 1000, frame, camera, renderedScene;
   const window = new Events(), document = new Events(), canvas = new Events(), actors = [], npcs = [], actions = [], aims = [], walls = [], environments = [], streams = [];
   canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1280, height: 720 }); canvas.setPointerCapture = () => {};
+  document.pointerLockElement=null;document.exitPointerLock=()=>{document.pointerLockElement=null;document.emit('pointerlockchange');};
+  if(pointerLock)canvas.requestPointerLock=()=>{document.pointerLockElement=canvas;document.emit('pointerlockchange');return Promise.resolve();};
   const draw = new Proxy({ createRadialGradient: () => ({ addColorStop() {} }) }, { get: (object, key) => object[key] ?? (() => {}) });
   document.createElement = () => ({ width: 0, height: 0, getContext: () => draw }); document.hidden = false;
   class Renderer {
@@ -73,7 +76,7 @@ async function harness(t, { encounter = null, members = [], request = null, boat
     return {root,record,update(dt){record.updates++;if(id==='SC03')boatMotion?.update(dt);},dispose(){record.disposals++;},setEscort(value){if(id==='SC03')boatMotion?.setEscort(value);},setContext(value){record.contexts.push(value);},setTrainStopped(){},getBoatPose:id==='SC03'&&boatMotion?role=>boatMotion.getPose(role):undefined};
   };
   const context = vm.createContext({
-    THREE: { ...Three, WebGLRenderer: Renderer }, RoundedBoxGeometry,
+    THREE: { ...Three, WebGLRenderer: Renderer }, RoundedBoxGeometry, createMouseLook,
     ...geometry, ...targeting, ...movement, ...atlas, ...people, areaOffset, trainPassengers, trainConversationTargets, contentData, abilityState, applyEquipmentAppearance, resetEquipmentAppearance, createBoltVisual, createImpactVisual, createEnemyWarning, createEnemyStrike, SELECTABLE_HEROES, selectionCameraPose,
     createSelectionStage: options => residentStage({ ...options, loadCharacter }), createSelectionSpells: harmlessFx,
     loadPlayableCharacter: loadCharacter, loadNpc,
@@ -100,6 +103,9 @@ async function harness(t, { encounter = null, members = [], request = null, boat
     state:()=>({character,view,room}),setMembers(values){room={code:'TEST',members:values,encounter:character.encounter};},cameraPosition:()=>camera.position.clone(),setCameraPosition(value){camera.position.set(value.x,value.y,value.z);},
     key(code, type = 'keydown', detail = {}) { let prevented = false; window.emit(type, { code, preventDefault() { prevented = true; }, ...detail }); return prevented; },
     pointerAt(point) { const ndc = new Three.Vector3(point.x, point.y, point.z).project(camera); canvas.emit('pointerdown', { button: 0, clientX: (ndc.x + 1) * 640, clientY: (1 - ndc.y) * 360, pointerId: 1 }); },
+    clickWorld(x=640,y=360){canvas.emit('pointerdown',{button:0,pointerType:'mouse',clientX:x,clientY:y,pointerId:1});},
+    mouseMove(dx,dy=0){document.emit('mousemove',{movementX:dx,movementY:dy});},
+    nativeMouseRelease(){document.exitPointerLock();},
     ndc(point) { const p = new Three.Vector3(point.x, point.y, point.z).project(camera); return new Three.Vector2(p.x, p.y); },
     dragCamera(dx,dy=0) { canvas.emit('pointerdown',{button:2,clientX:640,clientY:360,pointerId:2});canvas.emit('pointermove',{clientX:640+dx,clientY:360+dy,pointerId:2});canvas.emit('pointerup',{pointerId:2}); },
     cameraDirection: () => camera.getWorldDirection(new Three.Vector3()),
@@ -250,6 +256,35 @@ test('arrow keys adjust the aiming camera without acting as walking keys', async
   assert.equal(h.world.getPose().x, initial.x); assert.equal(h.world.getPose().z, initial.z);
   h.key('KeyW'); h.advance(100); h.key('KeyW', 'keyup');
   assert(initial.z - h.world.getPose().z > 1.9, 'W drives the actual world movement at the shared speed');
+});
+
+test('mouse capture rotates the real camera without walking or casting on the initial click', async t => {
+  const h=await harness(t,{encounter:combat(),pointerLock:true}),position={...h.world.getPose()},before=h.cameraDirection();
+  h.pointerAt(targeting.targetCenter(combat().enemies.crate));assert.equal(h.world.getMouseLookState().locked,true);assert.equal(h.actions.length,0);
+  h.mouseMove(180,-50);h.advance(20);assert(h.cameraDirection().dot(before)<.9);assert(h.cameraDirection().y>before.y+.1);
+  assert.equal(h.world.getPose().x,position.x);assert.equal(h.world.getPose().z,position.z);
+});
+
+test('locked left clicks use the centre aim and retain an explicit Tab target regardless of old cursor coordinates', async t => {
+  const reference=await harness(t,{encounter:combat()}),h=await harness(t,{encounter:combat(),pointerLock:true});
+  reference.world.cast('bolt');h.clickWorld(40,650);h.clickWorld(1100,30);
+  const actual=h.actions.at(-1),expected=reference.actions.at(-1);assert.equal(actual.skillId,'bolt');
+  for(const axis of ['x','y','z'])assert(Math.abs(actual.aimPoint[axis]-expected.aimPoint[axis])<1e-8,'capture position never becomes the aim ray');
+  await flush();h.advance(60);h.key('Tab');h.clickWorld(10,10);assert.equal(h.actions.at(-1).targetId,'crate','Tab locking has the same meaning for mouse and keyboard spells');
+});
+
+test('panels and focus loss release mouse control and stop held movement and repeated casting', async t => {
+  const h=await harness(t,{encounter:combat(),pointerLock:true});h.world.requestMouseLook();h.key('KeyW');h.key('Digit1');h.advance(20);
+  h.world.setBlocked(true);assert.equal(h.world.getMouseLookState().locked,false);const before=h.cameraDirection(),position={...h.world.getPose()},actions=h.actions.length;
+  h.mouseMove(600,100);h.dragCamera(300,100);h.advance(30);assert(h.cameraDirection().distanceTo(before)<1e-8);assert.equal(h.world.getPose().z,position.z);
+  h.world.setBlocked(false);h.advance(100);assert.equal(h.world.getMouseLookState().locked,false);assert.equal(h.actions.length,actions);
+  h.world.requestMouseLook();h.key('KeyW');h.advance(10);h.blur();assert.equal(h.world.getMouseLookState().locked,false);const stopped={...h.world.getPose()};h.advance(50);assert.equal(h.world.getPose().z,stopped.z);
+});
+
+test('mouse control survives normal polling, but selection releases it', async t => {
+  const h=await harness(t,{pointerLock:true});h.world.requestMouseLook();h.mouseMove(120,-20);h.advance(15);const before=h.cameraDirection();
+  await h.snapshot();h.advance();assert.equal(h.world.getMouseLookState().locked,true);assert(h.cameraDirection().distanceTo(before)<1e-8);
+  h.world.selectionStage('ron');assert.equal(h.world.getMouseLookState().locked,false);h.mouseMove(500,500);h.advance();assert.equal(h.world.getSelectionState().selected,'ron');
 });
 
 test('clicking a low target locks the actual hurt volume and self-use actions ignore that lock', async t => {
