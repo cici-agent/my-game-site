@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildAvatar, buildPet } from '../p/avatar.js';
 import { INV, loadInventory } from '../p/inventory.js';
 import { L, createLayout, ribbon } from './layout.js';
+import { visitMayor } from './mayor.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden, plotToWorld, worldToPlot } from './garden.js';
 import { createHouse, inHouse, HOUSE_NAMES } from './house.js';
 import { createGate, fenceMaterial, PEN_FENCE } from './gate.js';
@@ -19,7 +20,7 @@ import { createStamina, FOOD, MAX as STA_MAX } from './stamina.js';
 import { createShop, createStore, SHOP_ITEMS, sellPrice, SHOPS, shopOf } from './shop.js';
 import { buildDog } from './dog.js';
 import { buildChicken } from './coop.js';
-import { createSky, growLight, phaseOf, clockText, gameHour, jumpTo, resetTime, darkness } from './sky.js';
+import { DAY_SECONDS, createSky, growLight, phaseOf, clockText, gameHour, jumpTo, resetTime, darkness } from './sky.js';
 
 // ---------- 布局：弯弯的主路 + 零零散散的大空地 + 弯弯的小道（见 layout.js） ----------
 // 固定种子的随机数：每次打开布局都一样
@@ -448,6 +449,7 @@ const keys = {};
 let overview = false;
 const cam = { yaw: LAY.spawn.yaw, pitch: .3, dist: 13 };   // 离得远一点：整个人从头到脚都看得见   // 相机在玩家南边，看向北边的广场
 addEventListener('keydown', e => {
+  if ($('mayorVisit').open) return;
   if ($('nameUI').classList.contains('show')) return;   // 正在打狗的名字
   keys[e.code] = true;
   { const m = /^Digit([1-9])$/.exec(e.code); if (m && !e.repeat) select(+m[1] - 1); }   // 1~9 选第 1~9 格
@@ -725,13 +727,54 @@ if (!metMayor) homeGate.setLock(true);   // 还没找镇长：自己的空地大
 function talk(msg, sec = 7) { const el = $('talk'); el.innerHTML = msg; el.classList.add('show'); clearTimeout(talk.t); talk.t = setTimeout(() => el.classList.remove('show'), sec * 1000); }
 $('talk').onclick = () => $('talk').classList.remove('show');
 function dirWord(x, z) { const d = Math.hypot(x - MAYOR.x, z - MAYOR.z); return `离这里大约 ${Math.round(d / 10) * 10} 米`; }
+const mayorLines = {
+  garden: ['看土色就知道要不要浇水。土还是深色的，让它先歇一歇。', '有虫眼就戴手套翻翻叶背。趁虫子还少，手捉就够了。', '头一茬试试小萝卜吧，收得快。留几颗种子，下回就不用特地跑小卖部了。'],
+  town: ['我最喜欢广场刚亮起来的时候，鸡还没醒，小卖部已经开门了。', '哪天干活累了，就回屋躺一会儿。地里的事急不来。'],
+};
+const nextLine = { garden: 0, town: 0 };
+const giftable = key => Object.hasOwn(CROPS, key) || Object.hasOwn(FOOD, key) || SEED_GIFTS.has(key);
+const SEED_GIFTS = new Set(Object.keys(CROPS).map(key => 'seed_' + key));
+const villageDay = () => Math.floor(Date.now() / (DAY_SECONDS * 1000));
+function refreshVisit() {
+  const state = garden.mayorFriendship;
+  $('mayorBond').textContent = state.points >= 8 ? '交情 · 老朋友' : state.points >= 3 ? '交情 · 熟人' : '交情 · 初识';
+  const menu = $('mayorGift');
+  menu.replaceChildren();
+  const items = new Set(garden.bag.slots.filter(Boolean).map(slot => slot.key).filter(giftable));
+  for (const key of items) menu.add(new Option(itemInfo(key).name + ' × ' + garden.bag.count(key), key));
+  const given = state.giftDay === villageDay();
+  if (!items.size || given) menu.replaceChildren(new Option(given ? '今天已送过礼物' : '可带种子、作物或食物来', ''));
+  menu.disabled = $('mayorGive').disabled = !items.size || given;
+}
+function respondToMayor(topic, gift) {
+  const result = visitMayor({ state: garden.mayorFriendship, bag: garden.bag, chest: garden.chest, day: villageDay(), gift, accepts: giftable });
+  garden.saveVisit();
+  let reply = gift ? (result.accepted ? '谢谢你带来的' + itemInfo(gift).name + '！' : '') : mayorLines[topic][nextLine[topic]++ % mayorLines[topic].length];
+  if (result.seed) reply += ' 我留了两包' + itemInfo(result.seed).name + '给你，放进' + result.destination + '啦。';
+  if (result.message) reply += ' ' + result.message;
+  $('mayorReply').textContent = reply.trim();
+  refreshVisit();
+  renderBag();
+}
+$('mayorVisit').querySelectorAll('[data-topic]').forEach(button => {
+  button.onclick = () => respondToMayor(button.dataset.topic, null);
+});
+$('mayorGive').onclick = () => { if ($('mayorGift').value) respondToMayor(null, $('mayorGift').value); };
+$('mayorClose').onclick = () => $('mayorVisit').close();
 function mayorPrompt() {
   if (!mayor.near(player.pos)) return null;
-  return metMayor ? { label: '🏛️ 和镇长打招呼', sub: '你的空地已经领到了', can: true } : { label: '🏛️ 和镇长说话：领一块空地', sub: '镇长会分给你一块没人住的空地', can: true };
+  return metMayor ? { label: '🏛️ 拜访村长', sub: '聊聊近况，或送一份礼物', can: true } : { label: '🏛️ 和镇长说话：领一块空地', sub: '镇长会分给你一块没人住的空地', can: true };
 }
 function mayorAction() {
   if (!mayor.near(player.pos)) return false;
-  if (metMayor) { talk('🏛️ <b>镇长</b>：好好种菜呀！有什么事，随时来广场找我。'); return true; }
+  if (metMayor) {
+    for (const key of Object.keys(keys)) keys[key] = false;
+    refreshVisit();
+    $('mayorReply').textContent = garden.mayorFriendship.points >= 3 ? '又见面啦！上回播的种子，冒芽了吗？' : '来了呀，坐！今天田里怎么样？';
+    $('talk').classList.remove('show');
+    $('mayorVisit').showModal();
+    return true;
+  }
   metMayor = true; guideHome = true; homeGate.setLock(false);
   net.claim(homeIdx).then(ok => { if (ok) publishMe(); else { toast('这块空地刚被别人领走了，镇长给你换一块'); setTimeout(() => location.reload(), 2500); } });
   try { localStorage.setItem(MET_KEY, '1'); localStorage.setItem('xcn_guide_home', '1'); } catch (e) {}
@@ -1357,7 +1400,7 @@ function step(dt, t) {
   if (keys.KeyA || keys.ArrowLeft) mx -= 1;
   if (keys.KeyD || keys.ArrowRight) mx += 1;
   if (joy.id !== null) { mx = joy.x; my = joy.y; }
-  if (chestOpen || shopOpen || sleeping) mx = my = 0;
+  if (chestOpen || shopOpen || sleeping || $('mayorVisit').open) mx = my = 0;
   const len = Math.hypot(mx, my); if (len > 1) { mx /= len; my /= len; }
   // 体力：用光了走得很慢、跑不动、跳不起来；快用光时也跑不快
   const tired = stamina.empty, running = (keys.ShiftLeft || keys.ShiftRight) && !tired;

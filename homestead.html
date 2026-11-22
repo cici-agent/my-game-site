@@ -171,6 +171,15 @@
   #chestUI .veg, .slot.ghost .veg { font-size: 26px; }
   body.touch #chestUI .grid { grid-template-columns: repeat(6, 40px); } body.touch #chestUI .grid.bagrow { grid-template-columns: repeat(7, 40px); }
   body.touch #chestUI .slot { width: 40px; height: 40px; }
+  #mayorVisit { box-sizing: border-box; width: min(26rem, 92vw); max-height: 85vh; color: #382e23; border: 2px solid #846542; border-radius: 18px; background: #fff6df; padding: 20px; box-shadow: 0 14px 50px #33231266; }
+  #mayorVisit::backdrop { background: #18251b88; }
+  #mayorVisit h2 { margin: 0; font-size: 1.3rem; }
+  #mayorVisit p { line-height: 1.5; }
+  #mayorVisit button, #mayorVisit select { font: inherit; padding: 8px; border: 1px solid #a79173; border-radius: 8px; }
+  #mayorVisit button { cursor: pointer; background: #fffdf5; }
+  #mayorVisit .topics { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+  #mayorVisit select { max-width: 65%; }
+  #mayorClose { float: right; }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
@@ -189,6 +198,14 @@
 <div id="toast"></div>
 <div id="guide"></div>
 <div id="talk"></div>
+<dialog id="mayorVisit" aria-labelledby="mayorTitle">
+  <button id="mayorClose" aria-label="结束交谈">告辞</button>
+  <h2 id="mayorTitle">村长</h2><small id="mayorBond"></small>
+  <p id="mayorReply" aria-live="polite"></p>
+  <div class="topics"><button data-topic="garden">请教种菜</button><button data-topic="town">聊聊村里的事</button></div>
+  <select id="mayorGift" aria-label="从背包选择一份礼物"></select>
+  <button id="mayorGive">送出一份</button>
+</dialog>
 <div id="bag"></div>
 <button class="round-btn" id="actBtn">操作</button>
 <div id="chestUI"><div class="box">
