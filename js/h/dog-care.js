@@ -54,7 +54,7 @@ export function advanceAway(st, seconds) {
 }
 
 export const services = {
-  bath: { price: 5, name: '洗澡', icon: '🛁', available: st => st.has && st.care.sinceBath >= 60,
+  bath: { price: 0, name: '自助洗澡', icon: '🛁', available: st => st.has,
     apply(st) { st.care.sinceBath = 0; } },
   treat: { price: 12, name: '看病', icon: '🩺', available: st => st.has && st.care.sick,
     apply(st) { st.care.sick = false; st.care.riskLeft = illnessThreshold(Math.random); } },

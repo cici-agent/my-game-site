@@ -320,8 +320,10 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     canCare(key) { return services[key].available(st); },
     receiveCare(key, wallet) {
       const service = services[key];
-      if (!service.available(st) || !wallet.spend(service.price)) return false;
-      service.apply(st); save(); return true;
+      if (!service.available(st) || (service.price > 0 && !wallet.spend(service.price))) return false;
+      service.apply(st);
+      if (key === 'bath') D.fur.color.setHex(0xf1c27d);
+      save(); return true;
     }, get name() { return st.name; }, get full() { return st.full; }, get loyal() { return st.loyal; }, get mode() { return mode; }, get pos() { return pos; },
     get bowl() { return st.bowl; }, get frisbeeOut() { return !!frisState; },
     adopt, update, rename(n) { st.name = n; save(); say('❤️', 2); showKennel(); },

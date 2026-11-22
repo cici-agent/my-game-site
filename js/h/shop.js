@@ -126,7 +126,8 @@ export function createStore({ scene, x, z, face, buildAvatar, kind, decor = null
   const M = o => new THREE.MeshStandardMaterial({ roughness: .85, ...o });
   const BOX = new THREE.BoxGeometry(1, 1, 1), CYL = new THREE.CylinderGeometry(1, 1, 1, 12), SPH = new THREE.SphereGeometry(1, 12, 8);
   const add = (geo, mat, p, s, r, parent = g) => { const m = new THREE.Mesh(geo, mat); m.position.set(...p); if (s) m.scale.set(...s); if (r) m.rotation.set(...r); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
-  const W = 5, D = 4, H = 3.4, T = .22, DOOR = 1.4, wall = M({ color: Y.wall }), trim = M({ color: Y.trim }), wood = M({ color: 0xa8713c }), dark = M({ color: 0x7a4f26 });
+  const W = kind === 'pet' ? 8 : 5, D = kind === 'pet' ? 6 : 4;
+  const H = 3.4, T = .22, DOOR = kind === 'pet' ? 2 : 1.4, wall = M({ color: Y.wall }), trim = M({ color: Y.trim }), wood = M({ color: 0xa8713c }), dark = M({ color: 0x7a4f26 });
   // 地板
   add(BOX, M({ color: Y.floor }), [0, .04, 0], [W * 2, .08, D * 2]);
   // 墙：后墙、两边；前墙留门和两扇大橱窗
@@ -175,7 +176,7 @@ export function createStore({ scene, x, z, face, buildAvatar, kind, decor = null
   const world = (lx, lz) => { const c = Math.cos(face), s = Math.sin(face); return [x + lx * c + lz * s, z - lx * s + lz * c]; };
   const local = (wx, wz) => { const dx = wx - x, dz = wz - z, c = Math.cos(face), s = Math.sin(face); return [dx * c - dz * s, dx * s + dz * c]; };
   const [cx, cz] = world(0, -.4);
-  const near = pos => Math.hypot(pos.x - cx, pos.z - cz) < 2.2;
+  const near = pos => (kind === 'pet' && inside(pos)) || Math.hypot(pos.x - cx, pos.z - cz) < 2.2;
   const inside = pos => { const [lx, lz] = local(pos.x, pos.z); return Math.abs(lx) < W - .1 && Math.abs(lz) < D - .1; };
   // 墙挡人（门口能进）；柜台、货架挡人
   const segs = [[-W, -D, W, -D], [-W, -D, -W, D], [W, -D, W, D], [-W, D, -DOOR, D], [DOOR, D, W, D]];

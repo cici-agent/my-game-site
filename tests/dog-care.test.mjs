@@ -44,3 +44,13 @@ test('offline meals use reachable food before starvation starts', () => {
   assert.equal(st.has, false);
   assert.equal(st.bowl.food, 3);
 });
+
+test('a newly adopted dog can use the free bath immediately', () => {
+  const st = dog();
+  assert.ok(services.bath.available(st));
+  assert.equal(services.bath.price, 0);
+  st.care.sinceBath = DIRTY_AFTER + 1;
+  services.bath.apply(st);
+  assert.equal(st.care.sinceBath, 0);
+  assert.equal(services.bath.available({ has: false }), false);
+});

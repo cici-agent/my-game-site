@@ -57,7 +57,7 @@ const SHOP_SPOTS = (() => {
   out[1] = { x: -232, z: -196, face: Math.atan2(232, 196) };
   return out;
 })();
-const inShopArea = (x, z, m = 0) => SHOP_SPOTS.some(s => Math.hypot(s.x - x, s.z - z) < 7.5 + m);
+const inShopArea = (x, z, m = 0) => SHOP_SPOTS.some((s, i) => Math.hypot(s.x - x, s.z - z) < (i === 1 ? 12 : 7.5) + m);
 // 牛、羊的牧场：自家空地后面（被挡住就换到菜园对面那边），入口朝空地
 // 用户说：牛圈和商店重叠了 —— 离商店远一点（商店房子 10×8 米，再留 3 米）
 const PASTURES = pastureSpots(homePlot, gardenSide, (x, z) => onPath(x, z, 1) || onPlot(x, z, .5) || inGarden(homePlot, gardenSide, x, z, 1) || inShopArea(x, z, 3.5));
@@ -406,10 +406,10 @@ const SHOP_DECOR = {
     const pen = M({ color: 0xffffff });
     [[-W + .3, 0, -W + 3.2, 0], [-W + 3.2, 0, -W + 3.2, 2.9], [-W + .3, 2.9, -W + 3.2, 2.9]].forEach(([ax, az, bx, bz]) => add(BOX, pen, [(ax + bx) / 2, .35, (az + bz) / 2], [Math.abs(bx - ax) || .08, .7, Math.abs(bz - az) || .08]));
     add(BOX, M({ color: 0x9fd4ef }), [-W + 1.75, .1, 1.45], [2.8, .04, 2.8]);
-    [[-3.6, .9, .8], [-2.6, 2, -2.2]].forEach(([x, z, r]) => { const d = buildDog(); d.root.position.set(x, .1, z); d.root.rotation.y = r; d.head.rotation.z = .3; g.add(d.root); });
+    [[-W + 1.4, .9, .8], [-W + 2.4, 2, -2.2]].forEach(([x, z, r]) => { const d = buildDog(); d.root.position.set(x, .1, z); d.root.rotation.y = r; d.head.rotation.z = .3; g.add(d.root); });
     // 靠窗的洗澡盆和挂墙药箱。
-    add(CYL, M({ color: 0xeef6ee }), [3.4, .34, 2.4], [.9, .58, .66]);
-    add(CYL, M({ color: 0x8adbe4 }), [3.4, .64, 2.4], [.79, .04, .55]);
+    add(CYL, M({ color: 0xeef6ee }), [W - 2, .38, 2.4], [1.45, .68, 1.0]);
+    add(CYL, M({ color: 0x8adbe4 }), [W - 2, .73, 2.4], [1.31, .04, .88]);
     add(BOX, M({ color: 0xfffaf0 }), [W - .18, 1.65, .9], [.28, .8, .96]);
     const cross = M({ color: 0x359d98 });
     add(BOX, cross, [W - .34, 1.65, .9], [.04, .46, .14]);
@@ -418,7 +418,7 @@ const SHOP_DECOR = {
     [[3.4, .9], [3.9, 1.4]].forEach(([x, z]) => add(CYL, M({ color: 0x4f9de8 }), [x, .1, z], [.28, .16, .28]));
     add(CYL, M({ color: 0xff5a4a }), [4.2, .05, 2.8], [.22, .04, .22]);
     for (let i = 0; i < 9; i++) add(BOX, M({ color: [0xff7aa8, 0x6fb7ff, 0xffd23f][i % 3] }), [-2.4 + i * .6, [.75, 1.55, 2.35][i % 3], -D + .6], [.4, .5, .25]);
-    return [[-W + 1.75, 1.45, 1.5, 1.5], [2.45, .7, .55, .25], [3.4, 2.4, .7, .7]];
+    return [[-W + 1.75, 1.45, 1.5, 1.5], [2.45, .7, .55, .25], [W - 2, 2.4, 1.45, 1.0]];
   },
   // 动物小铺里面：左边小围栏里有小鸡和母鸡，右边干草堆、饲料袋；货架上一筐筐鸡蛋
   animal: (g, { add, M, BOX, CYL, SPH, W, D }) => {
@@ -1295,19 +1295,23 @@ function renderSta() {
 function renderMoney() { $('money').innerHTML = `<b>🥕 ${garden.wallet.get()}</b> 菜币`; }
 function renderShop() {
   $('shopMoney').textContent = garden.wallet.get();
+  $('shopUI').querySelector('[data-t="care"]').hidden = curShop !== 'pet';
+  $('careReceipt').hidden = shopTab !== 'care' || !$('careReceipt').textContent;
   document.querySelectorAll('#shopUI .tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === shopTab));
   if (shopTab === 'buy') {
     $('shopList').innerHTML = SHOP_ITEMS.map((it, i) => { if (shopOf(it) !== curShop) return ''; const info = itemInfo(it.key), lock = false, poor = garden.wallet.get() < it.price;
       return `<div class="row${lock ? ' lock' : ''}"><span class="ic">${info.seed ? `<span class="pk"><b>${info.sub}</b></span>` : info.icon}</span>
         <span class="nm">${info.name}<small>${lock ? `菜园 ${it.lv} 级才能买` : it.note || ''}</small></span><span class="pr">🥕 ${it.price}</span>
         <button data-i="${i}" data-n="1" ${lock || poor ? 'disabled' : ''}>买 1 个</button>${it.once ? '' : `<button data-i="${i}" data-n="5" ${lock || garden.wallet.get() < it.price * 5 ? 'disabled' : ''}>买 5 个</button>`}</div>`; }).join('');
-    if (curShop === 'pet') {
-      const careRows = Object.entries(petServices).map(([key, service]) => {
-        const disabled = !dog.canCare(key) || garden.wallet.get() < service.price;
-        return `<div class="row"><span class="ic">${service.icon}</span><span class="nm">${service.name}<small>${key === 'bath' ? '洗净泥土，降低生病机会' : '为生病的小狗治疗'}</small></span><span class="pr">🥕 ${service.price}</span><button data-care="${key}" ${disabled ? 'disabled' : ''}>${service.name}</button></div>`;
-      }).join('');
-      $('shopList').insertAdjacentHTML('afterbegin', careRows);
-    }
+  } else if (shopTab === 'care') {
+    $('shopList').innerHTML = Object.entries(petServices).map(([key, service]) => {
+      let detail = key === 'bath' ? '用温水洗净毛上的泥土' : '为生病的小狗治疗';
+      if (!dog.has) detail = '先去「买东西」买一只小狗';
+      else if (!dog.canCare(key)) detail = '小狗目前很健康';
+      else if (garden.wallet.get() < service.price) detail = '菜币不足';
+      const disabled = !dog.canCare(key) || garden.wallet.get() < service.price;
+      return `<div class="row"><span class="ic">${service.icon}</span><span class="nm">${service.name}<small>${detail}</small></span><span class="pr">${service.price ? '🥕 ' + service.price : '免费'}</span><button data-care="${key}" ${disabled ? 'disabled' : ''}>${key === 'bath' ? '给狗洗澡' : '治疗'}</button></div>`;
+    }).join('');
   } else {
     const rows = []; const seen = new Set();
     garden.bag.slots.forEach(sl => { if (!sl || seen.has(sl.key) || !sellPrice(sl.key)) return; seen.add(sl.key);
@@ -1319,12 +1323,13 @@ function renderShop() {
 }
 $('shopList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (shopTab === 'care' && curShop === 'pet') {
+    const key = b.dataset.care;
+    if (!key || !dog.receiveCare(key, garden.wallet)) return renderShop();
+    $('careReceipt').textContent = key === 'bath' ? `🛁 ${dog.name}洗好澡了，毛又干净啦！` : `🩺 ${dog.name}康复啦！`;
+    renderShop(); renderMoney(); renderDogHud(true); return;
+  }
   if (shopTab === 'buy') {
-    if (curShop === 'pet' && b.dataset.care) {
-      const key = b.dataset.care;
-      if (dog.receiveCare(key, garden.wallet)) toast(key === 'bath' ? '🛁 毛洗干净啦！' : '🩺 小狗康复啦！');
-      renderShop(); renderMoney(); renderDogHud(true); return;
-    }
     const it = SHOP_ITEMS[+b.dataset.i], n = +b.dataset.n, cost = it.price * n;
     if (it.key === 'knife' && (garden.bag.count('knife') || garden.chest.count('knife'))) { toast('🔪 你已经有菜刀了'); return; }
     if (it.key === 'leash' && (dog.chained || garden.bag.count('leash') || garden.chest.count('leash'))) { toast('⛓️ 你已经有狗链了'); return; }
@@ -1372,7 +1377,7 @@ $('shopList').addEventListener('click', e => {
   renderShop(); renderBag(); renderMoney();
 });
 document.querySelectorAll('#shopUI .tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.t; renderShop(); });
-function openShop(kind = 'general') { shopTab = 'buy'; curShop = kind; const S = SHOPS[kind]; $('shopTitle').textContent = `${S.icon} ${S.name}`; $('shopUI').querySelector('.box').style.borderColor = S.a; shopOpen = true; renderShop(); $('shopUI').classList.add('show'); Object.keys(keys).forEach(k => keys[k] = false); }
+function openShop(kind = 'general') { $('careReceipt').textContent = ''; shopTab = kind === 'pet' && dog.has ? 'care' : 'buy'; curShop = kind; const S = SHOPS[kind]; $('shopTitle').textContent = `${S.icon} ${S.name}`; $('shopUI').querySelector('.box').style.borderColor = S.a; shopOpen = true; renderShop(); $('shopUI').classList.add('show'); Object.keys(keys).forEach(k => keys[k] = false); }
 function closeShop() { shopOpen = false; $('shopUI').classList.remove('show'); }
 $('shopClose').onclick = closeShop;
 renderMoney(); setInterval(renderMoney, 1000);
@@ -1635,9 +1640,9 @@ renderer.setAnimationLoop(() => {
   const dogP = !overview && !sleeping && !chestOpen && !shopOpen ? dogPrompt(selItem()) : null;
   const coopP = (!overview && !sleeping && !chestOpen && !shopOpen ? mayorPrompt() || stealPrompt(selItem()) || cookPrompt(selItem()) : null) || (!gateFirst && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? birdPrompt(selItem()) || loosePrompt(selItem()) : null) || (!gateFirst && !dogP && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? coopPrompt(selItem()) || ranchPrompt(selItem()) || pondPrompt(selItem()) || fencePrompt(selItem()) : null);
   if (nearShop?.kind === 'pet' && !shopOpen && !chestOpen) {
-    pr.innerHTML = `<b>${isTouch ? '点按钮' : 'E'} · 进萌宠小屋</b><span>${SHOPS.pet.desc}</span>`;
+    pr.innerHTML = `<b>${isTouch ? '点按钮' : 'E'} · 宠物护理和商店</b><span>${SHOPS.pet.desc}</span>`;
     pr.classList.remove('dim'); pr.classList.add('show');
-    $('actBtn').textContent = '进萌宠小屋'; $('actBtn').classList.add('show');
+    $('actBtn').textContent = '护理和商店'; $('actBtn').classList.add('show');
   } else if (coopP) { pr.innerHTML = `<b>${coopP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${coopP.label}</b><span>${coopP.sub}</span>`; pr.classList.toggle('dim', !coopP.can); pr.classList.add('show'); $('actBtn').textContent = coopP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', coopP.can); }
   else if (dogP && (!nearBed || DOG_ITEMS.includes(selItem()))) { pr.innerHTML = `<b>${dogP.can ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${dogP.label}</b><span>${dogP.sub}</span>`; pr.classList.toggle('dim', !dogP.can); pr.classList.add('show'); $('actBtn').textContent = dogP.label.replace(/^\S+\s/, ''); $('actBtn').classList.toggle('show', dogP.can); }
   else if (nearBed) { const a = garden.plan(nearBed, selItem()); pr.innerHTML = `<b>${a.kind ? (isTouch ? '点按钮 · ' : 'E · ') : ''}${a.label}</b><span>${garden.describe(nearBed)}</span>`; pr.classList.toggle('dim', !a.kind); pr.classList.add('show'); $('actBtn').textContent = a.label.replace(/^\S+\s/, '').replace(/（.*）/, ''); $('actBtn').classList.add('show'); }
