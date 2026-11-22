@@ -4,6 +4,7 @@ import { moveAmongPeople, personBody, scenePeople } from '../chapter-one/people.
 import { moveWithCollisions, canOccupy } from '../chapter-one/client/scene-geometry.mjs';
 import { getWorldArea } from '../chapter-one/world-atlas.mjs';
 import { PLAYER_RADIUS } from '../chapter-one/movement.mjs';
+import { getTrainSeat } from '../chapter-one/train-layout.mjs';
 
 const bounds=[-20,20,-20,20],body=personBody({id:'npc',appearanceId:'molly',position:{x:0,y:0,z:0}});
 const step=(from,to,bodies=[body],options={})=>moveAmongPeople(from,to,bounds,[],bodies,options);
@@ -14,7 +15,7 @@ test('the shared scene cast keeps one seated Ron while the story takes his inter
   const view={sceneId:'SC02',quest:{id:'M02',npc:'罗恩、赫敏'},targets:[{id:'M02-3',kind:'talk',active:true,label:'听同伴介绍霍格沃茨',position:{x:-1.5,y:0,z:-4}}]};
   const original=JSON.stringify(view),cast=scenePeople(view,null,['harry']),ron=cast.find(person=>person.appearanceId==='ron');
   assert.equal(new Set(cast.map(person=>person.id)).size,cast.length);assert.equal(cast.filter(person=>person.appearanceId==='ron').length,1);
-  assert.equal(ron.targetId,'M02-3');assert.equal(ron.seated,true);assert.deepEqual(ron.position,{x:-2.03,y:.32,z:-5.52});
+  assert.equal(ron.targetId,'M02-3');assert.equal(ron.seated,true);assert.deepEqual(ron.position,getTrainSeat('ron').position);assert.deepEqual(ron.seat,getTrainSeat('ron').seat);
   assert(!cast.some(person=>person.appearanceId==='harry'));assert(cast.some(person=>person.appearanceId==='hermione'));
   ron.position.x=99;assert.equal(JSON.stringify(view),original);assert.deepEqual(scenePeople(view,{id:'battle'},[]),[]);
 });

@@ -14,6 +14,7 @@ import { abilityState } from './ability-state.mjs';
 import { createBoltVisual, createImpactVisual } from './spell-fx.mjs';
 import { createEnemyWarning, createEnemyStrike } from './enemy-fx.mjs';
 import { createMouseLook } from './mouse-look.mjs';
+import { interactionPresentation, interactionVisibleFrom } from './interaction-presentation.mjs';
 import { resolveAreaId, getWorldArea, getAreaLinks, areaFloor, isAtAreaLink } from '../world-atlas.mjs';
 import { trainConversationTargets } from './train-life.mjs';
 import { scenePeople, personBody, moveAmongPeople } from '../people.mjs';
@@ -43,16 +44,35 @@ function mesh(geometry, color, x = 0, y = 0, z = 0) {
 function targetMarker(target) {
   const g = new THREE.Group(); g.userData.target = target;
   const color = target.active ? 0xe5bd73 : 0x7d8e8b;
-  const ring = new THREE.Mesh(new THREE.RingGeometry(.38, .43, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .65, side: THREE.DoubleSide, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = .025; g.add(ring);
+  const policy = interactionPresentation(target);
+  g.name = `Interaction:${target.id}`; g.userData.presentation = policy;
   const tag = label(shortTargetLabel(target), target.active ? '#f2dbab' : '#aab9b5'); tag.scale.set(1.7, .213, 1); tag.position.y = 1.6; tag.visible = false; g.add(tag); g.userData.tag = tag;
-  const indicator = mesh(new THREE.OctahedronGeometry(.065), color, 0, 1.32, 0); g.add(indicator); g.userData.indicator = indicator;
+  // No generic ground ring or floating diamond: only authored objects are visible.
+  if (policy.person || policy.route) { g.position.copy(point(target.position)); return g; }
   const id = target.id;
-  if (id === 'key') {
+  if (policy.prop === 'toad') {
+    const body = mesh(new THREE.SphereGeometry(1, 20, 12), 0x6e7540, 0, .11, 0); body.scale.set(.16, .095, .20); g.add(body);
+    const head = mesh(new THREE.SphereGeometry(1, 16, 12), 0x7d8548, 0, .15, -.13); head.scale.set(.13, .065, .09); g.add(head);
+    for (const side of [-1, 1]) {
+      const haunch = mesh(new THREE.SphereGeometry(1, 14, 10), 0x5d6738, side * .14, .07, .10); haunch.scale.set(.08, .06, .13); g.add(haunch);
+      const foot = mesh(new THREE.SphereGeometry(1, 12, 8), 0x676f3b, side * .15, .026, -.10); foot.scale.set(.055, .02, .08); g.add(foot);
+      g.add(mesh(new THREE.SphereGeometry(.029, 12, 8), 0xc5a35c, side * .085, .19, -.16));
+      g.add(mesh(new THREE.SphereGeometry(.012, 10, 8), 0x18221a, side * .085, .194, -.184));
+    }
+    tag.position.y = .55;
+  } else if (policy.prop === 'card') {
+    const card = new THREE.Group(); card.rotation.y = .23; g.add(card);
+    card.add(mesh(new THREE.CylinderGeometry(.145, .145, .016, 5), 0xb49553, 0, .023, 0));
+    card.add(mesh(new THREE.CylinderGeometry(.126, .126, .019, 5), 0x394361, 0, .025, 0));
+    const portrait = mesh(new THREE.SphereGeometry(1, 16, 8), 0xc2a27c, 0, .038, -.015); portrait.scale.set(.034, .005, .041); card.add(portrait);
+    const robe = mesh(new THREE.SphereGeometry(1, 16, 8), 0xb7b4ab, 0, .039, .038); robe.scale.set(.05, .005, .04); card.add(robe);
+    tag.position.y = .5;
+  } else if (id === 'key') {
     const key = mesh(new THREE.TorusGeometry(.09, .018, 8, 28), 0xbec8b6, 0, .12, 0); g.add(key); g.add(mesh(new THREE.CylinderGeometry(.018, .018, .24, 12), 0xbec8b6, 0, -.04, 0));
     for (const sign of [-1, 1]) { const wing = mesh(new THREE.SphereGeometry(.12, 14, 8), 0xe0d9ba, sign * .17, .12, 0); wing.scale.set(1, .15, .60); g.add(wing); }
-    tag.position.y = .6; indicator.visible = false;
+    tag.position.y = .6;
   } else if (/^piece-|safe/.test(id)) {
-    if (id === 'safe') { ring.scale.setScalar(2); ring.material.color.set(0x75c8a2); }
+    if (id === 'safe') { const safe = new THREE.Mesh(new THREE.RingGeometry(.76, .86, 40), new THREE.MeshBasicMaterial({ color: 0x75c8a2, transparent: true, opacity: .6, side: THREE.DoubleSide, depthWrite: false })); safe.name = 'ChessSafeSquare'; safe.rotation.x = -Math.PI / 2; safe.position.y = .025; g.add(safe); }
     else { g.add(mesh(new THREE.CylinderGeometry(.24, .30, .13, 24), 0xbeb7a3, 0, .09, 0)); g.add(mesh(new THREE.CylinderGeometry(.16, .24, .6, 24), 0xcfc4ab, 0, .45, 0)); g.add(mesh(new THREE.SphereGeometry(.19, 24, 16), 0xcfc4ab, 0, .87, 0)); }
   } else if (/^potion/.test(id)) {
     const flask = mesh(new THREE.SphereGeometry(.18, 24, 18), 0x79a59a, 0, .8, 0); flask.scale.y = 1.25; g.add(flask); g.add(mesh(new THREE.CylinderGeometry(.047, .062, .22, 20), 0xc0b99e, 0, 1.03, 0));
@@ -64,11 +84,18 @@ function targetMarker(target) {
   } else if (id === 'fire') {
     g.add(mesh(new THREE.CylinderGeometry(.35, .17, .5, 20), 0x806b4a, 0, .45, 0)); const flame = mesh(new THREE.SphereGeometry(.18, 16, 12), 0xffce78, 0, .82, 0); flame.scale.y = 1.8; flame.material.emissive.set(0xee6d32); flame.material.emissiveIntensity = 1.2; g.add(flame);
   } else if (['hold', 'collect', 'collection', 'cast', 'puzzle', 'mechanism'].includes(target.kind) && !['gate', 'rescue-point', 'club'].includes(id)) {
-    g.add(mesh(new RoundedBoxGeometry(.72, .62, .52, 2, .025), 0x755a3b, 0, .32, 0));
-    const book = mesh(new RoundedBoxGeometry(.42, .065, .28, 2, .007), 0x8e6541, 0, .675, 0); book.rotation.y = .23; g.add(book);
-    const pages = mesh(new THREE.BoxGeometry(.40, .037, .26), 0xd6c9a7, 0, .675, 0); pages.rotation.y = .23; g.add(pages);
+    // Small readable props do not introduce an unregistered waist-high crate.
+    const book = mesh(new RoundedBoxGeometry(.42, .065, .28, 2, .007), 0x8e6541, 0, .047, 0); book.rotation.y = .23; g.add(book);
+    const pages = mesh(new THREE.BoxGeometry(.40, .037, .26), 0xd6c9a7, 0, .047, 0); pages.rotation.y = .23; g.add(pages); tag.position.y = .55;
   }
   if (target.kind === 'flight' && id !== 'key') { const hoop = mesh(new THREE.TorusGeometry(.7, .04, 8, 40), color, 0, 1.1, 0); g.add(hoop); }
+  if (policy.prop === 'toad' || policy.prop === 'card') {
+    g.updateMatrixWorld(true); const bounds = new THREE.Box3();
+    for (const child of g.children) if (!child.isSprite) bounds.expandByObject(child, true);
+    if (Number.isFinite(bounds.min.y)) for (const child of g.children) if (!child.isSprite) child.position.y -= bounds.min.y;
+  }
+  g.userData.highlightMaterials = [];
+  g.traverse(node => { if (node.isMesh && node.material?.emissive && node.material.emissiveIntensity === 1 && node.material.emissive.getHex() === 0) g.userData.highlightMaterials.push(node.material); });
   g.position.copy(point(target.position)); return g;
 }
 function makeWarning(attack, templateId) { return createEnemyWarning(attack, templateId); }
@@ -221,7 +248,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     const expected = new Set();
     const occupiedHeroes = [character?.heroId, ...(room?.members ?? []).filter(member => resolveAreaId(member) === resolveAreaId(character)).map(member => member.heroId)];
     for (const target of [...visibleTargets(view, combat), ...(combat ? [] : trainConversationTargets(view, occupiedHeroes))]) {
-      expected.add(target.id); let object = targets.get(target.id); const signature = JSON.stringify([target.label, target.kind, target.active]);
+      expected.add(target.id); let object = targets.get(target.id); const signature = JSON.stringify([target.label, target.kind, target.active, target.presentation]);
       if (!object || object.userData.signature !== signature) { if (object) disposeGroup(object); object = targetMarker(target); object.userData.signature = signature; targets.set(target.id, object); targetGroup.add(object); }
       object.userData.target = target; object.position.copy(point(target.position));
     }
@@ -238,14 +265,14 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
       if (!npc) {
         npc = { target: point(position), name, generation: sceneGeneration }; npcs.set(name, npc);
         const variant = target.appearanceId ?? npcAppearanceId(name);
-        const loading = ['harry', 'ron', 'hermione'].includes(variant) ? loadPlayableCharacter(variant).then(student => ({ root: student.root, dispose: student.dispose, update(dt, state) { student.updateTravel(dt, Math.max(0, state.speed ?? 0) * dt, true, 0, state.action === 'sit'); student.setExpressionContext({ mood: 'curious', talking: state.talking }); } })) : loadNpc({ id: variant, name });
+        const loading = ['harry', 'ron', 'hermione'].includes(variant) ? loadPlayableCharacter(variant).then(student => ({ root: student.root, dispose: student.dispose, update(dt, state) { student.updateTravel(dt, Math.max(0, state.speed ?? 0) * dt, true, 0, state.action === 'sit', state.seat); student.setExpressionContext({ mood: 'curious', talking: state.talking }); } })) : loadNpc({ id: variant, name });
         loading.then(loaded => {
           if (disposed || npcs.get(name) !== npc || npc.generation !== sceneGeneration || npc.actor) { loaded.dispose(); return; }
           npc.actor = loaded; const height = new THREE.Box3().setFromObject(loaded.root).max.y; npc.tag = label(name, '#c9dfcf'); npc.tag.scale.set(2.0, .25, 1); npc.tag.position.y = Number.isFinite(height) ? height + .22 : 2.5; loaded.root.add(npc.tag); loaded.root.position.copy(npc.target); loaded.root.rotation.y = npc.facing ?? Math.PI; entities.add(loaded.root);
           loaded.root.visible = true;
         }).catch(onError);
       }
-      npc.target.copy(point(position)); npc.appearanceId = target.appearanceId; npc.escort=escort; npc.routeSpeed=predicted?.speed??0; npc.boat = (escort?.kind??target.kind) === 'boat' && (predicted?predicted.progress>0&&predicted.progress<1:target.seated); npc.seated = npc.boat||(!escort&&target.seated); npc.facing = target.yaw; npc.phase = target.phase; npc.targetId = escort?.targetId??target.targetId; npc.kind = escort?.kind??target.kind;
+      npc.target.copy(point(position)); npc.appearanceId = target.appearanceId; npc.escort=escort; npc.routeSpeed=predicted?.speed??0; npc.boat = (escort?.kind??target.kind) === 'boat' && (predicted?predicted.progress>0&&predicted.progress<1:target.seated); npc.seated = npc.boat||(!escort&&target.seated); npc.seat = !escort ? target.seat : undefined; npc.facing = target.yaw; npc.phase = target.phase; npc.targetId = escort?.targetId??target.targetId; npc.kind = escort?.kind??target.kind;
     }
   }
 
@@ -706,7 +733,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
         const travel = boat ? 0 : Math.hypot(actor.root.position.x - old.x, actor.root.position.z - old.z);
         if (travel > .001) { const angle = Math.atan2(old.x - actor.root.position.x, old.z - actor.root.position.z); actor.root.rotation.y += Math.atan2(Math.sin(angle - actor.root.rotation.y), Math.cos(angle - actor.root.rotation.y)) * (1 - Math.exp(-14 * dt)); }
         actor.setPresentationState?.({ flying, downed, floorY: floorAt(actor.root.position, old.y) });
-        actor.updateTravel(dt, boat&&!seatedBoat?actor.root.position.distanceTo(old):travel, grounded, dy, seatedBoat);
+        actor.updateTravel(dt, boat&&!seatedBoat?actor.root.position.distanceTo(old):travel, grounded, dy, seatedBoat, seatedBoat ? boatPose.seat : undefined);
         selfPose = { x: actor.root.position.x, y: actor.root.position.y, z: actor.root.position.z, yaw: actor.root.rotation.y, grounded, flying, riding:boat, sprint: sprint || Math.hypot(velocity.x, velocity.y) > WALK_SPEED * 1.2 }; if (!boat && voluntary.lengthSq() > 1e-10) movementSteps.push({ delta: { dx: voluntary.x, dy: voluntary.y, dz: voluntary.z, dt }, position: { ...selfPose }, sprint: selfPose.sprint, flying:selfPose.flying }); if(justDisembarked){movementSteps=[{delta:{dx:selfPose.x-character.position.x,dy:selfPose.y-(character.position.y??0),dz:selfPose.z-character.position.z},position:{...selfPose},sprint:false,flying:false}];} onPose?.(selfPose);
         const cameraAnchor = boat ? actor.root.position.clone().add(new THREE.Vector3(0, .9, 0)) : actor.root.position;
         const pose = chaseCameraPose(cameraAnchor, yaw, boat ? clamp(pitch + .12, -.12, .72) : pitch, cameraDistance + (boat ? 3.7 : 0));
@@ -725,7 +752,24 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
         camera.lookAt(camera.position.clone().addScaledVector(point(pose.direction), 20)); actor.root.visible = camera.position.distanceTo(focus) > .45;
 
         nearest = null; let nearestDistance = Infinity, nearestPriority = -1;
-        for (const object of targets.values()) { const target = object.userData.target, distance = actor.root.position.distanceTo(point(target.position)); const link = target.kind === 'passage' ? getAreaLinks(resolveAreaId(character)).find(link => link.id === target.edgeId) : null; const closeEnough = link ? isAtAreaLink(actor.root.position, link) : distance < (target.radius ?? 2) + .15; const priority = target.kind === 'conversation' ? 0 : 1; if (target.active && !target.completed && closeEnough && (priority > nearestPriority || priority === nearestPriority && distance < nearestDistance)) { nearestPriority = priority; nearestDistance = distance; nearest = target; } if (object.userData.tag) { const cameraDistance = scaleNameplate(object.userData.tag, object.position, 1.1); let hasNpc = target.kind === 'conversation'; for (const entry of npcs.values()) if (entry.targetId === target.id) { hasNpc = true; break; } object.userData.tag.visible = !hasNpc && distance < 3.8 && cameraDistance > 2.3; } if (object.userData.indicator) { object.userData.indicator.rotation.y += dt; object.userData.indicator.position.y = 1.32 + Math.sin(elapsed * 2) * .04; } }
+        for (const object of targets.values()) {
+          const target = object.userData.target, distance = actor.root.position.distanceTo(point(target.position));
+          const link = target.kind === 'passage' ? getAreaLinks(resolveAreaId(character)).find(link => link.id === target.edgeId) : null;
+          const closeEnough = link ? isAtAreaLink(actor.root.position, link) : distance < (target.radius ?? 2) + .15;
+          const priority = target.kind === 'conversation' ? 0 : 1;
+          if (target.active && !target.completed && closeEnough && interactionVisibleFrom(actor.root.position, target, map.walls) && (priority > nearestPriority || priority === nearestPriority && distance < nearestDistance)) {
+            nearestPriority = priority; nearestDistance = distance; nearest = target;
+          }
+        }
+        for (const object of targets.values()) {
+          const target = object.userData.target, policy = object.userData.presentation;
+          const focused = !blocked && nearest?.id === target.id && policy.contextual;
+          const focus = point(target.position); focus.y += policy.focusHeight; focus.project(camera);
+          const onScreen = focus.z > -1 && focus.z < 1 && Math.abs(focus.x) < 1 && Math.abs(focus.y) < 1;
+          let hasNpc = policy.person; for (const entry of npcs.values()) if (entry.targetId === target.id) { hasNpc = true; break; }
+          if (object.userData.tag) { scaleNameplate(object.userData.tag, object.position, 1.1); object.userData.tag.visible = focused && onScreen && !hasNpc; }
+          for (const material of object.userData.highlightMaterials ?? []) { material.emissive.setHex(focused && onScreen ? 0x9a7541 : 0); material.emissiveIntensity = focused && onScreen ? .14 + Math.sin(elapsed * 2) * .025 : 1; }
+        }
         if (!crossing && elapsed > crossingCooldown && canMove && grounded && travel > .001) {
           const passage = [...targets.values()].map(object => object.userData.target).find(target => {
             if (target.kind !== 'passage' || target.travelKind !== 'walk' || !target.active) return false;
@@ -761,8 +805,8 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
         const facing = Math.atan2(p.x - actor.root.position.x, p.z - actor.root.position.z);
         entry.actor.root.rotation.y += Math.atan2(Math.sin(facing - entry.actor.root.rotation.y), Math.cos(facing - entry.actor.root.rotation.y)) * (1 - Math.exp(-5 * dt));
       }
-      const tagCameraDistance = scaleNameplate(entry.tag, p, 1.4); entry.tag.visible = !journey && npcDistance > (entry.name.includes('海格') ? 2.6 : 1.2) && npcDistance < 7 && tagCameraDistance > 2.8;
-      entry.actor.update(dt, { speed: dt ? travel / dt : 0, time: elapsed, action: aboard&&boatPose.seated || entry.seated ? 'sit' : travel > .001 ? 'walk' : 'idle', lookAt: npcDistance < 6 && !aboard ? actor?.root.position : undefined, talking: engaged || entry.kind === 'passenger' && Math.sin(elapsed * .6 + (entry.phase ?? 0)) > .7, engaged, interactionKind: entry.kind });
+      const tagCameraDistance = scaleNameplate(entry.tag, p, 1.4); entry.tag.visible = !journey && !blocked && (engaged || Boolean(entry.escort?.awaitingStart && nearest?.id === entry.targetId)) && npcDistance < 4 && tagCameraDistance > 2.3;
+      entry.actor.update(dt, { speed: dt ? travel / dt : 0, time: elapsed, action: aboard&&boatPose.seated || entry.seated ? 'sit' : travel > .001 ? 'walk' : 'idle', lookAt: npcDistance < 6 && !aboard ? actor?.root.position : undefined, talking: engaged || entry.kind === 'passenger' && Math.sin(elapsed * .6 + (entry.phase ?? 0)) > .7, engaged, interactionKind: entry.kind, seat: aboard && boatPose.seated ? boatPose.seat : entry.seated ? entry.seat : undefined });
     }
     for (const entry of enemies.values()) {
       const before = entry.root.position.clone(); entry.root.position.lerp(entry.target, 1 - Math.exp(-12 * dt));

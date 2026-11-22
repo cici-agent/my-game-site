@@ -4,7 +4,7 @@ import { createAvatarMotion, createLimbRig } from '../../world/avatar-motion.mjs
 import { createNpcFace } from './npc-face.mjs';
 import { createNpcHair } from './npc-hair.mjs';
 import { addNpcAttire, addNpcOccupationProp } from './npc-attire.mjs';
-import { fitNpcProportions } from './npc-proportions.mjs';
+import { fitNpcProportions, createNpcSeating } from './npc-proportions.mjs';
 
 // Independently authored supporting actors. The three protected workshop GLBs are
 // never imported or modified here. Smooth geometry, fabric/skin microstructure and
@@ -195,10 +195,12 @@ export function createNpc({ id = 'hagrid', scale = 1 } = {}) {
   addNpcOccupationProp({ kit, hand: armRigs[0].tip, id, brass, leather, ivory, ...attire });
   const proportions = fitNpcProportions({ id, root, body, head, arms, legs, armRigs, legRigs });
   kit.bake(body); kit.bake(head); kit.bake(held);
+  const seating = createNpcSeating({ body, legs, legRigs });
   const motion = createAvatarMotion({ body, head, arms, legs, armRigs, legRigs, glow, seed: id.length * 13 });
-  let time = 0, lastAction = 'idle', disposed = false, seated = 0, engagement = 0, gazeYaw = 0, expression = null;
+  let time = 0, lastAction = 'idle', disposed = false, seated = 0, lastSeat = null, engagement = 0, gazeYaw = 0, expression = null;
   function update(dt, state = {}) {
     if (disposed) return;
+    const firstFrame = time === 0;
     dt = Math.max(0, Math.min(.1, Number(dt) || 0)); time += dt;
     const action = state.action ?? 'idle', requestedSpeed = state.speed ?? state.moveSpeed ?? 0, speed = Number.isFinite(requestedSpeed) ? Math.max(0, requestedSpeed) : 0;
     if (action !== lastAction) {
@@ -208,13 +210,16 @@ export function createNpc({ id = 'hagrid', scale = 1 } = {}) {
     }
     motion.animate(dt, { moving: speed > .01, speed: speed / design.scale, grounded: true, combat: id === 'quirrell', downed: action === 'downed' || action === 'dead' });
     proportions?.animate();
-    seated = THREE.MathUtils.damp(seated, action === 'sit' ? 1 : 0, 9, dt);
+    seated = firstFrame && action === 'sit' && state.seat ? 1 : THREE.MathUtils.damp(seated, action === 'sit' ? 1 : 0, 9, dt);
+    if (action === 'sit') lastSeat = state.seat ?? null;
+    if (seated < .001) lastSeat = null;
+    const seatApplied = seating.apply(seated, lastSeat);
     if (seated > .001) {
-      if (proportions) proportions.sit(seated);
-      else body.position.y -= .23 * seated;
+      if (!seatApplied && proportions) proportions.sit(seated);
+      else if (!seatApplied) body.position.y -= .23 * seated;
       // Actors face -Z: positive hip flexion brings knees forward, and the
       // counter-rotated knee leaves shins vertical with feet near the boat deck.
-      if (!proportions) for (let i = 0; i < legs.length; i++) { legs[i].rotation.x += 1.25 * seated; legRigs[i].bend.rotation.x -= 1.25 * seated; }
+      if (!seatApplied && !proportions) for (let i = 0; i < legs.length; i++) { legs[i].rotation.x += 1.25 * seated; legRigs[i].bend.rotation.x -= 1.25 * seated; }
       arms[0].rotation.x += .18 * seated; arms[1].rotation.x += .18 * seated;
       head.rotation.x += Math.sin(time * 1.3) * .012 * seated;
     }
@@ -244,7 +249,7 @@ export function createNpc({ id = 'hagrid', scale = 1 } = {}) {
     for (const rig of [...armRigs, ...legRigs]) rig.dispose(); kit.dispose(); root.clear();
   }
   root.userData.visualKind = id; root.userData.explicitGenericFallback = !designs[id]; root.userData.visualTier = 'authored_supporting_actor_v2';
-  return { root, name: design.name, update, animate: update, dispose, react: () => motion.playAction('hit'), debugSnapshot: () => ({ face: face.profile, proportions: proportions?.measurements ?? null, expression: expression ? { ...expression } : null, seated, engagement, action: lastAction }), getCastOriginWorld: (out = new THREE.Vector3()) => { root.updateMatrixWorld(true); return glow.getWorldPosition(out); } };
+  return { root, name: design.name, update, animate: update, dispose, react: () => motion.playAction('hit'), debugSnapshot: () => ({ face: face.profile, proportions: proportions?.measurements ?? null, seating: seating.snapshot(), expression: expression ? { ...expression } : null, seated, engagement, action: lastAction }), getCastOriginWorld: (out = new THREE.Vector3()) => { root.updateMatrixWorld(true); return glow.getWorldPosition(out); } };
 }
 export async function loadNpc(options) { return createNpc(typeof options === 'string' ? { id: options } : options); }
 

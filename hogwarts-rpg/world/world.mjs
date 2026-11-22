@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { sagaLayout, buildSagaMap } from './saga-world.mjs';
+import { TRAIN_LAYOUT, TRAIN_FURNITURE_PARTS, getTrainNavigation } from '../chapter-one/train-layout.mjs';
 
 const TAU = Math.PI * 2;
 const V = (x,y,z) => new THREE.Vector3(x,y,z);
@@ -9,7 +11,7 @@ const wood = '#70482e', oak = '#926444', lamp = '#ffe4a3';
 const maps = {
   'kings-cross': {spawn:[0,7.5],bounds:[-7.8,7.8,-10,10],npc:[-.9,2.9],inspect:[3.9,-2.4],exit:[0,-9.4],target:[-2.8,-5.7]},
   platform: {spawn:[.1,7.8],bounds:[-3.1,5.2,-12,10],npc:[-.7,3],inspect:[2.7,-2.3],exit:[-2.7,-8.6],target:[.7,-5.4]},
-  express: {spawn:[0,6.7],bounds:[-1.25,1.25,-9.1,8.2],npc:[-.3,2.6],inspect:[.85,-2.3],exit:[0,-8.6],target:[-.8,-5.1]},
+  express: {spawn:TRAIN_LAYOUT.spawn,bounds:TRAIN_LAYOUT.bounds,npc:[-.3,2.6],inspect:[.85,-2.3],exit:[0,-8.6],target:[-.8,-5.1]},
   lake: {spawn:[0,6.7],bounds:[-3.05,3.05,-12.2,8.8],npc:[-.6,2.4],inspect:[1.7,-8.65],exit:[0,-11.4],target:[-2.7,-3.45]},
   sorting: {spawn:[0,7.6],bounds:[-7,7,-10,9.3],npc:[-.7,2.9],inspect:[2.2,-2.8],exit:[0,-9],target:[-1.4,-5.7]},
   charms: {spawn:[0,6.6],bounds:[-6.3,6.3,-8.3,8.4],npc:[-.65,2.1],inspect:[1.75,-1.7],exit:[0,-7.8],target:[-.9,-4.2]},
@@ -420,8 +422,9 @@ function platform(w) {
   for(let i=0;i<3;i++)w.box(-3.6-i*.21,.05+i*.1,-8.6,.25,.12,.85,brass);
 }
 function coach(w){
-  w.box(0,-.13,0,6.3,.23,28,wood);
-  w.box(0,.01,0,2.6,.025,27,'#9a5542');
+  w.walls.push(...getTrainNavigation().walls);
+  w.box(0,-.115,0,6.3,.23,28,wood);
+  w.box(0,.001,0,2.6,.002,27,'#9a5542');
   for(const dx of [-1.27,1.27])w.box(dx,.03,0,.045,.018,27,'#cfad79');
   const foliage=['#8c9b77','#a7ac84','#71866a'];
   for(const side of [-1,1]){
@@ -429,13 +432,10 @@ function coach(w){
     w.box(x,.57,0,.14,1.15,28,'#8a553d');
     w.box(x,3.25,0,.18,.52,28,'#73452e');
     w.box(x,1.16,0,.24,.14,28,'#c39461');
-    for(let z=-12.6;z<13;z+=3.25){
+    for(const z of TRAIN_LAYOUT.bayOrigins){
       w.box(x,2.18,z,.18,2.2,.25,'#785138');
       w.box(x,2.74,z+1.52,.13,.06,3.03,brass);
       w.box(x,1.59,z+1.52,.19,.12,3.03,'#b99160');
-      w.box(side*2.03,.67,z+.58,1.48,.48,1.08,'#843e37');
-      w.box(side*2.03,1.03,z+.08,1.48,.84,.18,'#96473d',-.08);
-      w.box(side*2.03,.4,z+.58,1.33,.3,.89,wood);
       w.box(side*2.03,2.65,z+.55,1.4,.075,1.08,brass);
       for(const dz of [.08,.38,.71,1.0])w.box(side*2.03,2.77,z+dz,1.36,.038,.036,brass);
     }
@@ -446,6 +446,11 @@ function coach(w){
       h.scale.set(3.5+i%3,2.8+(i%4)*.75,4.2);w.layers.add(h);
       const initial=h.position.z;w.ticks.push(t=>{h.position.z=-32+((initial+32+t*(i%3*.3+1.2))%68);});
     }
+  }
+  const palette={upholstery:'#824d45','upholstery-back':'#785048',wood,leather:'#80634a'};
+  for(const part of TRAIN_FURNITURE_PARTS){
+    const color=palette[part.material],shape=part.rounding?w.geo(`train-rounded:${part.w}:${part.h}:${part.d}:${part.rounding}`,()=>new RoundedBoxGeometry(part.w,part.h,part.d,2,part.rounding)):null;
+    if(shape)w.place(shape,color,part.x,part.y,part.z,1,1,1);else w.box(part.x,part.y,part.z,part.w,part.h,part.d,color);
   }
   for(const z of [-10.2,10.9]){
     for(const x of [-2.1,2.1])w.box(x,1.65,z,2,3.3,.19,wood);

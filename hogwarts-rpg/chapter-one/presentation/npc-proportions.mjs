@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { solveSeatedContact } from './seating.mjs';
 
 // Retarget the independently authored NPCs before the final wardrobe bake.
 // Feet and hands retain their shape: added length belongs to the two long bones,
@@ -93,4 +94,73 @@ export function fitNpcProportions({ id, root, body, head, arms, legs, armRigs, l
     }
   }
   return { measurements, animate, sit };
+}
+
+// Measure the already-fitted rig and its actual boot/thigh vertices. Neither
+// actor identity nor an authored root-height correction determines seat contact.
+export function createNpcSeating({ body, legs, legRigs }) {
+  const leg = legs[0], rig = legRigs[0], sy = body.scale.y, sz = body.scale.z;
+  const thigh = -rig.bend.position.y, shin = -rig.tip.position.y;
+  let soleY = Infinity, thighBack = 0, calfBack = 0;
+  for (const mesh of leg.children) {
+    if (!mesh.isSkinnedMesh) continue;
+    const vertices = mesh.geometry.attributes.position;
+    for (let i = 0; i < vertices.count; i++) {
+      const y = vertices.getY(i), z = vertices.getZ(i);
+      soleY = Math.min(soleY, y);
+      if (y > -thigh * .66) thighBack = Math.max(thighBack, z);
+      if (y < -thigh * .85) calfBack = Math.max(calfBack, z);
+    }
+  }
+  const restBody = { y: body.position.y, z: body.position.z };
+  const metrics = Object.freeze({
+    thighLength: thigh * sy, shinLength: shin * sy,
+    soleBelowAnkle: (-thigh - shin - soleY) * sy,
+    thighRadius: thighBack * sy, calfRadius: calfBack * sz,
+    restHip: Object.freeze({ y: restBody.y + leg.position.y * sy, z: restBody.z + leg.position.z * sz }),
+    pelvisBack: thighBack * sz, forwardScale: sz / sy,
+  });
+  // The coat is not part of the leg skeleton. Give its lower panels a reversible
+  // lap fold, including trim/buttons, instead of letting a standing skirt pass
+  // vertically through the cushion. The rest geometry remains byte-identical.
+  const garments = [], hipY = leg.position.y, hipZ = leg.position.z;
+  for (const mesh of body.children) {
+    if (!mesh.isMesh || mesh.isSkinnedMesh || mesh.isInstancedMesh) continue;
+    const source = mesh.geometry.attributes.position, folded = source.clone();
+    let changed = false;
+    for (let i = 0; i < source.count; i++) {
+      const y = source.getY(i), z = source.getZ(i), blend = THREE.MathUtils.smoothstep(hipY + .16 - y, 0, .16);
+      if (!blend) continue;
+      const lapY = Math.max(hipY - (z - hipZ), hipY - thighBack + .012);
+      const lapZ = hipZ + Math.min(0, y - hipY);
+      folded.setY(i, THREE.MathUtils.lerp(y, lapY, blend));
+      folded.setZ(i, THREE.MathUtils.lerp(z, lapZ, blend)); changed = true;
+    }
+    if (!changed) continue;
+    const normalGeometry = mesh.geometry.clone(); normalGeometry.setAttribute('position', folded); normalGeometry.computeVertexNormals();
+    mesh.geometry.morphAttributes.position = [folded];
+    mesh.geometry.morphAttributes.normal = [normalGeometry.attributes.normal.clone()];
+    mesh.geometry.morphTargetsRelative = false; normalGeometry.dispose();
+    mesh.updateMorphTargets(); mesh.morphTargetInfluences[0] = 0;
+    mesh.userData.seatedWardrobe = true; garments.push(mesh);
+  }
+  let solution = null;
+  function apply(amount, seat) {
+    solution = solveSeatedContact(metrics, seat);
+    const weight = solution ? amount : 0;
+    for (const mesh of garments) mesh.morphTargetInfluences[0] = weight;
+    if (!solution) return false;
+    body.position.y = THREE.MathUtils.lerp(body.position.y, restBody.y + solution.bodyOffset.y, amount);
+    body.position.z = THREE.MathUtils.lerp(body.position.z, restBody.z + solution.bodyOffset.z, amount);
+    body.position.x *= 1 - amount;
+    body.rotation.x *= 1 - amount; body.rotation.y *= 1 - amount; body.rotation.z *= 1 - amount;
+    for (let i = 0; i < legs.length; i++) {
+      legs[i].rotation.x = THREE.MathUtils.lerp(legs[i].rotation.x, solution.hipAngle, amount);
+      legs[i].rotation.y *= 1 - amount; legs[i].rotation.z *= 1 - amount;
+      legRigs[i].bend.rotation.x = THREE.MathUtils.lerp(legRigs[i].bend.rotation.x, solution.kneeAngle, amount);
+      legRigs[i].tip.rotation.x = THREE.MathUtils.lerp(legRigs[i].tip.rotation.x, solution.ankleAngle, amount);
+    }
+    return true;
+  }
+  return { apply, metrics, snapshot: () => solution && { ...solution, metrics, garmentCount: garments.length } };
 }

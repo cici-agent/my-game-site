@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { refineLearningSpaces } from './scene-finishing.mjs';
+import { TRAIN_LAYOUT, TRAIN_SEATS } from '../train-layout.mjs';
 
 // Physical scale is in metres. These details sit outside the existing navigation
 // footprint; they never silently introduce a new obstacle into authored quests.
@@ -24,6 +25,9 @@ function arch(a, x, y, z, rx, ry, stone, iron) {
 function tiledFloor(a, width, depth, centerZ, palette) {
   const sizeX = 1.18, sizeZ = .88, cols = Math.floor(width / sizeX), rows = Math.floor(depth / sizeZ);
   const mats = palette.map(c => surface(a, 'floor', c, [.59, .44]));
+  // The separated flagstones sit on mortar. Their narrow joints must not open
+  // into empty space when the old painted floor is replaced.
+  a.box(width, .035, depth, a.material(0x787365), 0, -.0325, centerZ, .002).castShadow = false;
   for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) {
     const x = (col - (cols - 1) / 2) * sizeX, z = centerZ + (row - (rows - 1) / 2) * sizeZ;
     // A shallow rounded edge catches grazing light without lifting the walking
@@ -55,23 +59,23 @@ function markLegacySurfaces(group, sceneId, hideFloor) {
 
 function refineCoach(a, group) {
   group.traverse(object => {
-    if (object.isInstancedMesh && ['843e37', '96473d'].includes(object.material?.color?.getHexString())) object.visible = false;
+    if (object.isInstancedMesh && ['824d45', '785048'].includes(object.material?.color?.getHexString())) object.userData.environmentSurface={kind:'cloth',repeat:[1,1],keepTint:true};
   });
-  const upholstery = a.surface('cloth', '#824d45'), seam = a.material(0xbaa18a), bronze = a.material(0xbda16c, .58);
+  const seam = a.material(0xbaa18a), bronze = a.material(0xbda16c, .58);
   const wood = surface(a, 'wood', 0x9a7454, [.5, 1.2]);
   const glass = a.material(0xb3c8bc); glass.transparent = true; glass.opacity = .11; glass.depthWrite = false; glass.roughness = .18;
-  for (const side of [-1, 1]) for (let z = -12.6; z < 13; z += 3.25) {
+  // Upholstery and structural solids are already built from TRAIN_SEATS.parts.
+  // These shallow stitches and fixings do not add another displaced seat layer.
+  for(const chair of TRAIN_SEATS){
+    const {x,z}=chair.position,top=chair.seat.surfaceY,front=z-chair.seat.frontZ,back=z-chair.seat.backZ;
+    for(const dx of[-.65,.65])a.box(.012,.58,.012,seam,x+dx,.90,back+.006,.004);
+    for(const y of[.57,1.15])a.box(1.30,.012,.012,seam,x,y,back+.006,.004);
+    a.box(1.30,.010,.012,seam,x,top-.015,front+.003,.004);
+    for(const dx of[-.40,0,.40])for(const yy of[.79,1.02])a.sphere(.015,seam,x+dx,yy,back+.009);
+    for(const dx of[-.685,.685])a.box(.055,.18,.065,bronze,x+dx,.60,z+.25,.012);
+  }
+  for (const side of [-1, 1]) for (const z of TRAIN_LAYOUT.bayOrigins) {
     const x = side * 2.03;
-    a.box(1.47, .33, 1.06, upholstery, x, .705, z + .58, .11);
-    const back = a.box(1.47, .88, .235, upholstery, x, 1.06, z + .07, .095); back.rotation.x = -.08;
-    for (const dx of [-.68, .68]) {
-      a.box(.017, .63, .025, seam, x + dx, 1.09, z + .20, .007);
-      a.box(.12, .11, .88, wood, x + dx, .98, z + .55, .045);
-      a.box(.085, .20, .10, bronze, x + dx, .84, z + .83, .018);
-    }
-    for (const yy of [.72, 1.43]) a.box(1.32, .014, .020, seam, x, yy, z + .20, .007);
-    a.box(1.30, .016, .020, seam, x, .82, z + 1.09, .007);
-    for (const dx of [-.42, 0, .42]) for (const yy of [1.0, 1.27]) a.sphere(.020, seam, x + dx, yy, z + .198);
     for (const yy of [.22, .95]) a.box(.055, .055, 2.91, wood, side * 2.956, yy, z + 1.52, .010);
     for (const dz of [.20, 1.13, 2.06, 2.95]) a.box(.055, .73, .045, wood, side * 2.956, .59, z + dz, .009);
     const pane = a.box(.016, 1.04, 2.94, glass, side * 3.025, 2.16, z + 1.52, .003); pane.castShadow = false;

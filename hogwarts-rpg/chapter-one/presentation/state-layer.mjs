@@ -57,11 +57,11 @@ export function attachCharacterStatePresentation(actor) {
       if ((flying && !desired.flying) || (downed && !desired.downed)) actor.resetJumpPresentation?.();
       desired = { flying: Boolean(flying) && !downed, downed: Boolean(downed), floorY };
     },
-    updateTravel(dt, distance = 0, grounded = true, verticalVelocity = 0, seated = false) {
+    updateTravel(dt, distance = 0, grounded = true, verticalVelocity = 0, seated = false, seat = null) {
       if (disposed) throw new Error('PRESENTATION_DISPOSED');
       restore();
       const stateOnly = desired.flying || desired.downed;
-      const value = actor.updateTravel(dt, stateOnly ? 0 : distance, stateOnly ? true : grounded, stateOnly ? 0 : verticalVelocity, stateOnly ? false : seated);
+      const value = actor.updateTravel(dt, stateOnly ? 0 : distance, stateOnly ? true : grounded, stateOnly ? 0 : verticalVelocity, stateOnly ? false : seated, stateOnly ? null : seat);
       if (!enabled) { resetVisual(); return value; }
       ride = MathUtils.damp(ride, desired.flying ? 1 : 0, 10, dt);
       down = MathUtils.damp(down, desired.downed ? 1 : 0, desired.downed ? 8 : 5, dt);

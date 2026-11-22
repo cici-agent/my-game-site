@@ -4,7 +4,7 @@ import { occupiedBagSlots } from '../rules/bag.mjs';
 import { getFlightPermission } from '../rules/flight.mjs';
 import { isSelectableHero } from '../roster.mjs';
 import { buildJournal } from '../quests/journal.mjs';
-import { runtimeQuests,questById,activeQuestAreaId,sampleEscortMotion,getSceneView,commissionUnlocked,SPAWN,ESCORT_START,escortStartForQuest,BOUNDS,SERVICE_POSITION,TRAINING_POSITION,availableServices,dangerQuestIds,isSafeExploration } from './catalog.mjs';
+import { runtimeQuests,questById,activeQuestAreaId,sampleEscortMotion,getSceneView,resolveStoryObjective,commissionUnlocked,SPAWN,ESCORT_START,escortStartForQuest,BOUNDS,SERVICE_POSITION,TRAINING_POSITION,availableServices,dangerQuestIds,isSafeExploration } from './catalog.mjs';
 import { readAccount,readRoom,readReceipt,commit } from './storage.mjs';
 import { getSceneNavigation } from '../client/scene-navigation.mjs';
 import { standingFloor } from '../client/scene-geometry.mjs';
@@ -129,7 +129,7 @@ function completeObjective(c,now){
 function beginEscort(c,t,startedAt){
  c.escort={targetId:t.id,origin:{...(c.escortOrigin??escortStartForQuest(questId(c)))},startedAt,progress:0,lastTick:startedAt};c.autoEscortTargetId=null;
 }
-function project(c,now){
+function project(c,now,occupiedHeroIds=[]){
  const result=clone(c);delete result.soloEncounter;delete result.questReceipts;delete result.lastMoveAt;delete result.moveSequence;delete result.xpLedger;
  result.lastAcceptedMoveSequence=c.moveSequence;
  result.areaId=resolveAreaId(c);result.sceneId=currentArea(c).sceneId;result.locationEpoch=locationEpoch(c);
@@ -140,7 +140,7 @@ function project(c,now){
  result.mainQuestStates=Object.fromEntries(contentData.quests.map(q=>[q.id,{serverState:c.completedQuestIds.includes(q.id)?'completed':q.id===c.currentQuestId?'active':'locked',confirmedObjectives:q.id===c.currentQuestId?questById.get(q.id).objectives.slice(0,c.objectiveIndex).map(o=>o.id):[]}]));
  result.commissionEntryStates=Object.fromEntries(contentData.commissionCycles.map(x=>[x.cycleId,{available:commissionUnlocked(c,x.cycleId)}]));
  result.journal=buildJournal({mainQuests:contentData.quests,sideQuests:contentData.sideQuests,commissions:contentData.journalCommissionIndex,character:result});
- result.scene=getSceneView(c,now);result.transit=result.scene.transit;return result;
+ result.scene=getSceneView(c,now,occupiedHeroIds);result.transit=result.scene.transit;return result;
 }
 // World-layout revisions add area identities while preserving every numeric
 // progression, reward and enemy combat value from the published v13 saves.
@@ -175,12 +175,17 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
   if(room)for(const member of room.state.members)if(!accounts.some(a=>a.id===member.accountId))accounts.push(await readAccount(db,member.accountId,now));
   return {account,c,room,accounts};
  }
- function resultOf(ctx,now){return {character:project(ctx.c,now),room:roomPublic(ctx.room,ctx.accounts,now,ctx.c),encounter:activeEncounter(ctx.c,ctx.room)?getEncounterView(activeEncounter(ctx.c,ctx.room),ctx.c.id):null,scene:getSceneView(ctx.c,now),revision:ctx.c.revision,serverTime:now};}
- function movementBodies(ctx,now){
+ function activeAreaPeers(ctx,now){
   const {c,room,accounts}=ctx,areaId=resolveAreaId(c);
+  return (room?.state.members??[]).map(member=>accounts.find(a=>a.id===member.accountId)?.state.characters.find(p=>p.id===member.characterId)).filter(p=>p&&p.id!==c.id&&resolveAreaId(p)===areaId&&now-(p.lastSeenAt??0)<30000&&activeEncounter(p,room)?.status!=='active'&&!(p.escort&&activeObjective(p)?.kind==='boat'));
+ }
+ function occupiedHeroes(ctx,now){return [ctx.c.heroId,...activeAreaPeers(ctx,now).map(p=>p.heroId)];}
+ function resultOf(ctx,now){const character=project(ctx.c,now,occupiedHeroes(ctx,now));return {character,room:roomPublic(ctx.room,ctx.accounts,now,ctx.c),encounter:activeEncounter(ctx.c,ctx.room)?getEncounterView(activeEncounter(ctx.c,ctx.room),ctx.c.id):null,scene:character.scene,revision:ctx.c.revision,serverTime:now};}
+ function movementBodies(ctx,now){
+  const {c}=ctx;
   if(c.escort&&activeObjective(c)?.kind==='boat')return [];
-  const peers=(room?.state.members??[]).map(member=>accounts.find(a=>a.id===member.accountId)?.state.characters.find(p=>p.id===member.characterId)).filter(p=>p&&p.id!==c.id&&resolveAreaId(p)===areaId&&now-(p.lastSeenAt??0)<30000&&activeEncounter(p,room)?.status!=='active'&&!(p.escort&&activeObjective(p)?.kind==='boat'));
-  const npcs=scenePeople(getSceneView(c,now),null,[c.heroId,...peers.map(p=>p.heroId)]).filter(n=>!n.seated||n.kind!=='boat').filter(n=>n.kind!=='boat').map(personBody);
+  const peers=activeAreaPeers(ctx,now),heroes=[c.heroId,...peers.map(p=>p.heroId)];
+  const npcs=scenePeople(getSceneView(c,now,heroes),null,heroes).filter(n=>n.kind!=='boat').map(personBody);
   return [...npcs,...peers.map(p=>personBody({id:p.id,appearanceId:p.heroId,position:p.position,downed:p.hp<=0}))];
  }
  async function mutate(db,accountId,id,body,now,{sync=false}={}){
@@ -372,7 +377,7 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
    safe(c,room);
    const completedTarget=runtimeQuests.find(q=>q.objectives.some(t=>t.id===b.targetId));
    if(completedTarget&&(c.completedQuestIds.includes(completedTarget.id)||completedTarget.id===questId(c)&&completedTarget.objectives.findIndex(t=>t.id===b.targetId)<objectiveIndex(c)))return;
-   requireStoryScene(c);const t=activeObjective(c);
+   requireStoryScene(c);const t=resolveStoryObjective(c,activeObjective(c),occupiedHeroes(ctx,now));
    if(c.dungeonRoom&&c.dungeonRoom.roomId===questId(c)){
     if(c.dungeonRoom.roomId==='M30'&&b.targetId==='gate'&&(c.flying||c.position.y>.12))fail('LANDING_REQUIRED','请先降落并收起扫帚，再用钥匙开门。',409);
     const applied=applyRoomIntent(c.dungeonRoom,{playerId:c.id,actionId:b.requestId,targetId:b.targetId,player:{id:c.id,position:c.position,skills:c.skills,hp:c.hp},now});

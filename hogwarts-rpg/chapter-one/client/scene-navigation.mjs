@@ -1,3 +1,4 @@
+import { getTrainNavigation } from '../train-layout.mjs';
 // Shared collision layout exported from the rendered first-chapter environments.
 // Tests compare every rendered wall with this table; changes must update both.
 function freeze(value) { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; }
@@ -204,15 +205,7 @@ const layouts = freeze({
       }
     ]
   },
-  "SC02": {
-    "bounds": [
-      -1.25,
-      1.25,
-      -9.1,
-      8.2
-    ],
-    "walls": []
-  },
+  "SC02": getTrainNavigation(),
   "SC03": {
     "bounds": [
       -10,
