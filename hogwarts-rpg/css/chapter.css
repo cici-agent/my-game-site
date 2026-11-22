@@ -1,0 +1,25 @@
+#chapter-panel{width:min(510px,calc(100vw - 28px));border:1px solid #a58b58;border-radius:7px;background:#faf6ea;padding:23px;color:#253c32}
+#chapter-panel::backdrop{background:#08170fbb;backdrop-filter:blur(3px)}
+
+#chapter-panel h3{margin:4px 0;font:700 18px/1.35 var(--serif)}#chapter-panel p{font-size:14px;line-height:1.55}
+#chapter-panel .actionrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}#chapter-panel .primary,#chapter-panel .quiet{min-height:38px}
+.ch-links{display:flex;gap:17px;align-items:center;flex-wrap:wrap;margin-top:12px}.ch-link{background:none;border:0;padding:2px 0;text-decoration:underline;text-underline-offset:3px;font-size:12px;color:#395849}.ch-error{color:#873b27;line-height:1.5;font-size:13px}.ch-error:empty{display:none}
+
+#combat-hud{position:absolute;top:73px;left:50%;transform:translateX(-50%);width:min(420px,43vw);padding:9px 14px;background:#132620eb;border:1px solid #af91574d;border-radius:5px;pointer-events:none;color:#fff5df;text-align:center}
+#combat-title{font:700 17px/1.25 var(--serif)}#combat-readout{font-size:12px;color:#f5dfa9;margin-top:4px}
+.ch-track{height:5px;background:#ffffff25;overflow:hidden;border-radius:8px;margin:5px 0}.ch-track i{display:block;height:100%;background:#c58368;transition:width .2s}.ch-track.focus i{background:#81b5cb}
+#chapter-stats{position:absolute;pointer-events:none;left:22px;top:85px;background:#142920ce;padding:6px 10px;border-radius:4px;color:#ffe9bc;font-size:12px}
+#spellbar{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:4px;align-items:flex-end;max-width:98vw}#spellbar button{padding:6px 9px;border-radius:4px;color:#f9ead1;background:#19352ce8;border:1px solid #ba9b6588;font-size:12px;min-height:38px}#spellbar button:disabled{opacity:.53}#spellbar kbd{display:block;font:9px system-ui;color:#dab873}body.in-encounter .pc-help{display:none}.ch-member{display:block;font-size:11px;color:#d7dfd1}.ch-actions{display:grid;gap:8px;margin-top:14px}.code-value{font-family:ui-monospace,monospace;font-size:21px;letter-spacing:.13em;font-weight:bold}.ch-invite{padding:9px 12px;background:#e7eddf;border-radius:4px;overflow-wrap:anywhere}
+@media(max-width:740px),(pointer:coarse){#chapter-stats{left:10px;top:auto;bottom:123px;font-size:10px}#combat-hud{width:calc(100% - 22px);top:66px;font-size:12px}body.in-encounter .objective,body.in-encounter #radar-wrap{display:none}#spellbar{bottom:145px;max-width:calc(100% - 12px);gap:3px}#spellbar button{font-size:10px;padding:5px 6px;min-height:36px;min-width:36px}#spellbar kbd{display:none}#combat-title{font-size:14px}}
+.talent-choice{display:block;width:100%;text-align:left;margin:7px 0}.talent-choice small{display:block;font-weight:400;line-height:1.5;margin-top:3px}.talent-choice[aria-pressed=true]{outline:2px solid #527a60}
+
+#notice{pointer-events:none;bottom:80px}
+@media(min-width:741px) and (pointer:fine){#combat-hud{left:22px;top:123px;width:min(268px,30vw);transform:none;text-align:left}body.in-encounter #radar-wrap{display:none}}
+@media(max-width:740px),(pointer:coarse){.hud-top nav button{white-space:nowrap}.location{min-width:0}.location h1{max-width:41vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.location .crest{flex:none}#notice{bottom:214px;font-size:12px;width:max-content;max-width:85vw}.ch-member{font-size:10px}#combat-hud{top:57px}body.in-encounter .touch-actions #action{font-size:12px}}
+
+body.in-opening #game > :not(#world):not(#opening-hud){visibility:hidden}
+#opening-hud{position:absolute;inset:0;z-index:8;pointer-events:none;color:#fff5de;background:linear-gradient(0deg,#0d151c99,transparent 24%);box-shadow:inset 0 3vh #101817,inset 0 -3vh #101817}
+#opening-caption{position:absolute;bottom:9%;left:12%;right:12%;margin:0;text-align:center;font:500 clamp(16px,2.1vw,26px)/1.55 var(--serif);text-shadow:0 2px 5px #030b10}
+#opening-skip{position:absolute;bottom:4%;right:4%;pointer-events:auto;background:#132421b8;color:#f9e9c9;border:1px solid #d6c08e80;padding:7px 16px;border-radius:3px}
+.clears{list-style:none;margin:.6rem 0;padding:0}.clears li{display:flex;justify-content:space-between;gap:1em;border-bottom:1px solid #c3baa846;padding:5px 0;font-size:13px}.clears li span{color:#536a59}
+@media(max-width:470px),(pointer:coarse) and (max-width:690px){#spellbar{display:grid;grid-template-columns:repeat(4,1fr);width:min(90vw,320px);bottom:142px}#spellbar button{min-height:31px}body.in-encounter #notice{bottom:218px}}

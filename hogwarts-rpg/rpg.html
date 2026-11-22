@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#18251f"><title>霍格沃茨 · 七册同行</title>
+<link rel="stylesheet" href="/css/rpg.css"><link rel="stylesheet" href="/css/world.css">
+<link rel="stylesheet" href="/css/chapter.css"><link rel="stylesheet" href="/css/cast.css">
+<link rel="stylesheet" href="/css/wardrobe.css">
+</head><body>
+<main id="game" aria-label="霍格沃茨第三人称冒险">
+<canvas id="world" tabindex="0" aria-label="3D 游戏世界，方向键或 WASD 移动，拖动环视，空格跳跃，E 互动，F 挥杖"></canvas>
+<div class="vignette"></div>
+<header class="hud-top"><div class="location"><span class="crest" aria-hidden="true">✦</span><div><p id="chapter">第一卷 · 魔法石</p><h1 id="place">国王十字车站</h1></div></div>
+<nav aria-label="游戏菜单"><a href="/lab.html" style="color:#eed6a0;text-decoration:none;padding:10px">属性试炼场</a><button type="button" id="team">好友队伍</button><button type="button" id="open-book">角色与背包</button></nav></header>
+<div id="compass" aria-hidden="true"><span>W</span><i></i><b id="bearing">N</b><i></i><span>E</span></div>
+<aside class="objective" aria-label="当前任务"><small id="quest-type">当前任务</small><h2 id="objective"></h2><p id="guidance"></p><span id="save-status" role="status"></span></aside>
+<aside id="radar-wrap" aria-label="附近目标"><canvas id="radar" width="190" height="190" aria-label="金色目标、蓝色队友和自己的位置"></canvas><span id="range"></span></aside>
+<div id="speech" class="speech" role="status" hidden><b id="speaker"></b><span id="spoken"></span></div>
+<div id="callout" hidden></div><div id="transition" aria-hidden="true"></div>
+<div class="pc-help"><kbd>W A S D</kbd> 移动　<kbd>Shift</kbd> 奔跑　<kbd>空格</kbd> 跳　<kbd>E</kbd> 互动　<span><kbd>F</kbd> 施法　单击点射　拖动环视</span></div>
+<div id="joystick" aria-label="移动摇杆"><i></i></div>
+<div class="touch-actions"><button id="jump" type="button" aria-label="跳跃">跳跃</button><button id="action" type="button" aria-label="互动或施法">互动</button></div>
+<div id="chapter-stats" hidden></div>
+<section id="combat-hud" aria-label="副本战况" hidden><div id="combat-title"></div><div class="ch-track"><i id="enemy-hp"></i></div><div id="combat-readout"></div><div id="combat-team" class="ch-member"></div></section>
+<div id="spellbar" aria-label="战斗动作" hidden></div>
+<div id="opening-hud" hidden><p id="opening-caption" role="status"></p><button type="button" id="opening-skip">跳过序章</button></div>
+<div id="loading3d" role="status"><span>✦</span><p>正在进入魔法世界…</p></div>
+</main>
+<dialog id="cast-screen" aria-labelledby="cast-context">
+  <div class="cast-shade" aria-hidden="true"></div>
+  <header class="cast-header">
+    <div class="cast-brand"><span class="cast-crest" aria-hidden="true">✦</span><div><small>霍格沃茨 · 七册同行</small><h2 id="cast-context" tabindex="-1">选择角色</h2></div></div>
+    <div class="cast-tools"><button type="button" id="cast-wardrobe">试衣间</button><button type="button" id="cast-back" hidden>返回游戏</button></div>
+  </header>
+  <aside class="cast-roster" aria-labelledby="cast-roster-title">
+    <h3 id="cast-roster-title">出场学生</h3>
+    <div id="cast-roster-list" role="group" aria-labelledby="cast-roster-title"></div>
+  </aside>
+  <div id="cast-surface" tabindex="0" role="group" aria-label="三维角色预览。拖动或按 Q、E 旋转，左右方向键切换角色，回车进入冒险。">
+    <div class="cast-fallback" hidden><img id="cast-fallback-portrait" alt=""><p>此设备无法显示 3D 角色，请开启浏览器图形加速后刷新。</p></div>
+  </div>
+  <div class="cast-location"><small>国王十字车站</small><strong>九又四分之三站台</strong></div>
+  <div class="cast-inspect-tools" role="group" aria-label="模型视角">
+    <span class="cast-drag-hint">拖动旋转 · 360°</span>
+    <button type="button" id="cast-zoom-out" title="拉远" aria-label="拉远模型">−</button>
+    <button type="button" id="cast-zoom-in" title="拉近" aria-label="拉近模型">＋</button>
+    <button type="button" id="cast-reset" title="恢复正面全身视角">复位</button>
+  </div>
+  <section class="cast-copy" aria-labelledby="cast-name-title">
+    <span id="cast-role"></span>
+    <h3 id="cast-name-title" aria-live="polite"></h3>
+    <p id="cast-description"></p>
+    <h4>基础属性</h4>
+    <div class="cast-stats">
+      <div class="cast-stat"><span>生命</span><b id="cast-hp"></b><i aria-hidden="true"><em id="cast-hp-fill"></em></i></div>
+      <div class="cast-stat"><span>专注</span><b id="cast-focus"></b><i aria-hidden="true"><em id="cast-focus-fill"></em></i></div>
+    </div>
+    <h4>角色强项</h4>
+    <div class="cast-abilities">
+      <article class="cast-ability"><span class="cast-ability-kind">专招</span><strong id="cast-signature"></strong><p id="cast-active-description"></p></article>
+      <article class="cast-ability"><span class="cast-ability-kind">被动</span><strong id="cast-talent"></strong><p id="cast-passive-description"></p></article>
+    </div>
+  </section>
+  <footer class="cast-footer">
+    <div class="cast-account"><button id="cast-edit" type="button" aria-label="修改玩家昵称">昵称 · <span id="cast-player"></span> <span aria-hidden="true">✎</span></button><button type="button" id="cast-restore">恢复存档</button><a href="/lab.html">属性试炼场</a></div>
+    <button type="button" id="cast-start"><span id="cast-start-label">进入冒险</span></button>
+  </footer>
+  <div id="cast-name-edit" hidden><label for="cast-name">玩家昵称</label><input id="cast-name" maxlength="20" autocomplete="nickname"><button type="button" id="cast-name-done">完成</button></div>
+  <p id="cast-error" role="alert"></p>
+</dialog>
+<dialog id="chapter-panel" aria-label="冒险设置"></dialog>
+<div id="notice" role="status" aria-live="polite" hidden></div>
+<noscript>请启用 JavaScript 以进入 3D 游戏。</noscript>
+<script type="module" src="/play.mjs"></script>
+</body></html>

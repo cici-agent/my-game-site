@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>第一章 · 本地视觉验收</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#242e34;color:#e8e6dd;font:14px/1.55 system-ui,sans-serif}canvas{display:block;width:100vw;height:100vh}aside{position:fixed;inset:16px auto 16px 16px;width:286px;padding:20px;background:#172126ec;border:1px solid #b2a37b36;border-radius:12px;overflow:auto;backdrop-filter:blur(10px)}h1{font-size:20px;font-weight:600;margin:0 0 5px}p{color:#aab7b8;margin:0 0 18px;font-size:12px}label{display:block;color:#bcc9c7;margin:12px 0 5px;font-size:12px}select,button{font:inherit;color:inherit;background:#2e3d43;border:1px solid #63757773;border-radius:5px;padding:7px}select{width:100%}button{cursor:pointer}button:hover{background:#46585c}.row{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap}.row button{flex:1;white-space:nowrap;font-size:12px}input[type=range]{width:100%;accent-color:#d5bd7e}input[type=checkbox]{accent-color:#d5bd7e}hr{border:0;border-top:1px solid #65747855;margin:18px 0}#caption{position:fixed;left:325px;bottom:25px;pointer-events:none;text-shadow:0 2px 5px #000;font-size:18px}#details{font-size:11px;color:#a5b3b4;white-space:pre-line;margin-top:15px}.error{color:#ffc49b!important}.check{display:flex;gap:7px;align-items:center}#status{font-size:12px;color:#cfc19d}.collapsed{width:auto;bottom:auto;padding:10px}.collapsed .controls,.collapsed h1,.collapsed p{display:none}#toggle{font-size:11px;padding:3px 7px;float:right}@media(max-width:700px){aside{width:230px;padding:12px;left:8px;top:8px}#caption{left:255px;right:12px;font-size:14px}}
+</style>
+<canvas id="view"></canvas>
+<aside id="panel">
+ <button id="toggle">收起</button><h1>第一章 · 视觉验收</h1>
+ <p>仅本地观察工具，不读取或写入游戏存档。</p>
+ <div class="controls">
+  <label for="model">人物与生物（3 位工坊角色 / 10 位 NPC / 19 个生物条目）</label><select id="model"></select>
+  <label for="action">动作</label><select id="action"><option value="idle">待机与呼吸</option><option value="walk">走路</option><option value="run">跑动</option><option value="attack">施法 / 攻击循环</option><option value="hurt">受击循环</option><option value="flying">飞行 / 骑乘扫帚（工坊角色）</option><option value="downed">倒地</option><option value="revive">倒地 → 复起循环</option><option value="sit">坐下 / 乘船</option></select>
+  <div class="row"><button data-camera="front">正面</button><button data-camera="side">侧面</button><button data-camera="back">背面</button><button data-camera="face">面部</button></div>
+  <label class="check"><input id="turntable" type="checkbox">缓慢旋转</label>
+  <label class="check"><input id="pause" type="checkbox">暂停动作</label>
+  <label for="speed">动作速度 <span id="speed-label">1.0×</span></label><input id="speed" type="range" min="0.1" max="2" step="0.1" value="1">
+  <hr>
+  <label for="scene">场景（16 个地点）</label><select id="scene"></select>
+  <label for="quest">主线情节（36 个节点）</label><select id="quest"></select>
+  <div class="row"><button data-camera="spawn">入口视角</button><button data-camera="overview">场地全景</button><button data-camera="front">人物视角</button></div>
+  <label class="check"><input id="actor-visible" type="checkbox" checked>显示所选人物 / 生物</label>
+  <label class="check"><input id="targets" type="checkbox">显示主线目标位置</label>
+  <label for="exposure">曝光 <span id="exposure-label">1.12</span></label><input id="exposure" type="range" min="0.4" max="2" step="0.02" value="1.12">
+  <div id="details"></div><hr>
+  <p>拖动：旋转视角<br>右键拖动：平移 · 滚轮：缩放<br>方向键：平移观察中心 · 空格：暂停<br>复起循环：倒地 2.5 秒，再恢复 4.5 秒。<br>飞行使用实际工坊角色与骑乘状态层；部分情节生物只有基础动作。</p>
+  <div id="status" role="status">准备场景…</div>
+ </div>
+</aside>
+<div id="caption"></div>
+<script type="module" src="/__review.mjs"></script>
+</html>

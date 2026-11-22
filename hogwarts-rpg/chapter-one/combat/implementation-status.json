@@ -1,0 +1,11 @@
+{
+  "owner": "/root/runtime_combat",
+  "status": "pure_runtime_and_supporting_visuals_implemented_integration_in_progress",
+  "modules": ["combat/engine.mjs", "combat/geometry.mjs", "dungeons/stone-route.mjs", "presentation/creatures.mjs", "presentation/npcs.mjs"],
+  "authority": "Only server-owned snapshots, time, learned skills and equipment-derived stats enter the pure engine. Public action inputs never set damage, HP, progress, rewards or completion.",
+  "combat": ["Frozen normal/elite variants and exact 1–5 player boss HP", "Swept projectile and ray collision with walls before target ties", "GCD, focus reservation/release, channel cancellation, cooldowns and request replay", "Twelve authored skill IDs plus the two potion intents", "Boss HP70/35 gates, persistent solo mechanisms and zero-HP victory", "Shared enemy attack queue, per-party hazard slots and navigation around pillars", "Downed/rescue limits, four-tick herbs and effective contribution", "Full-health solo troll and Quirrell with real arena pillars and 200ms legal inputs"],
+  "dungeons": "Per-room M28–M34 state machines expose authored 3D targets, prerequisites, timed holds, movement interruption, mounted key capture, safe chess turns and bound boss victory. They emit receipt candidates only; the online transaction owns quest advancement and rewards.",
+  "supportingVisuals": ["Hagrid articulated figure, sculpted face, instanced beard/curls, fabric detail, fingers, boots, lantern and umbrella", "Molly, McGonagall, Flitwick, Snape, Dumbledore, Pomfrey and Sprout with separate silhouettes", "Firenze with four-legged centaur anatomy", "Troll expanded skin/face/material/club details preserving old locomotion rig", "Separate paper, crate, flying book, vine, root mass, key and Quirrell forms"],
+  "playtestLimits": "The scripted solo completions are ideal-input logic regressions, not human difficulty or rendered performance evidence. Supporting actors are new authored procedural models, not certified replacements for the protected detailed student GLBs.",
+  "remainingOwnerAcceptance": ["Wire full per-room dungeon API into online quest progression", "Rendered animation/face/cloth/scale review in actual chapter scenes", "End-to-end five-player co-op, networking loss and production deployment", "Human first-learning difficulty, five-player frame time and memory profiling"]
+}

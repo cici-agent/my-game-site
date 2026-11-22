@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "chunkBytes": 4194304,
+  "files": [
+    {
+      "path": "assets/chapter-one/workshop/612434e54cf7/assets/3d/magic/characters/harry-pathfinder.glb",
+      "size": 33339532,
+      "sha256": "df19f8637d16c1735e5e1689915057b88fcf38fb993f4192ebb01757c91ec241",
+      "chunks": [
+        {
+          "sha256": "aa2cdc8d484a8e25f826a6875244c7090e1d173b38b30e7575a740679f842749",
+          "size": 4194304
+        },
+        {
+          "sha256": "a07a4b4165849692152e6c4b04d9e7959e9283861464fafbc10e8842f5891535",
+          "size": 4194304
+        },
+        {
+          "sha256": "49f8a5b08c3965b89749188e2de7be2ec27c8f1f92a4740da97ce7d6c870bfd0",
+          "size": 4194304
+        },
+        {
+          "sha256": "6851757e62cef0c23827c80998c8ab35435a578ce641c45d499e29cd0b683e99",
+          "size": 4194304
+        },
+        {
+          "sha256": "da72fd55e3721ae0c96c2226c34baedf026cdfa924445bed3b30013131ec55ce",
+          "size": 4194304
+        },
+        {
+          "sha256": "144e9b3e19140e103d90e6d7fe8d732e8189c1e24714ab4a64d786d2c5267a2f",
+          "size": 4194304
+        },
+        {
+          "sha256": "4570d5324ce63840aad342587f82468357acb1ec9d1ffd73c1f4c43e96eb6712",
+          "size": 4194304
+        },
+        {
+          "sha256": "0ee61f1c9e921665893283c6a77ad24bc9ccb6cf70ef9809dc10a28916d77887",
+          "size": 3979404
+        }
+      ]
+    },
+    {
+      "path": "assets/chapter-one/workshop/612434e54cf7/assets/3d/magic/characters/hermione.glb",
+      "size": 6484188,
+      "sha256": "b0a2e59fa78574b78bbcf0e20dbed086562406e0329a7b7442c1a0a6fafa6b8b",
+      "chunks": [
+        {
+          "sha256": "39b6e42d4333deb2aa41370210287b64d35261f8f7143f22bfff866eb3eb162d",
+          "size": 4194304
+        },
+        {
+          "sha256": "7d9a0ac10692a90521a798ed9fd6b2a74623ce90f50e84d18aaebb2e2aa38378",
+          "size": 2289884
+        }
+      ]
+    },
+    {
+      "path": "assets/chapter-one/workshop/612434e54cf7/assets/3d/magic/characters/ron.glb",
+      "size": 5651328,
+      "sha256": "fad5723d7ebbd0941f981f672d8400849c5ef853af2e3d0194bbfe019a1678c3",
+      "chunks": [
+        {
+          "sha256": "2116b239fc8f9a0aee03769433fc588d47ad06b6211a10430d2c571761211532",
+          "size": 4194304
+        },
+        {
+          "sha256": "64811012fbb00c36e5e0a9bc207bd50cf5e3526397c09130994a285a2919d8aa",
+          "size": 1457024
+        }
+      ]
+    },
+    {
+      "path": "assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/harry-pathfinder.glb",
+      "size": 33339532,
+      "sha256": "df19f8637d16c1735e5e1689915057b88fcf38fb993f4192ebb01757c91ec241",
+      "chunks": [
+        {
+          "sha256": "aa2cdc8d484a8e25f826a6875244c7090e1d173b38b30e7575a740679f842749",
+          "size": 4194304
+        },
+        {
+          "sha256": "a07a4b4165849692152e6c4b04d9e7959e9283861464fafbc10e8842f5891535",
+          "size": 4194304
+        },
+        {
+          "sha256": "49f8a5b08c3965b89749188e2de7be2ec27c8f1f92a4740da97ce7d6c870bfd0",
+          "size": 4194304
+        },
+        {
+          "sha256": "6851757e62cef0c23827c80998c8ab35435a578ce641c45d499e29cd0b683e99",
+          "size": 4194304
+        },
+        {
+          "sha256": "da72fd55e3721ae0c96c2226c34baedf026cdfa924445bed3b30013131ec55ce",
+          "size": 4194304
+        },
+        {
+          "sha256": "144e9b3e19140e103d90e6d7fe8d732e8189c1e24714ab4a64d786d2c5267a2f",
+          "size": 4194304
+        },
+        {
+          "sha256": "4570d5324ce63840aad342587f82468357acb1ec9d1ffd73c1f4c43e96eb6712",
+          "size": 4194304
+        },
+        {
+          "sha256": "0ee61f1c9e921665893283c6a77ad24bc9ccb6cf70ef9809dc10a28916d77887",
+          "size": 3979404
+        }
+      ]
+    },
+    {
+      "path": "assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/hermione-scholar.glb",
+      "size": 40670484,
+      "sha256": "691534dcd8311af0ac9673cb6dcec15d305f8fe8b6c5f2ddbaa09062ae274020",
+      "chunks": [
+        {
+          "sha256": "b35a930127caf6f23931ec46c7d37b5e8cac110952de2fb67d7b27829c302886",
+          "size": 4194304
+        },
+        {
+          "sha256": "1ce3de554ec65856b21948fe3fcd05c900d62213409704fa7a7cb77bdcf86ce5",
+          "size": 4194304
+        },
+        {
+          "sha256": "66ccd40163817bd15f35c5fcc3d6481dfb88d96019838df48fa17a0a44a324d1",
+          "size": 4194304
+        },
+        {
+          "sha256": "aae770fe5129b7f7d165dce1c380536f860877717b22f4e2701a04382efa2fe0",
+          "size": 4194304
+        },
+        {
+          "sha256": "239555871d0dbff5fe7b8bbd4e676a0336db0f9d4c07cd18024a0c4287c1dc15",
+          "size": 4194304
+        },
+        {
+          "sha256": "3bece01bd2730e47fb2affe6287605e8470878903398729b90005a72a0399fbc",
+          "size": 4194304
+        },
+        {
+          "sha256": "73e31fda8e41ec5a275e6a5519db8fe3526de5ef99c6dd3984e8ca017ff69050",
+          "size": 4194304
+        },
+        {
+          "sha256": "4bff9d9f337d4741159095b50f21b01b5ad3069f1c923ec5c3795ba05c854786",
+          "size": 4194304
+        },
+        {
+          "sha256": "de4be5d4b03719eeb31b5206c023b495edf3f120813cf7b4fccb87096d993c3c",
+          "size": 4194304
+        },
+        {
+          "sha256": "f6976810a36e96718fe742dd64839bc59c4d50848c6d4febd6be1d63244b0dea",
+          "size": 2921748
+        }
+      ]
+    },
+    {
+      "path": "assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/ron-weasley.glb",
+      "size": 31098576,
+      "sha256": "3b1da7d34014c3799d2dc4696bf716d5f81151b377e1ade5a0328739f9bbcac4",
+      "chunks": [
+        {
+          "sha256": "c04005405758ba0acaa1573e53ed2de6a9021cab1864fdf3005886f7a92fe546",
+          "size": 4194304
+        },
+        {
+          "sha256": "c146cf276bd2ba9044044e56c3b6167c49c8878514a45bd5709e464afaafed7f",
+          "size": 4194304
+        },
+        {
+          "sha256": "89438b3b17a95076d9b62cceadde770ac7eabdde0525151c6657048ee25c83fe",
+          "size": 4194304
+        },
+        {
+          "sha256": "e92fc0658cae595521c1a94f64650624af974fd9114de90b3a6a02fffe0210c9",
+          "size": 4194304
+        },
+        {
+          "sha256": "71050d2949e436cea35b018b7bafe6babb6fda91ea3c0e76a5dab45d17e0ed23",
+          "size": 4194304
+        },
+        {
+          "sha256": "5c7ffe91b02e7b4ffa4fe437646f70d324f98d084073f5350918705cd26d7a21",
+          "size": 4194304
+        },
+        {
+          "sha256": "85c88a56b0501a7e97a002a005b1a3f90f3d6dd6b981322213048bf86187adc2",
+          "size": 4194304
+        },
+        {
+          "sha256": "c3dfb64d4477bd68cadae49f08a1a0352c7b920af366d7413d7b80c641490dfa",
+          "size": 1738448
+        }
+      ]
+    }
+  ]
+}

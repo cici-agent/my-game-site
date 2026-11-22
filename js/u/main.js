@@ -217,7 +217,7 @@ paintMute();
 // ---------- 星球广场 ----------
 async function openStation(p) {
   if (p.kind === 'magic') {
-    location.href = 'magic-academy.html';
+    location.href = 'stone.html';
     return;
   }
   const st = $('station'); st.style.setProperty('--c', p.color);

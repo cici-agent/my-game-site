@@ -1,0 +1,165 @@
+body.casting #game > :not(#world) { visibility: hidden; }
+body.cast-no-3d.casting #game { background: #162a30 url('/assets/rpg/cast-station.webp') center / cover; }
+#cast-screen {
+  --gold: #dfc189;
+  --muted: #b9c4c1;
+  --line: rgba(220, 199, 157, .29);
+  --left: clamp(178px, 17.7vw, 284px);
+  --right: clamp(250px, 23.5vw, 390px);
+  --edge: clamp(20px, 3.6vw, 74px);
+  --head: clamp(75px, 12vh, 118px);
+  --foot: clamp(68px, 10.3vh, 104px);
+  position: fixed; inset: 0; padding: 0; margin: 0;
+  width: 100%; height: 100%; max-width: none; max-height: none;
+  overflow: hidden; border: 0; border-radius: 0; background: transparent;
+  box-shadow: none; color: #f2eee2; color-scheme: dark; user-select: none;
+}
+#cast-screen::backdrop { background: transparent; backdrop-filter: none; }
+#cast-screen p, #cast-screen h2, #cast-screen h3, #cast-screen h4 { margin: 0; }
+#cast-screen button, #cast-screen a { color: inherit; font-family: inherit; }
+#cast-screen button:focus-visible, #cast-screen a:focus-visible, #cast-surface:focus-visible { outline: 2px solid #f1ce86; outline-offset: 3px; }
+#cast-screen button:disabled { opacity: .54; cursor: default; }
+.cast-shade {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, #071315d6, #0713154a 14%, transparent 30%, transparent 72%, #061314d9),
+    linear-gradient(90deg, #071619f0, #0a191bd1 15%, #0a191b22 36%, transparent 49%, #0b191b21 61%, #081618c9 79%, #071416f5);
+}
+.cast-header, .cast-footer {
+  position: absolute; z-index: 2; left: var(--edge); right: var(--edge); display: flex; justify-content: space-between; align-items: center;
+}
+.cast-header { top: env(safe-area-inset-top, 0); height: var(--head); border-bottom: 1px solid var(--line); }
+.cast-brand, .cast-tools, .cast-account, .cast-inspect-tools { display: flex; align-items: center; }
+.cast-brand { gap: 15px; }
+.cast-brand small, .cast-location small { display: block; font-size: .75rem; font-weight: 520; color: var(--gold); letter-spacing: .16em; }
+#cast-context { outline: none; margin-top: 2px; font: 600 clamp(1.45rem, 2.2vw, 2.25rem)/1.35 var(--serif); letter-spacing: .09em; }
+.cast-crest {
+  width: 42px; height: 47px; display: grid; place-items: center; position: relative; isolation: isolate;
+  color: #f4dc9d; background: linear-gradient(140deg,#f5dd9d,#7b5d31 58%,#ddbc72);
+  clip-path: polygon(50% 0, 92% 15%, 87% 70%, 72% 87%, 50% 100%, 28% 87%, 13% 70%, 8% 15%);
+  font: 29px Georgia,serif; text-shadow: 0 0 10px #ecc47a7a;
+}
+.cast-crest::before { content: ''; position: absolute; inset: 2px; z-index: -1; background: linear-gradient(135deg,#42524a,#162b2c); clip-path: inherit; }
+.cast-tools { gap: 9px; }
+#cast-screen .cast-tools button, #cast-screen .cast-inspect-tools button, #cast-name-done {
+  background: #14282bd1; border: 1px solid var(--line); border-radius: 3px; color: #e8dbc1; min-height: 36px; padding: 6px 15px; font-size: .875rem;
+}
+#cast-screen .cast-tools button:hover, #cast-screen .cast-inspect-tools button:hover, #cast-name-done:hover { background: #334540; border-color: var(--gold); }
+.cast-roster, .cast-copy {
+  position: absolute; top: calc(var(--head) + 2vh); bottom: calc(var(--foot) + 2vh);
+  display: flex; flex-direction: column; justify-content: safe center; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #8b795780 transparent;
+}
+.cast-roster { left: var(--edge); width: var(--left); padding: 6px 3px; }
+#cast-roster-title, .cast-copy h4 {
+  display: flex; align-items: center; gap: 12px; color: var(--gold); font: 600 .82rem/1.4 var(--serif); letter-spacing: .14em;
+}
+#cast-roster-title::after, .cast-copy h4::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg,var(--line),transparent); }
+#cast-roster-list { display: grid; gap: clamp(5px,1.1vh,12px); margin-top: 14px; }
+#cast-screen .cast-student {
+  width: 100%; position: relative; display: flex; align-items: center; gap: clamp(8px,.95vw,16px); overflow: hidden;
+  padding: 0 10px 0 0; background: linear-gradient(115deg,#263a3ad9,#122328c7);
+  border: 1px solid #a9b5a43d; border-radius: 3px; text-align: left; min-height: 44px;
+}
+.cast-student::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 1px 1px #ffffff06; }
+#cast-screen .cast-student[aria-pressed=true] { background: linear-gradient(105deg,#5c4c34c9,#3d3d32de 60%,#253330dc); border-color: #dbbf83; box-shadow: inset 3px 0 #e1bc72, 0 5px 19px #0003; }
+#cast-screen .cast-student:hover:not(:disabled) { border-color: #d3bd92; }
+.cast-portrait {
+  width: clamp(46px,4.45vw,74px); height: clamp(49px,7.75vh,81px); object-fit: cover; object-position: center 29%;
+  flex: none; align-self: stretch; background: radial-gradient(ellipse at 50% 65%,#8b817352,#26363500 80%);
+  border-right: 1px solid #b8ba9c29;
+}
+.cast-student-copy { min-width: 0; display: grid; gap: 4px; padding: 5px 0; }
+.cast-student-copy strong { font: 600 clamp(.95rem,1.17vw,1.18rem)/1.25 var(--serif); }
+.cast-student-copy small { color: #bbc7c1; font-size: .75rem; line-height: 1.3; }
+.cast-student[aria-pressed=true] strong { color: #ffdf9d; }
+#cast-surface {
+  position: absolute; top: calc(var(--head) + clamp(34px,6vh,65px)); bottom: calc(var(--foot) + 56px);
+  left: calc(var(--edge) + var(--left) + 8px); right: calc(var(--edge) + var(--right) + 8px);
+  touch-action: none; cursor: grab; border-radius: 8px;
+}
+#cast-surface:active { cursor: grabbing; }
+.cast-location, .cast-inspect-tools {
+  position: absolute; left: calc(var(--edge) + var(--left)); right: calc(var(--edge) + var(--right));
+  text-align: center; justify-content: center; text-shadow: 0 2px 7px #07100d;
+}
+.cast-location { top: calc(var(--head) + 12px); pointer-events: none; }
+.cast-location small { font-size: .75rem; line-height: 1.5; color: #e6d6af; }
+.cast-location strong { font: 550 clamp(.94rem,1.35vw,1.25rem)/1.7 var(--serif); letter-spacing: .1em; }
+.cast-inspect-tools { bottom: calc(var(--foot) + 8px); gap: 5px; }
+.cast-inspect-tools .cast-drag-hint { font-size: .78rem; color: #ece8d9; margin-right: 5px; }
+#cast-screen .cast-inspect-tools button { min-width: 34px; padding: 4px 8px; }
+.cast-copy { right: var(--edge); width: var(--right); padding: 8px clamp(4px,.8vw,15px) 8px clamp(10px,1.5vw,23px); }
+#cast-role { display: block; font-size: .82rem; font-weight: 600; letter-spacing: .14em; color: var(--gold); }
+#cast-role::before { content: ''; display: inline-block; width: .45em; height: .45em; margin: 0 .75em .14em .08em; border: 1px solid #dfbb75; transform: rotate(45deg); }
+#cast-name-title { font: 600 clamp(1.65rem,2.6vw,2.9rem)/1.45 var(--serif); letter-spacing: .015em; color: #fff1d6; }
+#cast-description, .cast-ability p { color: #d6ddda; font-size: clamp(.875rem,1.04vw,1rem); line-height: 1.65; }
+#cast-screen .cast-copy h4 { margin: clamp(12px,2.7vh,27px) 0 10px; }
+.cast-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.cast-stat { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 5px; }
+.cast-stat span { color: var(--muted); font-size: .85rem; }
+.cast-stat b { font: 500 1.4rem/1.1 Georgia,serif; color: #f2ead8; font-variant-numeric: tabular-nums; }
+.cast-stat i { grid-column: 1/-1; height: 4px; background: #97a39b38; }
+.cast-stat em { height: 100%; display: block; background: linear-gradient(90deg,#93695b,#daaa83); transition: width .18s; }
+.cast-stat:nth-child(2) em { background: linear-gradient(90deg,#58757c,#9ccbc7); }
+.cast-abilities { display: grid; gap: 12px; }
+.cast-ability-kind { display: inline-block; font-size: .75rem; line-height: 1.5; letter-spacing: .06em; padding: 0 5px; color: var(--gold); border: 1px solid var(--line); border-radius: 2px; vertical-align: 1px; margin-right: 8px; }
+.cast-ability strong { font: 600 1.03rem/1.25 var(--serif); color: #fff0d0; }
+#cast-screen .cast-ability p { margin-top: 3px; color: #c3ceca; }
+.cast-footer { height: var(--foot); bottom: env(safe-area-inset-bottom,0); border-top: 1px solid var(--line); }
+.cast-account { flex-wrap: wrap; gap: clamp(10px,2vw,32px); }
+#cast-screen .cast-account a, #cast-screen .cast-account button { padding: 6px 0; font-size: .85rem; color: #d2d9d1; border: 0; background: none; text-decoration: none; }
+#cast-screen .cast-account :is(a,button):hover { color: #f1d49e; text-decoration: underline; text-underline-offset: 4px; }
+#cast-screen #cast-start {
+  min-width: clamp(160px,17vw,260px); min-height: 46px; border: 1px solid #ffdf9c; border-radius: 3px; padding: 8px 20px;
+  font: 700 1.05rem/1.45 var(--serif); letter-spacing: .13em; color: #352c1c; background: linear-gradient(100deg,#b99a61,#f2d59c 53%,#cdad71);
+  box-shadow: inset 0 0 0 2px #79613a66, 0 3px 18px #050a0a69; text-shadow: 0 1px #f6e3b866;
+}
+#cast-screen #cast-start:hover:not(:disabled) { filter: brightness(1.1); }
+#cast-name-edit, #cast-error { position: absolute; z-index: 4; border: 1px solid var(--line); border-radius: 3px; background: #142528fa; padding: 10px 12px; }
+#cast-name-edit { bottom: var(--foot); left: var(--edge); display: flex; gap: 8px; align-items: center; font-size: .875rem; }
+#cast-name-edit input { width: min(34vw,180px); background: #233638; border: 1px solid var(--line); color: #f2e3c8; padding: 6px; }
+#cast-error { bottom: var(--foot); right: var(--edge); max-width: 85%; color: #ffdda9; font-size: .85rem; }
+#cast-error:empty { display: none; }
+.cast-fallback { height: 100%; display: grid; align-content: center; justify-items: center; text-align: center; gap: 10px; }
+.cast-fallback img { width: 75%; max-height: 75%; object-fit: contain; }
+.cast-fallback p { color: #efe2c4; font-size: .85rem; background: #0b181bcf; padding: 6px 12px; }
+@media (max-width: 800px) and (orientation: portrait) {
+  #cast-screen { --edge: 14px; --head: 64px; --foot: 62px; --roster-h: 76px; --copy-h: clamp(145px,30dvh,290px); }
+  .cast-shade { background: linear-gradient(180deg,#06171bed, #07181bc9 15%,transparent 36%,#0c1c1e1a 50%,#0c1c21e6 68%,#091619 87%); }
+  .cast-brand { gap: 7px; } .cast-crest { width: 29px; height: 34px; font-size: 22px; }
+  .cast-brand small { font-size: .75rem; } #cast-context { font-size: 1.2rem; }
+  .cast-roster { top: calc(var(--head) + env(safe-area-inset-top,0px)); left: var(--edge); right: var(--edge); width: auto; height: var(--roster-h); bottom: auto; overflow: visible; padding: 5px 0; }
+  #cast-roster-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  #cast-roster-list { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 5px; margin: 0; height: 100%; padding: 3px 1px; }
+  #cast-screen .cast-student { flex-direction: column; justify-content: end; width: 100%; min-width: 0; gap: 0; padding: 0; }
+  .cast-portrait { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: contain; object-position: center top; border: none; }
+  .cast-student-copy strong { font-size: .84rem; } .cast-student-copy small, .cast-student-copy .cast-family { display: none; }
+  .cast-student-copy { position: relative; width: 100%; text-align: center; padding: 5px 0 1px; background: linear-gradient(transparent,#0d1c21ed 55%); }
+  .cast-location { display: none; }
+  #cast-surface { left: 8%; right: 8%; top: calc(var(--head) + var(--roster-h) + env(safe-area-inset-top,0px)); bottom: calc(var(--copy-h) + var(--foot) + 38px + env(safe-area-inset-bottom,0px)); }
+  .cast-inspect-tools { left: 0; right: 0; bottom: calc(var(--copy-h) + var(--foot) + 4px + env(safe-area-inset-bottom,0px)); }
+  #cast-screen .cast-inspect-tools button { min-height: 30px; padding: 2px 8px; }
+  .cast-copy { top: auto; bottom: calc(var(--foot) + env(safe-area-inset-bottom,0px)); left: var(--edge); right: var(--edge); width: auto; height: var(--copy-h); display: block; overflow-y: auto; padding: 7px 8px 12px; background: linear-gradient(#0c1d20ba,#0d2021e6); border-top: 1px solid var(--line); }
+  #cast-role { float: right; margin: 6px 0 0 6px; font-size: .78rem; }
+  #cast-name-title { font-size: 1.44rem; } #cast-description { margin: 3px 0; }
+  #cast-screen .cast-copy h4 { margin: 9px 0 6px; }
+  .cast-abilities { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cast-ability strong { font-size: .94rem; }
+  .cast-ability-kind { margin-right: 5px; }
+  .cast-footer { gap: 10px; } .cast-account { gap: 0 10px; line-height: 1.15; }
+  #cast-screen .cast-account button, #cast-screen .cast-account a { font-size: .75rem; padding: 3px 0; }
+  #cast-screen #cast-start { min-width: 105px; padding: 7px 10px; min-height: 42px; }
+  #cast-name-edit { left: 4px; max-width: 96%; }
+}
+@media (max-height: 560px) and (orientation: landscape) {
+  #cast-screen { --head: 50px; --foot: 46px; --edge: 16px; --left: 23vw; --right: 29vw; }
+  .cast-brand small, .cast-location { display: none; } .cast-crest { width: 26px; height: 30px; font-size: 18px; }
+  #cast-context { font-size: 1.18rem; } #cast-surface { top: calc(var(--head) + 3px); bottom: calc(var(--foot) + 35px); }
+  .cast-roster, .cast-copy { top: var(--head); bottom: var(--foot); }
+  .cast-roster { justify-content: flex-start; } #cast-roster-list { margin-top: 3px; gap: 3px; }
+  #cast-screen .cast-student { min-height: 32px; } .cast-portrait { width: 34px; height: 38px; }
+  .cast-student-copy { gap: 1px; padding: 1px 0; } .cast-student-copy strong { font-size: .85rem; }
+  #cast-name-title { font-size: 1.45rem; } .cast-copy { justify-content: flex-start; }
+  #cast-screen .cast-copy h4 { margin: 7px 0 4px; } .cast-abilities { gap: 5px; }
+  .cast-inspect-tools { bottom: calc(var(--foot) + 2px); } #cast-screen .cast-inspect-tools button { min-height: 28px; }
+  #cast-screen #cast-start { min-height: 35px; }
+}
