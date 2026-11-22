@@ -5,7 +5,7 @@ import { visitMayor } from '../js/h/mayor.js';
 function visit(overrides = {}) {
   const args = {
     state: { points: 0 }, day: 1, bag: { take: () => true, add: () => true },
-    chest: { add: () => false }, accepts: key => key === 'egg', random: () => 0,
+    chest: { add: () => false }, random: () => 0,
     ...overrides,
   };
   return { state: args.state, result: visitMayor(args) };
@@ -36,9 +36,10 @@ test('full inventory keeps the offer across reload and delivers it once', () => 
   assert.equal(visit({ state: saved }).result.seed, undefined);
 });
 
-test('unavailable and ineligible gifts do not earn friendship', () => {
-  for (const gift of ['egg', 'key']) {
-    const { state } = visit({ gift, bag: { take: k => { assert.equal(k, 'egg'); return false; } } });
-    assert.deepEqual(state, { points: 0 });
+test('any carried item can be given, and missing items earn no friendship', () => {
+  for (const gift of ['egg', 'key', 'leash', 'cagebird']) {
+    const { result } = visit({ gift, bag: { take: (key, n) => key === gift && n === 1 } });
+    assert.ok(result.accepted);
   }
+  assert.deepEqual(visit({ gift: 'key', bag: { take: () => false } }).state, { points: 0 });
 });

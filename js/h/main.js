@@ -737,39 +737,133 @@ if (!metMayor) homeGate.setLock(true);   // 还没找镇长：自己的空地大
 function talk(msg, sec = 7) { const el = $('talk'); el.innerHTML = msg; el.classList.add('show'); clearTimeout(talk.t); talk.t = setTimeout(() => el.classList.remove('show'), sec * 1000); }
 $('talk').onclick = () => $('talk').classList.remove('show');
 function dirWord(x, z) { const d = Math.hypot(x - MAYOR.x, z - MAYOR.z); return `离这里大约 ${Math.round(d / 10) * 10} 米`; }
-const mayorLines = {
-  garden: ['看土色就知道要不要浇水。土还是深色的，让它先歇一歇。', '有虫眼就戴手套翻翻叶背。趁虫子还少，手捉就够了。', '头一茬试试小萝卜吧，收得快。留几颗种子，下回就不用特地跑小卖部了。'],
-  town: ['我最喜欢广场刚亮起来的时候，鸡还没醒，小卖部已经开门了。', '哪天干活累了，就回屋躺一会儿。地里的事急不来。'],
-};
-const nextLine = { garden: 0, town: 0 };
-const giftable = key => Object.hasOwn(CROPS, key) || Object.hasOwn(FOOD, key) || SEED_GIFTS.has(key);
-const SEED_GIFTS = new Set(Object.keys(CROPS).map(key => 'seed_' + key));
 const villageDay = () => Math.floor(Date.now() / (DAY_SECONDS * 1000));
+const coinGiftKey = '@gold';
+const mayorHistory = [];
+let sendingChat = false, sendingGift = false, giftMenuDay;
+
+function logMayorLine(role, content) {
+  const row = document.createElement('p');
+  row.textContent = (role === 'user' ? '你：' : '村长：') + content;
+  const log = $('mayorChatLog');
+  log.append(row);
+  if (log.children.length > 30) log.firstElementChild.remove();
+  log.scrollTop = log.scrollHeight;
+  mayorHistory.push({ role, content });
+  if (mayorHistory.length > 12) mayorHistory.shift();
+}
+
+function updateGiftButton() {
+  const gold = $('mayorGift').value === coinGiftKey;
+  $('mayorCoins').hidden = !gold;
+  const amount = $('mayorCoins').valueAsNumber;
+  const valid = Number.isInteger(amount) && amount > 0 && amount <= 2147483647;
+  $('mayorGive').disabled = sendingGift || !$('mayorGift').value || (gold && !valid);
+  $('mayorGive').textContent = gold && valid ? '送 ' + amount + ' 金币' : '送出一份';
+}
 function refreshVisit() {
   const state = garden.mayorFriendship;
+  giftMenuDay = villageDay();
   $('mayorBond').textContent = state.points >= 8 ? '交情 · 老朋友' : state.points >= 3 ? '交情 · 熟人' : '交情 · 初识';
-  const menu = $('mayorGift');
+  const menu = $('mayorGift'), previous = menu.value;
   menu.replaceChildren();
-  const items = new Set(garden.bag.slots.filter(Boolean).map(slot => slot.key).filter(giftable));
-  for (const key of items) menu.add(new Option(itemInfo(key).name + ' × ' + garden.bag.count(key), key));
-  const given = state.giftDay === villageDay();
-  if (!items.size || given) menu.replaceChildren(new Option(given ? '今天已送过礼物' : '可带种子、作物或食物来', ''));
-  menu.disabled = $('mayorGive').disabled = !items.size || given;
+  if (state.giftDay === giftMenuDay) {
+    menu.add(new Option('今天已送过礼物', ''));
+  } else {
+    for (const key of new Set(garden.bag.slots.filter(Boolean).map(slot => slot.key))) {
+      menu.add(new Option(itemInfo(key).name + ' × ' + garden.bag.count(key), key));
+    }
+    menu.add(new Option('🪙 网站金币', coinGiftKey));
+    if ([...menu.options].some(o => o.value === previous)) menu.value = previous;
+  }
+  const pending = state.coinAttempt;
+  if (pending && pending.user === ME.user.id) {
+    menu.value = coinGiftKey;
+    $('mayorCoins').value = pending.amount;
+  }
+  menu.disabled = sendingGift || !menu.value || pending?.user === ME.user.id;
+  $('mayorCoins').disabled = sendingGift || pending?.user === ME.user.id;
+  updateGiftButton();
 }
-function respondToMayor(topic, gift) {
-  const result = visitMayor({ state: garden.mayorFriendship, bag: garden.bag, chest: garden.chest, day: villageDay(), gift, accepts: giftable });
+
+function finishVisit(day, gift, takeGift) {
+  const result = visitMayor({ state: garden.mayorFriendship, bag: garden.bag, chest: garden.chest, day, gift, takeGift });
+  if (result.accepted && gift === 'cagebird') birds.soldCaged(1);
   garden.saveVisit();
-  let reply = gift ? (result.accepted ? '谢谢你带来的' + itemInfo(gift).name + '！' : '') : mayorLines[topic][nextLine[topic]++ % mayorLines[topic].length];
+  let reply = result.message || '';
   if (result.seed) reply += ' 我留了两包' + itemInfo(result.seed).name + '给你，放进' + result.destination + '啦。';
-  if (result.message) reply += ' ' + result.message;
-  $('mayorReply').textContent = reply.trim();
-  refreshVisit();
   renderBag();
+  refreshVisit();
+  return { accepted: result.accepted, reply: reply.trim() };
 }
-$('mayorVisit').querySelectorAll('[data-topic]').forEach(button => {
-  button.onclick = () => respondToMayor(button.dataset.topic, null);
-});
-$('mayorGive').onclick = () => { if ($('mayorGift').value) respondToMayor(null, $('mayorGift').value); };
+
+$('mayorChat').onsubmit = async event => {
+  event.preventDefault();
+  const input = $('mayorText'), message = input.value.trim();
+  if (!message || sendingChat) return;
+  sendingChat = true;
+  $('mayorSend').disabled = true;
+  const messages = [
+    { role: 'system', content: '你是儿童农场游戏菜鸟家园的村长。用亲切简短的中文直接回应玩家刚打的字，记住近期对话。可以聊生活、虚构故事和种菜。种菜时在快捷栏选种子，到空田按 E 播种，选水壶按 E 浇水，小萝卜水分充足时约五分钟成熟。不要编造施肥、翻地等游戏没有的操作，土湿时不用浇水，西北角的萌宠小屋能洗澡治病。礼物要玩家通过赠礼按钮实际交付。不要索取个人信息，不要声称已经发放物品或修改游戏。' },
+    ...mayorHistory.slice(-10), { role: 'user', content: message },
+  ];
+  logMayorLine('user', message);
+  input.value = '';
+  $('mayorReply').textContent = '村长想了想……';
+  try {
+    const { data, error } = await getSupabase().functions.invoke('ai-game-generator', { body: { messages } });
+    if (error || !data?.content?.trim()) throw new Error('chat_failed');
+    const { reply } = finishVisit(villageDay());
+    logMayorLine('assistant', data.content.trim() + (reply ? ' ' + reply : ''));
+    $('mayorReply').textContent = '';
+  } catch {
+    if (!input.value) input.value = message;
+    $('mayorReply').textContent = '这句话没收到答复，可以再发一次。';
+  } finally {
+    sendingChat = false;
+    $('mayorSend').disabled = false;
+  }
+};
+$('mayorGift').onchange = updateGiftButton;
+$('mayorCoins').oninput = updateGiftButton;
+$('mayorGive').onclick = async () => {
+  const gift = $('mayorGift').value, state = garden.mayorFriendship;
+  if (sendingGift || !gift || state.giftDay === villageDay()) return;
+  sendingGift = true;
+  try {
+    let name, day = villageDay(), takeGift;
+    if (gift === coinGiftKey) {
+      const amount = $('mayorCoins').valueAsNumber;
+      if (!Number.isInteger(amount) || amount < 1 || amount > 2147483647) return;
+      if (state.coinAttempt?.user !== ME.user.id) state.coinAttempt = { user: ME.user.id, day, amount };
+      garden.saveVisit();
+      refreshVisit();
+      const attempt = state.coinAttempt;
+      const { data, error } = await getSupabase().rpc('gift_mayor_coins', { p_day: attempt.day, p_amount: attempt.amount });
+      if (error) {
+        if (['not_enough_coins', 'expired_day', 'bad_amount', 'no_profile'].includes(error.message)) {
+          delete state.coinAttempt; garden.saveVisit();
+          $('mayorReply').textContent = error.message === 'not_enough_coins' ? '网站金币余额不足，可以少送一些或换件礼物。' : '这笔赠礼未扣款，请重新选择。';
+          return;
+        }
+        throw error;
+      }
+      day = attempt.day;
+      name = data + ' 枚金币';
+      takeGift = () => true; // 金币已由服务器扣除并记录流水。
+      delete state.coinAttempt;
+    } else name = itemInfo(gift).name;
+    const result = finishVisit(day, gift, takeGift);
+    $('mayorReply').textContent = '';
+    if (result.accepted) logMayorLine('assistant', '谢谢你送我的' + name + '！' + result.reply);
+    else $('mayorReply').textContent = result.reply;
+  } catch {
+    $('mayorReply').textContent = '赠礼结果暂时无法确认，请重试核对同一笔赠礼。';
+  } finally {
+    sendingGift = false;
+    refreshVisit();
+  }
+};
 $('mayorClose').onclick = () => $('mayorVisit').close();
 function mayorPrompt() {
   if (!mayor.near(player.pos)) return null;
@@ -780,7 +874,7 @@ function mayorAction() {
   if (metMayor) {
     for (const key of Object.keys(keys)) keys[key] = false;
     refreshVisit();
-    $('mayorReply').textContent = garden.mayorFriendship.points >= 3 ? '又见面啦！上回播的种子，冒芽了吗？' : '来了呀，坐！今天田里怎么样？';
+    if (!mayorHistory.length) logMayorLine('assistant', garden.mayorFriendship.points >= 3 ? '又见面啦！上回播的种子，冒芽了吗？' : '来了呀，坐！今天田里怎么样？');
     $('talk').classList.remove('show');
     $('mayorVisit').showModal();
     return true;
@@ -1409,7 +1503,7 @@ if (new URLSearchParams(location.search).has('test')) window.__home = { ramCheck
 
 const sky = createSky({ scene, sun, hemi, cloudMat, center: () => player.pos });
 // 左上角的时钟：几点、白天还是晚上
-function renderClock() { const h = gameHour(), p = phaseOf(h); $('clock').innerHTML = `${p.icon} ${p.name} <b>${clockText(h)}</b>${p.name === '晚上' ? '<small>菜长得慢</small>' : ''}`; }
+function renderClock() { if ($('mayorVisit').open && !sendingGift && giftMenuDay !== villageDay()) refreshVisit(); const h = gameHour(), p = phaseOf(h); $('clock').innerHTML = `${p.icon} ${p.name} <b>${clockText(h)}</b>${p.name === '晚上' ? '<small>菜长得慢</small>' : ''}`; }
 renderClock(); setInterval(renderClock, 1000);
 document.querySelectorAll('#dbgTime button').forEach(b => b.onclick = () => { if (b.dataset.h === 'real') resetTime(); else jumpTo(+b.dataset.h); renderClock(); toast(b.dataset.h === 'real' ? '回到真实时间' : `跳到 ${b.textContent}`); });
 

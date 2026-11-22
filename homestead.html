@@ -177,7 +177,11 @@
   #mayorVisit p { line-height: 1.5; }
   #mayorVisit button, #mayorVisit select { font: inherit; padding: 8px; border: 1px solid #a79173; border-radius: 8px; }
   #mayorVisit button { cursor: pointer; background: #fffdf5; }
-  #mayorVisit .topics { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+  #mayorChatLog { max-height: min(32vh, 15rem); overflow-y: auto; }
+  #mayorChat input { flex: 1; min-width: 0; }
+  #mayorChat input, #mayorCoins { font: inherit; padding: 8px; }
+  #mayorCoins { width: 5em; }
+  #mayorVisit form { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
   #mayorVisit select { max-width: 65%; }
   #mayorClose { float: right; }
 </style>
@@ -201,9 +205,11 @@
 <dialog id="mayorVisit" aria-labelledby="mayorTitle">
   <button id="mayorClose" aria-label="结束交谈">告辞</button>
   <h2 id="mayorTitle">村长</h2><small id="mayorBond"></small>
-  <p id="mayorReply" aria-live="polite"></p>
-  <div class="topics"><button data-topic="garden">请教种菜</button><button data-topic="town">聊聊村里的事</button></div>
+  <div id="mayorChatLog" role="log" aria-label="与村长的对话"></div>
+  <p id="mayorReply" role="status"></p>
+  <form id="mayorChat"><input id="mayorText" aria-label="想对村长说的话" placeholder="给 AI 村长写句话…" maxlength="300" required autocomplete="off"><button id="mayorSend">发送</button></form>
   <select id="mayorGift" aria-label="从背包选择一份礼物"></select>
+  <input id="mayorCoins" type="number" aria-label="赠送金币数量" min="1" step="1" value="1" hidden>
   <button id="mayorGive">送出一份</button>
 </dialog>
 <div id="bag"></div>

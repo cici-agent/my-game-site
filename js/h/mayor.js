@@ -1,11 +1,11 @@
 // 关系和背包一起保存在同一份家园存档里。
 const SEEDS = ['seed_radish', 'seed_lettuce', 'seed_carrot'];
 
-export function visitMayor({ state, bag, chest, day, gift, accepts, random = Math.random }) {
+export function visitMayor({ state, bag, chest, day, gift, takeGift = key => bag.take(key, 1), random = Math.random }) {
   let accepted = false;
   if (gift) {
     if (state.giftDay === day) return { message: '今天已经收过你的心意啦，留些好东西给自己。' };
-    if (!accepts(gift) || !bag.take(gift, 1)) return { message: '咦，这件礼物好像没带在身上。' };
+    if (!takeGift(gift)) return { message: '咦，这件礼物好像没带在身上。' };
     state.giftDay = day;
     accepted = true;
     state.points += 2;
