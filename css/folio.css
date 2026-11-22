@@ -1,0 +1,30 @@
+/* The four in-game views share one field-guide frame. */
+#panel[data-view]:not([data-view=""]){width:min(1190px,96vw);max-height:94vh;border:1px solid #a18d5e88;border-radius:12px;background:radial-gradient(ellipse at 45% 20%,#29404a66,transparent 65%),linear-gradient(125deg,#172b34,#101f28 70%);box-shadow:0 25px 100px #0009,inset 0 0 0 4px #08151a55}
+#panel[data-view]:not([data-view=""])>header{padding:1.05rem 1.6rem;background:linear-gradient(90deg,#1b3039,#14252e);border-bottom:1px solid #d8b97532;align-items:center}
+#panel[data-view]:not([data-view=""])>header h2{font:500 1.7rem Georgia,"Songti SC",serif;letter-spacing:.12em;margin:.3rem 0 0}
+#panel[data-view]:not([data-view=""])>header small{font-size:.75rem;letter-spacing:.2em;color:#c2ad80}
+#panel[data-view]:not([data-view=""]) #close-panel{background:#0d2029;border-color:#bda57655;border-radius:50%;width:42px;height:42px;padding:0;font-size:1.1rem}
+#panel[data-view]:not([data-view=""]) #close-panel kbd{display:none}
+#folio-nav{display:flex;gap:.25rem;padding:.45rem 1.5rem 0;border-bottom:1px solid #bca06a40;background:#0c1d2570}
+#folio-nav button{display:flex;align-items:center;justify-content:center;gap:.55rem;min-width:130px;padding:.6rem .9rem;border:0;border-radius:5px 5px 0 0;background:transparent;color:#aebcba;position:relative}
+#folio-nav button .ui-icon{width:27px;height:27px;flex:none;opacity:.65}
+#folio-nav button kbd{font-size:.75rem;opacity:.55;background:transparent}
+#folio-nav button[aria-current="page"]{color:#f0d9a5;background:linear-gradient(transparent,#aa874721)}
+#folio-nav button[aria-current="page"]:after{content:"";position:absolute;left:14%;right:14%;bottom:-1px;height:2px;background:#e5bf79;box-shadow:0 0 12px #d7b07555}
+#folio-nav button[aria-current="page"] .ui-icon{opacity:1}
+#folio-nav button:hover{color:#f3e5c8;background:#fff07}
+#panel[data-view]:not([data-view=""]) #panel-content{padding:1.3rem 1.5rem 1.5rem;min-height:420px}
+#panel[data-view]:not([data-view=""]) button:focus-visible{outline:2px solid #efd096;outline-offset:3px}
+#panel[data-view]:not([data-view=""]) .ui-icon{display:block;flex-shrink:0}
+#quick-menu button{display:flex;align-items:center;gap:.35rem}
+#quick-menu .ui-icon{width:22px;height:22px}
+@media(max-width:650px){
+ #panel[data-view]:not([data-view=""]){width:97vw;max-height:95vh;border-radius:8px}
+ #panel[data-view]:not([data-view=""])>header{padding:.85rem 1rem}
+ #panel[data-view]:not([data-view=""])>header h2{font-size:1.4rem}
+ #folio-nav{padding:.25rem .4rem 0;gap:0;justify-content:space-between}
+ #folio-nav button{min-width:0;flex:1;gap:.3rem;padding:.65rem .2rem;font-size:.875rem}
+ #folio-nav button .ui-icon{width:22px;height:22px}
+ #folio-nav button kbd{display:none}
+ #panel[data-view]:not([data-view=""]) #panel-content{padding:1rem .75rem;min-height:360px}
+}

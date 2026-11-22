@@ -1,0 +1,17 @@
+{
+  "name": "hogwarts-adventure-journal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/play-local.mjs",
+    "pretest": "node scripts/workshop-assets.mjs restore",
+    "test": "node --test *.test.mjs tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  }
+}

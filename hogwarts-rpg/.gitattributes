@@ -1,0 +1,2 @@
+# Workshop source blocks are binary; their bounded 4 MiB size permits Git compression.
+assets/chapter-one/workshop-models/**/*.part binary

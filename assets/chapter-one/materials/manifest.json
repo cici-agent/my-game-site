@@ -1,0 +1,103 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "resolution": 1024,
+  "materials": {
+    "stone": {
+      "asset": "castle_wall_slates",
+      "source": "https://polyhaven.com/a/castle_wall_slates",
+      "maps": {
+        "albedo": {
+          "url": "/assets/chapter-one/materials/stone-albedo.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_wall_slates/castle_wall_slates_diff_1k.jpg",
+          "bytes": 625282,
+          "sha256": "1c42fe616560553caf8f61f298750e6a2cee06bf2a4af9156a930057d02da003"
+        },
+        "normal": {
+          "url": "/assets/chapter-one/materials/stone-normal.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_wall_slates/castle_wall_slates_nor_gl_1k.jpg",
+          "bytes": 1072473,
+          "sha256": "9be1475eb6dde811e8cea0f950f2700ed75bc23c7b3fd66b6d7731c639b7faba"
+        },
+        "roughness": {
+          "url": "/assets/chapter-one/materials/stone-roughness.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_wall_slates/castle_wall_slates_rough_1k.jpg",
+          "bytes": 517739,
+          "sha256": "57f07432fea65e2282b31fc730978d5ae98a3cb432c3f7e48f5b9892c3104d6d"
+        }
+      }
+    },
+    "brick": {
+      "asset": "castle_brick_02_red",
+      "source": "https://polyhaven.com/a/castle_brick_02_red",
+      "maps": {
+        "albedo": {
+          "url": "/assets/chapter-one/materials/brick-albedo.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_brick_02_red/castle_brick_02_red_diff_1k.jpg",
+          "bytes": 704361,
+          "sha256": "526019deb0533920273a0a2272f7735ca17bb578427515c6b972e2bbecf5726c"
+        },
+        "normal": {
+          "url": "/assets/chapter-one/materials/brick-normal.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_brick_02_red/castle_brick_02_red_nor_gl_1k.jpg",
+          "bytes": 1133781,
+          "sha256": "ab172b4bb8d9a2492774336f223e7725eecf1aae1efca2923c67db3e978106a6"
+        },
+        "roughness": {
+          "url": "/assets/chapter-one/materials/brick-roughness.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_brick_02_red/castle_brick_02_red_rough_1k.jpg",
+          "bytes": 234589,
+          "sha256": "8c829bed4cc530dd93dca19eff5fb595ee40d83c486fcf1d28519cc787f5cfd5"
+        }
+      }
+    },
+    "wood": {
+      "asset": "wood_table",
+      "source": "https://polyhaven.com/a/wood_table",
+      "maps": {
+        "albedo": {
+          "url": "/assets/chapter-one/materials/wood-albedo.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table/wood_table_diff_1k.jpg",
+          "bytes": 987969,
+          "sha256": "f81642ae141958feac6c5acac03e2aeb6cfe049dff301d0627e3c17f2dc5c7a5"
+        },
+        "normal": {
+          "url": "/assets/chapter-one/materials/wood-normal.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table/wood_table_nor_gl_1k.jpg",
+          "bytes": 625535,
+          "sha256": "88ecc8e54c30314f4662696ddf8c05b031976e3cbc68e399daa5ebddfb4cec71"
+        },
+        "roughness": {
+          "url": "/assets/chapter-one/materials/wood-roughness.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table/wood_table_rough_1k.jpg",
+          "bytes": 618983,
+          "sha256": "5b98d4d6b22960c781050ba622cebe67d8710c7a7ba0060b24cb6752d50fde32"
+        }
+      }
+    },
+    "floor": {
+      "asset": "cobblestone_floor_01",
+      "source": "https://polyhaven.com/a/cobblestone_floor_01",
+      "maps": {
+        "albedo": {
+          "url": "/assets/chapter-one/materials/floor-albedo.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cobblestone_floor_01/cobblestone_floor_01_diff_1k.jpg",
+          "bytes": 459525,
+          "sha256": "7630d6a59501cab4d2295b2be47bad892b8dae49895b4bee6bc26fd45c423e05"
+        },
+        "normal": {
+          "url": "/assets/chapter-one/materials/floor-normal.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cobblestone_floor_01/cobblestone_floor_01_nor_gl_1k.jpg",
+          "bytes": 785399,
+          "sha256": "e8a07bd38fdaeb92a419bc4829631847df7c03fd657dd32b44f19e2550a4fb35"
+        },
+        "roughness": {
+          "url": "/assets/chapter-one/materials/floor-roughness.jpg",
+          "upstream": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cobblestone_floor_01/cobblestone_floor_01_rough_1k.jpg",
+          "bytes": 327745,
+          "sha256": "18a5c4320378bc7eb17b2bc14981331912b1f0ff3100ced0a97aa59234377d41"
+        }
+      }
+    }
+  }
+}

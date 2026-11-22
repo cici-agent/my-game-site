@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "commit": "65154a9106f34fc3f76fb1b9613cf28c2f93b6cd",
+  "packageId": "65154a9106f3",
+  "sourceThreadId": "01a1fcb0-e91e-7192-9888-921b9142b479",
+  "bytePreservation": "exact git blobs",
+  "files": [
+    {
+      "path": "assets/3d/magic/characters/harry-pathfinder.glb",
+      "sha256": "df19f8637d16c1735e5e1689915057b88fcf38fb993f4192ebb01757c91ec241",
+      "bytes": 33339532
+    },
+    {
+      "path": "assets/3d/magic/characters/hermione-scholar.glb",
+      "sha256": "691534dcd8311af0ac9673cb6dcec15d305f8fe8b6c5f2ddbaa09062ae274020",
+      "bytes": 40670484
+    },
+    {
+      "path": "assets/3d/magic/characters/ron-weasley.glb",
+      "sha256": "3b1da7d34014c3799d2dc4696bf716d5f81151b377e1ade5a0328739f9bbcac4",
+      "bytes": 31098576
+    },
+    {
+      "path": "js/magic/characters.js",
+      "sha256": "7331316a5dc51c743068becd6b058e6a5a0ece972b7e19bb1bd425bb5ef0134b",
+      "bytes": 5823
+    },
+    {
+      "path": "js/magic/character-motion.js",
+      "sha256": "61ffe361c510da06b54d1663dbfa99b4b95b0481f6d0eb98183bada2d71ca14e",
+      "bytes": 9905
+    },
+    {
+      "path": "js/magic/portrait-expression.js",
+      "sha256": "b2f1f860e4c49d54035197eefbfd468a769a9140a76de4f2fc7025e94267827f",
+      "bytes": 6352
+    },
+    {
+      "path": "js/magic/wand-gesture.js",
+      "sha256": "1637842b6cf89c5db639fedd7731d7242c5ae321d5d3f8ec196f416b1cd429e4",
+      "bytes": 1540
+    },
+    {
+      "path": "js/magic/character-catalog.js",
+      "sha256": "47ae8001cf70ecd5e5cd391658a4a6f84f4a0d6f354bdf91e0165558cc4233d1",
+      "bytes": 3186
+    },
+    {
+      "path": "docs/magic-characters.md",
+      "sha256": "3d4463458ac7336d50ae00e307a9ab6b8ad36d5938aeed130884878577ee59aa",
+      "bytes": 6737
+    },
+    {
+      "path": "tools/blender/face_topology/LICENSE",
+      "sha256": "8707eef0533987efc5b155d64761eeb6e20793f50b9bd1a68dad1cf4719d0ed8",
+      "bytes": 12331
+    }
+  ]
+}

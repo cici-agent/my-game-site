@@ -1,0 +1,110 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/stone/:path*",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/api/stone/:path*"
+    },
+    {
+      "source": "/assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/harry-pathfinder.glb",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/harry-pathfinder.glb"
+    },
+    {
+      "source": "/assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/hermione-scholar.glb",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/hermione-scholar.glb"
+    },
+    {
+      "source": "/assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/ron-weasley.glb",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/ron-weasley.glb"
+    },
+    {
+      "source": "/assets/chapter-one/materials/stone-albedo.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/stone-albedo.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/stone-normal.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/stone-normal.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/stone-roughness.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/stone-roughness.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/brick-albedo.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/brick-albedo.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/brick-normal.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/brick-normal.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/brick-roughness.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/brick-roughness.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/wood-albedo.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/wood-albedo.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/wood-normal.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/wood-normal.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/wood-roughness.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/wood-roughness.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/floor-albedo.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/floor-albedo.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/floor-normal.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/floor-normal.jpg"
+    },
+    {
+      "source": "/assets/chapter-one/materials/floor-roughness.jpg",
+      "destination": "https://hogwarts-adventure-journal.mingyang83400.chatgpt.site/assets/chapter-one/materials/floor-roughness.jpg"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/stone/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Vercel-CDN-Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "source": "/stone.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/stone-play.mjs",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
+  ]
+}

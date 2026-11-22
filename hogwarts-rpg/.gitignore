@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.DS_Store
+.local/
+# Original workshop bytes are reconstructed from checksum-pinned source chunks.
+assets/chapter-one/workshop/612434e54cf7/assets/3d/magic/characters/harry-pathfinder.glb
+assets/chapter-one/workshop/612434e54cf7/assets/3d/magic/characters/hermione.glb
+assets/chapter-one/workshop/612434e54cf7/assets/3d/magic/characters/ron.glb
+assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/harry-pathfinder.glb
+assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/hermione-scholar.glb
+assets/chapter-one/workshop/65154a9106f3/assets/3d/magic/characters/ron-weasley.glb
