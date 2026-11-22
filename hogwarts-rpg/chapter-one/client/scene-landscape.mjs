@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BOAT_SEATS } from '../train-layout.mjs';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 
@@ -114,11 +115,11 @@ export function createBoatMotion() {
     if (phase === 'disembarking') { arrival = Math.min(1, arrival + dt / 1.2); if (arrival >= 1) phase = 'docked'; }
   }
   function getPose(role = 'player') {
-    const seatZ = role === 'guide' ? -.75 : .36, seat = { x: position.x + Math.sin(yaw) * seatZ, y: position.y, z: position.z + Math.cos(yaw) * seatZ };
+    const seatSpec=BOAT_SEATS[role]??BOAT_SEATS.player, seatZ = seatSpec.z, seat = { x: position.x + Math.sin(yaw) * seatZ, y: position.y, z: position.z + Math.cos(yaw) * seatZ };
     const disembarkProgress = phase === 'docked' ? 1 : phase === 'disembarking' ? arrival : 0;
     const t = disembarkProgress * disembarkProgress * (3 - 2 * disembarkProgress);
     const shore = { x: target.x, y: 0, z: target.z - (role === 'guide' ? 1.1 : .7) };
-    return { position: { x: mix(seat.x, shore.x, t), y: mix(seat.y, 0, t) + Math.sin(disembarkProgress * Math.PI) * .16, z: mix(seat.z, shore.z, t) }, boatPosition: { ...position }, yaw, seated: phase === 'crossing' || phase === 'boarding' && progress > 0 || phase === 'disembarking' && arrival < .15, phase, progress, disembarkProgress, rowing, stroke };
+    return { position: { x: mix(seat.x, shore.x, t), y: mix(seat.y, 0, t) + Math.sin(disembarkProgress * Math.PI) * .16, z: mix(seat.z, shore.z, t) }, boatPosition: { ...position }, yaw, seat:seatSpec.seat, seated: phase === 'crossing' || phase === 'boarding' && progress > 0 || phase === 'disembarking' && arrival < .15, phase, progress, disembarkProgress, rowing, stroke };
   }
   return { setEscort, update, getPose };
 }
@@ -178,7 +179,7 @@ export function buildLake(a, group, walls) {
     const points = Array.from({ length: 24 }, (_, i) => { const z = (i / 23 - .5) * 3.4, width = .91 * Math.sqrt(Math.max(0, 1 - (z / 1.78) ** 2)); return new THREE.Vector3(side * width * (yy === .20 ? .88 : 1), yy, z); });
     part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 32, yy === .46 ? .035 : .012, 8, false), yy === .46 ? paleWood : iron);
   }
-  for (const z of [0, .85]) part(new RoundedBoxGeometry(1.43, .10, .32, 2, .025), paleWood, [0, .58, z]);
+  for (const {z,seat} of Object.values(BOAT_SEATS)) part(new RoundedBoxGeometry(seat.width, .10, seat.backZ-seat.frontZ, 2, .025), paleWood, [0, seat.surfaceY-.05, z]);
   for (const x of [-.36, 0, .36]) part(new RoundedBoxGeometry(.33, .055, 2.3, 2, .010), wood, [x, .02, 0]);
   const oars = [-1, 1].map(side => {
     const hinge = new THREE.Group(); hinge.position.set(side * .81, .51, .4); boat.add(hinge);

@@ -1,5 +1,6 @@
 import { Euler, Quaternion, Vector3 } from 'three';
 import { createJumpPose } from './jump-pose.mjs';
+import { solveSeatedContact } from './seating.mjs';
 
 const clamp = value => Math.max(0, Math.min(1, value));
 const ease = value => { const t = clamp(value); return t * t * (3 - 2 * t); };
@@ -71,7 +72,7 @@ export function createActionTimeline() {
 
 // No source tracks are rewritten. Only selected upper-body poses near the
 // authored release are sampled into an instance-owned, reversible overlay.
-export function createCombatPoseLayer({ model, bones, clips, enabled = true }) {
+export function createCombatPoseLayer({ model, bones, clips, enabled = true, seatRig = null }) {
   const saved = new Map(), savedMorphs = new Map(), cast = clips.find(clip => clip.name === 'Cast');
   const samplers = new Map();
   for (const name of Object.keys(upperWeights)) {
@@ -86,7 +87,8 @@ export function createCombatPoseLayer({ model, bones, clips, enabled = true }) {
   const timeline = createActionTimeline();
   const jump = createJumpPose();
   const footPoint = new Vector3();
-  let sitting = 0, impact = 0, impactDirection = 1, hipCompression = 0, context = { mood: 'neutral', intensity: .65, lookX: 0, lookY: 0, talking: false }, clock = 0;
+  const seatSoles = Array.from({ length: 4 }, () => new Vector3());
+  let sitting = 0, impact = 0, impactDirection = 1, hipCompression = 0, seatContact = null, lastSeat = null, initialized = false, context = { mood: 'neutral', intensity: .65, lookX: 0, lookY: 0, talking: false }, clock = 0;
   function remember(bone) {
     if (!saved.has(bone)) saved.set(bone, { quaternion: bone.quaternion.clone(), position: bone.position.clone() });
   }
@@ -108,11 +110,64 @@ export function createCombatPoseLayer({ model, bones, clips, enabled = true }) {
     for (const [mesh, values] of savedMorphs) for (const [index, value] of values) mesh.morphTargetInfluences[index] = value;
     savedMorphs.clear();
   }
-  function apply(dt, grounded, verticalVelocity, seated = false) {
+  function fitSeat(seat) {
+    const solution = solveSeatedContact(seatRig?.metrics, seat);
+    if (!solution || !seatRig || sitting < .00001) return false;
+    const root = seatRig.root, hips = bones.get('Hips');
+    root.updateMatrixWorld(true);
+    const rootRotation = root.getWorldQuaternion(new Quaternion());
+    const rootPosition = bone => root.worldToLocal(bone.getWorldPosition(new Vector3()));
+    const hipLeft = rootPosition(bones.get('ThighL')), hipRight = rootPosition(bones.get('ThighR'));
+    const centre = hipLeft.clone().add(hipRight).multiplyScalar(.5);
+    const shift = new Vector3(0, solution.hipTarget.y - centre.y, solution.hipTarget.z - centre.z).multiplyScalar(sitting);
+    // Transform a displacement, not a point: neither gameplay root nor the
+    // source model changes when a bench is on an upper floor or turned around.
+    const from = hips.getWorldPosition(new Vector3()), to = root.localToWorld(root.worldToLocal(from.clone()).add(shift));
+    hips.parent.worldToLocal(to); remember(hips); hips.position.copy(to);
+    root.updateMatrixWorld(true);
+    const aim = (bone, endpoint, direction) => {
+      const start = bone.getWorldPosition(new Vector3()), current = endpoint.getWorldPosition(new Vector3()).sub(start);
+      const desired = direction.clone().applyQuaternion(rootRotation);
+      const change = new Quaternion().setFromUnitVectors(current.normalize(), desired.normalize());
+      const world = change.multiply(bone.getWorldQuaternion(new Quaternion()));
+      const local = bone.parent.getWorldQuaternion(new Quaternion()).invert().multiply(world);
+      remember(bone); bone.quaternion.slerp(local, sitting); root.updateMatrixWorld(true);
+    };
+    for (const side of ['L', 'R']) {
+      const thigh = bones.get('Thigh' + side), shin = bones.get('Shin' + side), foot = bones.get('Foot' + side);
+      aim(thigh, shin, new Vector3(0, -Math.cos(solution.hipAngle), -Math.sin(solution.hipAngle)));
+      const lowerAngle = solution.hipAngle + solution.kneeAngle;
+      aim(shin, foot, new Vector3(0, -Math.cos(lowerAngle), -Math.sin(lowerAngle)));
+      const upright = foot.parent.getWorldQuaternion(new Quaternion()).invert().multiply(rootRotation.clone().multiply(seatRig.feet.get(side)));
+      remember(foot); foot.quaternion.slerp(upright, sitting); root.updateMatrixWorld(true);
+    }
+    // During the sit/stand blend the hips can descend before both knees have
+    // folded. Use the workshop's real heel/toe pads to keep that transient pose
+    // above the deck; the adjustment vanishes once the seat is supporting it.
+    if (seatRig.readSoleContacts?.(seatSoles)) {
+      const lowest = Math.min(...seatSoles.map(point => root.worldToLocal(point).y));
+      if (lowest < seat.floorY) {
+        const localHip = rootPosition(hips); localHip.y += seat.floorY - lowest;
+        hips.position.copy(hips.parent.worldToLocal(root.localToWorld(localHip)));
+        root.updateMatrixWorld(true);
+      }
+    }
+    seatContact = solution;
+    return true;
+  }
+  function apply(dt, grounded, verticalVelocity, seated = false, seat = null) {
     clock += dt; timeline.advance(dt);
     if (!enabled) return;
     const jumpPose = jump.sample(dt, { grounded, verticalVelocity, suppressed: seated });
+    if (!initialized && seated && seat) sitting = 1;
+    initialized = true;
     sitting += ((seated ? 1 : 0) - sitting) * (1 - Math.exp(-12 * dt));
+    if (seated) lastSeat = seat;
+    if (sitting < .00001) { lastSeat = null; seatContact = null; }
+    const fittedSeat = Boolean(lastSeat && seatRig);
+    // Capture garment weights in the untouched standing pose, before fitting
+    // the joints; only instance-owned buffers change during the reversible fold.
+    seatRig?.wardrobe.update(fittedSeat ? sitting : 0);
     impact *= Math.exp(-10 * dt);
     const armInfluence = timeline.pose ? .25 : 1;
     const hips = bones.get('Hips');
@@ -125,9 +180,9 @@ export function createCombatPoseLayer({ model, bones, clips, enabled = true }) {
     const beforeFeet = support ? ankleHeight() : 0;
     for (const [side, sign] of [['L', -1], ['R', 1]]) {
       const thigh = jumpPose['thigh' + side], knee = jumpPose['knee' + side];
-      rotate('Thigh' + side, thigh - sitting * 1.15);
-      rotate('Shin' + side, knee + sitting * 1.38);
-      rotate('Foot' + side, jumpPose['ankle' + side] - sitting * .2);
+      rotate('Thigh' + side, thigh - (fittedSeat ? 0 : sitting * 1.15));
+      rotate('Shin' + side, knee + (fittedSeat ? 0 : sitting * 1.38));
+      rotate('Foot' + side, jumpPose['ankle' + side] - (fittedSeat ? 0 : sitting * .2));
       rotate('Arm' + side, jumpPose.arm * armInfluence, 0, sign * jumpPose.spread * armInfluence);
       rotate('Forearm' + side, jumpPose.elbow * armInfluence);
     }
@@ -136,7 +191,8 @@ export function createCombatPoseLayer({ model, bones, clips, enabled = true }) {
     // Compare the actual posed ankles, including the workshop's already bent
     // idle/walk knees. A neutral-leg approximation leaves the shoes hovering.
     hipCompression = support ? Math.max(0, ankleHeight() - beforeFeet) * jumpPose.support : 0;
-    if (hips && (hipCompression || sitting)) { remember(hips); hips.position.y -= hipCompression + sitting * .10; }
+    if (hips && (hipCompression || sitting && !fittedSeat)) { remember(hips); hips.position.y -= hipCompression + (fittedSeat ? 0 : sitting * .10); }
+    if (fittedSeat) fitSeat(lastSeat);
 
     const action = timeline.pose;
     if (action && action.now >= action.start) {
@@ -163,7 +219,7 @@ export function createCombatPoseLayer({ model, bones, clips, enabled = true }) {
   }
   return {
     timeline, restore, apply,
-    setEnabled(value) { restore(); enabled = Boolean(value); if (!enabled) jump.reset(); },
+    setEnabled(value) { restore(); enabled = Boolean(value); if (!enabled) { jump.reset(); seatRig?.wardrobe.update(0); } },
     get enabled() { return enabled; },
     playHit({ strength = 1, direction = 1 } = {}) {
       if (!Number.isFinite(strength) || !Number.isFinite(direction)) throw new Error('INVALID_HIT_POSE');
@@ -179,7 +235,7 @@ export function createCombatPoseLayer({ model, bones, clips, enabled = true }) {
     prepareJump(options) { return enabled && jump.prepare(options); },
     cancelJumpPreparation: jump.cancelPreparation,
     resetJumpPresentation: jump.reset,
-    reset() { restore(); timeline.reset(); jump.reset(); sitting = impact = hipCompression = 0; },
-    debug() { const state = jump.debug(); return { ...timeline.debug(), enabled, airWeight: state.airWeight, landing: state.landingWeight, jump: { ...state, compression: hipCompression }, sitting, impact, expression: { ...context }, sampledUpperBones: [...samplers.keys()] }; },
+    reset() { restore(); timeline.reset(); jump.reset(); sitting = impact = hipCompression = 0; seatContact = lastSeat = null; initialized = false; seatRig?.wardrobe.update(0); },
+    debug() { const state = jump.debug(); return { ...timeline.debug(), enabled, airWeight: state.airWeight, landing: state.landingWeight, jump: { ...state, compression: hipCompression }, sitting, seatContact, impact, expression: { ...context }, sampledUpperBones: [...samplers.keys()] }; },
   };
 }

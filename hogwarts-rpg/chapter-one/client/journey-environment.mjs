@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TRAIN_LAYOUT, trainVestibuleParts } from '../train-layout.mjs';
 import { bindEnvironmentMaterials } from './scene-materials.mjs';
 
 // Persistent, walkable places in the world atlas. Nothing here moves a player,
@@ -249,8 +250,21 @@ function stairs(a, area, portals) {
 }
 
 function station(a, area, portals) {
-  const [x0, x1, z0, z1] = boundsOf(area), hogsmeade = /hogsmeade/i.test(area.id), mat = a.material('railway-crimson', 0x713c35);
+  // Navigation bounds include overlap at individual doorways. Expanding the
+  // entire platform to that rectangle puts stone flooring inside the coach and
+  // also shifts the tracks. Architecture retains its original physical edge.
+  const [x0, x1, z0, z1] = area.physicalBounds ?? boundsOf(area), hogsmeade = /hogsmeade/i.test(area.id), mat = a.material('railway-crimson', 0x713c35);
   a.floor(x0, x1, z0, z1); a.box(x1 - x0, .45, z1 - z0, a.stone, (x0 + x1) / 2, -.30, (z0 + z1) / 2);
+  const navigation = boundsOf(area);
+  for (const portal of portals.filter(portal => portal.kind === 'walk')) {
+    const at = point(portal.anchor), half = (portal.width ?? 2.8) / 2;
+    // Only the actual opening receives a flush threshold. This keeps the door
+    // overlap walkable without paving the whole strip beside the train.
+    if (portal.normal?.x < -.5 && navigation[0] < x0) a.floor(navigation[0], x0, at.z - half, at.z + half, at.y, false);
+    if (portal.normal?.x > .5 && navigation[1] > x1) a.floor(x1, navigation[1], at.z - half, at.z + half, at.y, false);
+    if (portal.normal?.z < -.5 && navigation[2] < z0) a.floor(at.x - half, at.x + half, navigation[2], z0, at.y, false);
+    if (portal.normal?.z > .5 && navigation[3] > z1) a.floor(at.x - half, at.x + half, z1, navigation[3], at.y, false);
+  }
   // Track trough is alongside the platform, never across the walking route.
   const trainSide = hogsmeade ? -1 : 1, railX = trainSide < 0 ? x0 - 3.2 : x1 + 3.2;
   const trackStart=Math.min(z0-10,-49),trackEnd=z1+6;
@@ -421,15 +435,16 @@ export function getPortalNavigation(area, portals = []) {
 
 function trainExterior(a, portals) {
   const red = a.material('carriage-crimson', 0x7d3e35), cream = a.material('carriage-window-wood', 0xb5a079), roof = a.material('carriage-roof', 0x37443e);
-  a.box(6.4,.16,3.7,a.wood,0,-.07,15.65).castShadow=false;
+  const v=TRAIN_LAYOUT.vestibule;
+  a.box(v.halfWidth*2,.16,v.floorEndZ-v.startZ+.2,a.wood,0,-.08,(v.startZ+v.floorEndZ)/2-.1).castShadow=false;
   for (const x of [-3.18, 3.18]) {
     a.box(.16, 1.15, 28, red, x, .575, 0); a.box(.18, .55, 28, red, x, 3.25, 0);
     a.box(.18, .09, 28, a.brass, x, 1.18, 0); a.box(.16, .065, 28, a.brass, x, 2.95, 0);
-    for (let z = -12.6; z < 13; z += 3.25) a.box(.18, 1.7, .16, cream, x, 2.02, z);
+    for (const z of TRAIN_LAYOUT.bayOrigins) a.box(.18, 1.7, .16, cream, x, 2.02, z);
   }
-  const vestibule = [-3.2, 3.2, 14, 17.4], doors = portals.filter(p => Math.abs(point(p.anchor).x) > 2.5 && point(p.anchor).z > 13);
-  // The inside face at z14 joins the original coach floor; it is not a wall.
-  enclosingWalls({...a,stone:red,edge:cream}, vestibule, [...doors, { anchor: { x: 0, y: 0, z: 14 }, width: 6.4 }], 3.55);
+  const doors=portals.filter(p=>p.kind==='walk'&&Math.abs(point(p.anchor).x)>2.5&&point(p.anchor).z>v.startZ-.01);
+  for(const part of trainVestibuleParts(portals))a.box(part.w,part.h,part.d,red,part.x,part.y,part.z);
+  for(const door of doors){const at=point(door.anchor),width=door.width??v.doorWidth;for(const edge of[-1,1])a.box(.43,v.height,.08,cream,at.x,v.height/2,at.z+edge*(width/2+.04));a.box(.43,.12,width+.16,cream,at.x,v.height+.06,at.z);}
   a.box(6.65, .22, 31.5, roof, 0, 3.79, 1.65);
   a.box(5.9, .30, 31.5, a.iron, 0, -.28, 1.65);
   for (const x of [-2.35, 2.35]) for (const z of [-10, 10]) { const wheel = a.cylinder(.58, .24, a.iron, x, 0, z); wheel.rotation.z = Math.PI / 2; a.cylinder(.18, .26, a.brass, x, 0, z).rotation.z = Math.PI / 2; }
@@ -453,7 +468,7 @@ function trainExterior(a, portals) {
 }
 
 function candyTrolley(a) {
-  const x=2.05,z=2.55, paper=a.material('trolley-paper',0xd6c5a0),plum=a.material('trolley-plum',0x73577d),green=a.material('trolley-green',0x6d8c73),rose=a.material('trolley-rose',0xc68e86);
+  const {x,z}=TRAIN_LAYOUT.trolley, paper=a.material('trolley-paper',0xd6c5a0),plum=a.material('trolley-plum',0x73577d),green=a.material('trolley-green',0x6d8c73),rose=a.material('trolley-rose',0xc68e86);
   for(const y of [.35,.91]) {
     a.box(1.1,.06,.65,a.wood,x,y,z);
     for(const dz of [-.31,.31])a.box(1.1,.10,.04,a.wood,x,y+.07,z+dz);

@@ -1,6 +1,7 @@
 import { contentData } from './data/index.mjs';
 import { getSceneNavigation, sceneNavigationIds } from './client/scene-navigation.mjs';
 import { PLAYER_RADIUS } from './movement.mjs';
+import { TRAIN_LAYOUT, TRAIN_BULKHEAD_PARTS, solidBox, trainVestibuleParts } from './train-layout.mjs';
 
 // Positions persisted by the authority are always area-local. Only these fixed
 // origins place areas into a shared rendered realm; they are never move deltas.
@@ -9,7 +10,7 @@ const names = new Map(contentData.scenes.map(scene=>[scene.id,scene.name]));
 const mutableAreas = [], mutableLinks = [];
 const addArea = (id,sceneId,origin,bounds,kind='room',extra={}) => {
   const inherited = sceneNavigationIds.includes(sceneId) ? getSceneNavigation(sceneId) : {bounds,walls:[]};
-  const area={id,sceneId:sceneId??id,name:names.get(sceneId)??id,realm:'HOGWARTS',origin:{x:origin[0],y:origin[1],z:origin[2]},navigation:{bounds:[...(bounds??inherited.bounds)],walls:inherited.walls.map(wall=>({...wall}))},spawn:point(0,0,6),kind,...extra};
+  const area={id,sceneId:sceneId??id,name:names.get(sceneId)??id,realm:'HOGWARTS',origin:{x:origin[0],y:origin[1],z:origin[2]},physicalBounds:[...(bounds??inherited.bounds)],navigation:{bounds:[...(bounds??inherited.bounds)],walls:inherited.walls.map(wall=>({...wall}))},spawn:point(0,0,6),kind,...extra};
   mutableAreas.push(area);return area;
 };
 addArea('SC01','SC01',[0,0,0],null,'room',{realm:'LONDON'});
@@ -107,24 +108,16 @@ function apron(area,axis,coordinate,center=0){
     const low=Math.min(old,edge),top=Math.max(old,edge);rect((low+top)/2,(b[2]+center-half)/2,top-low,center-half-b[2]);rect((low+top)/2,(center+half+b[3])/2,top-low,b[3]-center-half);b[coordinate<0?0:1]=edge;
   }
 }
-// Two platform doors turn into the train's real end vestibule, then join the
-// existing centre aisle; the narrow aisle is not widened for the whole car.
+// The side doors meet a real vestibule. Furniture and sidewalls, rather than
+// an invisible aisle-sized rectangle, define the passenger cabin's solid space.
 for(const id of ['SC02_LONDON','SC02_HOGSMEADE']){
-  const area=areasById.get(id);apron(area,'z',16.6);
-  area.navigation.bounds[0]=-4.1;area.navigation.bounds[1]=4.1;
-  for(const side of[-1,1])area.navigation.walls.push({x:side*2.675,z:(-9.1+14)/2,w:2.85,d:23.1,height:100,boundary:true});
-  // The outer coach vestibule is wider than the movement aisle. Its physical
-  // end wall and side panels need camera geometry, not an imaginary rectangle
-  // across the walkable platform door. Dimensions match trainExterior.
-  const cameraWalls=area.navigation.cameraWalls=[{x:0,z:17.4,w:6.4,d:.36,height:3.55},{x:0,z:-14,w:6.4,d:.36,height:3.55},
-    ...[-1,1].map(side=>({x:side*3.18,z:0,w:.18,d:28,height:3.55}))];
-  for(const side of[-1,1]){
-    const door=mutableLinks.find(link=>link.from===id&&link.kind==='walk'&&Math.sign(link.anchor.x)===side);
-    const gap=door?[door.anchor.z-door.width/2,door.anchor.z+door.width/2]:null;
-    const segments=gap?[[14,gap[0]],[gap[1],17.4]]:[[14,17.4]];
-    for(const [lo,hi]of segments)if(hi>lo)cameraWalls.push({x:side*3.2,z:(lo+hi)/2,w:.40,d:hi-lo,height:3.55});
-  }
+  const area=areasById.get(id),v=TRAIN_LAYOUT.vestibule;
+  area.navigation.bounds=[-v.halfWidth-.9,v.halfWidth+.9,TRAIN_LAYOUT.bounds[2],v.floorEndZ];
+  const vestibule=trainVestibuleParts(mutableLinks.filter(link=>link.from===id));
+  area.navigation.walls.push(...vestibule.map(solidBox));
+  area.navigation.cameraWalls=[...TRAIN_BULKHEAD_PARTS.map(solidBox),...vestibule.map(solidBox)];
 }
+
 function openDoorBands(area,portals){
   const b=area.navigation.bounds,base=[...b],groups={west:[],east:[],north:[],south:[]};
   for(const p of portals){

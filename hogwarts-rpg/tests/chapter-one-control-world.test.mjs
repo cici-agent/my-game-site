@@ -22,6 +22,7 @@ import { runtimeQuests, getSceneView } from '../chapter-one/online/catalog.mjs';
 import { replayAreaMovement } from '../chapter-one/online/location.mjs';
 import * as people from '../chapter-one/people.mjs';
 import { createMouseLook } from '../chapter-one/client/mouse-look.mjs';
+import { interactionPresentation, interactionVisibleFrom } from '../chapter-one/client/interaction-presentation.mjs';
 
 // Execute the complete production controller and frame loop. Only the browser,
 // GPU and asset construction boundaries are replaced; Three's cameras/rays,
@@ -41,7 +42,7 @@ function avatar(heroId) {
   root.name = heroId;
   return { root, model: root, calls, walkSpeed: 1.308, runSpeed: 2.808,
     capabilities: { appearance: 'fixed-published-look' },
-    updateTravel(dt, distance, grounded, verticalVelocity, seated) { calls.travel.push({ dt, distance, grounded, verticalVelocity, seated }); timeline.advance(dt); },
+    updateTravel(dt, distance, grounded, verticalVelocity, seated, seat) { calls.travel.push({ dt, distance, grounded, verticalVelocity, seated, seat }); timeline.advance(dt); },
     prepareJump(value) { calls.prepare.push(value); return true; }, cancelJumpPreparation() { calls.cancelPreparation++; return true; },
     resetPresentation({ position, yaw } = {}) { if (position) root.position.fromArray(position); if (Number.isFinite(yaw)) root.rotation.y = yaw; },
     setPresentationState() {}, setExpressionContext() {}, playStudioCast() { return true; },
@@ -76,7 +77,7 @@ async function harness(t, { encounter = null, members = [], request = null, boat
     return {root,record,update(dt){record.updates++;if(id==='SC03')boatMotion?.update(dt);},dispose(){record.disposals++;},setEscort(value){if(id==='SC03')boatMotion?.setEscort(value);},setContext(value){record.contexts.push(value);},setTrainStopped(){},getBoatPose:id==='SC03'&&boatMotion?role=>boatMotion.getPose(role):undefined};
   };
   const context = vm.createContext({
-    THREE: { ...Three, WebGLRenderer: Renderer }, RoundedBoxGeometry, createMouseLook,
+    THREE: { ...Three, WebGLRenderer: Renderer }, RoundedBoxGeometry, createMouseLook, interactionPresentation, interactionVisibleFrom,
     ...geometry, ...targeting, ...movement, ...atlas, ...people, areaOffset, trainPassengers, trainConversationTargets, contentData, abilityState, applyEquipmentAppearance, resetEquipmentAppearance, createBoltVisual, createImpactVisual, createEnemyWarning, createEnemyStrike, SELECTABLE_HEROES, selectionCameraPose,
     createSelectionStage: options => residentStage({ ...options, loadCharacter }), createSelectionSpells: harmlessFx,
     loadPlayableCharacter: loadCharacter, loadNpc,
@@ -117,7 +118,7 @@ test('train passengers keep one seated story Ron across dialogue changes without
   const h = await harness(t), player = h.actors.find(actor => actor.root.name === 'harry'), selectionRon = h.actors.find(actor => actor.root.name === 'ron');
   const originalActors = new Set(h.actors), quest = runtimeQuests.find(quest => quest.id === 'M02');
   const target = { ...quest.objectives.find(objective => objective.kind === 'talk'), active: true, completed: false };
-  await h.snapshot({ sceneId: 'SC02', currentQuestId: 'M02', position: { x: -.3, y: 0, z: -3.2, yaw: 0 } }, {
+  await h.snapshot({ sceneId: 'SC02', currentQuestId: 'M02', position: { x: -.5, y: 0, z: -5.0, yaw: 0 } }, {
     sceneId: 'SC02', quest: { id: quest.id, name: quest.name, npc: quest.initiatorNpc }, targets: [target],
   });
   await flush(); h.advance(80);
@@ -129,6 +130,7 @@ test('train passengers keep one seated story Ron across dialogue changes without
   assert.equal(player.root.parent, h.scene()); assert.equal(player.calls.dispose, 0); assert.equal(selectionRon.calls.dispose, 0);
   assert(ron.calls.travel.length > 0, 'the world frame loop drives the workshop companion animation');
   assert(ron.calls.travel.every(call=>call.seated),'the resident Ron keeps his bench seat');
+  assert(ron.calls.travel.every(call=>call.seat?.surfaceY>0),'workshop passengers receive the same authored seat contact as other NPCs');
   assert.equal(h.world.getNearest()?.id, target.id);
   h.key('KeyE'); assert.equal(h.actions.at(-1)?.targetId, 'M02-3'); assert.equal(h.actions.at(-1)?.type, 'interact');
   const companionPosition = ron.root.position.clone(), playerPosition = player.root.position.clone();
@@ -169,7 +171,8 @@ test('a nearby service NPC faces the player and engages, then stops greeting whe
   h.key('KeyE'); assert.equal(h.actions.at(-1)?.targetId, target.id, 'the engaged actor is the same target that E activates');
   h.key('KeyS'); h.key('ShiftLeft'); h.advance(200); h.key('KeyS', 'keyup'); h.key('ShiftLeft', 'keyup'); h.advance(30);
   assert(h.actors[0].root.position.distanceTo(npc.root.position) > 6);
-  assert.equal(npc.calls.at(-1).engaged, false); assert.equal(npc.calls.at(-1).talking, false); assert.equal(npc.calls.at(-1).lookAt, undefined);
+  assert.equal(npc.calls.at(-1).engaged, false);
+  assert.equal(npc.root.children.find(node=>node.isSprite)?.visible,false,'unfocused NPC plaques are explicitly hidden, not left undefined for Three to render'); assert.equal(npc.calls.at(-1).talking, false); assert.equal(npc.calls.at(-1).lookAt, undefined);
   const heading = npc.root.rotation.y; h.advance(50); assert.equal(npc.root.rotation.y, heading, 'an out-of-range player no longer drives an interaction turn');
   const actionsBefore = h.actions.length; h.key('KeyE'); assert.equal(h.actions.length, actionsBefore, 'the departed service is no longer interactable');
   assert.equal(h.npcs.length, 1, 'distance changes do not recreate or reload the actor');
@@ -191,7 +194,8 @@ test('Hagrid keeps escort travel direction and the real boat seat through crossi
   assert(new Three.Vector3(0, 0, -1).applyQuaternion(npc.root.quaternion).dot(travelDirection) > .995, 'escort body smoothly turns into its actual movement');
   const beforeE=h.actions.length;h.key('KeyE');assert.equal(h.actions.length,beforeE,'an already walking guide needs no repeat interaction');
   h.advance(200);const travelHeading=npc.root.rotation.y;h.advance(50);
-  assert.equal(npc.calls.at(-1).action, 'idle'); assert.equal(npc.calls.at(-1).engaged, false); assert(Math.abs(npc.root.rotation.y - travelHeading) < 1e-8, 'waiting escort does not turn to greet the nearby follower');
+  assert.equal(npc.calls.at(-1).action, 'idle'); assert.equal(npc.calls.at(-1).engaged, false);
+  assert.equal(npc.root.children.find(node=>node.isSprite)?.visible,false,'unfocused NPC plaques are explicitly hidden, not left undefined for Three to render'); assert(Math.abs(npc.root.rotation.y - travelHeading) < 1e-8, 'waiting escort does not turn to greet the nearby follower');
 
   const checkBoatFrame = () => {
     h.advance(); const pose = boat.getPose('guide'), sample = npc.calls.at(-1);
@@ -216,6 +220,7 @@ test('Hagrid keeps escort travel direction and the real boat seat through crossi
   await h.snapshot({}, guideView('escort', .1, { x: -1.5, y: 0, z: -5.1 })); h.advance(100);
   assert.equal(boat.getPose().phase, 'docked'); assert.equal(h.world.getPose().riding, false);
   assert.equal(npc.calls.at(-1).action, 'idle'); assert.equal(npc.calls.at(-1).engaged, false);
+  assert.equal(npc.root.children.find(node=>node.isSprite)?.visible,false,'unfocused NPC plaques are explicitly hidden, not left undefined for Three to render');
   assert.equal(h.npcs.length, 1, 'one Hagrid actor survives walking, boarding, sailing and landing');
 });
 
@@ -646,10 +651,27 @@ test('an active party member occupies space while somebody on another floor does
   assert(h.world.getPose().z<1,'a body at another elevation cannot block the ground-floor route');
 });
 
-test('an NPC has no duplicate shoulder-height interaction plaque but other world target labels remain',async t=>{
-  const h=await harness(t),person={id:'molly',kind:'talk',npc:'韦斯莱夫人',label:'韦斯莱夫人：你好',active:true,position:{x:0,y:0,z:2},radius:2},object={id:'look-object',kind:'collect',label:'拾取物品',active:true,position:{x:1.5,y:0,z:2},radius:2};
-  await h.snapshot({}, {targets:[person,object]});await flush();h.advance(30);
-  const markers=[];h.scene().traverse(node=>{if(node.userData.target&&node.userData.tag)markers.push(node);});
-  assert.equal(markers.find(node=>node.userData.target.id===person.id).userData.tag.visible,false,'no dark strip remains across the NPC torso');
-  assert.equal(markers.find(node=>node.userData.target.id===object.id).userData.tag.visible,true,'non-person target labels are unaffected');
+test('navigation and people remain interactive without ground circles or floating diamonds',async t=>{
+  const h=await harness(t),person={id:'molly',kind:'talk',npc:'韦斯莱夫人',label:'韦斯莱夫人：你好',active:true,position:{x:0,y:0,z:3.5},radius:2};
+  const route={id:'route',kind:'move',label:'沿路前行',active:true,position:{x:1.5,y:0,z:0},radius:2};
+  await h.snapshot({}, {targets:[person,route]});await flush();h.advance(30);
+  for(const target of [person,route]) {
+    const object=h.scene().getObjectByName(`Interaction:${target.id}`);assert(object);
+    let meshCount=0;object.traverse(node=>{if(node.isMesh)meshCount++;});assert.equal(meshCount,0,'logical points have no synthetic world geometry');
+    assert.equal(object.userData.tag.visible,false);
+  }
+  assert.equal(h.world.getNearest()?.id,person.id);h.key('KeyE');assert.equal(h.actions.at(-1)?.targetId,person.id,'removing visual debug points preserves actual interaction');
+});
+
+test('only the nearby visible physical object receives a label and highlight',async t=>{
+  const h=await harness(t),near={id:'toad',kind:'collect',presentation:{prop:'toad'},label:'找回蟾蜍',active:true,position:{x:0,y:0,z:3.2},radius:2};
+  const farther={...near,id:'card',presentation:{prop:'card'},position:{x:1.1,y:0,z:3.2}};
+  await h.snapshot({}, {targets:[near,farther]});h.advance(30);
+  const toad=h.scene().getObjectByName('Interaction:toad'),card=h.scene().getObjectByName('Interaction:card');
+  assert.equal(h.world.getNearest()?.id,near.id);assert.equal(toad.userData.tag.visible,true);assert.equal(card.userData.tag.visible,false,'no competing labels across the scene');
+  assert(toad.userData.highlightMaterials.some(material=>material.emissive.getHex()>0));
+  assert(card.userData.highlightMaterials.every(material=>material.emissive.getHex()===0));
+  let markers=0;for(const prop of [toad,card])prop.traverse(node=>{if(['RingGeometry','OctahedronGeometry'].includes(node.geometry?.type))markers++;});assert.equal(markers,0);
+  h.walls.push({x:0,z:4.1,w:4,d:.2,height:3});h.advance(30);assert.equal(h.world.getNearest(),null,'a wall blocks interaction through it');assert.equal(toad.userData.tag.visible,false);
+  h.walls.length=0;h.key('KeyS');h.advance(100);h.key('KeyS','keyup');h.advance(30);assert.equal(toad.userData.tag.visible,false,'departing removes the prompt');
 });

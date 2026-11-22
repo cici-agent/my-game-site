@@ -1,5 +1,6 @@
 import { PLAYER_RADIUS, MAX_STEP_HEIGHT } from '../movement.mjs';
 import { sampleEscort, escortStatusText } from './escort-motion.mjs';
+import { resolveTrainCompanion } from '../train-layout.mjs';
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 export function boundsArray(bounds) {
   if (Array.isArray(bounds)) return bounds;
@@ -114,6 +115,7 @@ const knownNpcName = name => npcMatch(name)?.match[0];
 export { sampleEscort, acceptEscortSnapshot, stepNpcMotion, escortStatusText } from './escort-motion.mjs';
 export function sceneNpcTargets(view, combat, occupiedHeroIds = []) {
   if (combat) return [];
+  occupiedHeroIds=view?.occupiedHeroIds??occupiedHeroIds;
   const result = new Map();
   for (const target of view?.targets ?? []) {
     if (!target.active || target.completed || !target.npc || !['service', 'side'].includes(target.kind)) continue;
@@ -125,14 +127,13 @@ export function sceneNpcTargets(view, combat, occupiedHeroIds = []) {
   const namedSpeaker = talk?.label?.match(/^([^：:]{1,24})[：:]/)?.[1];
   const knownSpeaker = knownNpcName(namedSpeaker);
   const guide = view?.escort;
-  let name = guide?.npc ?? talk?.npc ?? knownSpeaker ?? (talk ? view?.quest?.npc?.split(/[、，,\/|]/)[0].trim() : null);
+  let name = guide?.npc ?? talk?.npc ?? knownSpeaker ?? (talk ? view?.quest?.npc?.split(/[、，,\/|]/)[0].trim() : null),companion=null;
   // The train's story seat belongs to a missing member of the trio. Reuse that
   // workshop character without cloning someone already controlled by the party.
   if (view?.quest?.id === 'M02' && talk?.kind === 'talk' && !talk.npc && !knownSpeaker) {
-    const companion = ['ron', 'hermione', 'harry'].find(id => !occupiedHeroIds.includes(id));
-    name = ({ ron: '罗恩', hermione: '赫敏', harry: '哈利' })[companion] ?? null;
+    companion=resolveTrainCompanion(occupiedHeroIds);name=companion.name;
   }
-  if (name && (guide?.position || talk?.position)) result.set(name, { name, position: guide?.position ?? talk.position, targetId: guide?.targetId ?? talk.id, kind: guide?.kind ?? talk.kind, seated: guide?.kind === 'boat' && guide.progress > 0 && guide.progress < 1, escort:guide?{...guide,serverTime:guide.serverTime??view.serverTime}:null });
+  if (name && (guide?.position || talk?.position)) result.set(name, { name, position: guide?.position ?? companion?.position ?? talk?.position, targetId: guide?.targetId ?? talk?.id, kind: guide?.kind ?? talk?.kind, appearanceId:companion?.appearanceId??talk?.appearanceId,seat:companion?.seat??talk?.seat,yaw:companion?.yaw??talk?.yaw,seated: guide ? guide.kind === 'boat' && guide.progress > 0 && guide.progress < 1 : Boolean(companion?.seated??talk?.seated), escort:guide?{...guide,serverTime:guide.serverTime??view.serverTime}:null });
   return [...result.values()];
 }
 export function visibleTargets(view, combat) {

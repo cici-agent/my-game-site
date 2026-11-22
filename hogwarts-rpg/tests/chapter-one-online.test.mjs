@@ -14,6 +14,8 @@ import { resolveAreaId,getWorldArea,questAreaId,getAreaLinks,routeBetween,areaFl
 import { walkRoute } from './helpers/stone-walk-route.mjs';
 import { scenePeople,personBody,moveAmongPeople } from '../chapter-one/people.mjs';
 import { replayAreaMovement } from '../chapter-one/online/location.mjs';
+import { TRAIN_SEATS } from '../chapter-one/train-layout.mjs';
+import { PLAYER_RADIUS } from '../chapter-one/movement.mjs';
 
 const migration=await readFile(new URL('../drizzle/0009_stone_runtime.sql',import.meta.url),'utf8');
 function harness(){
@@ -35,7 +37,12 @@ function harness(){
   const activeTarget=p.scene.targets.find(t=>t.active&&Math.hypot(t.position.x-point.x,t.position.z-point.z)<.01);
   const area=getWorldArea(p.character.areaId),bodies=scenePeople(p.scene,p.encounter?.status==='active'?p.encounter:null,[p.character.heroId]).filter(n=>n.kind!=='boat').map(personBody).filter(b=>p.character.position.y<b.maxY&&(point.y??0)+1.65>b.minY);
   const navigation={...area.navigation,walls:[...area.navigation.walls,...bodies.map(b=>({shape:'circle',x:b.x,z:b.z,radius:b.radius,height:100}))]},nearBody=bodies.find(b=>Math.hypot(point.x-b.x,point.z-b.z)<b.radius+.3);
-  const route=walkRoute(p.character.position,point,navigation,p=>areaFloor(area.id,p),Math.max(radius,nearBody?nearBody.radius+.5:0));
+  // Interactions are approached from legal free space, never by putting a
+  // walking test inside a seated NPC or on top of its furniture.
+  const verticalGap=Math.abs((activeTarget?.position.y??0)-areaFloor(area.id,point));
+  const proximityGoal=activeTarget&&['move','passage','escort','boat','exit','ending','sneak'].includes(activeTarget.kind);
+  const reach=activeTarget&&!proximityGoal?Math.sqrt(Math.max(0,(activeTarget.radius??2)**2-verticalGap**2))-.12:0;
+  const route=walkRoute(p.character.position,point,navigation,p=>areaFloor(area.id,p),Math.max(radius,reach,nearBody?nearBody.radius+.5:0));
   for(let at=0;at<route.length;at++)for(let n=0;n<260;n++){
    const target=route[at],last=at===route.length-1,from=p.character.position,d=Math.hypot(target.x-from.x,target.z-from.z);
    if(d<(last?Math.min(radius,.22):.12)&&Math.abs((point.y??0)-from.y)<.01&&last)return;
@@ -86,7 +93,7 @@ test('doors reject remote, locked and stale requests; late legacy moves cannot o
 });
 
 test('finishing the train story unlocks departure without moving the player until a train intent',async()=>{
- const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M02';c.sceneId='SC02';c.objectiveIndex=2;c.completedQuestIds=['M01'];c.position={...runtimeQuests[1].objectives[2].position,yaw:.7};});await h.sync(p);
+ const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M02';c.sceneId='SC02';c.objectiveIndex=2;c.completedQuestIds=['M01'];c.position={...runtimeQuests[1].objectives[2].position,x:-.65,y:0,yaw:.7};});await h.sync(p);
  const before={...p.character.position};assert.equal((await h.action(p,{type:'interact',targetId:'M02-3'})).status,200);
  assert.equal(p.character.currentQuestId,'M03');assert.equal(p.character.areaId,'SC02_LONDON');assert.deepEqual(p.character.position,before);
  const edge=getAreaLinks('SC02_LONDON').find(link=>link.kind==='train');await h.move(p,edge.anchor,{radius:.2});
@@ -584,9 +591,9 @@ test('story fights, teaching and underground actions reject matching coordinates
  h.edit(p,c=>{c.currentQuestId='M03';c.dungeonRoom=null;});await h.sync(p);assert.equal(p.scene.escort,null);h.sql.close();
 });
 
-test('server movement shares the narrow train carriage walls and cannot walk through the lake',async()=>{
+test('server movement stops at actual coach furniture and cannot walk through the lake',async()=>{
  const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M02';c.sceneId='SC02';c.position={x:.8,y:0,z:4,yaw:0};});await h.sync(p);
- h.advance(1000);const move=await h.action(p,{type:'move',sequence:++p.sequence,position:{x:2,y:0,z:4,yaw:0}});assert.equal(move.status,200);assert(p.character.position.x<=.951);
+ h.advance(1000);const move=await h.action(p,{type:'move',sequence:++p.sequence,position:{x:2,y:0,z:4,yaw:0}});assert.equal(move.status,200);const cushion=TRAIN_SEATS.find(s=>s.side===1&&Math.abs(s.position.z-4)<1).parts.find(part=>part.id.endsWith(':cushion'));assert(p.character.position.x<=cushion.x-cushion.w/2-PLAYER_RADIUS+.001);assert(p.character.position.x>.95,'the old invisible corridor wall is gone');
  h.edit(p,c=>{c.currentQuestId='M03';c.sceneId='SC03';c.areaId='SC03';c.position={x:0,y:0,z:46,yaw:0};});await h.sync(p);
  const firstZ=p.character.position.z;
  for(let i=0;i<12;i++){h.advance(500);await h.action(p,{type:'move',sequence:++p.sequence,position:{x:0,y:0,z:p.character.position.z-1,yaw:0}});}

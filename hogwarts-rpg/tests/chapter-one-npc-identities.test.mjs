@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { npcAppearanceId, sceneNpcTargets, visibleTargets } from '../chapter-one/client/scene-geometry.mjs';
+import { getTrainSeat } from '../chapter-one/train-layout.mjs';
+import { scenePeople } from '../chapter-one/people.mjs';
 import { runtimeCatalog, runtimeQuests } from '../chapter-one/online/catalog.mjs';
 
 test('named teachers, caretakers and students resolve to dedicated identities', () => {
@@ -33,18 +35,19 @@ test('M02 fills an unoccupied trio story seat without duplicating players or rem
   const view = { sceneId: quest.sceneId, quest: { id: quest.id, npc: quest.initiatorNpc }, targets: [target] };
   for (const [occupied, expected] of [
     [['harry'], 'ron'], [['ron'], 'hermione'], [['harry', 'ron'], 'hermione'],
-    [['ron', 'hermione'], 'harry'], [['harry', 'ron', 'hermione'], null],
+    [['ron', 'hermione'], 'harry'], [['harry', 'ron', 'hermione'], 'neville'],
   ]) {
     const before = structuredClone(view), actors = sceneNpcTargets(view, null, occupied);
-    assert.equal(actors.length, expected ? 1 : 0, occupied.join('+'));
-    if (expected) {
-      assert.equal(npcAppearanceId(actors[0].name), expected);
-      assert(!occupied.includes(expected), 'the companion is not already controlled by a player');
-      assert.equal(actors[0].targetId, target.id); assert.equal(actors[0].position, target.position);
-    }
+    assert.equal(actors.length, 1, occupied.join('+'));
+    assert.equal(npcAppearanceId(actors[0].name), expected);
+    assert(!occupied.includes(expected), 'the companion is not already controlled by a player');
+    assert.equal(actors[0].targetId, target.id); assert.deepEqual(actors[0].position, getTrainSeat(expected).position);
+    const residents=scenePeople(view,null,occupied);
+    assert.equal(residents.filter(person=>person.appearanceId===expected).length,1,'the story reuses the existing seated passenger, including Neville when all three heroes are present');
+    assert(!residents.some(person=>occupied.includes(person.appearanceId)),'no player also appears as a passenger');
     const interaction = visibleTargets(view, null).find(candidate => candidate.id === 'M02-3');
     assert(interaction?.active); assert.equal(interaction.actionType, 'interact');
-    assert.equal(interaction.position, target.position, 'the dialogue stays reachable even when the full trio needs no NPC');
+    assert.deepEqual(interaction.position, target.position, 'legacy presentation resolution preserves the supplied target; authoritative seat binding is covered by the API regressions');
     assert.deepEqual(view, before, 'choosing a presentation actor cannot mutate the authoritative quest target');
   }
 });

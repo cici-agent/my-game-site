@@ -1,4 +1,5 @@
 import { contentData } from '../data/index.mjs';
+import { TRAIN_PICKUPS, resolveTrainCompanion } from '../train-layout.mjs';
 import { getRoomView } from '../dungeons/stone-route.mjs';
 import { getFlightPermission } from '../rules/flight.mjs';
 import { resolveAreaId, getWorldArea, questAreaId, getAreaLinks, canUseLink, routeBetween } from '../world-atlas.mjs';
@@ -15,7 +16,7 @@ const hold = (label, seconds = 2) => step(label, 'hold', { seconds });
 const escort = (label, seconds = 4) => step(label, 'escort', { seconds, npc: '海格' });
 const authored = {
  M01: [step('跟上韦斯莱夫人，找到站台入口','escort',{seconds:5,npc:'韦斯莱夫人'}), step('穿过 9、10 号站台之间的砖墙','move',{radius:.65})],
- M02: [step('在行李旁找回纳威的蟾蜍', 'collect'), step('收起巧克力蛙画片', 'collect'), talk('与车厢里的同伴会合')],
+ M02: [step('在行李旁找回纳威的蟾蜍', 'collect', {presentation:TRAIN_PICKUPS.toad.presentation}), step('收起巧克力蛙画片', 'collect', {presentation:TRAIN_PICKUPS.card.presentation}), talk('与车厢里的同伴会合')],
  M03: [escort('跟海格走下湖岸山路'), escort('在码头与海格会合'), step('登船，随海格渡过黑湖', 'boat', { seconds: 70, npc: '海格' }), escort('靠岸后跟海格走到城堡入口')],
  M04: [talk('麦格教授：欢迎来到霍格沃茨'), fight('向低处瞄准小蜘蛛，施放基础咒击', 'PAPER-L1'), fight('侧移避开小蝙蝠的低空扑击，再完成考核', 'BOX-L6')],
  M05: [step('找到课堂材料并搬到教学台', 'collect'), talk('弗立维教授：学习荧光咒'), visit('找到图书馆练习委托台')],
@@ -52,7 +53,7 @@ const authored = {
  M36: [talk('参加学年收尾并查看个人冒险记录'), step('前往返程站台：24级且完成核心首通', 'ending')],
 };
 const positions = [{ x: -1.5, y: 0, z: 3 }, { x: 1.5, y: 0, z: -.5 }, { x: -1.5, y: 0, z: -4 }, { x: 1.5, y: 0, z: -6 }];
-const authoredPositions={M01:[{x:-1.2,y:0,z:-8.4},{x:0,y:0,z:-11.4}],M03:[{x:-1.5,y:0,z:56},{x:1.5,y:0,z:46},{x:-1.5,y:0,z:-4},{x:1.5,y:0,z:-10}],M05:[positions[0],positions[1],{x:-1.5,y:0,z:5}],M07:[{x:42,y:0,z:1},{x:48,y:0,z:0},{x:54,y:0,z:-2}],M12:[positions[0],positions[1],{x:-26,y:0,z:-2}],M15:[positions[0],positions[1],{x:26,y:0,z:2}],M16:[{x:0,y:0,z:7},{x:1.5,y:0,z:7.1},{x:0,y:0,z:12.8}]};
+const authoredPositions={M02:[TRAIN_PICKUPS.toad.position,TRAIN_PICKUPS.card.position,TRAIN_PICKUPS.companion.position],M01:[{x:-1.2,y:0,z:-8.4},{x:0,y:0,z:-11.4}],M03:[{x:-1.5,y:0,z:56},{x:1.5,y:0,z:46},{x:-1.5,y:0,z:-4},{x:1.5,y:0,z:-10}],M05:[positions[0],positions[1],{x:-1.5,y:0,z:5}],M07:[{x:42,y:0,z:1},{x:48,y:0,z:0},{x:54,y:0,z:-2}],M12:[positions[0],positions[1],{x:-26,y:0,z:-2}],M15:[positions[0],positions[1],{x:26,y:0,z:2}],M16:[{x:0,y:0,z:7},{x:1.5,y:0,z:7.1},{x:0,y:0,z:12.8}]};
 // The story is a sequence of physical destinations, not one room per quest.
 // Missing entries inherit the quest's home area; reward IDs/order stay intact.
 const objectiveAreas={M05:[null,null,'SC07'],M12:[null,null,'CORRIDOR_2'],M15:['GRYFFINDOR','SC07','CORRIDOR_2'],M19:[null,null,'SC11'],M21:[null,'SC12','SC12'],M24:[null,null,'SC09'],M26:['SC07','SC05','SC06'],M27:['SC06','SC10','SC06']};
@@ -97,12 +98,20 @@ export function commissionUnlocked(character, cycleId) {
   : /M22/.test(cycleId) ? 'M24' : /TROLL/.test(cycleId) ? 'M13' : 'M34';
  return q.has(gate);
 }
-export function getSceneView(character, now = Date.now()) {
+// Resolve identity and location together so the rendered resident, interaction
+// hint, body collision and authoritative range check all refer to one person.
+export function resolveStoryObjective(character,objective,occupiedHeroIds=[]){
+ if(objective?.id!=='M02-3')return objective;
+ const companion=resolveTrainCompanion([character?.heroId,...occupiedHeroIds]);
+ return {...objective,npc:companion.name,appearanceId:companion.appearanceId,position:companion.position,seat:companion.seat,seated:true,yaw:companion.yaw};
+}
+export function getSceneView(character, now = Date.now(), occupiedHeroIds = []) {
+ occupiedHeroIds=[...new Set([character.heroId,...occupiedHeroIds].filter(Boolean))];
  const quest = questById.get(character.activity?.questId ?? character.currentQuestId) ?? runtimeQuests.at(-1);
  const areaId = resolveAreaId(character), area = getWorldArea(areaId), sceneId = area.sceneId, objectiveAreaId = activeQuestAreaId(character);
  const mainScene = areaId === objectiveAreaId;
  const currentIndex=character.activity?.objectiveIndex??character.objectiveIndex;
- const allObjectives=quest.objectives.map((t,i)=>({...t,answer:undefined,active:i===currentIndex,completed:i<currentIndex}));
+ const allObjectives=quest.objectives.map((t,i)=>({...resolveStoryObjective(character,t,occupiedHeroIds),answer:undefined,active:i===currentIndex,completed:i<currentIndex}));
  let targets = !character.chapterComplete||character.activity ? allObjectives.filter(t=>t.areaId===areaId) : [];
  const dungeon=mainScene&&character.dungeonRoom?.roomId===quest.id?getRoomView(character.dungeonRoom):null;
  if(dungeon&&mainScene)targets=dungeon.targets.map(t=>({...t,label:t.name,kind:t.id==='key'?'flight':'hold',seconds:t.durationMs/1000,radius:t.range,actionType:'interact',active:t.enabled,completed:t.complete,skillId:t.requiredSkillId}));
@@ -143,6 +152,6 @@ export function getSceneView(character, now = Date.now()) {
   if(q.steps.some(s=>getWorldArea(s.sceneId)?.id===areaId))targets.push({id:q.id,questId:q.id,kind:'collection',label:q.summary,position:{x:1.5,y:0,z:-6},radius:2,seconds:1,actionType:'collect',active:true});
  }
  const [minX,maxX,minZ,maxZ]=area.navigation.bounds;
- return { sceneId,areaId,questAreaId:objectiveAreaId,areaQuestId:area.questId,origin:area.origin,name:area.name,quest: { id:quest.id,name:quest.name,npc:quest.initiatorNpc,sceneId:getWorldArea(objectiveAreaId).sceneId,areaId:objectiveAreaId,inCurrentArea:mainScene,allObjectives,description:dungeon?.hint??quest.successCondition }, targets, navigation:area.navigation,bounds:{minX,maxX,minZ,maxZ},spawn:area.spawn,escort:escortView,ambientPeople,lastBoatArrival:character.lastBoatArrival??null,dungeon,flight,transit,exitTarget,exits,destinations,route:route??[],services,commissions,serviceTargets:targets.filter(t=>t.kind==='service'),trainingTargets:targets.filter(t=>t.kind==='training'),serverTime:now };
+ return { sceneId,areaId,occupiedHeroIds,questAreaId:objectiveAreaId,areaQuestId:area.questId,origin:area.origin,name:area.name,quest: { id:quest.id,name:quest.name,npc:quest.initiatorNpc,sceneId:getWorldArea(objectiveAreaId).sceneId,areaId:objectiveAreaId,inCurrentArea:mainScene,allObjectives,description:dungeon?.hint??quest.successCondition }, targets, navigation:area.navigation,bounds:{minX,maxX,minZ,maxZ},spawn:area.spawn,escort:escortView,ambientPeople,lastBoatArrival:character.lastBoatArrival??null,dungeon,flight,transit,exitTarget,exits,destinations,route:route??[],services,commissions,serviceTargets:targets.filter(t=>t.kind==='service'),trainingTargets:targets.filter(t=>t.kind==='training'),serverTime:now };
 }
 export const runtimeCatalog = Object.freeze({ quests:runtimeQuests, items:contentData.items, services:contentData.services.map(s=>({...s,...serviceAnchors.find(n=>n.serviceId===s.serviceId)})), skills:contentData.skills, commissions:contentData.journalCommissionIndex.map(c=>({...c,sceneId:c.initiator.sceneId})), scenes:contentData.scenes });

@@ -1,4 +1,4 @@
-import { AnimationMixer, Group, Matrix4, Vector3 } from 'three';
+import { AnimationMixer, Group, Matrix4, Quaternion, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { createCharacterMotion } from '../../assets/chapter-one/workshop/65154a9106f3/js/magic/character-motion.js';
@@ -63,6 +63,142 @@ function wandEndpoints(model, descriptor) {
   return endpoints;
 }
 
+function createSeatedWardrobe(root, model, bones, metrics) {
+  const owned = [], point = new Vector3(), target = new Vector3(), boneMatrix = new Matrix4(), skinMatrix = new Matrix4();
+  let initialized = false, previous = -1;
+  function initialize() {
+    initialized = true; root.updateMatrixWorld(true);
+    const legAxes = Object.fromEntries(['L', 'R'].map(side => [side, {
+      hip: root.worldToLocal(bones.get('Thigh' + side).getWorldPosition(new Vector3())),
+      knee: root.worldToLocal(bones.get('Shin' + side).getWorldPosition(new Vector3())),
+    }]));
+    model.traverse(mesh => {
+      if (!mesh.isSkinnedMesh) return;
+      const source = mesh.geometry, { position, skinIndex, skinWeight } = source.attributes;
+      const hips = mesh.skeleton.bones.indexOf(bones.get('Hips'));
+      if (hips < 0 || !skinWeight) return;
+      const thighSlots = ['L', 'R'].map(side => mesh.skeleton.bones.indexOf(bones.get('Thigh' + side)));
+      const changed = [], foldedPositions = position.clone();
+      for (let i = 0; i < position.count; i++) {
+        let hipWeight = 0, thighWeight = 0;
+        for (let j = 0; j < 4; j++) {
+          const index = skinIndex.getComponent(i, j);
+          if (index === hips) hipWeight += skinWeight.getComponent(i, j);
+          if (thighSlots.includes(index)) thighWeight += skinWeight.getComponent(i, j);
+        }
+        if (hipWeight + thighWeight < .05) continue;
+        const weights = new Map();
+        for (let j = 0; j < 4; j++) { const index = skinIndex.getComponent(i, j), weight = skinWeight.getComponent(i, j); if (weight > 0) weights.set(index, (weights.get(index) ?? 0) + weight); }
+        mesh.getVertexPosition(i, point).applyMatrix4(mesh.matrixWorld); root.worldToLocal(point);
+        // Lower panels follow the lap only while sitting. The waist keeps its
+        // source attachment; boots, skin, faces and upper garments are untouched.
+        const t = Math.max(0, Math.min(1, (metrics.restHip.y - .02 - point.y) / .10));
+        const fold = t * t * (3 - 2 * t); if (fold < .001) continue;
+        const side = point.x < 0 ? 'L' : 'R', thigh = mesh.skeleton.bones.indexOf(bones.get('Thigh' + side));
+        if (thigh < 0) continue;
+        const indices = [...new Set([...weights.keys(), thigh])];
+        if (indices.length > 4) continue;
+        while (indices.length < 4) indices.push(hips);
+        const rest = indices.map((index, slot) => indices.indexOf(index) === slot ? weights.get(index) ?? 0 : 0), folded = [...rest];
+        const transfer = hipWeight * fold;
+        if (transfer) { folded[indices.indexOf(hips)] -= transfer; folded[indices.indexOf(thigh)] += transfer; }
+        changed.push({ vertex: i, indices, rest, folded });
+        // Coat tails are thicker than the trouser cross-section. Fold their
+        // rear cloth against the underside of the lap, rather than lifting the
+        // entire student or allowing a vertical tail through the upholstery.
+        const { hip, knee } = legAxes[side], along = Math.max(0, Math.min(1, (hip.y - point.y) / Math.max(.01, hip.y - knee.y)));
+        const back = hip.z + (knee.z - hip.z) * along + Math.max(.035, metrics.thighRadius - .025);
+        if (point.z > back) {
+          target.copy(point); target.z += (back - point.z) * fold;
+          root.localToWorld(target); mesh.worldToLocal(target);
+          skinMatrix.elements.fill(0);
+          for (const [index, weight] of weights) {
+            boneMatrix.multiplyMatrices(mesh.skeleton.bones[index].matrixWorld, mesh.skeleton.boneInverses[index]);
+            for (let j = 0; j < 16; j++) skinMatrix.elements[j] += boneMatrix.elements[j] * weight;
+          }
+          skinMatrix.premultiply(mesh.bindMatrixInverse).multiply(mesh.bindMatrix).invert();
+          target.applyMatrix4(skinMatrix); foldedPositions.setXYZ(i, target.x, target.y, target.z);
+        }
+      }
+      if (!changed.length) return;
+      const geometry = source.clone(); mesh.geometry = geometry;
+      for (const entry of changed) for (let j = 0; j < 4; j++) geometry.attributes.skinIndex.setComponent(entry.vertex, j, entry.indices[j]);
+      geometry.attributes.skinIndex.needsUpdate = true;
+      const normalGeometry = source.clone(); normalGeometry.setAttribute('position', foldedPositions); normalGeometry.computeVertexNormals();
+      const foldedNormals = normalGeometry.attributes.normal.clone(); normalGeometry.dispose();
+      if (geometry.morphTargetsRelative) for (let i = 0; i < position.count; i++) {
+        foldedPositions.setXYZ(i, foldedPositions.getX(i) - position.getX(i), foldedPositions.getY(i) - position.getY(i), foldedPositions.getZ(i) - position.getZ(i));
+        const normal = source.attributes.normal; foldedNormals.setXYZ(i, foldedNormals.getX(i) - normal.getX(i), foldedNormals.getY(i) - normal.getY(i), foldedNormals.getZ(i) - normal.getZ(i));
+      }
+      const morphIndex = geometry.morphAttributes.position?.length ?? 0;
+      geometry.morphAttributes.position = [...(geometry.morphAttributes.position ?? []), foldedPositions];
+      geometry.morphAttributes.normal = [...(geometry.morphAttributes.normal ?? []), foldedNormals];
+      const influences = [...(mesh.morphTargetInfluences ?? [])]; mesh.updateMorphTargets();
+      influences.forEach((value, index) => { mesh.morphTargetInfluences[index] = value; });
+      mesh.morphTargetInfluences[morphIndex] = 0;
+      owned.push({ mesh, geometry, changed, morphIndex });
+    });
+  }
+  return {
+    update(weight) {
+      if (weight > .00001 && !initialized) initialize();
+      if (!initialized || Math.abs(weight - previous) < 1e-7) return;
+      previous = weight;
+      for (const { mesh, geometry, changed, morphIndex } of owned) {
+        for (const entry of changed) for (let j = 0; j < 4; j++) geometry.attributes.skinWeight.setComponent(entry.vertex, j, entry.rest[j] + (entry.folded[j] - entry.rest[j]) * weight);
+        geometry.attributes.skinWeight.needsUpdate = true;
+        mesh.morphTargetInfluences[morphIndex] = weight;
+      }
+    },
+    dispose() { for (const { geometry } of owned) geometry.dispose(); owned.length = 0; },
+  };
+}
+
+// Measure the published rig once. Seat contacts use metres in the gameplay
+// root, including each student's authored scale and actual trouser/shoe shape.
+function measureSeatedRig(root, model, bones, motion) {
+  root.updateMatrixWorld(true);
+  const local = bone => root.worldToLocal(bone.getWorldPosition(new Vector3()));
+  const legs = ['L', 'R'].map(side => ({ side, hip: local(bones.get('Thigh' + side)), knee: local(bones.get('Shin' + side)), ankle: local(bones.get('Foot' + side)) }));
+  const soles = Array.from({ length: 4 }, () => new Vector3());
+  const hasSoles = motion.readSoleContacts?.(soles);
+  if (hasSoles) soles.forEach(point => root.worldToLocal(point));
+  const metrics = {
+    thighLength: legs.reduce((sum, leg) => sum + leg.hip.distanceTo(leg.knee), 0) / 2,
+    shinLength: legs.reduce((sum, leg) => sum + leg.knee.distanceTo(leg.ankle), 0) / 2,
+    soleBelowAnkle: legs.reduce((sum, leg, i) => sum + leg.ankle.y - (hasSoles ? Math.min(soles[i * 2].y, soles[i * 2 + 1].y) : 0), 0) / 2,
+    thighRadius: .055, calfRadius: .045,
+    restHip: { y: (legs[0].hip.y + legs[1].hip.y) / 2, z: (legs[0].hip.z + legs[1].hip.z) / 2 },
+  };
+  const vertex = new Vector3(), axis = new Vector3(), offset = new Vector3();
+  model.traverse(mesh => {
+    if (!mesh.isSkinnedMesh || ![].concat(mesh.material).some(material => /pants|trousers/i.test(material.name))) return;
+    const { position, skinIndex, skinWeight } = mesh.geometry.attributes;
+    const hips = mesh.skeleton.bones.indexOf(bones.get('Hips'));
+    for (const leg of legs) for (const [joint, start, end, metric] of [['Thigh', leg.hip, leg.knee, 'thighRadius'], ['Shin', leg.knee, leg.ankle, 'calfRadius']]) {
+      const slot = mesh.skeleton.bones.indexOf(bones.get(joint + leg.side));
+      if (slot < 0) continue;
+      axis.subVectors(end, start); const length = axis.length(); axis.divideScalar(length);
+      for (let i = 0; i < position.count; i++) {
+        let weight = 0, hipWeight = 0;
+        for (let j = 0; j < 4; j++) {
+          if (skinIndex.getComponent(i, j) === slot) weight += skinWeight.getComponent(i, j);
+          if (skinIndex.getComponent(i, j) === hips) hipWeight += skinWeight.getComponent(i, j);
+        }
+        if (weight + (joint === 'Thigh' ? hipWeight : 0) < .65) continue;
+        mesh.getVertexPosition(i, vertex).applyMatrix4(mesh.matrixWorld); root.worldToLocal(vertex);
+        if (weight < .65 && (vertex.x < 0 ? 'L' : 'R') !== leg.side) continue;
+        offset.subVectors(vertex, start); const along = offset.dot(axis);
+        if (along < length * .15 || along > length * .8) continue;
+        metrics[metric] = Math.max(metrics[metric], offset.addScaledVector(axis, -along).length());
+      }
+    }
+  });
+  const inverse = root.getWorldQuaternion(new Quaternion()).invert();
+  const feet = new Map(legs.map(({ side }) => [side, inverse.clone().multiply(bones.get('Foot' + side).getWorldQuaternion(new Quaternion()))]));
+  return { root, metrics, feet, readSoleContacts: motion.readSoleContacts, wardrobe: createSeatedWardrobe(root, model, bones, metrics) };
+}
+
 export function createCharacterPresentation(gltf, { heroId, assetVersion = ASSET_VERSION, visualLoadout = {}, actionLayersEnabled = true, onDispose = () => {} } = {}) {
   const descriptor = resolveCharacterAsset(heroId, assetVersion);
   const model = cloneSkeleton(gltf.scene);
@@ -75,13 +211,14 @@ export function createCharacterPresentation(gltf, { heroId, assetVersion = ASSET
   const materials = prepareMaterials(model, descriptor.fixedLook);
   const mixer = new AnimationMixer(model);
   let disposed = false, actionId = null, unsupportedTravelState = null;
-  let rig, motion, gesture, endpoints, poseLayer;
+  let rig, motion, gesture, endpoints, poseLayer, seatRig;
   let selection = { outfit: 'robe', wand: descriptor.defaultWand };
   const assertLive = () => { if (disposed) throw new Error('PRESENTATION_DISPOSED'); };
   function dispose() {
     if (disposed) return;
     disposed = true;
     poseLayer?.reset();
+    seatRig?.wardrobe.dispose();
     gesture?.stop();
     mixer.stopAllAction(); mixer.uncacheRoot(model);
     disposeSkeletons(model);
@@ -109,7 +246,8 @@ export function createCharacterPresentation(gltf, { heroId, assetVersion = ASSET
     setVisualLoadout(visualLoadout);
     motion = createCharacterMotion(mixer, gltf.animations, gltf.parser?.json?.animations ?? []);
     gesture = createWandGesture(mixer, gltf.animations);
-    poseLayer = createCombatPoseLayer({ model, bones: rig.bones, clips: gltf.animations, enabled: actionLayersEnabled });
+    seatRig = measureSeatedRig(root, model, rig.bones, motion);
+    poseLayer = createCombatPoseLayer({ model, bones: rig.bones, clips: gltf.animations, enabled: actionLayersEnabled, seatRig });
   } catch (error) { dispose(); throw error; }
 
   const capabilities = Object.freeze({
@@ -132,7 +270,7 @@ export function createCharacterPresentation(gltf, { heroId, assetVersion = ASSET
   return {
     root, model, capabilities,
     walkSpeed: motion.walkSpeed, runSpeed: motion.runSpeed,
-    updateTravel(dt, actualHorizontalDistance = 0, grounded = true, verticalVelocity = 0, seated = false) {
+    updateTravel(dt, actualHorizontalDistance = 0, grounded = true, verticalVelocity = 0, seated = false, seat = null) {
       assertLive();
       if (!Number.isFinite(dt) || dt < 0 || !Number.isFinite(actualHorizontalDistance) || actualHorizontalDistance < 0 || !Number.isFinite(verticalVelocity)) throw new Error('INVALID_TRAVEL_SAMPLE');
       unsupportedTravelState = null;
@@ -140,7 +278,7 @@ export function createCharacterPresentation(gltf, { heroId, assetVersion = ASSET
       if (seated || !grounded || actualHorizontalDistance > 1e-6) gesture?.cancel();
       const influence = 1 - (gesture?.advance(dt) ?? 0);
       motion.update(dt, grounded && !seated ? actualHorizontalDistance : 0, influence);
-      poseLayer.apply(dt, grounded, verticalVelocity, seated);
+      poseLayer.apply(dt, grounded, verticalVelocity, seated, seat);
       if (!gesture?.active) actionId = null;
       return { supported: unsupportedTravelState === null, reason: unsupportedTravelState };
     },
