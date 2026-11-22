@@ -1,4 +1,5 @@
 import { PLAYER_RADIUS, MAX_STEP_HEIGHT } from '../movement.mjs';
+import { sampleEscort, escortStatusText } from './escort-motion.mjs';
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 export function boundsArray(bounds) {
   if (Array.isArray(bounds)) return bounds;
@@ -110,6 +111,7 @@ function npcMatch(name) {
 }
 export const npcAppearanceId = name => npcMatch(name)?.id ?? 'generic';
 const knownNpcName = name => npcMatch(name)?.match[0];
+export { sampleEscort, acceptEscortSnapshot, stepNpcMotion, escortStatusText } from './escort-motion.mjs';
 export function sceneNpcTargets(view, combat, occupiedHeroIds = []) {
   if (combat) return [];
   const result = new Map();
@@ -130,7 +132,7 @@ export function sceneNpcTargets(view, combat, occupiedHeroIds = []) {
     const companion = ['ron', 'hermione', 'harry'].find(id => !occupiedHeroIds.includes(id));
     name = ({ ron: '罗恩', hermione: '赫敏', harry: '哈利' })[companion] ?? null;
   }
-  if (name && (guide?.position || talk?.position)) result.set(name, { name, position: guide?.position ?? talk.position, targetId: guide?.targetId ?? talk.id, kind: guide?.kind ?? talk.kind, seated: guide?.kind === 'boat' && guide.progress > 0 && guide.progress < 1 });
+  if (name && (guide?.position || talk?.position)) result.set(name, { name, position: guide?.position ?? talk.position, targetId: guide?.targetId ?? talk.id, kind: guide?.kind ?? talk.kind, seated: guide?.kind === 'boat' && guide.progress > 0 && guide.progress < 1, escort:guide?{...guide,serverTime:guide.serverTime??view.serverTime}:null });
   return [...result.values()];
 }
 export function visibleTargets(view, combat) {
@@ -139,7 +141,8 @@ export function visibleTargets(view, combat) {
     active: Boolean(target.enabled), completed: false, actionType: 'skill', skillId: target.id === 'club' ? 'levitate' : 'interact',
   }));
   if (combat && ['won', 'lost'].includes(combat.status)) return [{ id: 'return-checkpoint', label: combat.status === 'won' ? '离开挑战，继续冒险' : '回到检查点，重新练习', kind: 'exit', position: { x: 0, y: 0, z: 6 }, radius: 2, active: true, actionType: 'retry' }];
-  const targets = (view?.targets ?? []).filter(target => target.active && !target.completed).map(target => view.escort?.targetId === target.id ? { ...target, position: view.escort.position, label: view.escort.progress >= 1 ? (target.kind === 'boat' ? '船已靠岸 · 下船' : '已抵达 · 继续与' + view.escort.npc + '同行') : view.escort.progress > 0 ? `${view.escort.waitingForPlayer ? view.escort.npc + '停下等你' : '跟上' + view.escort.npc} · ${target.kind === 'boat' ? '渡湖中' : '同行中'}` : `与${view.escort.npc}会合 · ${target.kind === 'boat' ? '准备登船' : '开始带路'}` } : target);
+  const guide=sampleEscort(view?.escort,view?.serverTime);
+  const targets = (view?.targets ?? []).filter(target => target.active && !target.completed).map(target => guide?.targetId === target.id ? { ...target, position:guide.position, label:escortStatusText(guide,view?.serverTime), requiresInteraction:guide.awaitingStart||!guide.timed&&guide.progress===0 } : target.kind==='move'?{...target,requiresInteraction:false}:target);
   // The server's target list owns exit eligibility; exitTarget also describes
   // locked travel UI, so it must not create an early clickable world entrance.
   return [...new Map(targets.map(target => [target.id, target])).values()];

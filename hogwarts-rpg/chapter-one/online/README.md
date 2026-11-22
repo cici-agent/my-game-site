@@ -62,6 +62,15 @@ Actual combat positions use the combat engine's collisions and movement rules.
 Normal scenes share the same pure `scene-navigation` collision table and swept
 movement helper with the renderer. The server returns the actual slide position;
 scene transitions and the timed boat transport are separately authorized.
+`people.mjs` supplies the same NPC and party body dimensions to the client and
+server. Horizontal swept collision blocks walking through people while allowing
+sideways sliding, escape from an overlapping spawn and passage on another floor.
+Characters riding the same boat do not collide with their assigned seats.
+For moving escorts, each movement sample replays against the route at that
+sample's time instead of the NPC's final position for the whole packet. Optional
+frame durations narrow the replay window within server elapsed time; they never
+increase the server's movement-speed budget. Idle time therefore does not turn
+into a false collision when the player resumes walking.
 The first escort NPC stands beside the spawn at `(1.8, 0, 5.2)`; later escort
 steps continue from their preceding endpoint. Ordinary training carries current
 HP and focus between enemies. Core boss starts and explicit checkpoint retries
@@ -73,8 +82,17 @@ randomness; the test harness injects a deterministic seed.
 `catalog.mjs` maps all 36 approved main tasks to executable targets and exposes
 `getSceneView(character, now)` for the 3D client. It also exposes services,
 commission entrances, previously explored exits and optional collection points.
-Hagrid's walking state advances only while the player is close, and the boat
-persists a real timed trip. Holding an interaction, spell-course timing and the
+Escorts use an absolute server clock and a route origin/destination. Once started,
+the NPC walks independently at a natural pace (at most 1.6 m/s for authored walking
+legs), including while the player is far behind. Consecutive walking legs chain
+automatically; the final destination waits for the player's actual arrival before
+rewarding progress. Only the initial meeting and boarding require E. Ordinary
+arrival objectives finish on reaching their grounded destination, with a 65 cm
+threshold at the 9/10 brick barrier. The opaque wall visually hides platform 9¾;
+the existing authorized walking seam permits crossing without a loading screen.
+The boat persists its 70-second trip and automatically disembarks into the next
+walking leg; its endpoint stays fixed when the guide continues on shore.
+Holding an interaction, spell-course timing and the
 six underground mechanism rooms advance from trusted positions and clocks.
 The underground rooms use `dungeons/stone-route.mjs`, including moving keys,
 three chess turns and physical potion choices. M34 only advances on combat victory.
@@ -121,7 +139,7 @@ Run `node --test tests/chapter-one-online.test.mjs`. Tests use real SQLite with
 the same migration and atomic-batch interface as D1. The suite checks identity,
 three-template creation, preserved legacy saves, birth items, isolation,
 retry/concurrency, rollback, five-player rooms, movement
-credit, Hagrid waiting, real timed chess, shopping, a real spell-fired paper
+credit, independent escorts and automatic arrivals, real timed chess, shopping, a real spell-fired training
 encounter, and persistent rewards.
 
 The complete 36-task orchestration test starts a real level-one character at zero

@@ -108,6 +108,20 @@ test('movement credits prevent zero-time teleport spam, walls stop movement, dod
   assert.ok(state.players.p.hp < hp, 'a dodge still inside the damage circle is hit');
 });
 
+test('combat walking and dodging stop at a teammate, allow side passage and ignore a vertically separate player',()=>{
+ let state=start({players:[player('p','harry',18,{position:{x:0,y:0,z:2}}),player('q','ron',18,{position:{x:0,y:0,z:0}})]});
+ state=moveCombatPlayer(state,{playerId:'p',position:{x:0,y:0,z:0},now:1000});assert(state.players.p.position.z>=.639&&state.players.p.position.z<.8);assert.equal(state.players.p.position.y,0);
+ state=moveCombatPlayer(state,{playerId:'p',position:{x:1,y:0,z:state.players.p.position.z},now:1500});state=moveCombatPlayer(state,{playerId:'p',position:{x:1,y:0,z:-.6},now:2200});assert(state.players.p.position.z<0);
+ let dash=start({players:[player('p','harry',18,{position:{x:0,y:0,z:1.1}}),player('q','ron',18,{position:{x:0,y:0,z:0}})]});dash=action(dash,'dodge',{aim:{x:0,z:-1}}).state;dash=advanceEncounter(dash,500);assert(dash.players.p.position.z>=.639,'dodge cannot tunnel through a friend');
+ state=start({players:[player('p','harry',18,{position:{x:0,y:0,z:1}}),player('q','ron',18,{position:{x:0,y:10,z:0}})]});state=moveCombatPlayer(state,{playerId:'p',position:{x:0,y:0,z:-1},now:1000});assert(state.players.p.position.z<-.99);
+});
+
+test('a downed teammate remains a low body without becoming a standing platform',()=>{
+ const fresh=()=>start({players:[player('p','harry',18,{position:{x:0,y:0,z:1}}),player('q','ron',18,{position:{x:0,y:0,z:0},hp:0})]});
+ let state=moveCombatPlayer(fresh(),{playerId:'p',position:{x:0,y:0,z:-1},now:1000});assert(state.players.p.position.z>=.719);assert.equal(state.players.p.position.y,0);
+ state=fresh();state.players.p.position.y=.6;state=moveCombatPlayer(state,{playerId:'p',position:{x:0,y:.6,z:-1},now:1000});assert(state.players.p.position.z<-.99);assert.equal(state.players.p.position.y,.6);
+});
+
 test('target invalidation before release refunds focus and charge but retains started GCD', () => {
   let state = start({ players: [player('p', 'neville')] });
   const before = state.players.p.focus;

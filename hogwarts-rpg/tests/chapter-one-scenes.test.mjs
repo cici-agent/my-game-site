@@ -118,7 +118,12 @@ test('every authoritative multi-target area is shown and each local NPC service 
   assert.deepEqual(sceneNpcTargets(view, { status: 'active' }), []);
   const escort = { quest: { npc: '海格' }, targets: [{ id: 'walk', kind: 'escort', active: true }], escort: { npc: '海格', targetId: 'walk', kind: 'escort', position: { x: 1.8, z: 6 }, progress: .38, waitingForPlayer: false } };
   assert.match(visibleTargets(escort, null)[0].label, /跟上海格/);
-  escort.escort.waitingForPlayer = true; assert.match(visibleTargets(escort, null)[0].label, /停下等你/);
+  escort.escort.waitingForPlayer = true;
+  const moving=visibleTargets(escort,null)[0];assert.match(moving.label,/路点自动继续/);assert.doesNotMatch(moving.label,/停下等你/);assert.equal(moving.requiresInteraction,false,'a stale leash flag cannot add another E stop during the route');
+  escort.escort.progress=1;escort.escort.awaitingPlayer=true;
+  const arrived=visibleTargets(escort,null)[0];assert.match(arrived.label,/终点/);assert.equal(arrived.requiresInteraction,false,'arrival continues by approaching the endpoint');
+  escort.escort.progress=0;escort.escort.startedAt=null;escort.escort.awaitingStart=true;
+  const meeting=visibleTargets(escort,null)[0];assert.match(meeting.label,/按 E 开始同行/);assert.equal(meeting.requiresInteraction,true,'the initial meeting remains an explicit action');
 });
 
 test('PBR binding is environment-only, uses correct map colour spaces and cancels a disposed scene load', async () => {

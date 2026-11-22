@@ -20,6 +20,7 @@ import { createWorldStreaming as realStreaming, areaOffset } from '../chapter-on
 import { trainPassengers, trainConversationTargets } from '../chapter-one/client/train-life.mjs';
 import { runtimeQuests, getSceneView } from '../chapter-one/online/catalog.mjs';
 import { replayAreaMovement } from '../chapter-one/online/location.mjs';
+import * as people from '../chapter-one/people.mjs';
 
 // Execute the complete production controller and frame loop. Only the browser,
 // GPU and asset construction boundaries are replaced; Three's cameras/rays,
@@ -73,7 +74,7 @@ async function harness(t, { encounter = null, members = [], request = null, boat
   };
   const context = vm.createContext({
     THREE: { ...Three, WebGLRenderer: Renderer }, RoundedBoxGeometry,
-    ...geometry, ...targeting, ...movement, ...atlas, areaOffset, trainPassengers, trainConversationTargets, contentData, abilityState, applyEquipmentAppearance, resetEquipmentAppearance, createBoltVisual, createImpactVisual, createEnemyWarning, createEnemyStrike, SELECTABLE_HEROES, selectionCameraPose,
+    ...geometry, ...targeting, ...movement, ...atlas, ...people, areaOffset, trainPassengers, trainConversationTargets, contentData, abilityState, applyEquipmentAppearance, resetEquipmentAppearance, createBoltVisual, createImpactVisual, createEnemyWarning, createEnemyStrike, SELECTABLE_HEROES, selectionCameraPose,
     createSelectionStage: options => residentStage({ ...options, loadCharacter }), createSelectionSpells: harmlessFx,
     loadPlayableCharacter: loadCharacter, loadNpc,
     createCreature: () => ({ root: new Three.Group(), update() {}, dispose() {} }),
@@ -179,11 +180,11 @@ test('Hagrid keeps escort travel direction and the real boat seat through crossi
   const npc = h.npcs[0], start = npc.root.position.clone(); assert.equal(npc.id, 'hagrid');
   const destination = { x: 1.6, y: 0, z: 3.8 };
   await h.snapshot({}, guideView('escort', .3, destination)); npc.calls.length = 0; h.advance(30);
-  assert(npc.root.position.distanceTo(start) > .6); assert(npc.calls.every(sample => sample.action === 'walk' && sample.speed > .1 && !sample.engaged && !sample.talking));
+  assert(npc.root.position.distanceTo(start) > .49 && npc.root.position.distanceTo(start) < .53, 'legacy guide corrections retain a bounded 1.7 m/s walk'); assert(npc.calls.every(sample => sample.action === 'walk' && sample.speed > .1 && !sample.engaged && !sample.talking));
   const travelDirection = npc.root.position.clone().sub(start).normalize();
-  assert(new Three.Vector3(0, 0, -1).applyQuaternion(npc.root.quaternion).dot(travelDirection) > .999, 'escort body follows its actual movement');
-  h.key('KeyE'); assert.equal(h.actions.at(-1)?.targetId, 'follow-hagrid', 'the close guide is the nearest target, but is not treated as a conversation');
-  const travelHeading = npc.root.rotation.y; h.advance(200);
+  assert(new Three.Vector3(0, 0, -1).applyQuaternion(npc.root.quaternion).dot(travelDirection) > .995, 'escort body smoothly turns into its actual movement');
+  const beforeE=h.actions.length;h.key('KeyE');assert.equal(h.actions.length,beforeE,'an already walking guide needs no repeat interaction');
+  h.advance(200);const travelHeading=npc.root.rotation.y;h.advance(50);
   assert.equal(npc.calls.at(-1).action, 'idle'); assert.equal(npc.calls.at(-1).engaged, false); assert(Math.abs(npc.root.rotation.y - travelHeading) < 1e-8, 'waiting escort does not turn to greet the nearby follower');
 
   const checkBoatFrame = () => {
@@ -210,6 +211,19 @@ test('Hagrid keeps escort travel direction and the real boat seat through crossi
   assert.equal(boat.getPose().phase, 'docked'); assert.equal(h.world.getPose().riding, false);
   assert.equal(npc.calls.at(-1).action, 'idle'); assert.equal(npc.calls.at(-1).engaged, false);
   assert.equal(h.npcs.length, 1, 'one Hagrid actor survives walking, boarding, sailing and landing');
+});
+
+test('the actual frame loop walks a clocked guide continuously without polling or waiting for a distant player', async t => {
+  const h=await harness(t),origin={x:1,y:0,z:4},destination={x:1,y:0,z:-12};
+  await h.snapshot({sceneId:'SC03',currentQuestId:'M03',position:{x:-10,y:0,z:20}}, {
+    sceneId:'SC03',serverTime:20000,quest:{id:'M03',npc:'海格'},
+    targets:[{id:'M03-1',npc:'海格',kind:'escort',active:true,position:origin}],
+    escort:{npc:'海格',targetId:'M03-1',kind:'escort',position:origin,origin,destination,startedAt:20000,durationSeconds:10,serverTime:20000,awaitingStart:false,progress:0}
+  });await flush();const npc=h.npcs[0];npc.calls.length=0;
+  h.advance(600);assert(Math.abs(npc.root.position.z+5.6)<.03,'six seconds of walking progress with no new snapshot');
+  assert(npc.calls.every(call=>call.action==='walk'&&Math.abs(call.speed-1.6)<.001),'every rendered walking frame retains its natural route speed');
+  assert.equal(h.world.getPose().z,20,'the player stays behind');h.advance(500);
+  assert(Math.abs(npc.root.position.z+12)<.001);assert.equal(npc.calls.at(-1).action,'idle');assert.equal(h.actions.length,0);
 });
 
 test('real Space input waits for the preparation pose before takeoff, then lands once', async t => {
@@ -427,7 +441,7 @@ test('switching from a flight objective to its landing objective preserves a con
   const descending = h.world.takeMovementPacket(); h.world.noteMovementSent(2, descending.position);
   await h.snapshot({ position: { ...h.world.getPose() }, flying: true, lastAcceptedMoveSequence: 2 }); assert.equal(h.world.getFlightState().mode, 'landing');
   h.advance(150); assert.equal(h.world.getPose().y, 0); assert.equal(h.world.getPose().flying, false);
-  h.key('KeyE'); assert.equal(h.actions.at(-1)?.targetId, 'M06-3', 'the grounded character can interact with the course completion target');
+  assert.equal(h.world.getNearest()?.id,'M06-3');assert.equal(h.world.getNearest()?.requiresInteraction,false,'landing is completed by the authoritative arrival check');const before=h.actions.length;h.key('KeyE');assert.equal(h.actions.length,before,'landing needs no extra E press');
 });
 
 test('active flying-key targets alone cannot bypass the dungeon broom authorization', async t => {
@@ -576,4 +590,31 @@ test('party actors use independent area identities even when two rooms share the
   const peers=h.actors.filter(actor=>!original.has(actor));assert.deepEqual(peers.map(actor=>actor.root.name),['ron']);assert.equal(peers[0].calls.dispose,0);
   h.setMembers([member('same','ron','SC14-M30'),member('elsewhere','hermione','SC14-M29')]);await h.snapshot();await flush();h.advance();
   assert.equal(peers[0].calls.dispose,1,'a peer leaving this area is removed');const active=h.actors.filter(actor=>!original.has(actor)&&actor.calls.dispose===0);assert.deepEqual(active.map(actor=>actor.root.name),['hermione']);
+});
+
+test('a standing NPC blocks sprinting, allows walking around and keeps the interaction reachable', async t => {
+  const h = await harness(t);
+  const target = { id:'meet-molly', kind:'talk', npc:'韦斯莱夫人', label:'韦斯莱夫人：准备出发', active:true, position:{x:0,y:0,z:2}, radius:2 };
+  await h.snapshot({}, { targets:[target] }); await flush(); h.advance(10);
+  h.key('KeyW'); h.key('ShiftLeft'); h.advance(150); h.key('KeyW','keyup'); h.key('ShiftLeft','keyup'); h.advance(20);
+  let pose=h.world.getPose(); assert(pose.z>=2.63 && pose.z<2.8,'the player stops against the actual person instead of passing through');
+  assert.equal(h.world.getNearest()?.id,target.id); h.key('KeyE'); assert.equal(h.actions.at(-1)?.targetId,target.id);
+  h.key('KeyD'); h.advance(60); h.key('KeyD','keyup'); h.key('KeyW'); h.advance(130); h.key('KeyW','keyup'); h.advance(20);
+  pose=h.world.getPose(); assert(pose.x>1); assert(pose.z<1,'the person can be passed on their side without a trap or teleport');
+});
+
+test('an active party member occupies space while somebody on another floor does not', async t => {
+  const peer={id:'friend',heroId:'ron',name:'Friend',hp:100,areaId:'SC04',sceneId:'SC04',position:{x:0,y:0,z:2},lastSeenAt:10000};
+  const h=await harness(t,{members:[peer]}); await flush(); h.key('KeyW'); h.key('ShiftLeft'); h.advance(130); h.key('KeyW','keyup');h.key('ShiftLeft','keyup');h.advance(20);
+  assert(h.world.getPose().z>=2.63,'walking through the other player is blocked');
+  h.setMembers([{...peer,position:{x:0,y:10,z:2}}]);await h.snapshot();h.advance(80);h.key('KeyW');h.advance(180);h.key('KeyW','keyup');h.advance(20);
+  assert(h.world.getPose().z<1,'a body at another elevation cannot block the ground-floor route');
+});
+
+test('an NPC has no duplicate shoulder-height interaction plaque but other world target labels remain',async t=>{
+  const h=await harness(t),person={id:'molly',kind:'talk',npc:'韦斯莱夫人',label:'韦斯莱夫人：你好',active:true,position:{x:0,y:0,z:2},radius:2},object={id:'look-object',kind:'collect',label:'拾取物品',active:true,position:{x:1.5,y:0,z:2},radius:2};
+  await h.snapshot({}, {targets:[person,object]});await flush();h.advance(30);
+  const markers=[];h.scene().traverse(node=>{if(node.userData.target&&node.userData.tag)markers.push(node);});
+  assert.equal(markers.find(node=>node.userData.target.id===person.id).userData.tag.visible,false,'no dark strip remains across the NPC torso');
+  assert.equal(markers.find(node=>node.userData.target.id===object.id).userData.tag.visible,true,'non-person target labels are unaffected');
 });

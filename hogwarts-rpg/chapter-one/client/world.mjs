@@ -14,10 +14,11 @@ import { abilityState } from './ability-state.mjs';
 import { createBoltVisual, createImpactVisual } from './spell-fx.mjs';
 import { createEnemyWarning, createEnemyStrike } from './enemy-fx.mjs';
 import { resolveAreaId, getWorldArea, getAreaLinks, areaFloor, isAtAreaLink } from '../world-atlas.mjs';
-import { trainPassengers, trainConversationTargets } from './train-life.mjs';
+import { trainConversationTargets } from './train-life.mjs';
+import { scenePeople, personBody, moveAmongPeople } from '../people.mjs';
 import { createWorldStreaming, areaOffset } from './world-streaming.mjs';
 import { targetCenter, aimFromPlayer, targetingObstacles, pickAimTarget, targetAvailability, cycleAimTarget } from './targeting.mjs';
-import { moveWithCollisions, standingFloor, cameraCollisionFraction, telegraphDescriptors, visibleTargets, correctionPlan, sceneNpcTargets, npcAppearanceId, chaseCameraPose, visiblePartyMembers, nameplateWidth } from './scene-geometry.mjs';
+import { standingFloor, cameraCollisionFraction, telegraphDescriptors, visibleTargets, correctionPlan, npcAppearanceId, chaseCameraPose, visiblePartyMembers, nameplateWidth, sampleEscort, acceptEscortSnapshot, stepNpcMotion } from './scene-geometry.mjs';
 
 const clamp = THREE.MathUtils.clamp, damp = THREE.MathUtils.damp;
 const point = p => new THREE.Vector3(p?.x ?? 0, p?.y ?? 0, p?.z ?? 0);
@@ -214,22 +215,21 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   function updateTargets() {
     const expected = new Set();
     const occupiedHeroes = [character?.heroId, ...(room?.members ?? []).filter(member => resolveAreaId(member) === resolveAreaId(character)).map(member => member.heroId)];
-    const trainPeople = combat ? [] : trainPassengers(view, occupiedHeroes);
     for (const target of [...visibleTargets(view, combat), ...(combat ? [] : trainConversationTargets(view, occupiedHeroes))]) {
       expected.add(target.id); let object = targets.get(target.id); const signature = JSON.stringify([target.label, target.kind, target.active]);
       if (!object || object.userData.signature !== signature) { if (object) disposeGroup(object); object = targetMarker(target); object.userData.signature = signature; targets.set(target.id, object); targetGroup.add(object); }
       object.userData.target = target; object.position.copy(point(target.position));
     }
     for (const [id, object] of targets) if (!expected.has(id)) { disposeGroup(object); targets.delete(id); }
-    const cast = new Map(trainPeople.map(person => [person.name, person]));
-    for (const npc of sceneNpcTargets(view, combat, occupiedHeroes)) { const passenger = cast.get(npc.name); cast.set(npc.name, passenger ? { ...passenger, targetId: npc.targetId, kind: npc.kind } : npc); }
-    const desiredNpcs = [...cast.values()], allowed = new Set(desiredNpcs.map(n => n.name));
+    const desiredNpcs = scenePeople(view, combat, occupiedHeroes), allowed = new Set(desiredNpcs.map(n => n.name));
     for (const [id, entry] of npcs) if (!allowed.has(id)) {
-      if (['escort','boat','ambient'].includes(entry.kind)) { entry.kind = 'ambient'; entry.boat = false; if (entry.actor) entry.target.copy(entry.actor.root.position); }
-      else { removeNpc(entry); npcs.delete(id); }
+      removeNpc(entry); npcs.delete(id);
     }
     for (const target of desiredNpcs) {
-      const { name, position } = target; let npc = npcs.get(name);
+      const { name } = target; let npc = npcs.get(name);
+      const escort=target.escort?acceptEscortSnapshot(npc?.escort,target.escort,view.serverTime):null;
+      const predicted=sampleEscort(escort,serverNow()),position=predicted?.position??target.position;
+      if(npc?.escort?.kind==='boat'&&escort&&escort.kind!=='boat')npc.lastBoatArrival=view.lastBoatArrival??{position:npc.escort.destination??escort.origin??escort.position,arrivedAt:escort.startedAt??view.serverTime};
       if (!npc) {
         npc = { target: point(position), name, generation: sceneGeneration }; npcs.set(name, npc);
         const variant = target.appearanceId ?? npcAppearanceId(name);
@@ -240,9 +240,26 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
           loaded.root.visible = true;
         }).catch(onError);
       }
-      npc.target.copy(point(position)); npc.boat = target.kind === 'boat' && target.seated; npc.seated = target.seated; npc.facing = target.yaw; npc.phase = target.phase; npc.targetId = target.targetId; npc.kind = target.kind;
-      if (npc.boat) { npc.target.z += .85; npc.target.y = .14; }
+      npc.target.copy(point(position)); npc.appearanceId = target.appearanceId; npc.escort=escort; npc.routeSpeed=predicted?.speed??0; npc.boat = (escort?.kind??target.kind) === 'boat' && (predicted?predicted.progress>0&&predicted.progress<1:target.seated); npc.seated = npc.boat||(!escort&&target.seated); npc.facing = target.yaw; npc.phase = target.phase; npc.targetId = escort?.targetId??target.targetId; npc.kind = escort?.kind??target.kind;
     }
+  }
+
+  function updateEscortPresentation() {
+    if(selection||!view)return;
+    const now=serverNow();let current=null,currentEntry=null;
+    for(const entry of npcs.values())if(entry.escort) {
+      const sample=sampleEscort(entry.escort,now);entry.target.set(sample.position.x,sample.position.y,sample.position.z);entry.routeSpeed=sample.speed;
+      if(sample.kind==='boat'){entry.boat=sample.progress>0&&sample.progress<1;entry.seated=entry.boat;}
+      if(entry.name===view.escort?.npc){current=sample;currentEntry=entry;}
+      const marker=targets.get(sample.targetId);
+      if(marker){marker.position.set(sample.position.x,sample.position.y,sample.position.z);marker.userData.target.position={...sample.position};}
+    }
+    const arrival=view.lastBoatArrival??character?.lastBoatArrival??currentEntry?.lastBoatArrival;
+    if(current?.kind==='boat')map.setEscort?.(current);
+    else if(arrival?.position) {
+      // The finished ship stays at its dock while the next walking leg starts.
+      if(map.getBoatPose?.()?.phase!=='docked')map.setEscort?.({kind:'boat',progress:1,position:arrival.position});
+    } else if(current)map.setEscort?.(current);
   }
 
   function syncPeers() {
@@ -395,7 +412,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     // A completed flight objective may revoke ascent. Keep the mounted descent
     // until actual ground contact instead of submitting a high-altitude jump.
     if (flying && !canMountBroom()) { landing = true; dy = Math.min(0, dy); }
-    updateTargets(); syncPeers(); syncCombat(); map.setEscort?.(view.escort); map.setContext?.(view); map.setTrainStopped?.(!view.transit); streaming.setTransit?.(Boolean(view.transit));
+    updateTargets(); syncPeers(); syncCombat(); updateEscortPresentation(); map.setContext?.(view); map.setTrainStopped?.(!view.transit); streaming.setTransit?.(Boolean(view.transit));
   }
   function canMountBroom() {
     if (combat) return false;
@@ -427,6 +444,18 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   function scaleNameplate(tag, at, maximum = 1.25) {
     const distance = camera.position.distanceTo(at), width = nameplateWidth(distance, camera.fov, camera.aspect, maximum);
     tag.scale.set(width, width / 8, 1); return distance;
+  }
+  function nearbyPeopleBodies() {
+    const bodies = [];
+    for (const [id, entry] of npcs) {
+      if (entry.boat) continue;
+      bodies.push(personBody({ id, appearanceId: entry.appearanceId ?? npcAppearanceId(entry.name), position: entry.actor?.root.position ?? entry.target, seated: entry.seated }));
+    }
+    for (const [id, entry] of peers) {
+      if (Number.isFinite(entry.lastSeenAt) && serverNow() - entry.lastSeenAt > 30000) continue;
+      bodies.push(personBody({ id, appearanceId: entry.heroId, position: entry.actor?.root.position ?? entry.target, downed: entry.hp <= 0 }));
+    }
+    return bodies;
   }
   function resetMovement() { correctionApplied.set(0,0,0); selfPose = null; movementSteps = []; moveHistory.clear(); previousAck = -1; movementInFlight = rejectedMove = null; correction = null; }
   function recordCorrection(delta) {correctionApplied.add(delta);for(const step of movementSteps){step.position.x+=delta.x;step.position.y+=delta.y;step.position.z+=delta.z;}}
@@ -577,7 +606,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     if (heldBolt && now >= heldBolt.nextAt) cast('bolt', null, { automatic: true });
   }
 
-  function interact() { if (nearest?.kind === 'passage') { requestPassage(nearest); return; } if (nearest && !blocked && !journey && !selfPose?.riding) onAction?.({ type: nearest.actionType ?? 'interact', targetId: nearest.id, skillId: nearest.skillId, questId: nearest.questId, target: nearest }); }
+  function interact() { if (nearest?.kind === 'passage') { requestPassage(nearest); return; } if (nearest && nearest.requiresInteraction !== false && !blocked && !journey && !selfPose?.riding) onAction?.({ type: nearest.actionType ?? 'interact', targetId: nearest.id, skillId: nearest.skillId, questId: nearest.questId, target: nearest }); }
   function inputTarget(event) { return /INPUT|TEXTAREA|SELECT/.test(event.target?.tagName) || event.target?.isContentEditable; }
   function keydown(event) {
     if (inputTarget(event) || blocked || selection || journey) return;
@@ -612,7 +641,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   listen(window, 'keydown', keydown); listen(window, 'keyup', keyup); listen(window, 'blur', blur); listen(document, 'visibilitychange', () => { if (document.hidden) blur(); });
   function frame(time) {
     if (disposed) return;
-    const dt = Math.min(.05, Math.max(0, (time - lastTime) / 1000)); lastTime = time; elapsed += dt; if (selection) map?.update(dt, elapsed); else streaming.update(dt, elapsed);
+    const dt = Math.min(.05, Math.max(0, (time - lastTime) / 1000)); lastTime = time; elapsed += dt; if (selection) map?.update(dt, elapsed); else { updateEscortPresentation(); streaming.update(dt, elapsed); }
     if (actor) {
       if (selection) { stage.update(dt, { aspect: camera.aspect }); actor = stage.getActor(stage.getState().selected); const pose = selectionCameraPose(camera.aspect); camera.position.lerp(new THREE.Vector3().fromArray(pose.eye), 1 - Math.exp(-5 * dt)); camera.lookAt(...pose.focus); }
       else {
@@ -629,7 +658,8 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
         let ix = canMove ? Number(keys.has('KeyD')) - Number(keys.has('KeyA')) : 0, iz = canMove ? Number(keys.has('KeyW')) - Number(keys.has('KeyS')) : 0; const length = Math.max(1, Math.hypot(ix, iz)); ix /= length; iz /= length;
         const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight'), speed = flying ? FLIGHT_SPEED : sprint ? RUN_SPEED : WALK_SPEED;
         if (!crossing) { velocity.x = damp(velocity.x, (Math.cos(yaw) * ix - Math.sin(yaw) * iz) * speed, grounded ? 16 : 7, dt); velocity.y = damp(velocity.y, (-Math.sin(yaw) * ix - Math.cos(yaw) * iz) * speed, grounded ? 16 : 7, dt); }
-        const moved = moveWithCollisions(old, { x: old.x + (crossing ? 0 : velocity.x * dt), y: old.y, z: old.z + (crossing ? 0 : velocity.y * dt) }, map.bounds, map.walls); actor.root.position.set(moved.x, moved.y, moved.z);
+        const peopleBodies = boat ? [] : nearbyPeopleBodies();
+        const moved = moveAmongPeople(old, { x: old.x + (crossing ? 0 : velocity.x * dt), y: old.y, z: old.z + (crossing ? 0 : velocity.y * dt) }, map.bounds, map.walls, peopleBodies); actor.root.position.set(moved.x, moved.y, moved.z);
         if (grounded) coyote = .10; else coyote = Math.max(0, coyote - dt);
         if (jumpGrace > 0 && coyote > 0 && canMove && !jumpPreparation && !flying) { jumpPreparation = .11; actor.prepareJump?.({ durationMs: 110 }); jumpGrace = 0; }
         if (jumpPreparation > 0) { if (!canMove || flying) { jumpPreparation = 0; actor.cancelJumpPreparation?.(); } else { jumpPreparation = Math.max(0, jumpPreparation - dt); if (!jumpPreparation) { dy = JUMP_SPEED; grounded = false; coyote = 0; } } }
@@ -662,14 +692,14 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
         }
         else if (correction) {
           const portion = correction.clone().multiplyScalar(1 - Math.exp(-14 * dt));
-          const resolved = moveWithCollisions(actor.root.position, actor.root.position.clone().add(portion), map.bounds, map.walls);
+          const resolved = moveAmongPeople(actor.root.position, actor.root.position.clone().add(portion), map.bounds, map.walls, peopleBodies);
           recordCorrection(point(resolved).sub(actor.root.position));actor.root.position.set(resolved.x, resolved.y, resolved.z); correction.sub(portion); if (correction.length() < .015) correction = null;
         }
         const travel = boat ? 0 : Math.hypot(actor.root.position.x - old.x, actor.root.position.z - old.z);
         if (travel > .001) { const angle = Math.atan2(old.x - actor.root.position.x, old.z - actor.root.position.z); actor.root.rotation.y += Math.atan2(Math.sin(angle - actor.root.rotation.y), Math.cos(angle - actor.root.rotation.y)) * (1 - Math.exp(-14 * dt)); }
         actor.setPresentationState?.({ flying, downed, floorY: floorAt(actor.root.position, old.y) });
         actor.updateTravel(dt, boat&&!seatedBoat?actor.root.position.distanceTo(old):travel, grounded, dy, seatedBoat);
-        selfPose = { x: actor.root.position.x, y: actor.root.position.y, z: actor.root.position.z, yaw: actor.root.rotation.y, grounded, flying, riding:boat, sprint: sprint || Math.hypot(velocity.x, velocity.y) > WALK_SPEED * 1.2 }; if (!boat && voluntary.lengthSq() > 1e-10) movementSteps.push({ delta: { dx: voluntary.x, dy: voluntary.y, dz: voluntary.z }, position: { ...selfPose }, sprint: selfPose.sprint, flying:selfPose.flying }); if(justDisembarked){movementSteps=[{delta:{dx:selfPose.x-character.position.x,dy:selfPose.y-(character.position.y??0),dz:selfPose.z-character.position.z},position:{...selfPose},sprint:false,flying:false}];} onPose?.(selfPose);
+        selfPose = { x: actor.root.position.x, y: actor.root.position.y, z: actor.root.position.z, yaw: actor.root.rotation.y, grounded, flying, riding:boat, sprint: sprint || Math.hypot(velocity.x, velocity.y) > WALK_SPEED * 1.2 }; if (!boat && voluntary.lengthSq() > 1e-10) movementSteps.push({ delta: { dx: voluntary.x, dy: voluntary.y, dz: voluntary.z, dt }, position: { ...selfPose }, sprint: selfPose.sprint, flying:selfPose.flying }); if(justDisembarked){movementSteps=[{delta:{dx:selfPose.x-character.position.x,dy:selfPose.y-(character.position.y??0),dz:selfPose.z-character.position.z},position:{...selfPose},sprint:false,flying:false}];} onPose?.(selfPose);
         const cameraAnchor = boat ? actor.root.position.clone().add(new THREE.Vector3(0, .9, 0)) : actor.root.position;
         const pose = chaseCameraPose(cameraAnchor, yaw, boat ? clamp(pitch + .12, -.12, .72) : pitch, cameraDistance + (boat ? 3.7 : 0));
         // On the lake, frame both passengers from above and slightly beside the
@@ -687,7 +717,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
         camera.lookAt(camera.position.clone().addScaledVector(point(pose.direction), 20)); actor.root.visible = camera.position.distanceTo(focus) > .45;
 
         nearest = null; let nearestDistance = Infinity, nearestPriority = -1;
-        for (const object of targets.values()) { const target = object.userData.target, distance = actor.root.position.distanceTo(point(target.position)); const link = target.kind === 'passage' ? getAreaLinks(resolveAreaId(character)).find(link => link.id === target.edgeId) : null; const closeEnough = link ? isAtAreaLink(actor.root.position, link) : distance < (target.radius ?? 2) + .15; const priority = target.kind === 'conversation' ? 0 : 1; if (target.active && !target.completed && closeEnough && (priority > nearestPriority || priority === nearestPriority && distance < nearestDistance)) { nearestPriority = priority; nearestDistance = distance; nearest = target; } if (object.userData.tag) { const cameraDistance = scaleNameplate(object.userData.tag, object.position, 1.1); object.userData.tag.visible = distance < 3.8 && cameraDistance > 2.3; } if (object.userData.indicator) { object.userData.indicator.rotation.y += dt; object.userData.indicator.position.y = 1.32 + Math.sin(elapsed * 2) * .04; } }
+        for (const object of targets.values()) { const target = object.userData.target, distance = actor.root.position.distanceTo(point(target.position)); const link = target.kind === 'passage' ? getAreaLinks(resolveAreaId(character)).find(link => link.id === target.edgeId) : null; const closeEnough = link ? isAtAreaLink(actor.root.position, link) : distance < (target.radius ?? 2) + .15; const priority = target.kind === 'conversation' ? 0 : 1; if (target.active && !target.completed && closeEnough && (priority > nearestPriority || priority === nearestPriority && distance < nearestDistance)) { nearestPriority = priority; nearestDistance = distance; nearest = target; } if (object.userData.tag) { const cameraDistance = scaleNameplate(object.userData.tag, object.position, 1.1); let hasNpc = target.kind === 'conversation'; for (const entry of npcs.values()) if (entry.targetId === target.id) { hasNpc = true; break; } object.userData.tag.visible = !hasNpc && distance < 3.8 && cameraDistance > 2.3; } if (object.userData.indicator) { object.userData.indicator.rotation.y += dt; object.userData.indicator.position.y = 1.32 + Math.sin(elapsed * 2) * .04; } }
         if (!crossing && elapsed > crossingCooldown && canMove && grounded && travel > .001) {
           const passage = [...targets.values()].map(object => object.userData.target).find(target => {
             if (target.kind !== 'passage' || target.travelKind !== 'walk' || !target.active) return false;
@@ -714,9 +744,9 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     for (const entry of npcs.values()) if (entry.actor) {
       const p = entry.actor.root.position, before = p.clone(),boatPose=entry.name==='海格'?map.getBoatPose?.('guide'):null;const aboard=boatPose&&(boatPose.phase==='crossing'||boatPose.phase==='disembarking');
       if(aboard){p.copy(point(boatPose.position));entry.actor.root.rotation.y=boatPose.yaw;}
-      else if(entry.journeyArrival){const remaining=p.distanceTo(entry.target);p.lerp(entry.target,Math.min(1,1.7*dt/Math.max(.001,remaining)));if(remaining<.04)entry.journeyArrival=false;}
-      else p.lerp(entry.target,1-Math.exp(-6*dt));const travel=p.distanceTo(before);
-      if (travel > .001 && !aboard) entry.actor.root.rotation.y = Math.atan2(before.x - p.x, before.z - p.z);
+      else { const next=stepNpcMotion(p,entry.target,dt,entry.routeSpeed??0);p.set(next.x,next.y,next.z);if(entry.journeyArrival&&p.distanceTo(entry.target)<.04)entry.journeyArrival=false; }
+      const travel=p.distanceTo(before);
+      if (travel > .001 && !aboard) {const facing=Math.atan2(before.x-p.x,before.z-p.z);entry.actor.root.rotation.y+=Math.atan2(Math.sin(facing-entry.actor.root.rotation.y),Math.cos(facing-entry.actor.root.rotation.y))*(1-Math.exp(-12*dt));}
       const npcDistance = actor ? actor.root.position.distanceTo(p) : Infinity;
       const engaged = nearest?.id === entry.targetId && ['talk','conversation','service','training','side'].includes(nearest?.kind);
       if (engaged && travel <= .001 && !aboard && !entry.seated && actor) {

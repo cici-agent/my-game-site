@@ -71,16 +71,16 @@ function atelier(group) {
     if (kind === 'wood') mat.userData.environmentSurface = { kind: 'wood', repeat: [1, 1] };
     materials.set(key, mat); return mat;
   }
-  function consolidate() {
-    group.updateMatrixWorld(true); const groups = new Map();
-    for (const object of [...group.children]) {
+  function consolidate(target = group) {
+    target.updateMatrixWorld(true); const groups = new Map();
+    for (const object of [...target.children]) {
       if (!object.isMesh || object.userData.dynamic || object.material.transparent) continue;
       const key = object.geometry.uuid + ':' + object.material.uuid + ':' + object.castShadow;
       if (!groups.has(key)) groups.set(key, []); groups.get(key).push(object);
     }
     for (const values of groups.values()) if (values.length >= 3) {
       const mesh = new THREE.InstancedMesh(values[0].geometry, values[0].material, values.length);
-      values.forEach((object, i) => { object.updateMatrix(); mesh.setMatrixAt(i, object.matrix); object.removeFromParent(); }); mesh.castShadow = values[0].castShadow; mesh.receiveShadow = true; mesh.computeBoundingSphere(); group.add(mesh); disposables.push(mesh);
+      values.forEach((object, i) => { object.updateMatrix(); mesh.setMatrixAt(i, object.matrix); object.removeFromParent(); }); mesh.castShadow = values[0].castShadow; mesh.receiveShadow = true; mesh.computeBoundingSphere(); target.add(mesh); disposables.push(mesh);
     }
   }
   function custom(geometry, color, x = 0, y = 0, z = 0) { geos.set(geometry.uuid, geometry); return add(geometry, color, x, y, z); }
@@ -148,6 +148,95 @@ function refinePublicSpace(a, sceneId, walls) {
     }
   }
 }
+
+function ordinaryKingsCross(a, group, extra) {
+  // Keep the authored concourse, 9/10 signs, clock and roof trusses. Its old
+  // solid side elevations belonged to a waiting room; opening those bays lets
+  // the real platforms and ordinary trains be seen outside the walking area.
+  const matrix=new THREE.Matrix4(),local=new THREE.Matrix4(),box=new THREE.Box3();
+  group.updateMatrixWorld(true);const inverse=group.matrixWorld.clone().invert();
+  group.traverse(object=>{
+    if(!object.isMesh||!object.visible)return;
+    object.geometry.computeBoundingBox();let changed=false;
+    for(let index=0;index<(object.isInstancedMesh?object.count:1);index++){
+      if(object.isInstancedMesh)object.getMatrixAt(index,matrix);else matrix.identity();
+      local.multiplyMatrices(inverse,object.matrixWorld).multiply(matrix);box.copy(object.geometry.boundingBox).applyMatrix4(local);
+      const wideSide=Math.abs((box.min.x+box.max.x)/2)>9&&box.max.x-box.min.x<.7&&box.max.z-box.min.z>5&&box.max.y-box.min.y>2;
+      const oldDoor=box.min.x>-1.9&&box.max.x<1.9&&box.min.z>-11.8&&box.max.z<-10.2&&box.min.y>-.1&&box.max.y>.2&&box.max.y<5.65&&!['CylinderGeometry','CircleGeometry'].includes(object.geometry.type);
+      if(!wideSide&&!oldDoor)continue;
+      if(object.isInstancedMesh){object.setMatrixAt(index,new THREE.Matrix4().makeScale(0,0,0));changed=true;}else object.visible=false;
+    }
+    if(changed){object.instanceMatrix.needsUpdate=true;object.computeBoundingSphere();}
+  });
+  const brick=a.material(0x9c8571);brick.userData.environmentSurface={kind:'brick',repeat:[17.2,3.95]};
+  const barrier=a.box(34.4,7.9,.22,brick,0,3.95,-11.29,.005);barrier.name='KingsCrossEnchantedBrickWall';barrier.userData.magicWall=true;
+  const coping=a.material(0xb9b09c);coping.userData.environmentSurface={kind:'stone',repeat:[17.2,.15]};
+  a.box(34.5,.24,.36,coping,0,7.82,-11.29,.015);
+  // A short mount supports the retained station clock after its false arch is
+  // removed. There is deliberately no Hogwarts or 9¾ sign on this side.
+  a.box(.12,.12,.72,a.material(0x46554d,.45),0,4.79,-10.8,.008);
+  const rail=a.material(0x70787a,.78),iron=a.material(0x33443f,.45),ballast=a.material(0x67685e),timber=a.surface('wood','#655946');
+  const trains=[];
+  for(const [side,number,color,phase]of[[-1,9,0x3d5867,0],[1,10,0x426557,Math.PI]]){
+    const x=side*12.2;
+    a.box(6.5,.32,108,ballast,x,-.66,42,.005);
+    for(const dx of[-.76,.76]){a.box(.105,.13,108,rail,x+dx,-.36,42,.005);a.box(.20,.06,108,iron,x+dx,-.445,42,.004);}
+    for(let z=-11;z<96;z+=.68)a.box(2.5,.11,.20,timber,x,-.49,z,.008);
+    a.box(.26,.12,27.5,coping,side*9.25,-.02,2.35,.01);
+    a.box(.10,.012,27.5,a.material(0xcdbd77),side*8.85,.012,2.35,.003);
+    for(const z of[-8,-1,6,13,20,27,34,41]){
+      a.cyl(.09,5.4,iron,side*15.35,2.5,z,.09,12);a.cyl(.18,.13,coping,side*15.35,-.13,z,.18,12);
+      const brace=a.box(.10,2.0,.12,iron,side*14.65,4.7,z,.008);brace.rotation.z=side*.65;
+    }
+    const roof=a.box(7,.14,57,a.material(0x58675d),side*12.0,5.65,17,.008);roof.rotation.z=side*.075;
+    const outer=a.material(0x8d8d79);outer.userData.environmentSurface={kind:'brick',repeat:[3,26.5]};
+    a.box(.40,5.8,108,outer,side*16.1,2.5,42,.005);
+    // Terminus buffer stops, safely beyond the regular walking footprint.
+    for(const dx of[-.76,.76]){a.box(.22,.8,.25,iron,x+dx,.03,-10.4,.015);a.box(.55,.15,.55,iron,x+dx,-.26,-10.4,.01);}
+    a.box(2.4,.22,.28,a.material(0x6c342b),x,.43,-10.4,.015);
+
+    const train=new THREE.Group();train.name=`OrdinaryPassengerTrain:${number}`;train.userData.dynamic=true;extra.add(train);
+    const before=new Set(extra.children),paint=a.material(color,.22),cream=a.material(0xc5c6b5,.16),glass=a.material(0x273d43,.35),rubber=a.material(0x292e2b),roofPaint=a.material(0x59645f,.3);
+    glass.roughness=.25;
+    for(const center of[-4.2,4.2]){
+      a.box(2.82,2.35,7.9,paint,0,1.34,center,.08);a.box(2.90,.36,7.86,cream,0,2.06,center,.035);
+      a.box(3.02,.28,8.02,roofPaint,0,2.66,center,.10);a.box(2.55,.30,7.7,iron,0,.10,center,.035);
+      for(const sign of[-1,1]){
+        for(const z of[-2.1,-.7,.7,2.1]){
+          a.box(.045,.93,1.12,glass,sign*1.433,1.98,center+z,.035);
+          a.box(.06,.035,1.15,cream,sign*1.46,1.51,center+z,.006);
+        }
+        for(const z of[-3.2,3.2]){
+          a.box(.05,1.91,.68,cream,sign*1.437,1.24,center+z,.02);a.box(.06,.66,.46,glass,sign*1.471,1.87,center+z,.025);
+          a.box(.07,.12,.035,iron,sign*1.48,1.1,center+z+.2,.005);a.box(.23,.06,.75,iron,sign*1.43,.24,center+z,.006);
+        }
+        for(const z of[-2.8,-2.0,2.0,2.8]){
+          const wheel=a.cyl(.38,.18,rubber,sign*1.19,-.03,center+z,.38,20);wheel.rotation.z=Math.PI/2;
+          const hub=a.cyl(.15,.21,rail,sign*1.19,-.03,center+z,.15,16);hub.rotation.z=Math.PI/2;
+        }
+        for(const z of[-2.4,2.4])a.box(.12,.32,1.65,iron,sign*1.21,.08,center+z,.035);
+      }
+      a.box(1.05,.48,7.85,rubber,0,1.40,center,.03);
+    }
+    a.box(2.75,1.7,.20,cream,0,1.63,-8.18,.07);a.box(2.36,.83,.04,glass,0,2.02,-8.30,.045);
+    a.box(.055,.86,.05,cream,0,2.02,-8.33,.005);
+    for(const sign of[-1,1]){
+      const lamp=a.material(0xffe2a0);lamp.emissive.setHex(0xe7ca82);lamp.emissiveIntensity=.45;
+      a.box(.29,.19,.045,lamp,sign*.96,.91,-8.31,.025);
+      a.box(.025,.45,.055,iron,sign*.46,1.95,-8.34,.005).rotation.z=-.35;
+    }
+    a.box(1.1,1.6,.55,rubber,0,1.21,0,.05);
+    for(const object of [...extra.children])if(!before.has(object))train.add(object);
+    a.consolidate(train);train.position.set(x,0,.5+37*(1-Math.cos(phase)));trains.push({root:train,phase,number});
+  }
+  // A distant footbridge gives the tracks an ordinary station setting and
+  // keeps the arrival/departure turnarounds well beyond the close-up scene.
+  a.box(32.5,1.65,3.2,a.material(0x4f6257),0,5.10,30,.025);a.box(33,.18,3.5,iron,0,6.02,30,.015);
+  for(let x=-14;x<=14;x+=2)a.box(1.35,.88,.05,a.material(0x91aaa3),x,5.24,28.37,.008);
+  extra.userData.ordinaryRailway={platforms:[9,10],trackCenters:[-12.2,12.2],wallZ:-11.4};
+  return { update(time){for(const train of trains){const phase=time/50+train.phase;train.root.position.z=.5+37*(1-Math.cos(phase));train.root.userData.speed=.74*Math.sin(phase);}} };
+}
+
 function terrain(a, group, kind, showGround = true) {
   const ground = kind === 'forest' ? a.surface('earth', '#4d5540') : kind === 'grass' ? a.surface('grass', '#788462') : a.material(0x8d8b71);
   if (kind === 'stone') ground.userData.environmentSurface = { kind: 'floor', repeat: [18, 18] };
@@ -187,7 +276,7 @@ function underground(a, questId) {
 
 export function createSceneEnvironment(sceneId, group, { questId, combat } = {}) {
   const extra = new THREE.Group(); group.add(extra); const a = atelier(extra); let base = null, walls = [], bounds = [-10, 10, -14, 12], landscape = null;
-  let supportingActors = [], currentQuest = questId, dungeonState = null, trainScenery = null, trainElapsed = 0, trainStopped = false, disposed = false;
+  let supportingActors = [], currentQuest = questId, dungeonState = null, trainScenery = null, trainElapsed = 0, trainStopped = false, disposed = false, ordinaryRailway = null;
   function support(templateId, position, yaw, scale, action = () => 'idle') {
     const actor = createCreature({ templateId, scale }); actor.root.position.fromArray(position); actor.root.rotation.y = yaw; actor.root.userData.dynamic = true; group.add(actor.root); supportingActors.push({ actor, action });
   }
@@ -263,6 +352,7 @@ export function createSceneEnvironment(sceneId, group, { questId, combat } = {})
     if (sceneId === 'SC10') { a.box(2.1, .2, 1.2, a.surface('wood', '#5b4636'), 3.8, .85, -2.5, .05); a.sphere(.29, 0x988b6b, 3.8, 1.24, -2.5); lamp(a, -3.8, 1.7, -5.5); }
   }
   if (!combat) refineArchitecture(a, group, sceneId);
+  if (sceneId === 'SC01' && !combat) ordinaryRailway=ordinaryKingsCross(a,group,extra);
   if (sceneId === 'SC02' && !combat) { trainScenery = createTrainScenery(); group.add(trainScenery.root); }
   a.consolidate();
   updateSupporting();
@@ -279,7 +369,7 @@ export function createSceneEnvironment(sceneId, group, { questId, combat } = {})
   const pbr = typeof window !== 'undefined' && typeof Image !== 'undefined' ? bindEnvironmentMaterials(group) : null;
   return {
     bounds, walls, materialReady: pbr?.ready, spawn: base?.spawn ?? (sceneId === 'SC03' ? [0, 66] : [0, 6]),
-    update(dt, time) { if (trainScenery && !trainStopped) trainElapsed += dt; base?.update(dt, trainScenery ? trainElapsed : time); landscape?.update(dt, time); trainScenery?.update(dt); windUniforms.forEach(uniform => { uniform.value = time; }); supportingActors.forEach(({ actor, action }) => actor.update(dt, { action: action(), speed: 0, time })); },
+    update(dt, time) { if (trainScenery && !trainStopped) trainElapsed += dt; base?.update(dt, trainScenery ? trainElapsed : time); landscape?.update(dt, time); trainScenery?.update(dt); ordinaryRailway?.update(time); windUniforms.forEach(uniform => { uniform.value = time; }); supportingActors.forEach(({ actor, action }) => actor.update(dt, { action: action(), speed: 0, time })); },
     setEscort(escort) { landscape?.setEscort(escort); },
     getBoatPose(role) { return landscape?.getBoatPose?.(role) ?? null; },
     setTrainStopped(value) { trainStopped = Boolean(value); trainScenery?.setStopped(value); },

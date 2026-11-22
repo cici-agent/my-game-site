@@ -5,7 +5,8 @@ import vm from 'node:vm';
 import { Vector3 } from 'three';
 import { resolveAreaId, getWorldArea, getAreaLinks } from '../chapter-one/world-atlas.mjs';
 import { WALK_SPEED } from '../chapter-one/movement.mjs';
-import { correctionPlan, moveWithCollisions } from '../chapter-one/client/scene-geometry.mjs';
+import { moveAmongPeople } from '../chapter-one/people.mjs';
+import { correctionPlan, moveWithCollisions, sampleEscort } from '../chapter-one/client/scene-geometry.mjs';
 import { applyEquipmentAppearance, resetEquipmentAppearance } from '../chapter-one/presentation/equipment-appearance.mjs';
 
 // Execute the actual world coordinator functions. Scene construction, rendering
@@ -18,7 +19,7 @@ function actualFunction(name) {
   const end = next.exec(source)?.index ?? source.length;
   return source.slice(declaration.index, end);
 }
-const functions = ['resetMovement', 'recordCorrection', 'acknowledgedPoint', 'noteMovementSent', 'takeMovementPacket', 'rejectMovement', 'setSnapshot', 'canMountBroom'].map(actualFunction).join('\n');
+const functions = ['resetMovement', 'recordCorrection', 'acknowledgedPoint', 'noteMovementSent', 'takeMovementPacket', 'rejectMovement', 'setSnapshot', 'canMountBroom', 'updateEscortPresentation'].map(actualFunction).join('\n');
 const correctionStart = source.indexOf('const portion = correction.clone().multiplyScalar');
 const correctionEnd = source.indexOf('\n        }\n        const travel', correctionStart);
 assert(correctionStart >= 0 && correctionEnd > correctionStart, 'actual smoothing frame block exists');
@@ -30,9 +31,9 @@ const sampleFrame = source.slice(sampleStart, sampleEnd);
 const json = value => JSON.parse(JSON.stringify(value));
 const position = (x = 0, y = 0, z = 0) => ({ x, y, z, yaw: 0 });
 function harness() {
-  const areas = [], context = vm.createContext({ resolveAreaId, getWorldArea, getAreaLinks, areaOffset: (a,b)=>{const from=getWorldArea(a).origin,to=getWorldArea(b).origin;return{x:from.x-to.x,y:from.y-to.y,z:from.z-to.z};}, THREE: { Vector3 }, correctionPlan, moveWithCollisions, WALK_SPEED, applyEquipmentAppearance, resetEquipmentAppearance, performance: { now: () => 1000 }, Date, console, __areas: areas });
+  const areas = [], context = vm.createContext({ resolveAreaId, getWorldArea, getAreaLinks, areaOffset: (a,b)=>{const from=getWorldArea(a).origin,to=getWorldArea(b).origin;return{x:from.x-to.x,y:from.y-to.y,z:from.z-to.z};}, THREE: { Vector3 }, correctionPlan, moveWithCollisions, moveAmongPeople, sampleEscort, WALK_SPEED, applyEquipmentAppearance, resetEquipmentAppearance, performance: { now: () => 1000 }, Date, console, __areas: areas });
   vm.runInContext(`
-const streaming = {setTransit(){}}, scene = {}, keys = new Set(), velocity = {x:0,y:0,set(x,y){this.x=x;this.y=y;}}, moveHistory = new Map(), correctionApplied = new THREE.Vector3();
+const streaming = {setTransit(){}}, scene = {}, keys = new Set(), velocity = {x:0,y:0,set(x,y){this.x=x;this.y=y;}}, moveHistory = new Map(), correctionApplied = new THREE.Vector3(), npcs = new Map(), targets = new Map(), peopleBodies = [];
 let movementSteps = [], previousAck = 10, movementInFlight = null, rejectedMove = null;
 let journey = null, wasBoatRide = false, crossing=null, crossingCooldown=0, elapsed=0, landing=false; const camera={position:new THREE.Vector3()}; const planJourney=()=>null,getSceneNavigation=()=>({bounds:[-5,5,-5,5],walls:[]}),targetGroup={position:new THREE.Vector3()};
 let snapshotGeneration = 0, view = {sceneId:'SC04',serverTime:100,targets:[]}, character = {id:'self',heroId:'harry',sceneId:'SC04',position:{x:0,y:0,z:0,yaw:0},lastAcceptedMoveSequence:10,skills:[]}, room = null, combat = null;
@@ -44,7 +45,7 @@ const serverNow=()=>serverAt+Math.max(0,performance.now()-receivedAt), resetAbil
 const clearTarget=()=>{}, resetArea=(id,encounter)=>__areas.push({id,encounter}), updateTargets=()=>{},syncPeers=()=>{},syncCombat=()=>{},onJourney=()=>{},onPose=()=>{};
 async function chooseHero(id){selected=id;actor.root.parent=scene;}
 ${functions}
-function sampleFrame(voluntary,sprint=false,boat=false,justDisembarked=false){${sampleFrame}}
+function sampleFrame(voluntary,sprint=false,boat=false,justDisembarked=false,dt=1/60){${sampleFrame}}
 function correctionFrame(dt){if(correction){${correctionFrame}} sampleFrame(new THREE.Vector3());}
 globalThis.__world={resetMovement,noteMovementSent,takeMovementPacket,rejectMovement,setSnapshot,
  setLocal(p){actor.root.position.copy(point(p));selfPose={...selfPose,...p};},
