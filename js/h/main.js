@@ -466,8 +466,9 @@ addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (/^(Key[WASD]|Arrow)/.test(e.code)) $('hint')?.classList.add('hide');
   if (e.code === 'KeyM' && !e.repeat && !chestOpen) overview = !overview;   // M：俯瞰整个小镇
-  if (e.code === 'KeyT' && !e.repeat) teleportHome();                       // T：传送回家
-  if (e.code === 'KeyG' && !e.repeat) teleportPlaza();                      // G：传送到市中心广场
+  if (e.code === 'KeyT' && !e.repeat) teleport('home');
+  if (e.code === 'KeyG' && !e.repeat) teleport('plaza');
+  if (e.code === 'KeyP' && !e.repeat) teleport('pet');
   if (e.code === 'KeyV' && !e.repeat) toggleView();                          // V：第一人称 / 第三人称
   if (e.code === 'KeyF' && !e.repeat && !chestOpen && !shopOpen) eatSelected();   // F：吃掉选中的菜
   if (sleeping && /^(Key[WASD]|Arrow|Space)/.test(e.code)) wakeUp();
@@ -1020,28 +1021,45 @@ function updateMap(t) {
   meMark.position.set(player.pos.x, 70, player.pos.z); meRing.position.set(player.pos.x, 1, player.pos.z);
   const k = 1 + .25 * Math.sin(t * 5); meRing.scale.set(k, k, k);
 }
-// 传送回家：体力要超过一半，传一次很费体力
-const TP_MIN = 50, TP_COST = 35;
-function teleportHome() {
-  if (sleeping || chestOpen || shopOpen) return;
-  if (!metMayor) { toast('🏛️ 你还没有自己的空地：先去镇政府找镇长'); return; }
-  if (stamina.value <= TP_MIN) { toast(`💪 体力要超过 ${TP_MIN} 才能传送（现在 ${Math.floor(stamina.value)}）· 吃点东西或者睡一觉`); return; }
-  stamina.set(stamina.value - TP_COST); if (loose.led) loose.unlead();
-  const [x, z] = garden.gateWorld(); player.pos.set(x, 0, z); player.vy = 0; player.face = garden.gateYaw(); cam.yaw = player.face;
-  overview = false; $('tpFlash').classList.remove('go'); void $('tpFlash').offsetWidth; $('tpFlash').classList.add('go');
-  toast(`✨ 传送回家了（体力 -${TP_COST}）`);
+const TP_MIN = 50;
+const plazaAngle = Math.atan2(ROAD_SPAWN.x, ROAD_SPAWN.z);
+const petStore = shops.find(store => store.kind === 'pet');
+function teleport(destination) {
+  if (sleeping || chestOpen || shopOpen || $('mayorVisit').open || $('nameUI').classList.contains('show')) return;
+  if (destination === 'home' && !metMayor) return toast('🏛️ 先去镇政府找镇长领一块空地');
+  if (stamina.value <= TP_MIN) return toast(`💪 体力要超过 ${TP_MIN} 才能传送（现在 ${Math.floor(stamina.value)}）`);
+
+  let x, z, facing, label;
+  if (destination === 'pet') {
+    [x, z] = petStore.door();
+    const [counterX, counterZ] = petStore.front();
+    facing = Math.atan2(counterX - x, counterZ - z);
+    label = '萌宠小屋门口';
+  } else if (destination === 'home') {
+    [x, z] = garden.gateWorld();
+    facing = garden.gateYaw();
+    label = '家门口';
+  } else {
+    x = Math.sin(plazaAngle) * 7;
+    z = Math.cos(plazaAngle) * 7;
+    facing = plazaAngle + Math.PI;
+    label = '中心广场';
+  }
+  const cost = 32 + Math.floor(Math.random() * 7);
+  stamina.set(stamina.value - cost);
+  if (loose.led) loose.unlead();
+  player.pos.set(x, 0, z);
+  player.vy = 0;
+  player.face = cam.yaw = facing;
+  overview = false;
+  const flash = $('tpFlash');
+  flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+  renderSta();
+  toast(`✨ 已到${label}（体力 −${cost}）`);
 }
-$('tpBtn').onclick = teleportHome;
-// 传送到市中心（中间那个圆形广场，用户说的）：一样要体力过一半，一样扣体力
-function teleportPlaza() {
-  if (sleeping || chestOpen || shopOpen) return;
-  if (stamina.value <= TP_MIN) { toast(`💪 体力要超过 ${TP_MIN} 才能传送（现在 ${Math.floor(stamina.value)}）· 吃点东西或者睡一觉`); return; }
-  stamina.set(stamina.value - TP_COST); if (loose.led) loose.unlead();
-  const a = Math.atan2(ROAD_SPAWN.x, ROAD_SPAWN.z); player.pos.set(Math.sin(a) * 7, 0, Math.cos(a) * 7); player.vy = 0; player.face = a + Math.PI; cam.yaw = player.face;
-  overview = false; $('tpFlash').classList.remove('go'); void $('tpFlash').offsetWidth; $('tpFlash').classList.add('go');
-  toast(`✨ 传送到市中心的广场了（体力 -${TP_COST}）`);
-}
-$('tpPlazaBtn').onclick = teleportPlaza;
+$('tpBtn').onclick = () => teleport('home');
+$('tpPlazaBtn').onclick = () => teleport('plaza');
+$('tpPetBtn').onclick = () => teleport('pet');
 // ---------- 🪢 跑出来的动物、牵绳（用户说：门开着动物会跑出来；用牵绳牵回去） ----------
 const HOMES = { chicken: coop, cow: cows, sheep, pig: pigs, duck: ducks };
 const homeNameOf = k => k === 'chicken' ? coop.name : HOMES[k].homeName;
