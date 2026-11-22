@@ -46,9 +46,10 @@ function outwardNormal(area,anchor){
   const outside=candidates.filter(candidate=>candidate.outside);
   return (outside.length?outside:candidates).sort((a,b)=>a.distance-b.distance).map(({x,z})=>({x,z}))[0];
 }
-function directed(from,to,anchor,arrival,{kind='walk',requiresQuestIds=[],unavailableAfterQuestIds=[],label,normal}={}){
+function directed(from,to,anchor,arrival,{kind='walk',requiresQuestIds=[],unavailableAfterQuestIds=[],label,normal,magicWall=false}={}){
   const source=areasById.get(from),target=areasById.get(to);
   const link={id:`${from}>${to}@${anchor.x},${anchor.y??0},${anchor.z}`,from,to,kind,anchor:{...anchor},arrival:{...arrival},normal:normal??outwardNormal(source,anchor),radius:kind==='walk'?.55:1.2,width:2.8,requiresQuestIds:[...requiresQuestIds],unavailableAfterQuestIds:[...unavailableAfterQuestIds],label:label??`前往${target.name}`,worldAnchor:localToWorld(source,anchor)};
+  if(magicWall)link.magicWall=true;
   mutableLinks.push(link);return link;
 }
 function seam(from,to,anchor,options={}){
@@ -56,7 +57,7 @@ function seam(from,to,anchor,options={}){
   const normal=options.normal??outwardNormal(areasById.get(from),anchor);
   directed(from,to,anchor,arrival,{...options,normal});directed(to,from,arrival,anchor,{...options,normal:{x:-normal.x,z:-normal.z},label:`返回${areasById.get(from).name}`});
 }
-seam('SC01','LONDON_PLATFORM',point(0,0,-11.4),{requiresQuestIds:['M01']});
+seam('SC01','LONDON_PLATFORM',point(0,0,-11.4),{requiresQuestIds:['M01'],magicWall:true});
 seam('LONDON_PLATFORM','SC02_LONDON',point(11.8,0,0),{requiresQuestIds:['M01'],label:'登上霍格沃茨特快'});
 directed('SC02_LONDON','SC02_HOGSMEADE',point(0,0,6),point(0,0,6),{kind:'train',requiresQuestIds:['M02'],label:'乘霍格沃茨特快前往霍格莫德'});
 directed('SC02_HOGSMEADE','SC02_LONDON',point(0,0,6),point(0,0,6),{kind:'train',requiresQuestIds:['M36'],label:'乘返程列车回到伦敦'});
@@ -149,6 +150,15 @@ for(const area of mutableAreas){
   }
   if(area.kind==='grounds')continue;
   openDoorBands(area,mutableLinks.filter(link=>link.from===area.id&&link.kind==='walk').map(link=>link.anchor));
+}
+// The enchanted brick barrier is visually solid from both sides, while its
+// authored walk seam intentionally has no player collision. Cameras stay on
+// the player's side as they pass through its thickness.
+for(const id of ['SC01','LONDON_PLATFORM']){
+  const area=areasById.get(id),door=mutableLinks.find(link=>link.from===id&&link.magicWall);
+  if(id==='LONDON_PLATFORM')for(const [low,high]of[[area.navigation.bounds[0],-door.width/2],[door.width/2,area.navigation.bounds[1]]])
+    area.navigation.walls.push({x:(low+high)/2,z:door.anchor.z,w:high-low,d:.44,height:7.9,boundary:true});
+  area.navigation.cameraWalls=[...area.navigation.walls,{x:door.anchor.x,z:door.anchor.z,w:34.4,d:.44,height:7.9,magicWall:true}];
 }
 // Exterior collision excludes every occupied building and the whole lake.
 const grounds=areasById.get('GROUNDS');

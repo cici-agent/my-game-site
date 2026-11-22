@@ -94,6 +94,7 @@ export function createBoatMotion() {
   function setEscort(escort) {
     if (escort?.kind === 'boat') {
       const next = escort.position;
+      if(phase==='moored'&&escort.progress>0){position.x=next.x;position.z=next.z;target.x=next.x;target.z=next.z;}
       if (progress > .1 && escort.progress < progress - .25) { position.x = next.x; position.z = next.z; arrival = 0; }
       const dx = next.x - target.x, dz = next.z - target.z;
       if (Math.hypot(dx, dz) > .005) targetYaw = Math.atan2(-dx, -dz);

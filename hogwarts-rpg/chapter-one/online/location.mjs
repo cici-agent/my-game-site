@@ -1,5 +1,6 @@
 import { resolveAreaId, getWorldArea, areaFloor } from '../world-atlas.mjs';
 import { moveWithCollisions, standingFloor, canOccupy } from '../client/scene-geometry.mjs';
+import { moveAmongPeople } from '../people.mjs';
 
 export const locationEpoch = character => Number.isSafeInteger(character.locationEpoch) && character.locationEpoch >= 0 ? character.locationEpoch : 0;
 export const currentArea = character => getWorldArea(resolveAreaId(character));
@@ -30,11 +31,13 @@ export function groundHeight(character, point, walls = currentArea(character).na
   return Math.max(areaFloor(resolveAreaId(character), point), standingFloor(point, point.y ?? 0, walls));
 }
 
-export function replayAreaMovement(character, points, navigation, { airborne = false } = {}) {
+export function replayAreaMovement(character, points, navigation, { airborne = false, bodies = [] } = {}) {
   let result = { ...character.position }, previous = { ...result };
-  for (const point of points) {
+  for (const [index,point] of points.entries()) {
     const oldFloor = groundHeight(character, result, navigation.walls);
-    const moved = moveWithCollisions(result, { x: result.x + point.x - previous.x, y: result.y, z: result.z + point.z - previous.z }, navigation.bounds, navigation.walls);
+    const target={ x: result.x + point.x - previous.x, y: result.y, z: result.z + point.z - previous.z };
+    const contacts=typeof bodies==='function'?bodies(index,points.length):bodies;
+    const moved = contacts.length?moveAmongPeople(result,target,navigation.bounds,navigation.walls,contacts):moveWithCollisions(result,target,navigation.bounds,navigation.walls);
     const nextFloor = groundHeight(character, moved, navigation.walls), proposedY = result.y + point.y - previous.y;
     moved.y = Math.max(nextFloor, proposedY);
     // Walk down stairs with the surface; a voluntary jump/flying arc remains free.

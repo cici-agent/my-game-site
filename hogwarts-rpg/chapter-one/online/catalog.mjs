@@ -14,7 +14,7 @@ const fight = (label, enemyId) => step(label, 'battle', { enemyId });
 const hold = (label, seconds = 2) => step(label, 'hold', { seconds });
 const escort = (label, seconds = 4) => step(label, 'escort', { seconds, npc: '海格' });
 const authored = {
- M01: [step('跟上韦斯莱夫人，找到站台入口','escort',{seconds:5,npc:'韦斯莱夫人'}), visit('穿过九又四分之三站台入口')],
+ M01: [step('跟上韦斯莱夫人，找到站台入口','escort',{seconds:5,npc:'韦斯莱夫人'}), step('穿过 9、10 号站台之间的砖墙','move',{radius:.65})],
  M02: [step('在行李旁找回纳威的蟾蜍', 'collect'), step('收起巧克力蛙画片', 'collect'), talk('与车厢里的同伴会合')],
  M03: [escort('跟海格走下湖岸山路'), escort('在码头与海格会合'), step('登船，随海格渡过黑湖', 'boat', { seconds: 70, npc: '海格' }), escort('靠岸后跟海格走到城堡入口')],
  M04: [talk('麦格教授：欢迎来到霍格沃茨'), fight('向低处瞄准小蜘蛛，施放基础咒击', 'PAPER-L1'), fight('侧移避开小蝙蝠的低空扑击，再完成考核', 'BOX-L6')],
@@ -56,13 +56,30 @@ const authoredPositions={M01:[{x:-1.2,y:0,z:-8.4},{x:0,y:0,z:-11.4}],M03:[{x:-1.
 // The story is a sequence of physical destinations, not one room per quest.
 // Missing entries inherit the quest's home area; reward IDs/order stay intact.
 const objectiveAreas={M05:[null,null,'SC07'],M12:[null,null,'CORRIDOR_2'],M15:['GRYFFINDOR','SC07','CORRIDOR_2'],M19:[null,null,'SC11'],M21:[null,'SC12','SC12'],M24:[null,null,'SC09'],M26:['SC07','SC05','SC06'],M27:['SC06','SC10','SC06']};
+function runtimeObjective(q,o,index){
+ const areaId=objectiveAreas[q.id]?.[index]??questAreaId(q.id),position=authoredPositions[q.id]?.[index]??positions[index%positions.length];
+ const previousArea=index>0?objectiveAreas[q.id]?.[index-1]??questAreaId(q.id):null;
+ const origin=index>0&&previousArea===areaId?(authoredPositions[q.id]?.[index-1]??positions[(index-1)%positions.length]):escortStartForQuest(q.id);
+ const seconds=o.kind==='escort'?Math.max(o.seconds,Math.ceil(Math.hypot(position.x-origin.x,position.z-origin.z)/1.6*1000)/1000):o.seconds;
+ return {...o,seconds,id:`${q.id}-${index+1}`,areaId,position,radius:o.radius??2,actionType:['battle','boss'].includes(o.kind)?'encounter':o.kind==='cast'?'skill':'interact'};
+}
 export const runtimeQuests = Object.freeze(contentData.quests.map(q => ({
  ...q, sceneId: getWorldArea(questAreaId(q.id)).sceneId,
- objectives: authored[q.id].map((o, index) => ({ ...o, id: `${q.id}-${index + 1}`, areaId:objectiveAreas[q.id]?.[index]??questAreaId(q.id), position: authoredPositions[q.id]?.[index]??positions[index % positions.length], radius: 2,
-  actionType: ['battle','boss'].includes(o.kind) ? 'encounter' : o.kind === 'cast' ? 'skill' : 'interact' })),
+ objectives: authored[q.id].map((o,index)=>runtimeObjective(q,o,index)),
 })));
 export const questById = new Map(runtimeQuests.map(q => [q.id, q]));
 export function activeQuestAreaId(character){const id=character.activity?.questId??character.currentQuestId,index=character.activity?.objectiveIndex??character.objectiveIndex;return questById.get(id)?.objectives[index]?.areaId??questAreaId(id);}
+export function sampleEscortMotion(character,at){
+ const quest=questById.get(character.activity?.questId??character.currentQuestId);let index=character.activity?.objectiveIndex??character.objectiveIndex,t=quest?.objectives[index];
+ const escort=character.escort;if(!t||escort?.targetId!==t.id||!Number.isFinite(escort.startedAt))return null;
+ let startedAt=escort.startedAt,origin=escort.origin;
+ while(at<startedAt&&index>0&&t.kind==='escort'){
+  const previous=quest.objectives[index-1];if(!['escort','boat'].includes(previous.kind)||previous.areaId!==t.areaId)break;
+  startedAt-=previous.seconds*1000;index--;t=previous;origin=index>0&&quest.objectives[index-1].areaId===t.areaId?quest.objectives[index-1].position:escortStartForQuest(quest.id);
+ }
+ const progress=Math.max(0,Math.min(1,(at-startedAt)/(t.seconds*1000)));
+ return {npc:t.npc??'海格',kind:t.kind,targetId:t.id,startedAt,progress,position:{x:origin.x+(t.position.x-origin.x)*progress,y:0,z:origin.z+(t.position.z-origin.z)*progress}};
+}
 export const SERVICE_POSITION = Object.freeze({ x: 1.5, y: 0, z: 5 });
 export const TRAINING_POSITION = Object.freeze({ x: -1.5, y: 0, z: 5 });
 export const serviceAnchors=Object.freeze(contentData.world.npcs.map((n,index)=>({...n,position:n.serviceId==='SERVICE-GEAR'?{x:1.5,y:0,z:1}:n.serviceId==='SERVICE-POST'?{x:-1.5,y:0,z:1}:SERVICE_POSITION})));
@@ -96,16 +113,22 @@ export function getSceneView(character, now = Date.now()) {
  if(mainScene&&(dangerQuestIds.has(quest.id)||quest.id==='M04'))targets.push({id:'checkpoint-supply',kind:'service',serviceIds:['CHECKPOINT'],label:'检查点 · 免费基础补给',position:character.checkpoint?.areaId===areaId?character.checkpoint.position:area.spawn,radius:2,actionType:'service',active:true});
  const objective = quest.objectives[currentIndex];
  const flight=getFlightPermission({...character,sceneId,visitSceneId:null},{questId:quest.id,questSceneId:mainScene?getWorldArea(objectiveAreaId).sceneId:undefined,objectiveKind:objective?.kind,inCombat:character.encounter?.status==='active'||character.soloEncounter?.status==='active'});
- const escortState = character.escort;
+ const escortState = character.escort?.targetId===objective?.id?character.escort:null;
+ const ambientPeople=[];
+ if(areaId==='SC01'&&(character.completedQuestIds.includes('M01')||quest.id==='M01'&&currentIndex>0))ambientPeople.push({name:'韦斯莱夫人',appearanceId:'molly',kind:'ambient',position:{...questById.get('M01').objectives[0].position}});
+ if(areaId==='SC03'&&character.completedQuestIds.includes('M03'))ambientPeople.push({name:'海格',appearanceId:'hagrid',kind:'ambient',position:{...questById.get('M03').objectives.at(-1).position}});
  let escortView = null;
  if (mainScene && objective && ['escort','boat'].includes(objective.kind)) {
   const savedOrigin=character.escortOrigin;
   const initialOrigin=currentIndex===0?escortStartForQuest(quest.id):savedOrigin;
   const origin = escortState?.origin ?? initialOrigin ?? escortStartForQuest(quest.id);
-  const progress = escortState?.progress ?? 0;
+  const startedAt=Number.isFinite(escortState?.startedAt)?escortState.startedAt:null;
+  const progress = startedAt===null ? escortState?.progress??0 : Math.max(0,Math.min(1,(now-startedAt)/(objective.seconds*1000)));
+  const awaitingStart=!escortState,awaitingPlayer=!!escortState&&progress>=1;
   escortView = { npc: objective.npc ?? '海格', targetId:objective.id, kind:objective.kind, progress,
+   origin:{...origin},destination:{...objective.position},startedAt,serverTime:now,awaitingStart,awaitingPlayer,
    position: { x: origin.x + (objective.position.x - origin.x) * progress, y:0, z:origin.z+(objective.position.z-origin.z)*progress },
-   waitingForPlayer: !escortState?.near, durationSeconds:objective.seconds };
+   waitingForPlayer: awaitingPlayer, durationSeconds:objective.seconds };
  }
  const transit=character.transit?{...character.transit,progress:Math.max(0,Math.min(1,(now-character.transit.startedAt)/(character.transit.arriveAt-character.transit.startedAt))),remainingSeconds:Math.max(0,Math.ceil((character.transit.arriveAt-now)/1000)),destinationName:getWorldArea(character.transit.toAreaId)?.name??'目的地'}:null;
  const route = transit || mainScene || character.chapterComplete ? [] : routeBetween(areaId, objectiveAreaId, character);
@@ -120,6 +143,6 @@ export function getSceneView(character, now = Date.now()) {
   if(q.steps.some(s=>getWorldArea(s.sceneId)?.id===areaId))targets.push({id:q.id,questId:q.id,kind:'collection',label:q.summary,position:{x:1.5,y:0,z:-6},radius:2,seconds:1,actionType:'collect',active:true});
  }
  const [minX,maxX,minZ,maxZ]=area.navigation.bounds;
- return { sceneId,areaId,questAreaId:objectiveAreaId,areaQuestId:area.questId,origin:area.origin,name:area.name,quest: { id:quest.id,name:quest.name,npc:quest.initiatorNpc,sceneId:getWorldArea(objectiveAreaId).sceneId,areaId:objectiveAreaId,inCurrentArea:mainScene,allObjectives,description:dungeon?.hint??quest.successCondition }, targets, navigation:area.navigation,bounds:{minX,maxX,minZ,maxZ},spawn:area.spawn,escort:escortView,dungeon,flight,transit,exitTarget,exits,destinations,route:route??[],services,commissions,serviceTargets:targets.filter(t=>t.kind==='service'),trainingTargets:targets.filter(t=>t.kind==='training'),serverTime:now };
+ return { sceneId,areaId,questAreaId:objectiveAreaId,areaQuestId:area.questId,origin:area.origin,name:area.name,quest: { id:quest.id,name:quest.name,npc:quest.initiatorNpc,sceneId:getWorldArea(objectiveAreaId).sceneId,areaId:objectiveAreaId,inCurrentArea:mainScene,allObjectives,description:dungeon?.hint??quest.successCondition }, targets, navigation:area.navigation,bounds:{minX,maxX,minZ,maxZ},spawn:area.spawn,escort:escortView,ambientPeople,lastBoatArrival:character.lastBoatArrival??null,dungeon,flight,transit,exitTarget,exits,destinations,route:route??[],services,commissions,serviceTargets:targets.filter(t=>t.kind==='service'),trainingTargets:targets.filter(t=>t.kind==='training'),serverTime:now };
 }
 export const runtimeCatalog = Object.freeze({ quests:runtimeQuests, items:contentData.items, services:contentData.services.map(s=>({...s,...serviceAnchors.find(n=>n.serviceId===s.serviceId)})), skills:contentData.skills, commissions:contentData.journalCommissionIndex.map(c=>({...c,sceneId:c.initiator.sceneId})), scenes:contentData.scenes });

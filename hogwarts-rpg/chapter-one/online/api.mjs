@@ -4,7 +4,7 @@ import { occupiedBagSlots } from '../rules/bag.mjs';
 import { getFlightPermission } from '../rules/flight.mjs';
 import { isSelectableHero } from '../roster.mjs';
 import { buildJournal } from '../quests/journal.mjs';
-import { runtimeQuests,questById,activeQuestAreaId,getSceneView,commissionUnlocked,SPAWN,ESCORT_START,escortStartForQuest,BOUNDS,SERVICE_POSITION,TRAINING_POSITION,availableServices,dangerQuestIds,isSafeExploration } from './catalog.mjs';
+import { runtimeQuests,questById,activeQuestAreaId,sampleEscortMotion,getSceneView,commissionUnlocked,SPAWN,ESCORT_START,escortStartForQuest,BOUNDS,SERVICE_POSITION,TRAINING_POSITION,availableServices,dangerQuestIds,isSafeExploration } from './catalog.mjs';
 import { readAccount,readRoom,readReceipt,commit } from './storage.mjs';
 import { getSceneNavigation } from '../client/scene-navigation.mjs';
 import { standingFloor } from '../client/scene-geometry.mjs';
@@ -13,6 +13,7 @@ import { createEncounter,advanceEncounter,applyCombatIntent,moveCombatPlayer,get
 import { createRoom,advanceRoom,applyRoomIntent } from '../dungeons/stone-route.mjs';
 import { resolveAreaId,getWorldArea,questAreaId,getAreaLinks,canUseLink,areaFloor,isAtAreaLink } from '../world-atlas.mjs';
 import { locationEpoch,currentArea,locationSnapshot,locationProblem,pinLocation,groundHeight,replayAreaMovement,arrivalIsValid,relocateCharacter } from './location.mjs';
+import { scenePeople,personBody } from '../people.mjs';
 
 export class StoneError extends Error { constructor(code,message,status=400){super(message);this.code=code;this.status=status;} }
 const fail=(code,message,status=400)=>{throw new StoneError(code,message,status);};
@@ -112,7 +113,7 @@ function completeQuest(c,now){
   else{c.currentQuestId=q.nextQuestId;c.objectiveIndex=0;}
   c.notice=`已完成「${q.name}」，奖励与进度已保存。`;
  }
- c.escort=null;c.escortOrigin=escortStartForQuest(questId(c));c.hold=null;c.pendingWorldAction=null;c.dungeonRoom=null;c.visitSceneId=null;
+ c.escort=null;c.autoEscortTargetId=null;c.escortOrigin=escortStartForQuest(questId(c));c.hold=null;c.pendingWorldAction=null;c.dungeonRoom=null;c.visitSceneId=null;
 }
 function completeObjective(c,now){
  const previousArea=activeQuestAreaId(c);
@@ -124,6 +125,9 @@ function completeObjective(c,now){
  const q=questById.get(questId(c));
  if(objectiveIndex(c)>=q.objectives.length)completeQuest(c,now);
  else c.notice=q.objectives[objectiveIndex(c)].label;
+}
+function beginEscort(c,t,startedAt){
+ c.escort={targetId:t.id,origin:{...(c.escortOrigin??escortStartForQuest(questId(c)))},startedAt,progress:0,lastTick:startedAt};c.autoEscortTargetId=null;
 }
 function project(c,now){
  const result=clone(c);delete result.soloEncounter;delete result.questReceipts;delete result.lastMoveAt;delete result.moveSequence;delete result.xpLedger;
@@ -172,6 +176,13 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
   return {account,c,room,accounts};
  }
  function resultOf(ctx,now){return {character:project(ctx.c,now),room:roomPublic(ctx.room,ctx.accounts,now,ctx.c),encounter:activeEncounter(ctx.c,ctx.room)?getEncounterView(activeEncounter(ctx.c,ctx.room),ctx.c.id):null,scene:getSceneView(ctx.c,now),revision:ctx.c.revision,serverTime:now};}
+ function movementBodies(ctx,now){
+  const {c,room,accounts}=ctx,areaId=resolveAreaId(c);
+  if(c.escort&&activeObjective(c)?.kind==='boat')return [];
+  const peers=(room?.state.members??[]).map(member=>accounts.find(a=>a.id===member.accountId)?.state.characters.find(p=>p.id===member.characterId)).filter(p=>p&&p.id!==c.id&&resolveAreaId(p)===areaId&&now-(p.lastSeenAt??0)<30000&&activeEncounter(p,room)?.status!=='active'&&!(p.escort&&activeObjective(p)?.kind==='boat'));
+  const npcs=scenePeople(getSceneView(c,now),null,[c.heroId,...peers.map(p=>p.heroId)]).filter(n=>!n.seated||n.kind!=='boat').filter(n=>n.kind!=='boat').map(personBody);
+  return [...npcs,...peers.map(p=>personBody({id:p.id,appearanceId:p.heroId,position:p.position,downed:p.hp<=0}))];
+ }
  async function mutate(db,accountId,id,body,now,{sync=false}={}){
   const persistent=!sync&&body.type!=='move';
   const requestId=body.requestId;
@@ -310,6 +321,7 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
    const landing=!flight&&permission.canLand;
    const maxSpeed=flight?FLIGHT_SPEED:(b.sprint??b.run)?RUN_SPEED:WALK_SPEED;
    let path;try{path=movementPath(c.position,p,b.steps);}catch{fail('INVALID_MOVEMENT_STEPS','移动路径无效。');}
+   if(b.steps?.some(step=>step.dt!==undefined&&(!Number.isFinite(step.dt)||step.dt<0||step.dt>.050001)))fail('INVALID_MOVEMENT_STEPS','移动帧时长无效。');
    const allowance=Math.min(maxSpeed*MAX_MOVE_CREDIT_SECONDS,(c.moveAllowance??.12)+maxSpeed*elapsed);
    if(path.travel>allowance+.0001)fail('MOVE_TOO_FAST','移动距离过大，已保留服务器位置。',409);
    const nav=inCombat?getSceneNavigation(c.sceneId,{arena:encounter.arena}):currentArea(c).navigation;
@@ -336,14 +348,31 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
     const moved=moveCombatPlayer(encounter,{playerId:c.id,position:p,steps:b.steps,yaw:p.yaw??0,sprint:Boolean(b.sprint??b.run),now});
     setEncounter(c,room,moved);c.position={...moved.players[c.id].position,yaw:p.yaw??0};
    }else{
-    const moved=replayAreaMovement(c,path.points,nav,{airborne:flight||landing});
+    const currentBodies=movementBodies(ctx,now),hasDurations=b.steps?.length&&b.steps.every(step=>Number.isFinite(step.dt)),durations=hasDurations?b.steps.map(step=>step.dt*1000):null,totalDuration=durations?.reduce((sum,dt)=>sum+dt,0)??0;
+    const sampleWindowMs=Math.min(elapsed*1000,totalDuration>0?totalDuration:path.points.length*50),offsets=[];let offset=0;
+    for(const dt of durations??[]){offsets.push(offset);offset+=totalDuration>0?dt*sampleWindowMs/totalDuration:0;}
+    const sampleBodies=Array.isArray(b.steps)&&c.escort?(index,count)=>{
+     // Frame samples describe the past packet window, not the NPC's end pose.
+     // Rebuild prior contiguous escort legs from the same authored route clock.
+     // RAF clamps dt to 50 ms and records only voluntary movement frames.
+     // A standing/boat idle gap must not be stretched across the active samples.
+     // Optional frame durations can only shorten the server-authorized window;
+     // they never contribute movement credit or alter the speed allowance.
+     const at=now-sampleWindowMs+(totalDuration>0?offsets[index]:sampleWindowMs*index/count),motion=sampleEscortMotion(c,at);
+     if(!motion)return currentBodies;
+     return currentBodies.flatMap(body=>body.id?.endsWith(`:${motion.npc}`)?motion.kind==='boat'?[]:[{...body,x:motion.position.x,z:motion.position.z,minY:motion.position.y,maxY:motion.position.y+body.maxY-body.minY}]:[body]);
+    }:currentBodies;
+    const moved=replayAreaMovement(c,path.points,nav,{airborne:flight||landing,bodies:sampleBodies});
     c.position={...moved,yaw:p.yaw??0};
    }
    c.flying=(flight||landing)&&c.position.y>floorAt(c.position)+.08;c.lastMoveAt=now;c.moveSequence=b.sequence;
    updateEscort(c,now);return;
   }
   if(b.type==='interact'){
-   safe(c,room);requireStoryScene(c);const t=activeObjective(c);
+   safe(c,room);
+   const completedTarget=runtimeQuests.find(q=>q.objectives.some(t=>t.id===b.targetId));
+   if(completedTarget&&(c.completedQuestIds.includes(completedTarget.id)||completedTarget.id===questId(c)&&completedTarget.objectives.findIndex(t=>t.id===b.targetId)<objectiveIndex(c)))return;
+   requireStoryScene(c);const t=activeObjective(c);
    if(c.dungeonRoom&&c.dungeonRoom.roomId===questId(c)){
     if(c.dungeonRoom.roomId==='M30'&&b.targetId==='gate'&&(c.flying||c.position.y>.12))fail('LANDING_REQUIRED','请先降落并收起扫帚，再用钥匙开门。',409);
     const applied=applyRoomIntent(c.dungeonRoom,{playerId:c.id,actionId:b.requestId,targetId:b.targetId,player:{id:c.id,position:c.position,skills:c.skills,hp:c.hp},now});
@@ -354,11 +383,11 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
    if(['battle','boss','cast'].includes(t.kind))fail('ACTION_REQUIRED','这个目标需要实际施法或完成战斗。',409);
    if(['escort','boat'].includes(t.kind)){
     if(!c.escort&&objectiveIndex(c)===0)c.escortOrigin=escortStartForQuest(questId(c));
-    if(!c.escort){if(distance(c.position,c.escortOrigin??SPAWN)>3.5)fail('TOO_FAR','请先走到引路者身旁。',409);c.escort={targetId:t.id,origin:{...(c.escortOrigin??SPAWN)},lastTick:now,progress:0,near:true};}
+    if(!c.escort){if(distance(c.position,c.escortOrigin??SPAWN)>3.5)fail('TOO_FAR','请先走到引路者身旁。',409);beginEscort(c,t,now);}
     updateEscort(c,now);
-    if(c.escort.progress<1){c.notice=t.kind==='boat'?'船正在渡过黑湖。':'跟随引路者移动；离得太远时他会等你。';return;}
+    c.notice=t.kind==='boat'?'船正在渡过黑湖。':'引路者会先行到目的地，你可以自由跟上。';return;
    }
-   if(!near(c,t.position))fail('TOO_FAR','请走近场景中的目标。',409);
+   if(!near(c,t.position,t.radius??2))fail('TOO_FAR','请走近场景中的目标。',409);
    if(t.kind==='flight'&&(!c.flying||c.position.y+1e-7<(t.minY??.6)))fail('FLIGHT_REQUIRED','请骑扫帚飞到目标高度。',409);
    if(t.requiresLanding&&(c.flying||c.position.y>groundHeight(c,c.position)+.12))fail('LANDING_REQUIRED','请先降落并收起扫帚，再完成这个目标。',409);
    if(['hold','sneak'].includes(t.kind)){
@@ -499,10 +528,10 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
   if(!inStoryScene(c))return;
   const t=activeObjective(c);if(!t||!['escort','boat'].includes(t.kind))return;
   if(!c.escort||c.escort.targetId!==t.id)return;
-  const e=c.escort,wasCrossing=e.progress<1;const npc={x:e.origin.x+(t.position.x-e.origin.x)*e.progress,z:e.origin.z+(t.position.z-e.origin.z)*e.progress};
-  const delta=Math.max(0,Math.min(.5,(now-e.lastTick)/1000));e.lastTick=now;e.near=distance(c.position,npc)<3.5;
-  if(e.near)e.progress=Math.min(1,e.progress+delta/t.seconds);
-  if(t.kind==='boat'&&e.near&&wasCrossing){c.position={x:e.origin.x+(t.position.x-e.origin.x)*e.progress,y:0,z:e.origin.z+(t.position.z-e.origin.z)*e.progress,yaw:c.position.yaw};c.lastMoveAt=now;}
+  const e=c.escort,wasCrossing=e.progress<1;
+  if(!Number.isFinite(e.startedAt))e.startedAt=now-Math.max(0,Math.min(1,e.progress??0))*t.seconds*1000;
+  e.progress=Math.max(0,Math.min(1,(now-e.startedAt)/(t.seconds*1000)));e.lastTick=now;
+  if(t.kind==='boat'&&wasCrossing){c.position={x:e.origin.x+(t.position.x-e.origin.x)*e.progress,y:0,z:e.origin.z+(t.position.z-e.origin.z)*e.progress,yaw:c.position.yaw};c.lastMoveAt=now;}
  }
  function tickWorld(c,now){
   // The published lake was a short courtyard. Move only legacy lake saves to
@@ -537,7 +566,19 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
    return;
   }
   if(tickDungeon(c,now))return;
-  updateEscort(c,now);
+  for(let step=0;step<8&&inStoryScene(c);step++){
+   const objective=activeObjective(c);if(!objective)break;
+   if(objective.kind==='escort'&&!c.escort&&c.autoEscortTargetId===objective.id&&near(c,c.escortOrigin??escortStartForQuest(questId(c)),3.5))beginEscort(c,objective,now);
+   updateEscort(c,now);
+   const e=c.escort,next=questById.get(questId(c))?.objectives[objectiveIndex(c)+1],sameAreaNext=next?.kind==='escort'&&next.areaId===activeQuestAreaId(c);
+   const escortDone=e?.targetId===objective.id&&e.progress>=1&&(sameAreaNext||objective.kind==='boat'||near(c,objective.position,objective.radius??2));
+   const visitDone=objective.kind==='move'&&near(c,objective.position,objective.radius??2)&&Math.abs(c.position.y-groundHeight(c,c.position))<=.12&&!c.flying;
+   if(!escortDone&&!visitDone)break;
+   const arrivedAt=e?e.startedAt+objective.seconds*1000:now,continuing=['escort','boat'].includes(objective.kind)&&next?.kind==='escort';
+   if(objective.kind==='boat')c.lastBoatArrival={targetId:objective.id,position:{...objective.position},arrivedAt};
+   completeObjective(c,now);
+   if(continuing){c.autoEscortTargetId=next.id;if(sameAreaNext)beginEscort(c,next,arrivedAt);}
+  }
   const t=activeObjective(c);if(!t)return;
   if(c.hold){
    if(c.hold.targetId!==t.id||!near(c,t.position)){c.hold=null;return;}

@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createChapterOneApi } from '../chapter-one/online/api.mjs';
-import { runtimeQuests,getSceneView } from '../chapter-one/online/catalog.mjs';
+import { runtimeQuests,getSceneView,sampleEscortMotion } from '../chapter-one/online/catalog.mjs';
 import { contentData,growthData } from '../chapter-one/data/index.mjs';
 import { getHeroStats,getLevelFromXpCents,contentVersion } from '../chapter-one/rules/index.mjs';
 import { occupiedBagSlots } from '../chapter-one/rules/bag.mjs';
@@ -12,6 +12,8 @@ import { SELECTABLE_HERO_IDS,isSelectableHero } from '../chapter-one/roster.mjs'
 import { readAccount,commit } from '../chapter-one/online/storage.mjs';
 import { resolveAreaId,getWorldArea,questAreaId,getAreaLinks,routeBetween,areaFloor } from '../chapter-one/world-atlas.mjs';
 import { walkRoute } from './helpers/stone-walk-route.mjs';
+import { scenePeople,personBody,moveAmongPeople } from '../chapter-one/people.mjs';
+import { replayAreaMovement } from '../chapter-one/online/location.mjs';
 
 const migration=await readFile(new URL('../drizzle/0009_stone_runtime.sql',import.meta.url),'utf8');
 function harness(){
@@ -30,7 +32,10 @@ function harness(){
  async function sync(p){const out=await call(p.token,`characters/${p.id}`);if(out.character){p.character=out.character;p.encounter=out.encounter;p.scene=out.scene;p.room=out.room;}return out;}
  function edit(p,fn){const rows=sql.prepare('SELECT account_id,state FROM stone_accounts').all();const row=rows.find(r=>JSON.parse(r.state).characters.some(c=>c.id===p.id));const state=JSON.parse(row.state),c=state.characters.find(c=>c.id===p.id),before={sceneId:c.sceneId,areaId:c.areaId,questId:c.currentQuestId};fn(c,state);if(c.areaId===before.areaId&&(c.sceneId!==before.sceneId||c.sceneId==='SC14'&&c.currentQuestId!==before.questId))delete c.areaId;c.level=getLevelFromXpCents(c.xpCents);c.stats=getHeroStats(c.heroId,c.level);sql.prepare('UPDATE stone_accounts SET state=?,revision=revision+1 WHERE account_id=?').run(JSON.stringify(state),row.account_id);}
  async function move(p,point,{radius=.8}={}){
-  const area=getWorldArea(p.character.areaId),route=walkRoute(p.character.position,point,area.navigation,p=>areaFloor(area.id,p),radius);
+  const activeTarget=p.scene.targets.find(t=>t.active&&Math.hypot(t.position.x-point.x,t.position.z-point.z)<.01);
+  const area=getWorldArea(p.character.areaId),bodies=scenePeople(p.scene,p.encounter?.status==='active'?p.encounter:null,[p.character.heroId]).filter(n=>n.kind!=='boat').map(personBody).filter(b=>p.character.position.y<b.maxY&&(point.y??0)+1.65>b.minY);
+  const navigation={...area.navigation,walls:[...area.navigation.walls,...bodies.map(b=>({shape:'circle',x:b.x,z:b.z,radius:b.radius,height:100}))]},nearBody=bodies.find(b=>Math.hypot(point.x-b.x,point.z-b.z)<b.radius+.3);
+  const route=walkRoute(p.character.position,point,navigation,p=>areaFloor(area.id,p),Math.max(radius,nearBody?nearBody.radius+.5:0));
   for(let at=0;at<route.length;at++)for(let n=0;n<260;n++){
    const target=route[at],last=at===route.length-1,from=p.character.position,d=Math.hypot(target.x-from.x,target.z-from.z);
    if(d<(last?Math.min(radius,.22):.12)&&Math.abs((point.y??0)-from.y)<.01&&last)return;
@@ -39,6 +44,7 @@ function harness(){
    const next={x:from.x+(target.x-from.x)*ratio,z:from.z+(target.z-from.z)*ratio},flying=(point.y??0)>areaFloor(p.character.areaId,point)+.2;
    const out=await action(p,{type:'move',sequence:++p.sequence,position:{...next,y:flying?point.y:areaFloor(p.character.areaId,next),yaw:0},flying});
    assert.equal(out.status,200,JSON.stringify(out));
+   if(activeTarget&&!p.scene.targets.some(t=>t.id===activeTarget.id&&t.active)&&Math.hypot(p.character.position.x-point.x,p.character.position.z-point.z)<=(activeTarget.radius??2))return;
   }throw Error(`walk did not finish in ${p.character.areaId}: ${JSON.stringify(p.character.position)} -> ${JSON.stringify(point)}`);
  }
  async function travel(p,areaId){
@@ -52,8 +58,8 @@ function harness(){
 }
 
 test('quest completion stays in its actual area, and only adjacent door crossings change location',async()=>{
- const h=harness(),p=await h.create();h.edit(p,c=>{c.objectiveIndex=1;c.position={...runtimeQuests[0].objectives[1].position,x:.8,yaw:.4};});await h.sync(p);
- const before={...p.character.position};assert.equal((await h.action(p,{type:'interact',targetId:'M01-2'})).status,200);
+ const h=harness(),p=await h.create();h.edit(p,c=>{c.objectiveIndex=1;c.position={...runtimeQuests[0].objectives[1].position,yaw:.4};});const beforeCompletion={...h.raw(p).position};await h.sync(p);assert.deepEqual(p.character.position,beforeCompletion);
+ h.edit(p,c=>{c.position.x=.8;});await h.sync(p);const before={...p.character.position};
  assert.equal(p.character.currentQuestId,'M02');assert.equal(p.character.areaId,'SC01');assert.deepEqual(p.character.position,before);
  assert.equal(p.scene.quest.inCurrentArea,false);assert.equal(p.scene.questAreaId,questAreaId('M02'));assert(!p.scene.targets.some(t=>t.id.startsWith('M02-')));
  const edge=getAreaLinks('SC01').find(link=>link.to==='LONDON_PLATFORM'),source=getWorldArea('SC01'),target=getWorldArea(edge.to),xp=p.character.xpCents;
@@ -219,8 +225,7 @@ test('requests replay exactly, reject changed payloads and do not share characte
  const body={type:'interact',targetId:target.id,requestId:'persisted-objective'};
  const first=await h.action(p,body),again=await h.action(p,body);assert.equal(first.status,200);assert.equal(again.replayed,true);assert.equal(again.character.revision,first.character.revision);
  assert.equal((await h.action(p,{...body,targetId:'M01-2'})).code,'REQUEST_CONFLICT');
- for(let i=0;i<12;i++){h.advance(500);await h.sync(p);await h.move(p,p.scene.escort.position);}
- await h.action(p,{type:'interact',targetId:'M01-1'});
+ h.advance(runtimeQuests[0].objectives[0].seconds*1000);await h.sync(p);await h.move(p,p.scene.escort.destination);
  await h.move(p,runtimeQuests[0].objectives[1].position);await h.action(p,{type:'interact',targetId:'M01-2'});
  assert.equal(p.character.currentQuestId,'M02');assert.equal(p.character.xpCents,20000);
  const other=await h.sync(second);assert.equal(other.character.xpCents,0);assert.equal(other.character.currentQuestId,'M01');h.sql.close();
@@ -334,17 +339,60 @@ test('M30 requires its real broom interaction, retains flight after key capture,
  assert.equal(p.character.currentQuestId,'M31');assert(p.character.completedQuestIds.includes('M30'));assert.equal(p.character.areaId,'SC14-M30');assert.equal(p.scene.dungeon,null);assert.equal(p.character.flying,false);assert.equal(p.scene.flight.allowed,false);h.sql.close();
 });
 
-test('Hagrid escort advances over time, waits for distance and cannot be completed by one interaction',async()=>{
+test('Hagrid walks both shore legs by absolute time without leash or another E, then waits at the dock for the player',async()=>{
  const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M03';c.sceneId='SC03';c.completedQuestIds=['M01','M02'];});await h.sync(p);
  assert.deepEqual(p.scene.escort.position,{x:1.8,y:0,z:65.2});assert.notDeepEqual(p.scene.escort.position,p.character.position);
  const start=await h.action(p,{type:'interact',targetId:'M03-1'});assert.equal(start.status,200);assert.equal(start.character.objectiveIndex,0);assert.equal(start.scene.escort.progress,0);
- await h.move(p,{x:0,y:0,z:71});
- for(let i=0;i<10;i++){h.advance(500);await h.sync(p);}
- assert(p.scene.escort.progress>0);assert(p.scene.escort.progress<1,'NPC should wait when too far');
- await h.move(p,p.scene.escort.position);
- for(let i=0;i<12&&p.scene.escort?.progress<1;i++){h.advance(500);await h.sync(p);await h.move(p,p.scene.escort.position);}
- await h.move(p,{x:-1.5,y:0,z:56});await h.action(p,{type:'interact',targetId:'M03-1'});
- assert.equal(p.character.objectiveIndex,1);assert.deepEqual(p.scene.escort.position,{x:-1.5,y:0,z:56});h.sql.close();
+ const xp=p.character.xpCents,position={...p.character.position};h.advance(runtimeQuests[2].objectives.slice(0,2).reduce((sum,t)=>sum+t.seconds*1000,0));await h.sync(p);
+ assert.equal(p.character.objectiveIndex,1);assert.equal(p.scene.escort.progress,1);assert.equal(p.scene.escort.awaitingPlayer,true);assert.deepEqual(p.scene.escort.position,{x:1.5,y:0,z:46});assert.deepEqual(p.character.position,position);assert.equal(p.character.xpCents,xp,'no remote completion reward');
+ assert.equal(p.scene.escort.startedAt,start.scene.escort.startedAt+runtimeQuests[2].objectives[0].seconds*1000);assert.deepEqual(p.scene.escort.origin,runtimeQuests[2].objectives[0].position);
+ await h.move(p,p.scene.escort.destination);assert.equal(p.character.objectiveIndex,2);assert.equal(p.scene.escort.kind,'boat');assert.equal(p.scene.escort.awaitingStart,true);assert.equal(p.scene.escort.startedAt,null);h.sql.close();
+});
+
+test('ordinary walking cannot pass through a professor and can step sideways around the body',async()=>{
+ const h=harness(),p=await h.create();h.edit(p,c=>{c.sceneId='SC04';c.currentQuestId='M04';c.completedQuestIds=['M01','M02','M03'];c.position={x:-1.5,y:0,z:5,yaw:0};});await h.sync(p);
+ h.advance(1200);assert.equal((await h.action(p,{type:'move',sequence:++p.sequence,position:{x:-1.5,y:0,z:2.5,yaw:0}})).status,200);assert(p.character.position.z>=3.639&&p.character.position.z<3.8);assert.equal(p.character.position.y,0);
+ h.advance(500);await h.action(p,{type:'move',sequence:++p.sequence,position:{x:-.4,y:0,z:p.character.position.z,yaw:0}});h.advance(1000);await h.action(p,{type:'move',sequence:++p.sequence,position:{x:-.4,y:0,z:2.5,yaw:0}});assert(p.character.position.z<3);h.sql.close();
+});
+
+test('a 150ms nine-frame pass beside moving Hagrid replays historic bodies without a half-metre pullback',async()=>{
+ const h=harness();for(const idleMs of[0,1200]){const p=await h.create(),t=runtimeQuests[2].objectives[1],v={x:3/Math.sqrt(109),z:-10/Math.sqrt(109)},side={x:-10/Math.sqrt(109),z:-3/Math.sqrt(109)},startAt=h.now;
+ h.edit(p,c=>{c.sceneId='SC03';c.areaId='SC03';c.currentQuestId='M03';c.completedQuestIds=['M01','M02'];c.objectiveIndex=1;c.position={x:v.x*1.1-side.x*.3,y:0,z:51+v.z*1.1-side.z*.3,yaw:0};c.escort={targetId:t.id,origin:{x:-1.5,y:0,z:56},startedAt:startAt-t.seconds*500,progress:.5,lastTick:startAt};c.lastMoveAt=startAt-idleMs;});await h.sync(p);
+ const initial=h.raw(p),nav=getWorldArea('SC03').navigation,steps=[],durations=idleMs?[10,20,10,25,15,15,20,15,20]:Array(9).fill(150/9);let predicted={...initial.position},frameOffset=0;
+ for(let i=0;i<9;i++){
+  const motion=sampleEscortMotion(initial,startAt+frameOffset),body=personBody({id:'npc:hagrid:海格',appearanceId:'hagrid',position:motion.position});
+  const next=moveAmongPeople(predicted,{...predicted,x:predicted.x+side.x*3.6*durations[i]/1000,z:predicted.z+side.z*3.6*durations[i]/1000},nav.bounds,nav.walls,[body]);steps.push({dx:next.x-predicted.x,dy:0,dz:next.z-predicted.z,...(idleMs?{dt:durations[i]/1000}:{})});predicted=next;frameOffset+=durations[i];
+ }
+ const endMotion=sampleEscortMotion(initial,startAt+150),fixed=[personBody({id:'npc:hagrid:海格',appearanceId:'hagrid',position:endMotion.position})];let cursor={...initial.position};const points=steps.map(s=>(cursor={x:cursor.x+s.dx,y:cursor.y+s.dy,z:cursor.z+s.dz}));
+ const oldStatic=replayAreaMovement(initial,points,nav,{bodies:fixed});assert(Math.hypot(oldStatic.x-predicted.x,oldStatic.z-predicted.z)>.25,'fixture reproduces the end-pose replay error');
+ h.advance(150);const out=await h.action(p,{type:'move',sequence:++p.sequence,sprint:true,position:{...predicted,yaw:0},steps});assert.equal(out.status,200,JSON.stringify(out));assert(Math.hypot(p.character.position.x-predicted.x,p.character.position.z-predicted.z)<1e-8,'time-correct authority matches actual frame-resolved travel');
+ const extra=Array.from({length:9},()=>({dx:.5,dy:0,dz:0}));assert.equal((await h.action(p,{type:'move',sequence:++p.sequence,sprint:true,position:{...p.character.position,x:p.character.position.x+4.5},steps:extra.map(step=>({...step,dt:.05}))})).code,'MOVE_TOO_FAST');
+ const previous=sampleEscortMotion(initial,initial.escort.startedAt-100),first=runtimeQuests[2].objectives[0];assert.equal(previous.targetId,first.id);assert(Math.hypot(previous.position.x-first.position.x,previous.position.z-first.position.z)<.17,'a packet straddling the route corner uses the preceding leg');}h.sql.close();
+});
+
+test('only active same-area teammates block walking and overlapping arrivals can separate',async()=>{
+ const h=harness(),a=await h.create(),b=await h.create('c'.repeat(64),'ron');await h.action(a,{type:'room-create'});await h.action(b,{type:'room-join',code:a.room.code});
+ for(const [p,z]of[[a,2],[b,0]]){h.edit(p,c=>{c.sceneId='SC04';c.currentQuestId='M04';c.completedQuestIds=['M01','M02','M03'];c.position={x:0,y:0,z,yaw:0};});await h.sync(p);}
+ h.advance(1000);assert.equal((await h.action(a,{type:'move',sequence:++a.sequence,position:{x:0,y:0,z:0,yaw:0}})).status,200);assert(a.character.position.z>=.639&&a.character.position.z<.8);
+ h.edit(b,c=>{c.sceneId='SC05';c.areaId='SC05';});await h.sync(b);h.advance(500);await h.action(a,{type:'move',sequence:++a.sequence,position:{x:0,y:0,z:-.3,yaw:0}});assert(a.character.position.z<0);
+ h.edit(b,c=>{c.sceneId='SC04';c.areaId='SC04';c.position={...a.character.position};});await h.sync(b);h.advance(500);await h.action(a,{type:'move',sequence:++a.sequence,position:{x:1,y:0,z:a.character.position.z,yaw:0}});assert(a.character.position.x>.99,'same door or party join overlap can separate');
+ h.edit(b,c=>{c.position={x:1,y:10,z:0,yaw:0};});await h.sync(b);h.advance(500);await h.action(a,{type:'move',sequence:++a.sequence,position:{x:1,y:0,z:.5,yaw:0}});assert(a.character.position.z>.49,'another floor cannot create a phantom blocker');h.sql.close();
+});
+
+test('the station brick wall only completes its automatic visit inside sixty-five centimetres',async()=>{
+ const h=harness(),p=await h.create();h.edit(p,c=>{c.objectiveIndex=1;c.position={x:0,y:0,z:-10.6,yaw:0};});await h.sync(p);assert.equal(p.character.currentQuestId,'M01');assert.equal((await h.action(p,{type:'interact',targetId:'M01-2'})).code,'TOO_FAR');
+ h.advance(500);await h.action(p,{type:'move',sequence:++p.sequence,position:{x:0,y:0,z:-10.8,yaw:0}});assert.equal(p.character.currentQuestId,'M02');assert.equal(p.character.xpCents,20000);h.sql.close();
+});
+
+test('Molly and Hagrid stay at their authored arrival after returning or reconnecting, with the same authority body',async()=>{
+ const h=harness(),p=await h.create();
+ for(const [areaId,completed,name,target]of[['SC01',['M01'],'韦斯莱夫人',runtimeQuests[0].objectives[0].position],['SC03',['M01','M02','M03'],'海格',runtimeQuests[2].objectives.at(-1).position]]){
+  h.edit(p,c=>{c.sceneId=areaId;c.areaId=areaId;c.currentQuestId='M04';c.completedQuestIds=completed;c.escort=null;c.position={x:target.x,y:0,z:target.z+2,yaw:0};});await h.sync(p);
+  const npc=p.scene.ambientPeople.find(n=>n.name===name);assert(npc);assert.deepEqual(npc.position,target);assert.equal(scenePeople(p.scene,null,[p.character.heroId]).filter(n=>n.name===name).length,1);
+  const reconnect=await h.call(p.token,`characters/${p.id}`);assert.deepEqual(reconnect.scene.ambientPeople,p.scene.ambientPeople);
+  h.advance(1200);assert.equal((await h.action(p,{type:'move',sequence:++p.sequence,position:{x:target.x,y:0,z:target.z-.5,yaw:0}})).status,200);assert(p.character.position.z>target.z+.63&&p.character.position.z<target.z+1.1,'the restored visible guide blocks the server path');
+ }
+ h.edit(p,c=>{c.sceneId='SC03';c.areaId='SC03';c.currentQuestId='M03';c.completedQuestIds=['M01','M02'];c.objectiveIndex=2;c.position={x:1.5,y:0,z:46,yaw:0};c.escortOrigin={x:1.5,y:0,z:46};c.escort=null;});await h.sync(p);assert.deepEqual(p.scene.ambientPeople,[]);assert.equal(scenePeople(p.scene,null,[p.character.heroId]).filter(n=>n.appearanceId==='hagrid').length,1);h.sql.close();
 });
 
 test('dungeon chess validates real timed commands and safe cells instead of a completion button',async()=>{
@@ -716,9 +764,9 @@ test('level-one character follows all 127 exact reward events through 36 goals a
   }
   const t=scene.targets.find(t=>t.active&&!['service','training','exit','passage','collection'].includes(t.kind));assert(t,`No story target ${p.character.currentQuestId}`);
   if(['escort','boat'].includes(t.kind)){
-   await h.move(p,scene.escort.position);assert.equal((await h.action(p,{type:'interact',targetId:t.id})).status,200);
-   for(let k=0;k<180&&p.scene.escort?.progress<1;k++){h.advance(500);await h.sync(p);if(t.kind!=='boat')await h.move(p,p.scene.escort.position);}
-   await h.move(p,t.position);await h.action(p,{type:'interact',targetId:t.id});continue;
+   if(scene.escort.awaitingStart){await h.move(p,scene.escort.origin);if(p.scene.escort?.targetId===t.id&&p.scene.escort.awaitingStart)assert.equal((await h.action(p,{type:'interact',targetId:t.id})).status,200);}
+   h.advance((t.seconds??4)*1000+1);await h.sync(p);
+   if(p.scene.escort?.targetId===t.id&&t.kind!=='boat')await h.move(p,t.position);continue;
   }
   await h.move(p,{...t.position,y:t.kind==='flight'?t.minY??1:0});
   if(t.actionType==='encounter'){
@@ -805,26 +853,16 @@ test('SQL jumping from low furniture preserves its floor and accepts the full na
  h.sql.close();
 });
 
-test('a real completed boat crossing releases player movement and polling cannot pull a disembarked player back',async()=>{
+test('boat arrival automatically disembarks and starts the final escort without pulling the player along',async()=>{
  const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M03';c.sceneId='SC03';c.completedQuestIds=['M01','M02'];});await h.sync(p);
- async function follow(targetId){
-  await h.move(p,p.scene.escort.position);assert.equal((await h.action(p,{type:'interact',targetId})).status,200);
-  for(let n=0;n<80&&p.scene.escort.progress<1;n++){h.advance(500);await h.sync(p);await h.move(p,p.scene.escort.position);}
-  assert.equal(p.scene.escort.progress,1);assert.equal((await h.action(p,{type:'interact',targetId})).status,200);
- }
- await follow('M03-1');await follow('M03-2');
+ assert.equal((await h.action(p,{type:'interact',targetId:'M03-1'})).status,200);h.advance(runtimeQuests[2].objectives.slice(0,2).reduce((sum,t)=>sum+t.seconds*1000,0));await h.sync(p);await h.move(p,p.scene.escort.destination);
  assert.equal(p.character.objectiveIndex,2);assert.equal((await h.action(p,{type:'interact',targetId:'M03-3'})).status,200);
- const began=h.now,departure={...p.character.position};
- for(let n=0;n<145&&p.scene.escort.progress<1;n++){h.advance(500);await h.sync(p);}
- assert.equal(p.scene.escort.progress,1);assert.ok(h.now-began>=70000);assert.ok(Math.hypot(p.character.position.x-departure.x,p.character.position.z-departure.z)>49.5,'the 70-second journey traverses fifty real metres');
+ const departure={...p.character.position},began=h.now;h.advance(35000);await h.sync(p);assert.equal(p.scene.escort.progress,.5);assert.equal(p.character.position.z,21);
+ h.advance(35000);await h.sync(p);assert.equal(p.character.objectiveIndex,3);assert.equal(p.scene.escort.kind,'escort');assert.equal(p.scene.escort.startedAt,began+70000);assert.equal(p.scene.lastBoatArrival.arrivedAt,began+70000);assert.ok(Math.hypot(p.character.position.x-departure.x,p.character.position.z-departure.z)>49.5);
  const arrival={...p.character.position},arrivalMoveAt=h.raw(p).lastMoveAt;
- for(let n=0;n<3;n++){h.advance(500);await h.sync(p);}
- assert.equal(h.raw(p).lastMoveAt,arrivalMoveAt,'a finished crossing cannot repeatedly reset the walking speed budget');
- const shore={...arrival,z:arrival.z-.7};
- const disembark=await h.action(p,{type:'move',sequence:++p.sequence,position:shore,steps:Array.from({length:14},()=>({dx:0,dy:0,dz:-.05}))});
- assert.equal(disembark.status,200,JSON.stringify(disembark));assert.ok(Math.abs(disembark.character.position.z-shore.z)<1e-8);
- const released={...p.character.position},walkedAt=h.raw(p).lastMoveAt;
- for(let n=0;n<4;n++){h.advance(450);await h.sync(p);assert.deepEqual(p.character.position,released);assert.equal(h.raw(p).lastMoveAt,walkedAt);}
- assert.equal((await h.action(p,{type:'interact',targetId:'M03-3'})).status,200);assert.equal(p.character.objectiveIndex,3);
- await follow('M03-4');assert.equal(p.character.currentQuestId,'M04');assert.ok(p.character.completedQuestIds.includes('M03'));h.sql.close();
+ for(let n=0;n<3;n++){h.advance(500);await h.sync(p);assert.deepEqual(p.character.position,arrival);}
+ assert.equal(h.raw(p).lastMoveAt,arrivalMoveAt,'the departed guide cannot repeatedly reset the walking speed budget');
+ const shore={...arrival,z:arrival.z-.7};const disembark=await h.action(p,{type:'move',sequence:++p.sequence,position:shore,steps:Array.from({length:14},()=>({dx:0,dy:0,dz:-.05}))});assert.equal(disembark.status,200,JSON.stringify(disembark));assert.ok(Math.abs(disembark.character.position.z-shore.z)<1e-8);
+ const released={...p.character.position};h.advance(4000);await h.sync(p);assert.deepEqual(p.character.position,released);assert.equal(p.scene.escort.awaitingPlayer,true);assert.equal(p.character.currentQuestId,'M03');
+ await h.move(p,p.scene.escort.destination);assert.equal(p.character.currentQuestId,'M04');assert.ok(p.character.completedQuestIds.includes('M03'));h.sql.close();
 });

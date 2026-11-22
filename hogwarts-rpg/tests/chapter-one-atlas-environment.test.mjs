@@ -39,7 +39,7 @@ test('walk doorway apertures remain clear at body height after original walls ar
   const failures=[];
   for(const area of worldAreas.filter(area=>!['grounds','stairs','lakeshore-path'].includes(area.kind))) {
     const built=build(area), b=area.navigation.bounds;
-    for(const link of getAreaLinks(area.id).filter(link=>link.kind==='walk')) {
+    for(const link of getAreaLinks(area.id).filter(link=>link.kind==='walk'&&!link.magicWall)) {
       const p=link.anchor, axis=Math.min(Math.abs(p.x-b[0]),Math.abs(p.x-b[1]))<Math.min(Math.abs(p.z-b[2]),Math.abs(p.z-b[3]))?'x':'z';
       const from=new THREE.Vector3(p.x,p.y+1.2,p.z),direction=new THREE.Vector3(axis==='x'?1:0,0,axis==='z'?1:0);from.addScaledVector(direction,-1.15);
       const ray=new THREE.Raycaster(from,direction,0,2.3);

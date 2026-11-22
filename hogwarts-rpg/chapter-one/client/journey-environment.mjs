@@ -313,6 +313,11 @@ function station(a, area, portals) {
   // bogie and locomotive removes the previous floating cut-off carriage view.
   const earth=a.material('railway-yard-earth',0x777b67);
   a.box(Math.abs(trackBack-landward)+6,.45,trackEnd-trackStart,earth,(trackBack+landward)/2,-1.10,(trackStart+trackEnd)/2).castShadow=false;
+  for(const portal of portals.filter(portal=>portal.magicWall)){
+    const at=point(portal.anchor),wall=a.box(34.4,7.9,.22,brick,at.x,3.95,at.z-.11);
+    wall.name='HiddenPlatformEnchantedBrickWall';wall.userData.magicWall=true;wall.userData.keepSeparate=true;
+    a.box(34.5,.24,.36,mortar,at.x,7.82,at.z-.11);
+  }
 }
 
 const subtract = (r, cut) => {
@@ -546,7 +551,9 @@ export function openRegionPortals(environment, area, { portals = [] } = {}) {
     if (portal.kind === 'drop' || portal.kind === 'train') continue;
     const at = point(portal.anchor), width = portal.width ?? 2.8;
     const axis = train && Math.abs(at.x) > 2.5 ? 'x' : Math.abs(at.x) > Math.abs(at.z) ? 'x' : 'z';
-    if (!train) opening(at, width, axis);
+    // The ordinary station's 9/10 divider is enchanted masonry, not an open
+    // arch. Keep its opaque face while retaining the same continuous footpath.
+    if (!train && !portal.magicWall) opening(at, width, axis);
     const b = boundsOf(area), inside = { x: clamp(at.x, b[0] + .5, b[1] - .5), z: clamp(at.z, b[2] + .5, b[3] - .5) };
     if(train) {
       const minX=Math.min(at.x-.6,inside.x),maxX=Math.max(at.x+.6,inside.x);

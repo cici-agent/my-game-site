@@ -1,5 +1,6 @@
 import { WALK_SPEED, RUN_SPEED, MAX_MOVE_CREDIT_SECONDS, movementPath } from '../movement.mjs';
-import { replayMovement } from '../client/scene-geometry.mjs';
+import { replayMovement,standingFloor } from '../client/scene-geometry.mjs';
+import { moveAmongPeople,personBody } from '../people.mjs';
 import { contentData } from '../data/index.mjs';
 import { getHeroStats } from '../rules/index.mjs';
 import { DEFAULT_ARENA, distance, position, direction, spellDirection, sweep, visible, slideMovement, findArenaPath } from './geometry.mjs';
@@ -10,6 +11,7 @@ const skills = new Map(contentData.skills.map(skill => [skill.id, skill]));
 const copy = value => structuredClone(value);
 const rounded = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const living = state => Object.values(state.players).filter(player => player.hp > 0);
+const otherPlayerBodies=(state,player)=>Object.values(state.players).filter(other=>other.id!==player.id).map(other=>personBody({id:other.id,appearanceId:other.heroId,position:other.position,downed:other.hp<=0}));
 const hostile = state => Object.values(state.enemies).filter(enemy => enemy.hp > 0);
 const personalSkill = { harry: 'H1', ron: 'R1', hermione: 'M1', neville: 'N1', george: 'G1' };
 export class CombatError extends Error { constructor(code) { super(code); this.name = 'CombatError'; this.code = code; } }
@@ -398,7 +400,8 @@ function tick(state, to) {
     if (state.now >= player.focusResumeAt) player.focus = Math.min(player.maxFocus, rounded(player.focus + player.stats.focusRegenPerSecond * dt));
     if (player.dash) {
       const dash = player.dash, ratio = Math.min(1, (to - dash.startAt) / 500);
-      player.position = slideMovement(player.position, { x: dash.start.x + dash.direction.x * 1.8 * ratio, y: player.position.y, z: dash.start.z + dash.direction.z * 1.8 * ratio }, state.arena);
+      const destination={ x: dash.start.x + dash.direction.x * 1.8 * ratio, y: player.position.y, z: dash.start.z + dash.direction.z * 1.8 * ratio },bodies=otherPlayerBodies(state,player);
+      player.position=bodies.length?moveAmongPeople(player.position,destination,state.arena.bounds,state.arena.obstacles,bodies):slideMovement(player.position,destination,state.arena);
       if (ratio >= 1) player.dash = null;
     }
     if (player.action && player.action.releaseAt <= state.now) release(state, player);
@@ -510,7 +513,15 @@ export function moveCombatPlayer(input, { playerId, position: next, yaw = 0, now
   assert(delta <= allowance + .000001, 'MOVEMENT_TOO_FAST');
   if ((delta > .03 || (next.y ?? 0) > .05) && (['rescue', 'N1', 'broom', 'interact', 'potion-health', 'potion-focus'].includes(player.action?.skillId) || player.action?.channelCommitted)) cancel(state, player, 'MOVEMENT_INTERRUPTED');
   if (sprint && player.action) cancel(state, player, 'SPRINT_CANCELLED');
-  const moved = replayMovement(player.position, path.points, state.arena.bounds, state.arena.obstacles);
+  const bodies=otherPlayerBodies(state,player);let moved;
+  if(!bodies.length)moved=replayMovement(player.position,path.points,state.arena.bounds,state.arena.obstacles);
+  else{
+    let result={...player.position},previous={...result};
+    for(const point of path.points){
+      const target={x:result.x+point.x-previous.x,y:result.y,z:result.z+point.z-previous.z},nextPosition=moveAmongPeople(result,target,state.arena.bounds,state.arena.obstacles,bodies);
+      nextPosition.y=Math.max(standingFloor(nextPosition,result.y,state.arena.obstacles),result.y+point.y-previous.y,0);previous=point;result=nextPosition;
+    }moved=result;
+  }
   player.movementAllowance = Math.min(.3, Math.max(0, allowance - delta));
   player.position = moved; player.yaw = yaw; player.lastMoveAt = now;
   return state;
