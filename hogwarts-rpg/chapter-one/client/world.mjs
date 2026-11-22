@@ -13,6 +13,7 @@ import { contentData } from '../data/index.mjs';
 import { abilityState } from './ability-state.mjs';
 import { createBoltVisual, createImpactVisual } from './spell-fx.mjs';
 import { createEnemyWarning, createEnemyStrike } from './enemy-fx.mjs';
+import { createMouseLook } from './mouse-look.mjs';
 import { resolveAreaId, getWorldArea, getAreaLinks, areaFloor, isAtAreaLink } from '../world-atlas.mjs';
 import { trainConversationTargets } from './train-life.mjs';
 import { scenePeople, personBody, moveAmongPeople } from '../people.mjs';
@@ -103,7 +104,7 @@ export function blendJourneyEnvironment(scene, from, to) {
   };
 }
 
-export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, onLoaded, onSelectHero, onAim, onJourney, onFlight, onSound } = {}) {
+export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, onLoaded, onSelectHero, onAim, onJourney, onFlight, onSound, onMouseLook } = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(48, 1, .07, 180); let area = new THREE.Group(), entities = new THREE.Group(); const targetGroup = new THREE.Group(), effects = new THREE.Group(); scene.add(area, entities, targetGroup, effects);
   const shadowCanvas = document.createElement('canvas'); shadowCanvas.width = shadowCanvas.height = 96; const shadowContext = shadowCanvas.getContext('2d'), gradient = shadowContext.createRadialGradient(48, 48, 5, 48, 48, 45); gradient.addColorStop(0, 'rgba(20,26,24,.34)'); gradient.addColorStop(.42, 'rgba(20,26,24,.15)'); gradient.addColorStop(1, 'rgba(20,26,24,0)'); shadowContext.fillStyle = gradient; shadowContext.fillRect(0, 0, 96, 96);
@@ -116,11 +117,14 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   targetRing.rotation.x = -Math.PI / 2; targetRing.visible = false; scene.add(targetRing);
   let lockedTargetId = null, aimState = null, aimStamp = '', lastAimAt = 0, feedback = '', feedbackUntil = 0, jumpPreparation = 0, coyote = 0;
   const moveHistory = new Map(), correctionApplied = new THREE.Vector3(); let movementSteps = [], previousAck = -1, movementInFlight = null, rejectedMove = null;
-  let map, actor, selected = 'harry', generation = 0, sceneGeneration = 0, snapshotGeneration = 0, localCastSequence = 0, selection = true, blocked = false, view, character, room, combat, sceneStamp = '', lastTime = 0, elapsed = 0, frameId, dy = 0, grounded = true, flying = false, yaw = 0, pitch = .10, cameraDistance = 4.8, drag, selectionClick, jumpGrace = 0, nearest, lastHint = '', selfPose, seenSelfHp = null, serverAt = 0, receivedAt = 0, disposed = false, correction = null, stalledSnapshots = 0;
+  let map, actor, selected = 'harry', generation = 0, sceneGeneration = 0, snapshotGeneration = 0, localCastSequence = 0, selection = true, blocked = false, view, character, room, combat, sceneStamp = '', lastTime = 0, elapsed = 0, frameId, dy = 0, grounded = true, flying = false, yaw = 0, pitch = .10, cameraDistance = 4.8, selectionClick, jumpGrace = 0, nearest, lastHint = '', selfPose, seenSelfHp = null, serverAt = 0, receivedAt = 0, disposed = false, correction = null, stalledSnapshots = 0;
   let pendingAbility = null, queuedAbility = null, heldBolt = null;
   const localCasts = new Map(), enemyStrikeEffects = [];
   let landing = false, lastFlightAt = 0, lastFlightStamp = '';
   let journey = null, wasBoatRide = false, boarding = null, crossing = null, crossingCooldown = 0;
+  const mouseLook = createMouseLook(canvas, { document, window, enabled: () => !selection && !blocked && !journey && !disposed && Boolean(actor),
+    onLook(dx, dy) { yaw -= dx * .005; pitch = clamp(pitch + dy * .004, -.35, .9); },
+    onState: onMouseLook, onRelease: blur, now: () => performance.now() });
   const streaming = createWorldStreaming(scene);
   const floorAt = (p, previousY = p.y) => Math.max(selection ? 0 : areaFloor(resolveAreaId(character), p), standingFloor(p, previousY, map?.walls));
   const serverNow = () => serverAt + Math.max(0, performance.now() - receivedAt);
@@ -201,6 +205,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     return actor;
   }
   function selectionStage(heroId = SELECTABLE_HEROES.includes(selected) ? selected : 'harry') {
+    mouseLook.release();
     for(const id of SELECTABLE_HEROES){const value=stage.getActor(id);if(value)resetEquipmentAppearance(value);}
     for(const value of legacyActors.values())resetEquipmentAppearance(value);
     finishJourney(true); snapshotGeneration++; generation++; selection = true; selected = heroId;
@@ -209,7 +214,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     character = room = view = combat = null; selfPose = nearest = correction = null; seenEvents.clear(); lastHint = ''; onHint?.(null);
     sceneStamp = 'select'; resetArea('SC00'); scene.background = new THREE.Color(0x17252b); scene.fog = new THREE.Fog(0x17252b, 25, 85); actor = stage.returnToStage(heroId);
     stage.update(0, { aspect: camera.aspect }); const pose = selectionCameraPose(camera.aspect); camera.position.fromArray(pose.eye); camera.lookAt(...pose.focus);
-    flying = false; grounded = true; dy = 0; jumpGrace = jumpPreparation = 0; keys.clear(); velocity.set(0, 0); drag = selectionClick = null;
+    flying = false; grounded = true; dy = 0; jumpGrace = jumpPreparation = 0; keys.clear(); velocity.set(0, 0); selectionClick = null; mouseLook.sync();
     clearTarget(); resetMovement();
   }
   function updateTargets() {
@@ -412,7 +417,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     // A completed flight objective may revoke ascent. Keep the mounted descent
     // until actual ground contact instead of submitting a high-altitude jump.
     if (flying && !canMountBroom()) { landing = true; dy = Math.min(0, dy); }
-    updateTargets(); syncPeers(); syncCombat(); updateEscortPresentation(); map.setContext?.(view); map.setTrainStopped?.(!view.transit); streaming.setTransit?.(Boolean(view.transit));
+    updateTargets(); syncPeers(); syncCombat(); updateEscortPresentation(); map.setContext?.(view); map.setTrainStopped?.(!view.transit); streaming.setTransit?.(Boolean(view.transit)); mouseLook.sync();
   }
   function canMountBroom() {
     if (combat) return false;
@@ -609,7 +614,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   function interact() { if (nearest?.kind === 'passage') { requestPassage(nearest); return; } if (nearest && nearest.requiresInteraction !== false && !blocked && !journey && !selfPose?.riding) onAction?.({ type: nearest.actionType ?? 'interact', targetId: nearest.id, skillId: nearest.skillId, questId: nearest.questId, target: nearest }); }
   function inputTarget(event) { return /INPUT|TEXTAREA|SELECT/.test(event.target?.tagName) || event.target?.isContentEditable; }
   function keydown(event) {
-    if (inputTarget(event) || blocked || selection || journey) return;
+    if (event.defaultPrevented || inputTarget(event) || blocked || selection || journey) return;
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'KeyZ', 'ControlLeft', 'ControlRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight'].includes(event.code)) { event.preventDefault(); keys.add(event.code); }
     if (event.repeat) return;
     if (event.code === 'Tab') { event.preventDefault(); cycleTarget(); return; }
@@ -621,23 +626,26 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     if (event.code === 'KeyX') { event.preventDefault(); setFlying(!flying); }
   }
   function keyup(event) { keys.delete(event.code); if (event.code === 'Digit1') heldBolt = null; }
-  function blur() { stopAbilityInput(); keys.clear(); velocity.set(0, 0); drag = selectionClick = null; }
+  function blur() { stopAbilityInput(); keys.clear(); velocity.set(0, 0); selectionClick = null; }
   const listeners = []; function listen(target, type, handler, options) { target.addEventListener(type, handler, options); listeners.push([target, type, handler, options]); }
   listen(canvas, 'contextmenu', event => event.preventDefault());
   listen(canvas, 'pointerdown', event => {
     if (selection) { if (event.button === 0) { selectionClick = { x: event.clientX, y: event.clientY, pointerId: event.pointerId }; canvas.setPointerCapture(event.pointerId); } return; }
-    if (event.button === 2) { drag = { x: event.clientX, y: event.clientY }; canvas.setPointerCapture(event.pointerId); } else if (event.button === 0) { const rect = canvas.getBoundingClientRect(); cast('bolt', new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2)); }
+    if (blocked || journey || disposed || mouseLook.pointerDown(event)) return;
+    if (event.button === 0) {
+      if (mouseLook.getState().locked) cast('bolt');
+      else { const rect = canvas.getBoundingClientRect(); cast('bolt', new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2)); }
+    }
   });
-  listen(canvas, 'pointermove', event => { if (!selection && drag) { const dx = event.clientX - drag.x, dy = event.clientY - drag.y; yaw -= dx * .005; pitch = clamp(pitch + dy * .004, -.35, .9); drag = { x: event.clientX, y: event.clientY }; } });
   listen(canvas, 'pointerup', event => {
     if (selection && selectionClick?.pointerId === event.pointerId && Math.hypot(event.clientX - selectionClick.x, event.clientY - selectionClick.y) < 9) {
       const rect = canvas.getBoundingClientRect(); raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2), camera);
       const heroId = stage.pick(raycaster); if (heroId) onSelectHero?.(heroId);
     }
-    drag = selectionClick = null;
+    selectionClick = null;
   });
-  listen(canvas, 'pointercancel', () => { drag = selectionClick = null; }); listen(canvas, 'lostpointercapture', () => { drag = selectionClick = null; });
-  listen(canvas, 'wheel', event => { event.preventDefault(); if (!selection) cameraDistance = clamp(cameraDistance + event.deltaY * .003, 2.5, 7); }, { passive: false });
+  listen(canvas, 'pointercancel', () => { selectionClick = null; }); listen(canvas, 'lostpointercapture', () => { selectionClick = null; });
+  listen(canvas, 'wheel', event => { event.preventDefault(); if (!selection && !blocked && !journey) cameraDistance = clamp(cameraDistance + event.deltaY * .003, 2.5, 7); }, { passive: false });
   listen(window, 'keydown', keydown); listen(window, 'keyup', keyup); listen(window, 'blur', blur); listen(document, 'visibilitychange', () => { if (document.hidden) blur(); });
   function frame(time) {
     if (disposed) return;
@@ -771,5 +779,5 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     updateAim(); advanceAbilityInput(); publishFlight(); renderer.render(scene, camera); frameId = requestAnimationFrame(frame);
   }
   selectionStage(); frameId = requestAnimationFrame(frame);
-  return { prepareSelection, chooseHero, selectionStage, setSnapshot, cast, getFlightState, getAbilitySnapshot, setAbilityRequestStatus, interact, clearTarget, getAimState: () => aimState, noteMovementSent, takeMovementPacket, rejectMovement, getSelectionState: () => stage.getState(), getPose: () => selfPose, getNearest: () => nearest, getLocationState: () => ({ areaId: character ? resolveAreaId(character) : null, locationEpoch: character?.locationEpoch ?? 0, player: actor?.root.position.toArray(), camera: camera.position.toArray(), residentAreas: streaming.entries.map(entry => ({ id: entry.area.id, offset: entry.root.position.toArray() })), crossing: crossing?.edgeId ?? null }), setBlocked(value) { blocked = value; if (value) stopAbilityInput(); keys.clear(); velocity.set(0, 0); }, setFlying, getRendererInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, environmentMaterials: area.userData.materialState ?? 'unmarked', pbrSurfaces: area.userData.pbrSurfaces ?? 0 }), dispose() { resetAbilities(); finishJourney(true); disposed = true; generation++; sceneGeneration++; cancelAnimationFrame(frameId); removeEventListener('resize', resize); for (const [target, type, handler, options] of listeners) target.removeEventListener(type, handler, options); stage.dispose(); for (const legacy of legacyActors.values()) legacy.dispose(); for (const entry of peers.values()) { disposeGroup(entry.tag); entry.actor?.dispose(); } for (const entry of npcs.values()) removeNpc(entry); for (const entry of enemies.values()) removeEnemy(entry); for (const object of targets.values()) disposeGroup(object); clearEffects(); disposeGroup(contactShadow); targetRing.geometry.dispose(); targetRing.material.dispose(); targetRing.removeFromParent(); if (streaming.active) streaming.dispose(); else map?.dispose(); renderer.dispose(); } };
+  return { prepareSelection, chooseHero, selectionStage, setSnapshot, requestMouseLook: mouseLook.request, releaseMouseLook: mouseLook.release, getMouseLookState: mouseLook.getState, cast, getFlightState, getAbilitySnapshot, setAbilityRequestStatus, interact, clearTarget, getAimState: () => aimState, noteMovementSent, takeMovementPacket, rejectMovement, getSelectionState: () => stage.getState(), getPose: () => selfPose, getNearest: () => nearest, getLocationState: () => ({ areaId: character ? resolveAreaId(character) : null, locationEpoch: character?.locationEpoch ?? 0, player: actor?.root.position.toArray(), camera: camera.position.toArray(), residentAreas: streaming.entries.map(entry => ({ id: entry.area.id, offset: entry.root.position.toArray() })), crossing: crossing?.edgeId ?? null }), setBlocked(value) { blocked = value; if (value) blur(); keys.clear(); velocity.set(0, 0); mouseLook.sync(); }, setFlying, getRendererInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, environmentMaterials: area.userData.materialState ?? 'unmarked', pbrSurfaces: area.userData.pbrSurfaces ?? 0 }), dispose() { mouseLook.dispose(); resetAbilities(); finishJourney(true); disposed = true; generation++; sceneGeneration++; cancelAnimationFrame(frameId); removeEventListener('resize', resize); for (const [target, type, handler, options] of listeners) target.removeEventListener(type, handler, options); stage.dispose(); for (const legacy of legacyActors.values()) legacy.dispose(); for (const entry of peers.values()) { disposeGroup(entry.tag); entry.actor?.dispose(); } for (const entry of npcs.values()) removeNpc(entry); for (const entry of enemies.values()) removeEnemy(entry); for (const object of targets.values()) disposeGroup(object); clearEffects(); disposeGroup(contactShadow); targetRing.geometry.dispose(); targetRing.material.dispose(); targetRing.removeFromParent(); if (streaming.active) streaming.dispose(); else map?.dispose(); renderer.dispose(); } };
 }

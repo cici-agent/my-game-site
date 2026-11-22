@@ -127,3 +127,27 @@
 #sound-toggle{white-space:nowrap;font-size:14px;min-width:88px}#sound-toggle[data-state="running"]{border-color:#9dba9f;color:#dbebd6}#sound-toggle[data-state="muted"]{color:#a8b6b6}.sound-controls{margin:1.2rem 0;padding:1rem 1.2rem;border:1px solid var(--line);border-radius:8px;background:#0c202ac9}.sound-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}#panel .sound-heading h3{margin:0}.sound-volume{display:grid;grid-template-columns:135px minmax(80px,1fr) 48px;align-items:center;gap:1rem;margin:1.1rem 0;font-size:16px}.sound-volume input{width:100%;accent-color:var(--gold);padding:0;min-height:24px}.sound-volume output{color:var(--gold);font-variant-numeric:tabular-nums;text-align:right;font-size:14px}#sound-status{font-size:14px;line-height:1.7;color:#c4d5ce}#audio-preview{font-size:14px}.sound-volume input:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
 @media(max-width:780px){#top #sound-toggle{padding:.6rem;min-width:0;font-size:14px}#top:has(#return-selection-shortcut:not([hidden])){flex-wrap:wrap}#top:has(#return-selection-shortcut:not([hidden]))>div{flex:1 0 100%}#vitals{top:8rem}.sound-controls{padding:.8rem}.sound-volume{grid-template-columns:100px minmax(50px,1fr) 40px;gap:.5rem;font-size:14px}}
 @media(max-width:380px){#top{flex-wrap:wrap}#top>div{flex:1 0 100%}#hero-info{top:7.5rem}.sound-volume{grid-template-columns:85px minmax(45px,1fr) 36px;gap:.4rem}.sound-controls{padding:.65rem}}
+
+/* Keep the mouse-look entry visible without covering the central spell/aim UI. */
+#mouse-look{position:absolute;left:2rem;bottom:calc(var(--ability-bar-bottom) + var(--ability-bar-height) + 18px);max-width:270px;padding:.65rem .8rem;border-left:2px solid #b79c68;background:linear-gradient(90deg,#0c202ae8,#102631ab);border-radius:0 6px 6px 0;pointer-events:none}
+#mouse-look-toggle{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .65rem;font-size:14px;line-height:1.4;white-space:nowrap;border-color:#d0b67b80;background:#213944}
+#mouse-look-toggle::before{content:"";display:block;width:11px;height:16px;border:1px solid currentColor;border-radius:6px;background:linear-gradient(currentColor,currentColor) center 3px/1px 4px no-repeat;opacity:.85}
+#mouse-look-toggle:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+#mouse-look-hint{font-size:12px;line-height:1.6;color:#c6d6d2;margin:.4rem 0 0;text-shadow:0 1px 3px #000}
+#mouse-look[data-mode="locked"]{border-color:#a6c7ae;background:linear-gradient(90deg,#102a2ddf,#1026318c)}
+#mouse-look[data-mode="locked"] #mouse-look-toggle{color:#dcf0d9;border-color:#9dba9f80}
+#mouse-look[data-mode="unavailable"] #mouse-look-toggle{opacity:.8}
+@media(max-width:1100px){#mouse-look{left:1rem;max-width:235px;padding:.55rem .65rem}#mouse-look-hint{font-size:11px}}
+@media(max-height:650px){#mouse-look{padding:.4rem .6rem;bottom:calc(var(--ability-bar-bottom) + var(--ability-bar-height) + 12px)}#mouse-look-toggle{padding:.3rem .5rem}#mouse-look-hint{margin-top:.3rem}}
+@media(max-width:1000px){#mouse-look{bottom:calc(var(--ability-bar-bottom) + var(--ability-bar-height) + 90px)}}
+@media(hover:none),(pointer:coarse){#mouse-look{display:none!important}}
+
+#panel[data-view="platform-intro"]{width:min(640px,92vw)}
+.platform-scene-note{margin:0 0 1.3rem;font-size:13px;letter-spacing:.07em;color:#adc1c1}
+.platform-line{padding:0 0 0 1rem;margin:1.2rem 0;border-left:2px solid #d5b57866}
+.platform-line strong{font-size:15px;color:#eed4a3;font-weight:500}
+.platform-line p{margin:.35rem 0 0;line-height:1.9;color:#e4e7dd}
+.platform-dialogue-actions{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin:1.7rem 0 .8rem}
+#panel[data-view="platform-intro"] .platform-dialogue-actions .primary{background:#d6b47b;color:#14212a;border-color:#f0d19b;box-shadow:inset 0 1px #fff3}
+#panel[data-view="platform-intro"] .platform-dialogue-actions .primary:hover,#panel[data-view="platform-intro"] .platform-dialogue-actions .primary:focus-visible{background:#efce94;color:#14212a;border-color:#ffe7bd}
+.platform-dialogue .note{font-size:13px;line-height:1.7}

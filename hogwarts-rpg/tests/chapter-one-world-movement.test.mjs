@@ -33,7 +33,7 @@ const position = (x = 0, y = 0, z = 0) => ({ x, y, z, yaw: 0 });
 function harness() {
   const areas = [], context = vm.createContext({ resolveAreaId, getWorldArea, getAreaLinks, areaOffset: (a,b)=>{const from=getWorldArea(a).origin,to=getWorldArea(b).origin;return{x:from.x-to.x,y:from.y-to.y,z:from.z-to.z};}, THREE: { Vector3 }, correctionPlan, moveWithCollisions, moveAmongPeople, sampleEscort, WALK_SPEED, applyEquipmentAppearance, resetEquipmentAppearance, performance: { now: () => 1000 }, Date, console, __areas: areas });
   vm.runInContext(`
-const streaming = {setTransit(){}}, scene = {}, keys = new Set(), velocity = {x:0,y:0,set(x,y){this.x=x;this.y=y;}}, moveHistory = new Map(), correctionApplied = new THREE.Vector3(), npcs = new Map(), targets = new Map(), peopleBodies = [];
+const streaming = {setTransit(){}}, mouseLook={sync(){}}, scene = {}, keys = new Set(), velocity = {x:0,y:0,set(x,y){this.x=x;this.y=y;}}, moveHistory = new Map(), correctionApplied = new THREE.Vector3(), npcs = new Map(), targets = new Map(), peopleBodies = [];
 let movementSteps = [], previousAck = 10, movementInFlight = null, rejectedMove = null;
 let journey = null, wasBoatRide = false, crossing=null, crossingCooldown=0, elapsed=0, landing=false; const camera={position:new THREE.Vector3()}; const planJourney=()=>null,getSceneNavigation=()=>({bounds:[-5,5,-5,5],walls:[]}),targetGroup={position:new THREE.Vector3()};
 let snapshotGeneration = 0, view = {sceneId:'SC04',serverTime:100,targets:[]}, character = {id:'self',heroId:'harry',sceneId:'SC04',position:{x:0,y:0,z:0,yaw:0},lastAcceptedMoveSequence:10,skills:[]}, room = null, combat = null;

@@ -7,6 +7,7 @@ import { renderInventoryPanel, renderMagicPanel, renderMapPanel } from './journa
 import { iconMarkup } from './ui-icons.mjs';
 import { createStoneWorld } from './world.mjs';
 import { escortStatusText } from './escort-motion.mjs';
+import { getPlatformIntro, getPlatformWallAdvice } from './platform-dialogue.mjs';
 import { contentData } from '../data/index.mjs';
 import { SELECTABLE_HERO_IDS, isSelectableHero } from '../roster.mjs';
 import { getHeroStats, getSkillEligibility } from '../rules/index.mjs';
@@ -24,6 +25,20 @@ const unlockSound=e=>{if(!e.target?.closest?.('[data-audio-control],#sound-toggl
 document.addEventListener('pointerdown',unlockSound,{passive:true});document.addEventListener('keydown',unlockSound,{passive:true});let account={characters:[]},character=null,room=null,encounter=null,view=null,selected='harry',selectionReady=false,entryBusy=false,world=null,playing=false,panel=null,panelContext=null,pending=0,pollBusy=false,moveBusy=false,sequence=Math.floor(Date.now()/10),latestPose=null,lastSentPose=null,lastSentAt=0,epoch=0,notice='',actionbarStamp='',partyStamp='',toastTimer,dialogueTimer,queue=Promise.resolve(),filmTimer,movementPromise=null,movementRetry=null,journeyActive=false,skillTransport=null,abilityBar=null,characterPreview=null,folioStamp='',equipmentBusy=false,returnBusy=false,passageTransport=false;
 const folioState={gearSlot:'top',bagFilter:'all',selectedItemId:null,magicFilter:'all',selectedSkillId:null,mapMode:'world',selectedSceneId:null};
 const folioPages=new Set(['character','inventory','skills','map']);
+let mouseLookState={mode:'free',locked:false,canCapture:false};
+function paintMouseLook(state=world?.getMouseLookState?.()??mouseLookState){
+ mouseLookState=state;
+ const hud=$('mouse-look'),button=$('mouse-look-toggle'),hint=$('mouse-look-hint');
+ if(!hud||!button||!hint)return;
+ hud.hidden=!playing||Boolean(panel)||journeyActive||!$('film').hidden;
+ hud.dataset.mode=state.mode;
+ button.textContent=state.locked?'鼠标视角已开启':state.mode==='unavailable'?'右键转动视角':'鼠标视角';
+ button.disabled=!state.locked&&!state.canCapture;
+ button.setAttribute('aria-pressed',String(state.locked));
+ button.setAttribute('aria-label',state.locked?'释放鼠标，恢复点击界面':'开启鼠标视角，移动鼠标转向');
+ hint.textContent=state.locked?'移动鼠标转向 · Esc 释放鼠标':state.mode==='drag'?'右键拖动中 · 松开恢复鼠标':state.mode==='unavailable'?'右键拖动或方向键转向 · 滚轮缩放':'点击画面或按钮进入 · Esc 释放鼠标';
+ if(playing&&world?.getAimState)paintAim(world.getAimState());
+}
 const invitation=new URL(location.href).searchParams.get('party');
 sound.setScene({sceneId:'SC00',selection:true});paintSound(sound.status);
 function paintSound(status){
@@ -53,8 +68,9 @@ function changeVolume(key,value){
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,5000);}
 function speak(name,message){$('dialogue').querySelector('strong').textContent=name;$('dialogue').querySelector('p').textContent=message;$('dialogue').hidden=false;clearTimeout(dialogueTimer);dialogueTimer=setTimeout(()=>$('dialogue').hidden=true,5000);}
 async function api(path,body,token=saved.token){const began=performance.now();let response;try{response=await fetch('/api/stone'+path,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+token,...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(12000)});}catch{throw Object.assign(new Error('连接中断，进度保留在服务器。正在尝试重新连接。'),{code:'NETWORK'});}let data;try{data=await response.json();}catch{throw Object.assign(new Error('暂时无法读取游戏服务，正在恢复连接。'),{code:'NETWORK',status:response.status});}if(!response.ok)throw Object.assign(new Error(data.error??'操作未完成'),{code:response.status>=500?'NETWORK':data.code,status:response.status,rejectedSequence:data.rejectedSequence,rejectedPosition:data.rejectedPosition,location:data.location});data.clientTiming={rttMs:performance.now()-began,receivedAt:performance.now()};return data;}
-async function accept(data){if(!data.character)return;const acceptEpoch=epoch,acceptToken=saved.token;const c=data.character;sequence=Math.max(sequence,(c.lastAcceptedMoveSequence??-1)+1);if(character&&c.id===character.id&&c.revision<character.revision)return;const old=character;if(old&&(resolveAreaId(old)!==resolveAreaId(c)||(old.locationEpoch??0)!==(c.locationEpoch??0))){latestPose=null;lastSentPose=null;movementRetry=null;}character=c;room=data.room??null;const candidate=data.encounter??room?.encounter;encounter=candidate?.players?.[c.id]?candidate:null;view={...(data.scene??c.scene??getSceneView(c,data.serverTime)),clientTiming:data.clientTiming};character={...c,encounter};if(room)room={...room,encounter};
+async function accept(data){if(!data.character)return;const acceptEpoch=epoch,acceptToken=saved.token;const c=data.character;sequence=Math.max(sequence,(c.lastAcceptedMoveSequence??-1)+1);if(character&&c.id===character.id&&c.revision<character.revision)return;const old=character,oldView=view;if(old&&(resolveAreaId(old)!==resolveAreaId(c)||(old.locationEpoch??0)!==(c.locationEpoch??0))){latestPose=null;lastSentPose=null;movementRetry=null;}character=c;room=data.room??null;const candidate=data.encounter??room?.encounter;encounter=candidate?.players?.[c.id]?candidate:null;view={...(data.scene??c.scene??getSceneView(c,data.serverTime)),clientTiming:data.clientTiming};character={...c,encounter};if(room)room={...room,encounter};
  $('connection').textContent='已连接 · 云端存档';if(playing){await world.setSnapshot(character,room,view);if(epoch!==acceptEpoch||saved.token!==acceptToken||character?.id!==c.id)return;paintHud();refreshFolio();}
+ const platformAdvice=playing?getPlatformWallAdvice({character:old,view:oldView},{character:c,view}):null;if(platformAdvice)speak(platformAdvice.npc,platformAdvice.text);
  if(c.notice&&c.notice!==notice){notice=c.notice;if(old&&playing&&!journeyActive)toast(notice);}if(old&&c.level>old.level&&!journeyActive)speak('新的成长',`你升到了 ${c.level} 级。基础属性已提高，打开人物面板查看成长。`);
  if(playing){sound.setScene({sceneId:view?.sceneId,combat:encounter?.status==='active',selection:false});sound.consume(encounter,c.id,data.serverTime);if(old&&c.completedQuestIds.length>old.completedQuestIds.length)sound.cue('reward');}saved.characterId=c.id;persist();
 }
@@ -117,8 +133,10 @@ async function sendMove(force=false,{allowPanel=false}={}){
  })();return movementPromise;
 }
 
-async function onWorldAction(action){
+async function onWorldAction(action,{skipIntro=false}={}){
  if(!playing||panel||journeyActive||returnBusy)return;
+ const intro=skipIntro?null:getPlatformIntro(character,view,action);
+ if(intro){showPanel('platform-intro',{intro,action,characterId:character.id});return;}
  const actionEpoch=epoch,actionToken=saved.token,actionCharacterId=character?.id,actionLocation=locationScope();
  const current=()=>playing&&epoch===actionEpoch&&saved.token===actionToken&&character?.id===actionCharacterId&&actionLocation===locationScope();
  if(action.type==='travel'&&((action.fromAreaId&&action.fromAreaId!==resolveAreaId(character))||(action.locationEpoch!==undefined&&action.locationEpoch!==(character.locationEpoch??0))))return;
@@ -144,7 +162,7 @@ async function onWorldAction(action){
    try{return await act(payload,{retryId:requestId});}finally{if(transport)paintJourney({active:false});}
   }
   if(target?.kind==='puzzle'){showPanel('puzzle',target);return;}
-  if(target?.kind==='flight'){world.setFlying(true);if((latestPose?.y??0)<(target.minY??.6)){speak('飞行练习','空格上升，Z 或 Ctrl 下降。飞到金色目标旁按 E；按 X 可自动降落，再靠近落地点按 E。');return;}}
+  if(target?.kind==='flight'){world.setFlying(true);if((latestPose?.y??0)<(target.minY??.6)){speak('飞行练习','空格上升，Z 或 Ctrl 下降。飞到金色目标旁按 E；按 X 可自动降落，再走到落地点自动继续。');return;}}
   if(target?.kind==='talk')speak(target.label.includes('：')?target.label.split('：')[0]:(view.quest.npc??'同伴').split(/[、，,]/)[0],target.label);
   if(target?.kind==='collection')return await act({type:'collect',questId:target.questId});
   if(target?.kind==='side'){const result=await act({type:'side',questId:target.questId});if(current())toast('已记录探索邀请，可在任务日志中查看。');return result;}
@@ -181,7 +199,7 @@ function paintPicker(){
  if(slots.length)$('player-name').value=slots[0].name;
 }
 async function enter(id){if(pending||entryBusy||returnBusy||!selectionReady)return;const requestedHero=id?account.characters.find(c=>c.id===id)?.heroId:selected;if(!isSelectableHero(requestedHero))return;entryBusy=true;paintPicker();const entryEpoch=++epoch,entryToken=saved.token;const previousSeen=account.characters.find(c=>id?c.id===id:c.heroId===selected)?.lastSeenAt;sound.unlock();$('enter-game').disabled=true;try{let data;if(id)data=await api('/characters/'+id);else{const prior=account.characters.find(c=>c.heroId===selected);if(prior)data=await api('/characters/'+prior.id);else data=await api('/characters',{requestId:crypto.randomUUID(),heroId:selected,name:$('player-name').value.trim()||heroes[selected].name.split('·')[0]});}
-  if(epoch!==entryEpoch||saved.token!==entryToken)return;playing=true;$('selection').hidden=true;$('hud').hidden=false;$('return-selection-shortcut').hidden=false;await accept(data);world.setBlocked(false);if(!saved.sawFilm&&character.currentQuestId==='M01')startFilm();else if(invitation&&!room){showPanel('party');const input=$('join-code');if(input)input.value=invitation.toUpperCase();}
+  if(epoch!==entryEpoch||saved.token!==entryToken)return;playing=true;$('selection').hidden=true;$('hud').hidden=false;$('return-selection-shortcut').hidden=false;await accept(data);world.setBlocked(false);paintMouseLook();if(!saved.sawFilm&&character.currentQuestId==='M01')startFilm();else if(invitation&&!room){showPanel('party');const input=$('join-code');if(input)input.value=invitation.toUpperCase();}
   if(previousSeen&&Date.now()-previousSeen>7*86400000&&$('film').hidden)showPanel('journal');
   if(!storageWorks)toast('浏览器没有保存恢复码，请在设置中复制恢复码以便下次继续。');
  }catch(e){if(epoch!==entryEpoch)return;toast(e.message);playing=false;$('selection').hidden=false;$('hud').hidden=true;$('return-selection-shortcut').hidden=true;}finally{entryBusy=false;$('enter-game').disabled=!selectionReady;if(!playing)paintPicker();}}
@@ -189,7 +207,7 @@ async function returnToSelection(){
  if(returnBusy||!playing||!character)return;
  returnBusy=true;const returnToken=saved.token,owner=character.id,startedEpoch=epoch;
  const current=()=>saved.token===returnToken&&character?.id===owner&&epoch===startedEpoch;
- const button=$('return-selection-shortcut');button.disabled=true;button.textContent='正在保存…';world.setBlocked(true);
+ const button=$('return-selection-shortcut');button.disabled=true;button.textContent='正在保存…';world.releaseMouseLook?.();world.setBlocked(true);
  try{
   // Resolve outstanding writes before retiring this character's session. A
   // timeout retains its exact request ID for a retry instead of losing a reward.
@@ -221,23 +239,24 @@ function paintFlight(state){
  hud.dataset.mode=state.mode;
  $('flight-title').textContent=state.mode==='landing'?'正在自动降落':state.mode==='flying'?'扫帚飞行':'扫帚练习';
  $('flight-height').textContent=`离地 ${Math.max(0,state.height??0).toFixed(1)} 米`;
- $('flight-instruction').textContent=state.mode==='landing'?'缓缓下降中，可用 WASD 调整落点；落地后靠近目标按 E。':state.mode==='flying'?'WASD 移动 · 空格 上升 · Z / Ctrl 下降 · X 自动降落':'X 骑上扫帚 · 空格 上升 · Z / Ctrl 下降 · E 完成目标';
+ $('flight-instruction').textContent=state.mode==='landing'?'缓缓下降中，可用 WASD 调整落点；落地并走到路点后自动继续。':state.mode==='flying'?'WASD 移动 · 空格 上升 · Z / Ctrl 下降 · X 自动降落':'X 骑上扫帚 · 空格 上升 · Z / Ctrl 下降 · E 完成目标';
 }
 function paintAim(state){
  const reticle=$('reticle'),hint=$('aim-hint'),target=$('target-lock');
  reticle.dataset.state=state?.status??'none';reticle.classList.toggle('locked',Boolean(state?.locked));
- hint.hidden=!state||state.busy;hint.textContent=state?.feedback||(state?.targetId?(state.status==='blocked'?'目标被遮挡 · 移动到开阔位置':state.status==='far'?'目标超出射程 · 靠近后施咒':state.locked?'已锁定 · 按住 1 连续咒击 · Tab 换目标':'点击敌人锁定并施咒'):'左键点选敌人并施咒 · Tab 锁定视野内目标');
+ hint.hidden=!state||state.busy;hint.textContent=state?.feedback||(state?.targetId?(state.status==='blocked'?'目标被遮挡 · 移动到开阔位置':state.status==='far'?'目标超出射程 · 靠近后施咒':state.locked?'已锁定 · 按住 1 连续咒击 · Tab 换目标':mouseLookState.locked?'准星已瞄准 · 左键施咒 · Tab 锁定':'点击画面开启鼠标视角 · Tab 锁定目标'):mouseLookState.locked?'准星瞄准敌人 · 左键施咒 · Tab 锁定':mouseLookState.mode==='unavailable'?'左键点选敌人并施咒 · Tab 锁定视野内目标':'点击画面开启鼠标视角 · Tab 锁定视野内目标');
  target.hidden=!state?.targetId||state.busy;
  if(state?.targetId){target.textContent=`${state.locked?'锁定':'瞄准'} · ${state.name} · ${state.distance.toFixed(1)} 米`;
  const enemy=encounter?.enemies?.[state.targetId];if(enemy){$('enemy-hud').hidden=false;$('enemy-name').textContent=enemy.name;$('enemy-fill').style.width=enemy.hp/enemy.maxHp*100+'%';$('enemy-hp').textContent=`${Math.ceil(enemy.hp)} / ${enemy.maxHp}`;}}
 }
 function paintJourney(state){
  journeyActive=Boolean(state?.active);$('journey-status').hidden=!journeyActive;
- if(journeyActive){$('flight-hud').hidden=true;$('interact').hidden=true;$('dialogue').hidden=true;$('toast').hidden=true;$('journey-label').textContent=state.label??'沿路前行';$('journey-progress').style.width=`${Math.round((state.progress??0)*100)}%`;latestPose=null;lastSentPose=null;movementRetry=null;skillTransport=null;closePanel();}
- else if(world){latestPose=world.getPose();lastSentPose=null;}
+ if(journeyActive){world?.releaseMouseLook?.();$('flight-hud').hidden=true;$('interact').hidden=true;$('dialogue').hidden=true;$('toast').hidden=true;$('journey-label').textContent=state.label??'沿路前行';$('journey-progress').style.width=`${Math.round((state.progress??0)*100)}%`;latestPose=null;lastSentPose=null;movementRetry=null;skillTransport=null;closePanel();}
+ else if(world){latestPose=world.getPose();lastSentPose=null;world.setBlocked(Boolean(panel)||!$('film').hidden);}
+ paintMouseLook();
 }
-function startFilm(){const shots=[['猫头鹰带来一封信','十一岁生日那天，通往魔法世界的大门打开了。'],['你被霍格沃茨录取了','海格带你认识了魔法世界，买齐书本，也选中了属于你的魔杖。'],['九又四分之三站台','九月的伦敦。行李已经备好，特快列车正在等候。']];let index=0;$('film').hidden=false;world.setBlocked(true);const next=()=>{const shot=shots[index++];if(!shot){endFilm();return;}$('film').querySelector('h1').textContent=shot[0];$('film').querySelector('p').textContent=shot[1];filmTimer=setTimeout(next,4200);};next();}
-function endFilm(){clearTimeout(filmTimer);$('film').hidden=true;world.setBlocked(false);saved.sawFilm=true;persist();if(invitation&&!room)showPanel('party');}
+function startFilm(){world?.releaseMouseLook?.();const shots=[['猫头鹰带来一封信','十一岁生日那天，通往魔法世界的大门打开了。'],['你被霍格沃茨录取了','海格带你认识了魔法世界，买齐书本，也选中了属于你的魔杖。'],['九又四分之三站台','九月的伦敦。行李已经备好，特快列车正在等候。']];let index=0;$('film').hidden=false;world.setBlocked(true);paintMouseLook();const next=()=>{const shot=shots[index++];if(!shot){endFilm();return;}$('film').querySelector('h1').textContent=shot[0];$('film').querySelector('p').textContent=shot[1];filmTimer=setTimeout(next,4200);};next();}
+function endFilm(){clearTimeout(filmTimer);$('film').hidden=true;world.setBlocked(false);paintMouseLook();saved.sawFilm=true;persist();if(invitation&&!room)showPanel('party');}
 function paintHud(){const c=character,h=heroes[c.heroId],self=encounter?.players?.[c.id],stats=c.stats;$('place').textContent=(journeyActive?'旅途中 · ':'')+view.name;$('hero-name').textContent=c.name;$('level').textContent='Lv.'+c.level;const hp=self?.hp??c.hp??stats.hp,focus=self?.focus??c.focus??stats.focusMax;$('hp-fill').style.width=(hp/stats.hp*100)+'%';$('hp-label').textContent=`${Math.ceil(hp)} / ${stats.hp}`;$('focus-fill').style.width=(focus/stats.focusMax*100)+'%';$('focus-label').textContent=`${Math.floor(focus)} / ${stats.focusMax}`;const xp=c.xp??{};$('xp-fill').style.width=((xp.requiredThisLevelCents?xp.earnedThisLevelCents/xp.requiredThisLevelCents:xp.atCap?1:0)*100)+'%';$('xp-label').textContent=c.level>=40?'已达到最高等级':`累计经验 ${(c.xpCents/100).toLocaleString('zh-CN',{maximumFractionDigits:2})}`;
  $('quest-title').textContent=c.chapterComplete?'第一学年 · 冒险完成':view.quest.name;const objective=view.targets.find(t=>t.active&&!['service','training','collection','passage'].includes(t.kind));const nextDoor=view.targets.find(t=>t.kind==='passage'&&t.recommended&&t.active);$('quest-objective').textContent=c.chapterComplete?'魔法石已被守护。你可以继续探索校园，或帮助朋友重返副本。':view.transit?'列车正在前往'+view.transit.destinationName+'，可在车内与同伴交谈。':objective?.label??(nextDoor?nextDoor.label:'打开地图，沿走廊前往任务地点');$('quest-distance').textContent=view.transit?`列车行进中 · 约 ${Math.ceil(view.transit.remainingSeconds)} 秒后抵达${view.transit.destinationName??'霍格莫德'} · 可在车内走动交谈`:view.escort?escortStatusText(view.escort,view.serverTime):c.hold?'正在行动，请保持在目标附近':'';
  $('optional-tracking').innerHTML=(c.journal?selectHud(c.journal,c.trackedIds).optional:[]).map(q=>`<p class="note">◇ ${esc(q.name)}</p>`).join('');
@@ -253,11 +272,11 @@ function paintAbilities(){
  const snapshot=world?.getAbilitySnapshot?.()??{character,combat:encounter,now:view?.serverTime??Date.now(),pending:null,queuedSkillId:null};
  abilityBar.update(snapshot);
 }
-function closePanel(){characterPreview?.dispose();characterPreview=null;folioStamp='';panel=null;panelContext=null;$('panel-backdrop').hidden=true;world?.setBlocked(false);}
+function closePanel(){characterPreview?.dispose();characterPreview=null;folioStamp='';panel=null;panelContext=null;$('panel-backdrop').hidden=true;world?.setBlocked(journeyActive||!$('film').hidden);paintMouseLook();}
 const itemName=id=>contentData.items.find(i=>i.itemId===id)?.name??id;
 const effectText=item=>Object.entries(item.effect?.stats??{}).map(([k,v])=>`${labels[k]??k} +${v}`).join(' · ')||'永久物品 / 外观';
 function statsRows(stats){return Object.entries(labels).map(([key,name])=>`<div class="row"><span>${name}</span><strong>${['crit','haste'].includes(key)?(stats[key]*100).toFixed(1)+'%':stats[key]}</strong></div>`).join('');}
-function showPanel(name,context){if(characterPreview&&name!=='character'){characterPreview.dispose();characterPreview=null;}panelContext=context??(panel===name?panelContext:null);context=panelContext;panel=name;world?.setBlocked(true);$('panel-backdrop').hidden=false;const c=character;let title='',html='';
+function showPanel(name,context){if(characterPreview&&name!=='character'){characterPreview.dispose();characterPreview=null;}panelContext=context??(panel===name?panelContext:null);context=panelContext;panel=name;world?.releaseMouseLook?.();world?.setBlocked(true);paintMouseLook();$('panel-backdrop').hidden=false;const c=character;let title='',html='';
  if(name==='character'){title='人物';html=renderCharacterSheet({character:c,hero:heroes[c.heroId],selectedSlot:folioState.gearSlot});}
  else if(name==='inventory'){title='背包';html=renderInventoryPanel({character:c,filter:folioState.bagFilter,selectedItemId:folioState.selectedItemId});}
  else if(name==='skills'){title='魔法手册';html=renderMagicPanel({character:c,filter:folioState.magicFilter,selectedSkillId:folioState.selectedSkillId});}
@@ -267,10 +286,11 @@ function showPanel(name,context){if(characterPreview&&name!=='character'){charac
  else if(name==='shop'){const localIds=context?.serviceIds??[];title=context?.label??'校园补给与用品';html=`<div class="row"><strong>金币 ${c.wallet.coins}</strong><strong>学习凭证 ${c.wallet.learningCredits}</strong></div>${localIds.some(id=>['SERVICE-SUPPLY','CHECKPOINT'].includes(id))?`<h3>免费恢复与药剂补给</h3><div class="tabs">${[[1,1],[2,0],[0,2]].map(([h,f])=>`<button data-refill="${h},${f}">生命 ${h} · 专注 ${f}</button>`).join('')}</div><p class="note">总计两瓶。每场战斗共享一次药剂使用额度，失败后可回补给点再准备。</p>`:''}`+contentData.services.filter(s=>s.catalog.length&&localIds.includes(s.serviceId)).map(s=>`<h3>${esc(s.name)}</h3><div class="grid">${s.catalog.map(o=>{const i=contentData.items.find(i=>i.itemId===o.itemId);const owned=[...c.inventory,...Object.values(c.equipment),...(c.tools??[]),...(c.appearances??[])].includes(i.itemId);const unlocked=c.level>=(o.unlock.requiredLevel??1)&&o.unlock.requiredQuestIds.every(id=>c.completedQuestIds.includes(id));return `<div class="card"><strong>${esc(i.name)}</strong><p>${esc(effectText(i))}</p><p>${o.price.amount} ${o.price.currencyId==='CUR-COIN'?'金币':'学习凭证'}</p><button data-buy="${esc(o.offerId)}" data-service="${s.serviceId}" ${owned||!unlocked?'disabled':''}>${owned?'已拥有':unlocked?'购买 / 兑换':'尚未开放'}</button></div>`;}).join('')}</div>`).join('');html+='<h3>探索邀请</h3>'+contentData.sideQuests.filter(q=>q.startNpc.sceneId===view.sceneId&&q.prerequisites.completedQuestIds.every(id=>c.completedQuestIds.includes(id))).map(q=>`<button data-side="${q.id}">${esc(q.name??q.title??q.id)}</button>`).join('');}
  else if(name==='training'){title='练习与副本重演';const localIds=context?.cycleIds??[];html='<p class="note">在委托人所在的区域开启挑战。灰色内容不再提供重复经验；已通关的朋友可以协助重打。</p><div class="grid">'+runtimeCatalog.commissions.map(q=>{const open=commissionUnlocked(c,q.cycleId),local=localIds.includes(q.cycleId);const place=contentData.scenes.find(s=>s.id===q.sceneId)?.name??q.sceneId;return `<div class="card"><strong>${esc(q.displayName)}</strong><p>${esc(place)} · ${esc(q.initiator.name)}</p><p>内容等级 ${q.contentLevel} · ${c.level-q.contentLevel>=5?'灰色 · 0经验':'完成后按真实等级结算'}</p>${open&&local?`<button data-cycle="${q.cycleId}">开始挑战</button>`:`<span class="note">${open?'前往该区域的练习委托台':'随主线开放'}</span>`}</div>`;}).join('')+'</div>';}
  else if(name==='puzzle'){title='观察与推理';html=`<p>${esc(context.label)}</p>${context.options.map((o,i)=>`<button class="wide" style="margin:.4rem 0" data-answer="${i}" data-target="${context.id}">${esc(o)}</button>`).join('')}`;}
+ else if(name==='platform-intro'){const intro=context.intro;title=intro.title;html=`<div class="platform-dialogue"><p class="platform-scene-note">国王十字车站 · 9、10 号站台之间</p>${intro.lines.map(line=>`<section class="platform-line"><strong>${esc(line.speaker)}</strong><p>${esc(line.text)}</p></section>`).join('')}<div class="platform-dialogue-actions"><button class="primary" data-platform-confirm="true">${esc(intro.confirmLabel)}</button><button data-platform-cancel="true">稍等一下</button></div><p class="note">准备好后确认，${esc(intro.npc)}会带你去入口。</p></div>`;}
  else if(name==='battle-result'){const won=encounter?.status==='won';title=won?'挑战完成':'重新整装';html=`<p>${won?'你们完成了这场挑战。参与战斗的伙伴都已获得各自的奖励，进度已保存。':'观察敌人的预备动作，及时离开危险范围。可以回到检查点补给，再次尝试。'}</p><button class="primary" data-action="retry">${won?'返回冒险':'回到检查点'}</button><p class="note">重试不会重复发放已经结算的同次奖励。</p>`;}
- else if(name==='settings'){title='冒险设置';html=`<p>你的角色与进度保存在服务器。此设备使用一份私密恢复码继续访问存档。</p><button id="copy-recovery">复制我的存档恢复码</button><p class="note">请自行保存，勿作为队伍邀请码分享。其他设备可用它恢复同一组角色。</p><h3>在其他设备继续</h3><input type="password" id="restore-token" class="wide" placeholder="粘贴64位恢复码" autocomplete="off"><button id="restore-account">读取存档</button><h3>人物选择</h3><button id="return-selection" data-return-selection="true" class="primary">保存并返回人物选择</button><p class="note">等级、装备和任务进度保留。回到三维选角场景后，可以继续原角色或换另一位伙伴。</p>${soundSettings()}<h3>操控</h3><p>WASD 移动 · Shift 奔跑 · 空格 跳跃<br>左键点击敌人锁定并施咒 · Tab 切换目标 · Esc 取消锁定<br>右键拖动或方向键调整视角 · 滚轮缩放 · E 交互<br>1–5 魔法 · 按住 1 连续基础咒击 · F 侧闪 · Q/R 药剂<br>扫帚：X 起飞 / 自动降落 · 空格 上升 · Z 或 Ctrl 下降<br>飞到目标旁按 E；降落目标需双脚落地后按 E。</p><p>每个技能圆环内显示剩余冷却，金色外环为技能冷却，蓝色内环为公共调息。药剂显示背包数量；同一场战斗两类药剂合计可成功使用一次。</p><p class="note">联网世界不会因打开窗口暂停。请在安全处管理物品。</p>`;}
+ else if(name==='settings'){title='冒险设置';html=`<p>你的角色与进度保存在服务器。此设备使用一份私密恢复码继续访问存档。</p><button id="copy-recovery">复制我的存档恢复码</button><p class="note">请自行保存，勿作为队伍邀请码分享。其他设备可用它恢复同一组角色。</p><h3>在其他设备继续</h3><input type="password" id="restore-token" class="wide" placeholder="粘贴64位恢复码" autocomplete="off"><button id="restore-account">读取存档</button><h3>人物选择</h3><button id="return-selection" data-return-selection="true" class="primary">保存并返回人物选择</button><p class="note">等级、装备和任务进度保留。回到三维选角场景后，可以继续原角色或换另一位伙伴。</p>${soundSettings()}<h3>操控</h3><p>点击游戏画面或「鼠标视角」进入，移动鼠标即可转向；第一次点击只开启视角，不施咒。<br>鼠标视角中，左键朝准星施咒；按 Esc 释放鼠标，再点击技能栏或界面按钮。打开人物、背包等面板时会自动释放。<br>WASD 移动 · Shift 奔跑 · 空格 跳跃<br>右键拖动或方向键转向 · 滚轮缩放 · Tab 切换目标<br>鼠标已释放时，Esc 取消目标或关闭窗口 · E 交互<br>1–5 魔法 · 按住 1 连续基础咒击 · F 侧闪 · Q/R 药剂<br>扫帚：X 起飞 / 自动降落 · 空格 上升 · Z 或 Ctrl 下降<br>飞到目标旁按 E；到达和降落路点会自动继续。</p><p>每个技能圆环内显示剩余冷却，金色外环为技能冷却，蓝色内环为公共调息。药剂显示背包数量；同一场战斗两类药剂合计可成功使用一次。</p><p class="note">联网世界不会因打开窗口暂停。请在安全处管理物品。</p>`;}
  $('panel-title').textContent=title;
- $('panel').dataset.view=folioPages.has(name)?name:'';
+ $('panel').dataset.view=folioPages.has(name)||name==='platform-intro'?name:'';
  const nav=$('folio-nav');nav.hidden=!folioPages.has(name);nav.innerHTML=folioPages.has(name)?[['character','人物','C'],['inventory','背包','B'],['skills','魔法','K'],['map','地图','M']].map(([id,label,key])=>`<button data-panel="${id}" aria-current="${name===id?'page':'false'}">${iconMarkup(id)}<span>${label}</span><kbd>${key}</kbd></button>`).join(''):'';
  if(name==='character'&&characterPreview&&$('character-preview'))updateCharacterSheet();
  else{
@@ -280,6 +300,7 @@ function showPanel(name,context){if(characterPreview&&name!=='character'){charac
   }
  }
  folioStamp=currentFolioStamp();if(name==='settings')paintSound(sound.status);
+ if(name==='platform-intro')$('panel-content').querySelector('[data-platform-confirm]')?.focus({preventScroll:true});
 }
 function updateCharacterSheet(){
  const parts=characterSheetParts({character,hero:heroes[character.heroId],selectedSlot:folioState.gearSlot});
@@ -298,6 +319,8 @@ async function changeEquipment(button,payload){
  finally{equipmentBusy=false;if(button.isConnected)button.disabled=false;}
 }
 document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b||b.disabled||returnBusy)return;try{
+ if(b.dataset.platformCancel){if(panel==='platform-intro')closePanel();return;}
+ if(b.dataset.platformConfirm){if(panel!=='platform-intro'||!panelContext?.action)return;const {action,characterId}=panelContext;closePanel();if(character?.id===characterId)await onWorldAction(action,{skipIntro:true});return;}
  if(b.dataset.returnSelection){await returnToSelection();return;}
  if(b.dataset.gearSelect){folioState.gearSlot=b.dataset.gearSelect;showPanel('character');return;}
  if(b.dataset.previewRotate){characterPreview?.rotate(Number(b.dataset.previewRotate));return;}
@@ -311,11 +334,16 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button');i
  if(b.dataset.hero){await choose(b.dataset.hero);return;}if(b.dataset.resume){await enter(b.dataset.resume);return;}if(b.dataset.panel&&character){showPanel(b.dataset.panel);return;}if(b.dataset.skill){world.cast(b.dataset.skill);return;}if(b.dataset.track){const ids=selectHud(character.journal,character.trackedIds).trackedIds;const tracked=ids.includes(b.dataset.track);if(!tracked&&ids.length>=2){toast('最多追踪两个可选任务，请先取消一个。');return;}await act({type:'track',trackedIds:tracked?ids.filter(id=>id!==b.dataset.track):[...ids,b.dataset.track]});showPanel('journal');}if(b.dataset.equip){await changeEquipment(b,{type:'equip',itemId:b.dataset.equip});return;}if(b.dataset.unequip){await changeEquipment(b,{type:'unequip',slot:b.dataset.unequip});return;}if(b.dataset.claim){await act({type:'claim',claimId:b.dataset.claim,itemId:b.dataset.item});showPanel('inventory');}if(b.dataset.buy){await act({type:'buy',serviceId:b.dataset.service,offerId:b.dataset.buy});showPanel('shop');}if(b.dataset.refill){const[health,focus]=b.dataset.refill.split(',').map(Number);await act({type:'refill',health,focus});showPanel('shop');}if(b.dataset.cycle){closePanel();await act({type:'encounter',cycleId:b.dataset.cycle});}if(b.dataset.answer){closePanel();await act({type:'interact',targetId:b.dataset.target,choice:Number(b.dataset.answer)});}if(b.dataset.side){await act({type:'side',questId:b.dataset.side});toast('已记录探索邀请，可在任务日志中查看。');}if(b.dataset.action){const action=b.dataset.action;if(action==='retry')closePanel();await act({type:action});if(action.startsWith('room'))showPanel('party');}}
  catch(e){if(e.code!=='NETWORK')toast(e.message);}});
 for(const b of $('quick-menu').querySelectorAll('button[data-panel]'))b.insertAdjacentHTML('afterbegin',iconMarkup(b.dataset.panel));
+$('mouse-look-toggle').addEventListener('click',()=>{
+ if(!playing||panel||journeyActive||!$('film').hidden)return;
+ if(world?.getMouseLookState?.().locked){world.releaseMouseLook?.();return;}
+ Promise.resolve(world?.requestMouseLook?.()).catch(()=>toast('暂时无法进入鼠标视角，可按住右键或使用方向键转向。'));
+});
 $('enter-game').addEventListener('click',()=>enter());$('skip-film').addEventListener('click',endFilm);$('close-panel').addEventListener('click',closePanel);$('team-button').addEventListener('click',()=>character?showPanel('party'):toast('先选择人物进入冒险，再邀请朋友。'));$('menu-button').addEventListener('click',()=>showPanel('settings'));
 document.addEventListener('click',async e=>{try{if(e.target.closest?.('#toggle-sound,#sound-toggle')){await toggleSound();}if(e.target.closest?.('#audio-preview')){if(sound.muted)sound.setMuted(false);await sound.unlock();sound.cue('cast','bolt');saved.muted=sound.muted;persist();paintSound(sound.status);}if(e.target.id==='join-room'){await act({type:'room-join',code:$('join-code').value.trim().toUpperCase()});showPanel('party');}if(e.target.id==='copy-invite'){const u=new URL('/stone.html',location.origin);u.searchParams.set('party',room.code);await navigator.clipboard.writeText(u.href);toast('已复制邀请链接。');}if(e.target.id==='copy-recovery'){await navigator.clipboard.writeText(saved.token);toast('恢复码已复制，请保存在自己的安全位置。');}if(e.target.id==='restore-account'){const token=$('restore-token').value.trim();if(!/^[a-f0-9]{64}$/i.test(token))throw new Error('恢复码应为64位字母与数字。');const old=saved,wasPlaying=playing,restoreEpoch=++epoch;playing=false;try{const restored=await api('/account?existing=1',undefined,token);if(epoch!==restoreEpoch)return;saved={token,muted:old.muted,audioMix:old.audioMix};account=restored.account;persist();character=null;playing=false;closePanel();$('hud').hidden=true;$('return-selection-shortcut').hidden=true;$('selection').hidden=false;world.selectionStage(selected);sound.setScene({sceneId:'SC00',selection:true});paintPicker();toast('已读取存档，请选择要继续的角色。');}catch(error){if(epoch===restoreEpoch){saved=old;playing=wasPlaying;}throw error;}}}
  catch(error){toast(error.message);}});
 document.addEventListener('input',e=>{if(e.target.dataset?.audioVolume)changeVolume(e.target.dataset.audioVolume,e.target.value);});
-document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA/.test(e.target.tagName)||e.repeat)return;if(e.code==='Escape'){if(playing&&!panel&&world.clearTarget?.()){e.preventDefault();return;}if(!$('film').hidden)endFilm();else if(panel)closePanel();else showPanel('settings');return;}const keys={KeyJ:'journal',KeyB:'inventory',KeyC:'character',KeyK:'skills',KeyM:'map',KeyP:'party'};if(playing&&keys[e.code]){e.preventDefault();panel===keys[e.code]?closePanel():showPanel(keys[e.code]);}});
+document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA/.test(e.target.tagName)||e.repeat)return;if(e.code==='Escape'){if(world?.releaseMouseLook?.()){e.preventDefault();return;}if(playing&&!panel&&world.clearTarget?.()){e.preventDefault();return;}if(!$('film').hidden)endFilm();else if(panel)closePanel();else showPanel('settings');return;}const keys={KeyJ:'journal',KeyB:'inventory',KeyC:'character',KeyK:'skills',KeyM:'map',KeyP:'party'};if(playing&&keys[e.code]){e.preventDefault();panel===keys[e.code]?closePanel():showPanel(keys[e.code]);}});
 async function poll(){if(!playing||!character||pollBusy||returnBusy)return;pollBusy=true;const id=character.id,requestEpoch=epoch,requestToken=saved.token;const current=()=>epoch===requestEpoch&&saved.token===requestToken&&character?.id===id;
  try{const data=await api('/characters/'+id,undefined,requestToken);if(!current())return;await accept(data);if(!current())return;if(saved.pendingAction?.characterId===id){const retry=saved.pendingAction;try{await act(retry.body,{retryId:retry.body.requestId,quiet:true});if(current()&&saved.pendingAction?.body.requestId===retry.body.requestId){delete saved.pendingAction;persist();}}catch(e){if(!current())return;if(e.code!=='NETWORK'&&e.status<500){if(saved.pendingAction?.body.requestId===retry.body.requestId){delete saved.pendingAction;persist();}toast(e.message);}else throw e;}}}
  catch(e){if(current())$('connection').textContent='正在重新连接…';}finally{pollBusy=false;}}
@@ -325,7 +353,7 @@ async function boot(){
  const current=()=>attempt===bootGeneration&&saved.token===bootToken&&epoch===bootEpoch;
  const loaded=new Set();
  try{
-  world??=createStoneWorld($('game'),{onPose:p=>{latestPose=p;sound.updateMotion(p);},onSound:event=>sound.cue(event.kind,event.skillId,event),onAction:onWorldAction,onSelectHero:hero=>choose(hero),onAim:paintAim,onJourney:paintJourney,onFlight:paintFlight,onLoaded:hero=>{if(!selectionReady&&isSelectableHero(hero)){loaded.add(hero);$('load-text').textContent=`三位伙伴正在就位（${loaded.size}/3）…`;}},onHint:target=>{$('interact').hidden=!target||target.requiresInteraction===false||target.kind==='move';if(target)$('interact').querySelector('span').textContent=target.label;},onError:e=>toast('人物载入暂未完成：'+e.message)});
+  world??=createStoneWorld($('game'),{onPose:p=>{latestPose=p;sound.updateMotion(p);},onSound:event=>sound.cue(event.kind,event.skillId,event),onAction:onWorldAction,onSelectHero:hero=>choose(hero),onAim:paintAim,onJourney:paintJourney,onFlight:paintFlight,onMouseLook:paintMouseLook,onLoaded:hero=>{if(!selectionReady&&isSelectableHero(hero)){loaded.add(hero);$('load-text').textContent=`三位伙伴正在就位（${loaded.size}/3）…`;}},onHint:target=>{$('interact').hidden=!target||target.requiresInteraction===false||target.kind==='move';if(target)$('interact').querySelector('span').textContent=target.label;},onError:e=>toast('人物载入暂未完成：'+e.message)});
   // Prepare all three once while the independent account request is running.
   const modelReady=world.prepareSelection('harry');
   const accountReady=api('/account',undefined,bootToken).then(result=>{if(!current())return;account=result.account;$('connection').textContent='已连接 · 云端存档';const preferred=account.characters.find(c=>c.id===saved.characterId)?.heroId;selected=isSelectableHero(preferred)?preferred:'harry';});

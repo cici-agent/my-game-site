@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import { getPlatformIntro, getPlatformWallAdvice } from '../chapter-one/client/platform-dialogue.mjs';
 import {SELECTABLE_HERO_IDS,isSelectableHero} from '../chapter-one/roster.mjs';
 import {getHeroStats} from '../chapter-one/rules/index.mjs';
 import {resolveAreaId,getWorldArea} from '../chapter-one/world-atlas.mjs';
@@ -16,8 +17,8 @@ const tokenA='a'.repeat(64),tokenB='b'.repeat(64);
 const character=(id,revision=1)=>({id,heroId:'harry',revision,lastAcceptedMoveSequence:3,level:1,completedQuestIds:[],skills:[],notice:'',currentQuestId:'M01'});
 function harness(){
  const nodes=new Map(),storage=new Map([['hogwarts-stone-v1',JSON.stringify({token:tokenA,characterId:'A'})]]),callbacks=new Map(),requests=[],snapshots=[],choices=[],preparations=[],stages=[],rejections=[];
- const node=id=>{if(!nodes.has(id))nodes.set(id,{id,hidden:false,textContent:'',innerHTML:'',style:{},dataset:{},classList:{toggle(){}},value:'',disabled:false,addEventListener(type,fn){callbacks.set(`${id}:${type}`,fn);},querySelector(selector){return node(`${id}:${selector}`);},querySelectorAll(selector){return id==='quick-menu'&&selector==='button[data-panel]'?['character','inventory','skills','map'].map(panel=>{const button=node(`${id}:${panel}`);button.dataset.panel=panel;return button;}):[];},insertAdjacentHTML(where,html){this.innerHTML=where==='afterbegin'?html+this.innerHTML:this.innerHTML+html;},append(){},remove(){}});return nodes.get(id);};
- const context=vm.createContext({resolveAreaId,getWorldArea,SELECTABLE_HERO_IDS,isSelectableHero,getHeroStats,iconMarkup,crypto,URL,AbortSignal,performance,console,setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},
+ const node=id=>{if(!nodes.has(id))nodes.set(id,{id,hidden:false,textContent:'',innerHTML:'',style:{},dataset:{},classList:{toggle(){}},setAttribute(name,value){this[name]=String(value);},getAttribute(name){return this[name]??null;},focus(){this.focused=true;},value:'',disabled:false,addEventListener(type,fn){callbacks.set(`${id}:${type}`,fn);},querySelector(selector){return node(`${id}:${selector}`);},querySelectorAll(selector){return id==='quick-menu'&&selector==='button[data-panel]'?['character','inventory','skills','map'].map(panel=>{const button=node(`${id}:${panel}`);button.dataset.panel=panel;return button;}):[];},insertAdjacentHTML(where,html){this.innerHTML=where==='afterbegin'?html+this.innerHTML:this.innerHTML+html;},append(){},remove(){}});return nodes.get(id);};
+ const context=vm.createContext({getPlatformIntro,getPlatformWallAdvice,resolveAreaId,getWorldArea,SELECTABLE_HERO_IDS,isSelectableHero,getHeroStats,iconMarkup,crypto,URL,AbortSignal,performance,console,setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},
   location:{href:'https://game.test/stone.html',origin:'https://game.test'},navigator:{clipboard:{writeText:async()=>{}}},
   document:{getElementById:node,addEventListener(type,fn){const key=`document:${type}`;callbacks.set(key,[...(callbacks.get(key)??[]),fn]);},createElement:tag=>node(tag)},
   localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value)},

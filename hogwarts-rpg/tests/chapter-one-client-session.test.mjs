@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import { getPlatformIntro, getPlatformWallAdvice } from '../chapter-one/client/platform-dialogue.mjs';
 import {SELECTABLE_HERO_IDS,isSelectableHero} from '../chapter-one/roster.mjs';
 import {getHeroStats} from '../chapter-one/rules/index.mjs';
 import {resolveAreaId,getWorldArea} from '../chapter-one/world-atlas.mjs';
@@ -16,8 +17,8 @@ const tokenA='a'.repeat(64),tokenB='b'.repeat(64);
 const character=(id,revision=1)=>({id,heroId:'harry',revision,lastAcceptedMoveSequence:3,level:1,completedQuestIds:[],skills:[],notice:'',currentQuestId:'M01'});
 function harness(){
  const nodes=new Map(),storage=new Map([['hogwarts-stone-v1',JSON.stringify({token:tokenA,characterId:'A'})]]),callbacks=new Map(),requests=[],snapshots=[],choices=[],preparations=[],stages=[];
- const node=id=>{if(!nodes.has(id))nodes.set(id,{id,hidden:false,textContent:'',innerHTML:'',style:{},dataset:{},classList:{toggle(){}},value:'',disabled:false,addEventListener(type,fn){callbacks.set(`${id}:${type}`,fn);},querySelector(selector){return node(`${id}:${selector}`);},querySelectorAll(selector){return id==='quick-menu'&&selector==='button[data-panel]'?['character','inventory','skills','map'].map(panel=>{const button=node(`${id}:${panel}`);button.dataset.panel=panel;return button;}):[];},insertAdjacentHTML(where,html){this.innerHTML=where==='afterbegin'?html+this.innerHTML:this.innerHTML+html;},append(){},remove(){}});return nodes.get(id);};
- const context=vm.createContext({resolveAreaId,getWorldArea,SELECTABLE_HERO_IDS,isSelectableHero,getHeroStats,iconMarkup,crypto,URL,AbortSignal,performance,console,setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},
+ const node=id=>{if(!nodes.has(id))nodes.set(id,{id,hidden:false,textContent:'',innerHTML:'',style:{},dataset:{},classList:{toggle(){}},setAttribute(name,value){this[name]=String(value);},getAttribute(name){return this[name]??null;},focus(){this.focused=true;},value:'',disabled:false,addEventListener(type,fn){callbacks.set(`${id}:${type}`,fn);},querySelector(selector){return node(`${id}:${selector}`);},querySelectorAll(selector){return id==='quick-menu'&&selector==='button[data-panel]'?['character','inventory','skills','map'].map(panel=>{const button=node(`${id}:${panel}`);button.dataset.panel=panel;return button;}):[];},insertAdjacentHTML(where,html){this.innerHTML=where==='afterbegin'?html+this.innerHTML:this.innerHTML+html;},append(){},remove(){}});return nodes.get(id);};
+ const context=vm.createContext({getPlatformIntro,getPlatformWallAdvice,resolveAreaId,getWorldArea,SELECTABLE_HERO_IDS,isSelectableHero,getHeroStats,iconMarkup,crypto,URL,AbortSignal,performance,console,setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},
   location:{href:'https://game.test/stone.html',origin:'https://game.test'},navigator:{clipboard:{writeText:async()=>{}}},
   document:{getElementById:node,addEventListener(type,fn){const key=`document:${type}`;callbacks.set(key,[...(callbacks.get(key)??[]),fn]);},createElement:tag=>node(tag)},
   localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value)},
@@ -28,16 +29,16 @@ function harness(){
  });
  vm.runInContext(source+`
  world=__renderer; paintHud=()=>{__paints++;};
- globalThis.__session={act,accept,poll,sendMove,onWorldAction,choose,boot,enter,returnToSelection,paintFlight,toggleSound,changeVolume,
+ globalThis.__session={act,accept,poll,sendMove,onWorldAction,choose,boot,enter,returnToSelection,paintFlight,paintMouseLook,paintJourney,showPanel,closePanel,toggleSound,changeVolume,
   pose(value){latestPose=value;},
   ready(){selectionReady=true;playing=false;$('load').hidden=true;},
   switchIdentity(token,next){epoch++;saved={token,characterId:next?.id};character=next;playing=!!next;persist();},
   pendingAction(body){saved.pendingAction={characterId:character.id,body};persist();},
-  state(){return {saved:structuredClone(saved),character:character&&structuredClone(character),pending,epoch,pollBusy,selected,selectionReady,entryBusy,playing,returnBusy,movementRetry};}
+  state(){return {saved:structuredClone(saved),character:character&&structuredClone(character),pending,epoch,pollBusy,selected,selectionReady,entryBusy,playing,returnBusy,movementRetry,panel};}
  };`,context);
  // Supply structuredClone after context creation to keep browser-shaped values.
  context.structuredClone=structuredClone;context.createStoneWorld=()=>context.__renderer;
- return{context,session:context.__session,requests,snapshots,storage,nodes,choices,preparations,stages};
+ return{context,session:context.__session,requests,snapshots,storage,nodes,choices,preparations,stages,callbacks};
 }
 const reply=data=>({ok:true,status:200,json:async()=>data});
 async function until(predicate){for(let i=0;i<20&&!predicate();i++)await Promise.resolve();assert(predicate(),'asynchronous session operation did not reach the expected boundary');}
@@ -198,7 +199,7 @@ test('flight guidance shows explicit ascent, descent and landing without opening
  h.session.paintFlight({available:true,mode:'flying',height:2.2});
  assert.equal(h.nodes.get('flight-hud').hidden,false);assert.match(h.nodes.get('flight-instruction').textContent,/空格 上升.*Z \/ Ctrl 下降.*X 自动降落/);
  assert.equal(h.nodes.get('flight-height').textContent,'离地 2.2 米');
- h.session.paintFlight({available:true,mode:'landing',height:.5});assert.match(h.nodes.get('flight-instruction').textContent,/落地后.*按 E/);
+ h.session.paintFlight({available:true,mode:'landing',height:.5});assert.match(h.nodes.get('flight-instruction').textContent,/落地.*路点.*自动继续/);assert.doesNotMatch(h.nodes.get('flight-instruction').textContent,/按 E/,'landing checkpoints advance automatically');
  h.session.paintFlight({available:false,mode:'grounded',height:0});assert.equal(h.nodes.get('flight-hud').hidden,true);
 });
 
@@ -213,4 +214,104 @@ test('audio preferences persist without changing the character or its save crede
 
 test('first explicit sound click unlocks audio instead of immediately muting it',async()=>{
  const h=harness();await h.session.toggleSound();const saved=JSON.parse(h.storage.get('hogwarts-stone-v1'));assert.equal(saved.muted,false);assert.equal(h.nodes.get('sound-toggle').textContent,'声音已开');
+});
+
+const stationAction={type:'interact',targetId:'M01-1'};
+const stationView=(index=0,serverTime=100)=>({sceneId:'SC01',areaId:'SC01',serverTime,quest:{id:'M01',npc:'韦斯莱夫人'},targets:[{id:`M01-${index+1}`,kind:index?'move':'escort',position:{x:0,y:0,z:-11.4},active:true}],escort:index?null:{targetId:'M01-1',npc:'韦斯莱夫人',kind:'escort',awaitingStart:true,startedAt:null,progress:0}});
+async function acceptStation(h,c,scene){
+ const count=h.snapshots.length,running=h.session.accept({character:c,scene,room:null});
+ await until(()=>h.snapshots.length===count+1);h.snapshots.at(-1).resolve();await running;
+}
+async function stationSession(){
+ const h=harness(),c={...character('A'),sceneId:'SC01',areaId:'SC01',objectiveIndex:0,position:{x:0,y:0,z:5,yaw:0}};
+ h.session.switchIdentity(tokenA,c);h.context.document.getElementById('film').hidden=true;
+ await acceptStation(h,c,stationView());return h;
+}
+async function clickDocumentButton(h,dataset){
+ const button={id:'dialogue-action',tagName:'BUTTON',dataset,disabled:false,closest(selector){return selector==='button'?this:null;}};
+ for(const handler of h.callbacks.get('document:click')??[])await handler({target:button});
+}
+function pressEscape(h){
+ const event={code:'Escape',repeat:false,target:{tagName:'CANVAS'},defaultPrevented:false,preventDefault(){this.defaultPrevented=true;}};
+ for(const handler of h.callbacks.get('document:keydown')??[])handler(event);
+ return event;
+}
+
+test('the real station UI asks about the ticket before sending one confirmed escort action',async()=>{
+ const h=await stationSession(),blocks=[];h.context.__renderer.setBlocked=value=>blocks.push(value);
+ await h.session.onWorldAction(stationAction);
+ assert.equal(h.requests.length,0,'opening the conversation must not start the server escort');
+ assert.equal(h.session.state().panel,'platform-intro');assert.equal(h.nodes.get('panel-backdrop').hidden,false);
+ assert.match(h.nodes.get('panel-content').innerHTML,/车票.*九又四分之三/);
+ assert.match(h.nodes.get('panel-content').innerHTML,/韦斯莱夫人/);
+ assert.equal(h.nodes.get('panel-content:[data-platform-confirm]').focused,true);
+ const confirming=clickDocumentButton(h,{platformConfirm:'true'});await until(()=>h.requests.length===1);
+ const body=JSON.parse(h.requests[0].options.body);
+ assert.equal(body.type,'interact');assert.equal(body.targetId,'M01-1');assert.equal(typeof body.requestId,'string');
+ assert.equal('skipIntro' in body,false,'the local recursion guard must never become a server input');
+ assert.equal('target' in body,false);assert.equal(h.session.state().panel,null);assert.deepEqual(blocks,[true,false]);
+ h.requests[0].resolve(reply({character:{...h.session.state().character,revision:2,escort:{targetId:'M01-1',startedAt:100}},scene:{...stationView(),escort:{...stationView().escort,awaitingStart:false,startedAt:100}}}));
+ await until(()=>h.snapshots.length===2);h.snapshots[1].resolve();await confirming;
+ assert.equal(h.requests.length,1);assert.equal(h.session.state().saved.pendingAction,undefined);
+});
+
+for(const dismissal of ['cancel-button','Escape','close-button'])test(`the real station ${dismissal} cancels without starting and permits asking again`,async()=>{
+ const h=await stationSession(),before=h.session.state().character;
+ await h.session.onWorldAction(stationAction);assert.equal(h.session.state().panel,'platform-intro');
+ if(dismissal==='cancel-button')await clickDocumentButton(h,{platformCancel:'true'});
+ else if(dismissal==='Escape')pressEscape(h);
+ else h.callbacks.get('close-panel:click')();
+ assert.equal(h.session.state().panel,null);assert.equal(h.nodes.get('panel-backdrop').hidden,true);
+ assert.equal(h.requests.length,0);assert.deepEqual(h.session.state().character,before);
+ await h.session.onWorldAction(stationAction);assert.equal(h.session.state().panel,'platform-intro');assert.equal(h.requests.length,0);
+});
+
+for(const ordering of ['keydown-first','pointerlockchange-first'])test(`app Escape consumes ${ordering} mouse release before clearing targets or opening settings`,()=>{
+ const h=harness();h.session.switchIdentity(tokenA,character('A'));h.context.document.getElementById('film').hidden=true;
+ let released=0,cleared=0;
+ h.context.__renderer.getMouseLookState=()=>({mode:ordering==='keydown-first'?'locked':'free',locked:ordering==='keydown-first',canCapture:true});
+ // The renderer boundary reports a live lock or its one-shot release receipt.
+ // Real browser event-order handling is covered by the mouse-look controller suite.
+ h.context.__renderer.releaseMouseLook=()=>{released++;return true;};
+ h.context.__renderer.clearTarget=()=>{cleared++;return true;};
+ const event=pressEscape(h);assert.equal(event.defaultPrevented,true);assert.equal(released,1);assert.equal(cleared,0);
+ assert.equal(h.session.state().panel,null);assert.equal(h.requests.length,0);
+});
+
+test('accepted arrival gives the brick-wall advice automatically and ordinary polls do not repeat it',async()=>{
+ const h=await stationSession(),paragraph=h.context.document.getElementById('dialogue').querySelector('p');let writes=0,text='';
+ Object.defineProperty(paragraph,'textContent',{get:()=>text,set(value){writes++;text=value;},configurable:true});
+ const next={...h.session.state().character,objectiveIndex:1,revision:2};
+ await acceptStation(h,next,stationView(1,200));assert.equal(h.nodes.get('dialogue').hidden,false);
+ assert.equal(h.nodes.get('dialogue:strong').textContent,'韦斯莱夫人');assert.match(text,/9 号.*10 号.*砖墙.*穿过去/);assert.equal(writes,1);
+ await acceptStation(h,{...next,revision:3},stationView(1,300));assert.equal(writes,1);assert.equal(h.requests.length,0,'advice is presentation, not an extra interaction');
+});
+
+test('the actual mouse-look HUD reflects capture and hides behind the station conversation',async()=>{
+ const h=await stationSession();
+ h.session.paintMouseLook({mode:'free',locked:false,canCapture:true});assert.equal(h.nodes.get('mouse-look').hidden,false);assert.equal(h.nodes.get('mouse-look-toggle').disabled,false);assert.match(h.nodes.get('mouse-look-hint').textContent,/点击画面或按钮/);
+ h.session.paintMouseLook({mode:'locked',locked:true,canCapture:true});assert.equal(h.nodes.get('mouse-look-toggle').getAttribute('aria-pressed'),'true');assert.match(h.nodes.get('mouse-look-hint').textContent,/移动鼠标转向.*Esc/);
+ await h.session.onWorldAction(stationAction);assert.equal(h.nodes.get('mouse-look').hidden,true);assert.equal(h.nodes.get('panel').dataset.view,'platform-intro');
+});
+
+for(const ending of ['free','panel','film'])test(`a transport wait releases and blocks control, then restores the ${ending} UI state without recapturing`,async()=>{
+ const h=await stationSession(),blocks=[];let locked=true,releases=0,captures=0;
+ Object.assign(h.context.__renderer,{
+  getPose:()=>({x:0,y:0,z:0,yaw:0}),
+  setBlocked(value){blocks.push(value);},
+  releaseMouseLook(){const owned=locked;locked=false;releases++;return owned;},
+  requestMouseLook(){captures++;locked=true;return true;},
+  getMouseLookState:()=>({mode:locked?'locked':'free',locked,canCapture:true}),
+ });
+ h.session.paintMouseLook(h.context.__renderer.getMouseLookState());
+ h.session.paintJourney({active:true,label:'返回校园',progress:.15});
+ assert.equal(locked,false);assert.equal(releases,1);assert.equal(blocks.at(-1),true);
+ assert.equal(h.nodes.get('mouse-look').hidden,true);assert.equal(h.nodes.get('journey-status').hidden,false);
+ h.session.closePanel();assert.equal(blocks.at(-1),true,'closing another panel must not unlock an active transport wait');
+ if(ending==='panel')h.session.showPanel('settings');
+ if(ending==='film')h.nodes.get('film').hidden=false;
+ h.session.paintJourney({active:false});
+ assert.equal(blocks.at(-1),ending!=='free');assert.equal(captures,0,'transport completion never takes ownership of the mouse');
+ assert.equal(h.nodes.get('mouse-look').hidden,ending!=='free');assert.equal(h.nodes.get('journey-status').hidden,true);
+ assert.equal(h.requests.length,0);
 });
