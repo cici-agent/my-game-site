@@ -101,14 +101,14 @@ export function blendJourneyEnvironment(scene, from, to) {
   };
 }
 
-export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, onLoaded, onSelectHero, onAim, onJourney, onFlight } = {}) {
+export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, onLoaded, onSelectHero, onAim, onJourney, onFlight, onSound } = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(48, 1, .07, 180); let area = new THREE.Group(), entities = new THREE.Group(); const targetGroup = new THREE.Group(), effects = new THREE.Group(); scene.add(area, entities, targetGroup, effects);
   const shadowCanvas = document.createElement('canvas'); shadowCanvas.width = shadowCanvas.height = 96; const shadowContext = shadowCanvas.getContext('2d'), gradient = shadowContext.createRadialGradient(48, 48, 5, 48, 48, 45); gradient.addColorStop(0, 'rgba(20,26,24,.34)'); gradient.addColorStop(.42, 'rgba(20,26,24,.15)'); gradient.addColorStop(1, 'rgba(20,26,24,0)'); shadowContext.fillStyle = gradient; shadowContext.fillRect(0, 0, 96, 96);
   const contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(1.06, .88), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shadowCanvas), transparent: true, depthWrite: false, opacity: .85 })); contactShadow.rotation.x = -Math.PI / 2; scene.add(contactShadow);
   const keys = new Set(), velocity = new THREE.Vector2(), peers = new Map(), enemies = new Map(), npcs = new Map(), targets = new Map(), seenEvents = new Set(), projectiles = new Map(), flashes = [];
   const aimCenter = new THREE.Vector2(0, 0), raycaster = new THREE.Raycaster();
-  const stage = createSelectionStage({ spells: createSelectionSpells() }), legacyActors = new Map(), legacyLoading = new Map(); scene.add(stage.root);
+  const stage = createSelectionStage({ spells: createSelectionSpells({ onCue: onSound }) }), legacyActors = new Map(), legacyLoading = new Map(); scene.add(stage.root);
   const skillById = new Map(contentData.skills.map(skill => [skill.id, skill]));
   const targetRing = new THREE.Mesh(new THREE.RingGeometry(.57, .64, 64), new THREE.MeshBasicMaterial({ color: 0xf4cf79, transparent: true, opacity: .88, side: THREE.DoubleSide, depthWrite: false }));
   targetRing.rotation.x = -Math.PI / 2; targetRing.visible = false; scene.add(targetRing);
@@ -586,6 +586,10 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     if (heldBolt?.targetId && !alive(heldBolt.targetId)) heldBolt = null;
     if (queuedAbility && (queuedAbility.expiresAt < now || queuedAbility.targetId && combat?.enemies?.[queuedAbility.targetId]?.hp <= 0)) queuedAbility = null;
     for (const [id, cast] of localCasts) {
+      if (!cast.soundReleased && !cast.cancelled && cast.actor === actor && now >= cast.releaseAt) {
+        cast.soundReleased = true;
+        if (!['dodge', 'interact', 'broom'].includes(cast.skillId)) onSound?.({ kind: /potion|rescue|N1/.test(cast.skillId) ? 'heal' : 'cast', skillId: cast.skillId, actionId: id });
+      }
       if (cast.skillId !== 'bolt' || cast.released || cast.cancelled || cast.actor !== actor || now < cast.releaseAt) continue;
       cast.released = true;
       // This is a visual prediction only: no damage, collision result, hit text
