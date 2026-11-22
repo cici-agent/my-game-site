@@ -22,7 +22,7 @@ async function signUpWithAvatar(username, password, avatarUrl) {
       id: userId,
       username: username,
       role: isAdmin ? 'admin' : 'user',
-      coins: 50
+      coins: 100
     };
     if (avatarUrl) {
       profileData.avatar_url = avatarUrl;
@@ -31,7 +31,7 @@ async function signUpWithAvatar(username, password, avatarUrl) {
     // 记录注册奖励金币流水
     sb.from('coin_transactions').insert({
       user_id: userId,
-      amount: 50,
+      amount: 100,
       source: 'register',
       description: '新用户注册奖励'
     }).then(function(){});
