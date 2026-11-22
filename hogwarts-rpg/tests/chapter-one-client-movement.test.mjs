@@ -16,7 +16,7 @@ function harness(){
  const renderer={setAbilityRequestStatus(...args){skillStatuses.push(args);},takeMovementPacket(){takes++;return packets.shift()??{position:{x:0,y:0,z:0,yaw:0},steps:[],sprint:false,flying:false};},noteMovementSent(...args){sent.push(structuredClone(args));},rejectMovement(...args){rejected.push(structuredClone(args));},setSnapshot(...args){snapshots.push(structuredClone(args));return Promise.resolve();},setBlocked(){},getPose(){return{x:0,y:0,z:0,yaw:0};}};
  const context=vm.createContext({iconMarkup,crypto,structuredClone,URL,AbortSignal,console,performance:{now:()=>clock},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},
  document:{getElementById:element,addEventListener(){},createElement:element},localStorage:{getItem:()=>JSON.stringify({token:'a'.repeat(64),characterId:'A'}),setItem(){}},location:{href:'https://game.test/stone.html'},
- createSound:()=>({unlock(){},consume(){},cue(){}}),__renderer:renderer,
+ createSound:()=>({status:{state:'locked'},setScene(){},updateMotion(){},unlock(){},consume(){},cue(){}}),__renderer:renderer,
  fetch:(url,options)=>{const job=defer();requests.push({url,options,...job});return job.promise;},
  });
  vm.runInContext(source+`

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Group, PerspectiveCamera, Raycaster, Vector2, Vector3 } from 'three';
+import { createSelectionSpells } from '../chapter-one/client/selection-spells.mjs';
 import { createSelectionStage, selectionCameraPose } from '../chapter-one/client/selection-stage.mjs';
 
 const heroes = ['harry', 'ron', 'hermione'];
@@ -204,4 +205,29 @@ test('selection cameras keep all three full bodies visible and selectable on wid
       }
     });
   }
+});
+
+
+test('resident students turn toward one fixed shared table and switching leaves the feather return continuous', async t => {
+  const actors = new Map(heroes.map(id => [id, fakeActor(id)])), cues = [];
+  const spells = createSelectionSpells({ onCue: cue => cues.push(cue) });
+  const stage = createSelectionStage({ spells, loadCharacter: id => actors.get(id) }); t.after(() => stage.dispose());
+  await stage.prepare('hermione');
+  const table = spells.root.getObjectByName('UnifiedDemonstrationTable'), feather = spells.root.getObjectByName('LevitationFeather');
+  const tablePosition = table.position.clone();
+  for (const selected of heroes) {
+    stage.select(selected); until(stage, () => actors.get(selected).casting !== null);
+    const actor = actors.get(selected).root, aim = spells.getAimPoint(selected);
+    const forward = new Vector3(-Math.sin(actor.rotation.y), 0, -Math.cos(actor.rotation.y));
+    const expected = aim.clone().sub(actor.position); expected.y = 0; expected.normalize();
+    assert(forward.dot(expected) > .999, `${selected} must actually face the shared prop`);
+    until(stage, () => entry(stage, selected).releases > 0); step(stage, .8);
+    assert.equal(spells.root.getObjectByName('UnifiedDemonstrationTable'), table); assert(table.position.equals(tablePosition));
+  }
+  assert(feather.position.y > .3);
+  const raised = feather.position.clone(); stage.select('harry');
+  assert(feather.position.equals(raised)); step(stage, .1);
+  assert(feather.position.y < raised.y && feather.position.y > .11);
+  step(stage, .6); assert.equal(feather.position.y, .11);
+  assert.deepEqual(cues.map(cue => `${cue.heroId}:${cue.kind}`), ['harry:cast', 'harry:impact', 'ron:cast', 'ron:impact', 'hermione:cast']);
 });

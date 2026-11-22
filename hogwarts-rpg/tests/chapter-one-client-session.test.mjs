@@ -20,14 +20,14 @@ function harness(){
   location:{href:'https://game.test/stone.html',origin:'https://game.test'},navigator:{clipboard:{writeText:async()=>{}}},
   document:{getElementById:node,addEventListener(type,fn){const key=`document:${type}`;callbacks.set(key,[...(callbacks.get(key)??[]),fn]);},createElement:tag=>node(tag)},
   localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value)},
-  createSound:()=>({muted:false,unlock(){},consume(){},cue(){},setMuted(){}}),
+  createSound:()=>({muted:false,mix:{master:.65,music:.45,ambience:.5,effects:.75},status:{state:'locked',muted:false},setScene(){},updateMotion(){},setMix(value){Object.assign(this.mix,value);},unlock(){this.status={state:'running',muted:this.muted};},consume(){},cue(){},setMuted(value){this.muted=value;this.status={state:value?'muted':'running',muted:value};}}),
   fetch:(url,options)=>{const pending=deferred();requests.push({url,options,...pending});return pending.promise;},
   __renderer:{setSnapshot(...args){const pending=deferred();snapshots.push({args,...pending});return pending.promise;},setBlocked(){},selectionStage(hero){stages.push(hero);},chooseHero(hero){choices.push(hero);return Promise.resolve();},prepareSelection(hero){const pending=deferred();preparations.push({hero,...pending});return pending.promise;}},
   __paints:0,
  });
  vm.runInContext(source+`
  world=__renderer; paintHud=()=>{__paints++;};
- globalThis.__session={act,accept,poll,sendMove,onWorldAction,choose,boot,enter,returnToSelection,paintFlight,
+ globalThis.__session={act,accept,poll,sendMove,onWorldAction,choose,boot,enter,returnToSelection,paintFlight,toggleSound,changeVolume,
   pose(value){latestPose=value;},
   ready(){selectionReady=true;playing=false;$('load').hidden=true;},
   switchIdentity(token,next){epoch++;saved={token,characterId:next?.id};character=next;playing=!!next;persist();},
@@ -199,4 +199,17 @@ test('flight guidance shows explicit ascent, descent and landing without opening
  assert.equal(h.nodes.get('flight-height').textContent,'离地 2.2 米');
  h.session.paintFlight({available:true,mode:'landing',height:.5});assert.match(h.nodes.get('flight-instruction').textContent,/落地后.*按 E/);
  h.session.paintFlight({available:false,mode:'grounded',height:0});assert.equal(h.nodes.get('flight-hud').hidden,true);
+});
+
+
+test('audio preferences persist without changing the character or its save credential',async()=>{
+ const h=harness();h.session.switchIdentity(tokenA,character('A',5));
+ h.session.changeVolume('music',23);h.session.changeVolume('effects',81);
+ let saved=JSON.parse(h.storage.get('hogwarts-stone-v1'));assert.equal(saved.audioMix.music,.23);assert.equal(saved.audioMix.effects,.81);assert.equal(saved.token,tokenA);assert.equal(saved.characterId,'A');
+ await h.session.toggleSound();saved=JSON.parse(h.storage.get('hogwarts-stone-v1'));assert.equal(saved.muted,true);
+ await h.session.toggleSound();saved=JSON.parse(h.storage.get('hogwarts-stone-v1'));assert.equal(saved.muted,false);assert.equal(saved.audioMix.music,.23);assert.equal(h.session.state().character.revision,5);assert.equal(h.requests.length,0);
+});
+
+test('first explicit sound click unlocks audio instead of immediately muting it',async()=>{
+ const h=harness();await h.session.toggleSound();const saved=JSON.parse(h.storage.get('hogwarts-stone-v1'));assert.equal(saved.muted,false);assert.equal(h.nodes.get('sound-toggle').textContent,'声音已开');
 });

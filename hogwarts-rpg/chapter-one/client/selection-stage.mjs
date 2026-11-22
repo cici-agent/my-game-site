@@ -26,7 +26,7 @@ export function createSelectionStage({ loadCharacter = loadPlayableCharacter, sp
   const faceLight = new THREE.DirectionalLight(0xffedda, .65); faceLight.position.set(1, 3.5, 5); faceLight.target = focus; root.add(faceLight);
   const rimLight = new THREE.DirectionalLight(0xc2dcf4, .38); rimLight.position.set(-3, 2.8, -2); rimLight.target = focus; root.add(rimLight);
   if (spells?.root) root.add(spells.root);
-  const entries = new Map(), loading = new Map();
+  const entries = new Map(), loading = new Map(), aimPoint = new THREE.Vector3();
   let selected = 'harry', generation = 0, mode = 'selection', aspect = 1.6, disposed = false, time = 0;
   const ready = () => SELECTABLE_HEROES.every(id => entries.has(id));
   function home(id) { const index = SELECTABLE_HEROES.indexOf(id) - 1; return new THREE.Vector3(index * (aspect < .9 ? .89 : 1.50), 0, -.65 - (index === 0 ? .12 : 0)); }
@@ -104,7 +104,8 @@ export function createSelectionStage({ loadCharacter = loadPlayableCharacter, sp
         actor.root.rotation.y += angleDelta(actor.root.rotation.y, heading) * (1 - Math.exp(-12 * step));
       } else {
         entry.speed = 0;
-        const facing = Math.PI + (active ? 0 : .035 * Math.sin(time * .45 + SELECTABLE_HEROES.indexOf(id)));
+        const aim = active ? spells?.getAimPoint?.(id, aimPoint) : null;
+        const facing = aim ? Math.atan2(-(aim.x - p.x), -(aim.z - p.z)) : Math.PI + (active ? 0 : .035 * Math.sin(time * .45 + SELECTABLE_HEROES.indexOf(id)));
         const turn = angleDelta(actor.root.rotation.y, facing);
         actor.root.rotation.y += turn * (1 - Math.exp(-10 * step));
         if (!active) entry.phase = 'home';
