@@ -6,6 +6,7 @@ import { runtimeQuests, getSceneView } from '../chapter-one/online/catalog.mjs';
 import { createRoom, roomTargets } from '../chapter-one/dungeons/stone-route.mjs';
 import { createSceneEnvironment } from '../chapter-one/client/scene-environment.mjs';
 import { getSceneNavigation, sceneNavigationIds } from '../chapter-one/client/scene-navigation.mjs';
+import { getWorldArea, questAreaId, routeBetween } from '../chapter-one/world-atlas.mjs';
 import { canOccupy, moveWithCollisions, standingFloor, cameraCollisionFraction, telegraphDescriptor, telegraphDescriptors, visibleTargets, correctionPlan, sceneNpcTargets, chaseCameraPose, visiblePartyMembers, nameplateWidth } from '../chapter-one/client/scene-geometry.mjs';
 
 // Real geometry/layout construction, without an image decoder or GPU. Canvas
@@ -40,21 +41,28 @@ test('shared navigation matches the actual sixteen scene environments, including
     const layout = getSceneNavigation(sceneId);
     assert.deepEqual(env.bounds, layout.bounds, sceneId);
     assert.deepEqual(env.walls, layout.walls, sceneId);
-    assert(canOccupy({ x: 0, y: 0, z: 6 }, layout.walls), `${sceneId} spawn clear`);
+    const [spawnX,spawnZ]=env.spawn;assert(canOccupy({ x: spawnX, y: 0, z: spawnZ }, layout.walls), `${sceneId} spawn clear`);
     env.dispose();
   }
 });
 
 test('all 36 authored main quests and the six underground mechanism rooms have reachable interaction zones', () => {
   for (const quest of runtimeQuests) {
-    const layout = getSceneNavigation(quest.sceneId); let at = { x: 0, y: 0, z: 6 };
+    let area=getWorldArea(quest.objectives[0]?.areaId??questAreaId(quest.id)),at={...area.spawn};
+    const character={completedQuestIds:runtimeQuests.slice(0,Number(quest.id.slice(1))-1).map(q=>q.id)};
     const targets = ['M28', 'M29', 'M30', 'M31', 'M32', 'M33'].includes(quest.id)
       ? roomTargets(createRoom({ roomId: quest.id, runId: 'layout-check', playerIds: ['player'], now: 0 }))
       : quest.objectives;
     for (const target of targets) {
+      const destination=getWorldArea(target.areaId??questAreaId(quest.id));
+      if(destination.id!==area.id){
+        const route=routeBetween(area.id,destination.id,character);assert(route?.length,`${quest.id}/${target.id} has a real unlocked route`);
+        at={...route.at(-1).arrival};area=destination;
+      }
+      const layout=area.navigation;
       if (target.kind === 'boat') { at = { ...target.position, y: 0 }; assert(canOccupy(at, layout.walls), 'boat endpoint on shore'); continue; }
       const next = reachable(layout, at, target);
-      assert(next, `${quest.id}/${target.id} cannot reach its real interaction radius`); at = next;
+      assert(next, `${quest.id}/${target.id} in ${area.id} cannot reach its real interaction radius`); at = next;
     }
   }
 });
@@ -66,7 +74,7 @@ test('movement cannot tunnel through furniture or water, slides alongside walls 
   assert.equal(standingFloor({ x: 0, y: .98, z: 0 }, 1.1, wall), 1);
   assert.equal(standingFloor({ x: 0, y: .1, z: 0 }, .2, wall), 0);
   const lake = getSceneNavigation('SC03');
-  assert(moveWithCollisions({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -6 }, lake.bounds, lake.walls).z > -.7);
+  assert(moveWithCollisions({ x: 0, y: 0, z: 46 }, { x: 0, y: 0, z: 40 }, lake.bounds, lake.walls).z >= 45.299);
   assert(cameraCollisionFraction({ x: -2, y: .5, z: 0 }, { x: 2, y: .5, z: 0 }, wall) < .5);
 });
 

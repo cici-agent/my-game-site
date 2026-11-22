@@ -73,7 +73,7 @@ export function cameraCollisionFraction(from, to, walls = []) {
       if (Math.abs(delta) < 1e-6) { if (from[axis] < low || from[axis] > high) { enter = 2; break; } }
       else { let a = (low - from[axis]) / delta, b = (high - from[axis]) / delta; if (a > b) [a, b] = [b, a]; enter = Math.max(enter, a); leave = Math.min(leave, b); }
     }
-    if (enter <= leave && leave >= 0 && enter <= 1) fraction = Math.min(fraction, Math.max(.08, enter - .025));
+    if (enter <= leave && leave >= 0 && enter <= 1) fraction = Math.min(fraction, Math.max(0, enter - .025));
   }
   return fraction;
 }
@@ -90,7 +90,27 @@ export function telegraphDescriptors(attack) {
   if (attack.shape === 'circle' && attack.areas?.length) return attack.areas.map(aim => telegraphDescriptor({ ...attack, aim }));
   return [telegraphDescriptor(attack)];
 }
-export function sceneNpcTargets(view, combat) {
+// Match the actual speaker in a dialogue label before its broader quest cast.
+// Supporting actors keep stable identities across service and teaching roles.
+const npcAppearances = [
+  ['molly', /韦斯莱夫人/], ['hagrid', /(?:鲁伯[·・])?海格/],
+  ['mcgonagall', /麦格(?:教授)?/], ['flitwick', /弗立维(?:教授)?/],
+  ['dumbledore', /邓布利多(?:教授)?/], ['snape', /斯内普(?:教授)?/],
+  ['sprout', /斯普劳特(?:教授)?/], ['pomfrey', /庞弗雷夫人/],
+  ['hooch', /霍琦夫人/], ['wood', /(?:奥利弗[·・])?伍德/],
+  ['pince', /平斯夫人/], ['filch', /(?:阿格斯[·・])?费尔奇/],
+  ['draco', /德拉科(?:[·・]马尔福)?/], ['quirrell', /奇洛(?:教授)?/],
+  ['firenze', /费伦泽/], ['harry', /哈利(?:[·・]波特)?/], ['ron', /罗恩(?:[·・]韦斯莱)?/], ['hermione', /赫敏(?:[·・]格兰杰)?/], ['neville', /纳威/],
+  ['supply', /诺拉[·・]佩恩/], ['gear', /埃文[·・]里德/],
+  ['tools', /米拉[·・]格林/], ['post', /艾达[·・]莫斯/],
+];
+function npcMatch(name) {
+  return npcAppearances.map(([id, pattern]) => ({ id, match: String(name ?? '').match(pattern) }))
+    .filter(entry => entry.match).sort((a,b) => a.match.index - b.match.index)[0];
+}
+export const npcAppearanceId = name => npcMatch(name)?.id ?? 'generic';
+const knownNpcName = name => npcMatch(name)?.match[0];
+export function sceneNpcTargets(view, combat, occupiedHeroIds = []) {
   if (combat) return [];
   const result = new Map();
   for (const target of view?.targets ?? []) {
@@ -101,8 +121,15 @@ export function sceneNpcTargets(view, combat) {
   if (training && teacher) result.set(teacher, { name: teacher, position: training.position, targetId: training.id, kind: 'training' });
   const talk = (view?.targets ?? []).find(t => t.active && !t.completed && ['talk', 'escort', 'boat'].includes(t.kind));
   const namedSpeaker = talk?.label?.match(/^([^：:]{1,24})[：:]/)?.[1];
-  const knownSpeaker = namedSpeaker?.match(/韦斯莱夫人|麦格教授|弗立维教授|邓布利多(?:教授)?|斯内普(?:教授)?|斯普劳特(?:教授)?|庞弗雷夫人|海格|费伦泽|赫敏|纳威/)?.[0];
-  const guide = view?.escort, name = guide?.npc ?? talk?.npc ?? knownSpeaker ?? (talk ? view?.quest?.npc?.split(/[、，,\/|]/)[0].trim() : null);
+  const knownSpeaker = knownNpcName(namedSpeaker);
+  const guide = view?.escort;
+  let name = guide?.npc ?? talk?.npc ?? knownSpeaker ?? (talk ? view?.quest?.npc?.split(/[、，,\/|]/)[0].trim() : null);
+  // The train's story seat belongs to a missing member of the trio. Reuse that
+  // workshop character without cloning someone already controlled by the party.
+  if (view?.quest?.id === 'M02' && talk?.kind === 'talk' && !talk.npc && !knownSpeaker) {
+    const companion = ['ron', 'hermione', 'harry'].find(id => !occupiedHeroIds.includes(id));
+    name = ({ ron: '罗恩', hermione: '赫敏', harry: '哈利' })[companion] ?? null;
+  }
   if (name && (guide?.position || talk?.position)) result.set(name, { name, position: guide?.position ?? talk.position, targetId: guide?.targetId ?? talk.id, kind: guide?.kind ?? talk.kind, seated: guide?.kind === 'boat' && guide.progress > 0 && guide.progress < 1 });
   return [...result.values()];
 }
@@ -112,7 +139,7 @@ export function visibleTargets(view, combat) {
     active: Boolean(target.enabled), completed: false, actionType: 'skill', skillId: target.id === 'club' ? 'levitate' : 'interact',
   }));
   if (combat && ['won', 'lost'].includes(combat.status)) return [{ id: 'return-checkpoint', label: combat.status === 'won' ? '离开挑战，继续冒险' : '回到检查点，重新练习', kind: 'exit', position: { x: 0, y: 0, z: 6 }, radius: 2, active: true, actionType: 'retry' }];
-  const targets = (view?.targets ?? []).filter(target => target.active && !target.completed).map(target => view.escort?.targetId === target.id ? { ...target, position: view.escort.position, label: view.escort.progress > 0 ? `${view.escort.waitingForPlayer ? view.escort.npc + '停下等你' : '跟上' + view.escort.npc} · ${target.kind === 'boat' ? '渡湖中' : '同行中'}` : `与${view.escort.npc}会合 · ${target.kind === 'boat' ? '准备登船' : '开始带路'}` } : target);
+  const targets = (view?.targets ?? []).filter(target => target.active && !target.completed).map(target => view.escort?.targetId === target.id ? { ...target, position: view.escort.position, label: view.escort.progress >= 1 ? (target.kind === 'boat' ? '船已靠岸 · 下船' : '已抵达 · 继续与' + view.escort.npc + '同行') : view.escort.progress > 0 ? `${view.escort.waitingForPlayer ? view.escort.npc + '停下等你' : '跟上' + view.escort.npc} · ${target.kind === 'boat' ? '渡湖中' : '同行中'}` : `与${view.escort.npc}会合 · ${target.kind === 'boat' ? '准备登船' : '开始带路'}` } : target);
   // The server's target list owns exit eligibility; exitTarget also describes
   // locked travel UI, so it must not create an early clickable world entrance.
   return [...new Map(targets.map(target => [target.id, target])).values()];
@@ -149,6 +176,7 @@ export function visiblePartyMembers(room, character, combat, now) {
     const id = member.id ?? member.characterId;
     if (!id || id === selfId) return false;
     if (combat) return Boolean(combat.players?.[id]);
+    if (member.areaId && character?.areaId && member.areaId !== character.areaId) return false;
     if (member.sceneId && member.sceneId !== character?.sceneId) return false;
     return !Number.isFinite(member.lastSeenAt) || now - member.lastSeenAt <= 30000;
   });

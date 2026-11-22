@@ -10,6 +10,8 @@ import { getHeroStats,getLevelFromXpCents,contentVersion } from '../chapter-one/
 import { occupiedBagSlots } from '../chapter-one/rules/bag.mjs';
 import { SELECTABLE_HERO_IDS,isSelectableHero } from '../chapter-one/roster.mjs';
 import { readAccount,commit } from '../chapter-one/online/storage.mjs';
+import { resolveAreaId,getWorldArea,questAreaId,getAreaLinks,routeBetween,areaFloor } from '../chapter-one/world-atlas.mjs';
+import { walkRoute } from './helpers/stone-walk-route.mjs';
 
 const migration=await readFile(new URL('../drizzle/0009_stone_runtime.sql',import.meta.url),'utf8');
 function harness(){
@@ -24,20 +26,129 @@ function harness(){
  }
  async function stopHttp(){if(httpServer){httpServer.closeAllConnections();await new Promise(resolve=>httpServer.close(resolve));}sql.close();}
  async function create(token='a'.repeat(64),heroId='harry'){const result=await call(token,'characters',{requestId:`create-${++id}`,heroId,name:'Test student'});assert.equal(result.status,201,JSON.stringify(result));return {token,id:result.character.id,sequence:0,...result};}
- async function action(p,body){const out=await call(p.token,`characters/${p.id}/actions`,{requestId:`action-${++id}`,...body});if(out.character){p.character=out.character;p.encounter=out.encounter;p.scene=out.scene;p.room=out.room;}return out;}
+ async function action(p,body){const location={areaId:p.character.areaId,locationEpoch:p.character.locationEpoch};const packet={requestId:`action-${++id}`,...(['move','travel','transition'].includes(body.type)?location:{}),...body,...(body.movement?{movement:{...location,...body.movement}}:{})};const out=await call(p.token,`characters/${p.id}/actions`,packet);if(out.character){p.character=out.character;p.encounter=out.encounter;p.scene=out.scene;p.room=out.room;}return out;}
  async function sync(p){const out=await call(p.token,`characters/${p.id}`);if(out.character){p.character=out.character;p.encounter=out.encounter;p.scene=out.scene;p.room=out.room;}return out;}
- function edit(p,fn){const rows=sql.prepare('SELECT account_id,state FROM stone_accounts').all();const row=rows.find(r=>JSON.parse(r.state).characters.some(c=>c.id===p.id));const state=JSON.parse(row.state),c=state.characters.find(c=>c.id===p.id);fn(c,state);c.level=getLevelFromXpCents(c.xpCents);c.stats=getHeroStats(c.heroId,c.level);sql.prepare('UPDATE stone_accounts SET state=?,revision=revision+1 WHERE account_id=?').run(JSON.stringify(state),row.account_id);}
- async function move(p,point){
-  for(let n=0;n<80;n++){
-   const from=p.character.position,d=Math.hypot(point.x-from.x,point.z-from.z);if(d<.8&&Math.abs((point.y??0)-from.y)<.01)return;
+ function edit(p,fn){const rows=sql.prepare('SELECT account_id,state FROM stone_accounts').all();const row=rows.find(r=>JSON.parse(r.state).characters.some(c=>c.id===p.id));const state=JSON.parse(row.state),c=state.characters.find(c=>c.id===p.id),before={sceneId:c.sceneId,areaId:c.areaId,questId:c.currentQuestId};fn(c,state);if(c.areaId===before.areaId&&(c.sceneId!==before.sceneId||c.sceneId==='SC14'&&c.currentQuestId!==before.questId))delete c.areaId;c.level=getLevelFromXpCents(c.xpCents);c.stats=getHeroStats(c.heroId,c.level);sql.prepare('UPDATE stone_accounts SET state=?,revision=revision+1 WHERE account_id=?').run(JSON.stringify(state),row.account_id);}
+ async function move(p,point,{radius=.8}={}){
+  const area=getWorldArea(p.character.areaId),route=walkRoute(p.character.position,point,area.navigation,p=>areaFloor(area.id,p),radius);
+  for(let at=0;at<route.length;at++)for(let n=0;n<260;n++){
+   const target=route[at],last=at===route.length-1,from=p.character.position,d=Math.hypot(target.x-from.x,target.z-from.z);
+   if(d<(last?Math.min(radius,.22):.12)&&Math.abs((point.y??0)-from.y)<.01&&last)return;
+   if(!last&&d<.12)break;
    now+=500;const amount=Math.min(1,d),ratio=d?amount/d:0;
-   const out=await action(p,{type:'move',sequence:++p.sequence,position:{x:from.x+(point.x-from.x)*ratio,z:from.z+(point.z-from.z)*ratio,y:point.y??0,yaw:0},flying:(point.y??0)>.2});
+   const next={x:from.x+(target.x-from.x)*ratio,z:from.z+(target.z-from.z)*ratio},flying=(point.y??0)>areaFloor(p.character.areaId,point)+.2;
+   const out=await action(p,{type:'move',sequence:++p.sequence,position:{...next,y:flying?point.y:areaFloor(p.character.areaId,next),yaw:0},flying});
    assert.equal(out.status,200,JSON.stringify(out));
-  }throw Error('walk did not finish');
+  }throw Error(`walk did not finish in ${p.character.areaId}: ${JSON.stringify(p.character.position)} -> ${JSON.stringify(point)}`);
+ }
+ async function travel(p,areaId){
+  const destination=getWorldArea(areaId)?.id??areaId;
+  if(resolveAreaId(p.character)===destination)return;
+  const route=routeBetween(resolveAreaId(p.character),destination,p.character);assert(route,`No open route ${p.character.areaId} -> ${destination}`);
+  for(const edge of route){await move(p,edge.anchor,{radius:Math.min(.22,edge.radius*.4)});const out=await action(p,{type:'travel',edgeId:edge.id});assert.equal(out.status,200,JSON.stringify(out));if(edge.kind==='train'){assert(p.character.transit);now=p.character.transit.arriveAt;await sync(p);}}
  }
  function raw(p){for(const row of sql.prepare('SELECT state FROM stone_accounts').all()){const c=JSON.parse(row.state).characters.find(c=>c.id===p.id);if(c)return c;}}
- return {sql,DB,call,create,action,sync,edit,move,raw,startHttp,stopHttp,advance(ms){now+=ms;},get now(){return now;}};
+ return {sql,DB,call,create,action,sync,edit,move,travel,raw,startHttp,stopHttp,advance(ms){now+=ms;},get now(){return now;}};
 }
+
+test('quest completion stays in its actual area, and only adjacent door crossings change location',async()=>{
+ const h=harness(),p=await h.create();h.edit(p,c=>{c.objectiveIndex=1;c.position={...runtimeQuests[0].objectives[1].position,x:.8,yaw:.4};});await h.sync(p);
+ const before={...p.character.position};assert.equal((await h.action(p,{type:'interact',targetId:'M01-2'})).status,200);
+ assert.equal(p.character.currentQuestId,'M02');assert.equal(p.character.areaId,'SC01');assert.deepEqual(p.character.position,before);
+ assert.equal(p.scene.quest.inCurrentArea,false);assert.equal(p.scene.questAreaId,questAreaId('M02'));assert(!p.scene.targets.some(t=>t.id.startsWith('M02-')));
+ const edge=getAreaLinks('SC01').find(link=>link.to==='LONDON_PLATFORM'),source=getWorldArea('SC01'),target=getWorldArea(edge.to),xp=p.character.xpCents;
+ const result=await h.action(p,{type:'travel',edgeId:edge.id,arrival:{x:999,y:999,z:999}});assert.equal(result.status,200,JSON.stringify(result));
+ for(const axis of ['x','y','z'])assert(Math.abs(before[axis]+source.origin[axis]-p.character.position[axis]-target.origin[axis])<1e-9);
+ assert.equal(p.character.position.yaw,.4);assert.equal(p.character.xpCents,xp);assert.equal(p.character.locationEpoch,1);
+ assert.equal((await h.action(p,{type:'interact',targetId:'M02-1'})).code,'WRONG_STORY_SCENE');h.sql.close();
+});
+
+test('doors reject remote, locked and stale requests; late legacy moves cannot overwrite a new area',async()=>{
+ const h=harness(),p=await h.create(),edge=getAreaLinks('SC01')[0];
+ assert.equal((await h.action(p,{type:'travel',edgeId:edge.id})).code,'SCENE_LOCKED');
+ h.edit(p,c=>{c.completedQuestIds=['M01'];c.currentQuestId='M02';});await h.sync(p);
+ assert.equal((await h.action(p,{type:'travel',edgeId:edge.id})).code,'TOO_FAR');
+ assert.equal((await h.action(p,{type:'travel',targetId:'exit',sceneId:'SC15'})).code,'EXIT_REQUIRED');
+ h.edit(p,c=>{c.position={...edge.anchor,yaw:0};});await h.sync(p);
+ const request={type:'travel',edgeId:edge.id,areaId:p.character.areaId,locationEpoch:p.character.locationEpoch,requestId:'same-door-receipt'};
+ const crossed=await h.action(p,request);assert.equal(crossed.status,200);
+ const stored=h.raw(p),repeated=await h.action(p,request);assert(repeated.replayed);assert.equal(repeated.character.locationEpoch,1);assert.deepEqual(h.raw(p),stored);
+ const old={type:'move',sequence:99,areaId:'SC01',locationEpoch:0,position:{x:0,y:0,z:6,yaw:0}};
+ assert.equal((await h.action(p,old)).code,'LOCATION_CHANGED');
+ const legacy=await h.call(p.token,`characters/${p.id}/actions`,{type:'move',sequence:100,position:{x:0,y:0,z:6,yaw:0}});
+ assert.equal(legacy.code,'CLIENT_UPDATE_REQUIRED');assert.equal(legacy.location.areaId,edge.to);assert.deepEqual(h.raw(p),stored);h.sql.close();
+});
+
+test('finishing the train story unlocks departure without moving the player until a train intent',async()=>{
+ const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M02';c.sceneId='SC02';c.objectiveIndex=2;c.completedQuestIds=['M01'];c.position={...runtimeQuests[1].objectives[2].position,yaw:.7};});await h.sync(p);
+ const before={...p.character.position};assert.equal((await h.action(p,{type:'interact',targetId:'M02-3'})).status,200);
+ assert.equal(p.character.currentQuestId,'M03');assert.equal(p.character.areaId,'SC02_LONDON');assert.deepEqual(p.character.position,before);
+ const edge=getAreaLinks('SC02_LONDON').find(link=>link.kind==='train');await h.move(p,edge.anchor,{radius:.2});
+ const xp=p.character.xpCents,departure={type:'travel',edgeId:edge.id,requestId:'train-departure-once'};assert.equal((await h.action(p,departure)).status,200);
+ const transit={...h.raw(p).transit};assert.equal(p.character.areaId,'SC02_LONDON');assert.equal(transit.durationSeconds,120);assert.equal(p.scene.transit.remainingSeconds,120);assert(p.scene.targets.filter(t=>t.kind==='passage').every(t=>!t.active));
+ await h.move(p,{x:0,y:0,z:3});const onboard={...p.character.position},beforeRetry=h.raw(p);
+ assert.equal((await h.action(p,{...departure,areaId:'SC02_LONDON',locationEpoch:0})).replayed,true);assert.deepEqual(h.raw(p),beforeRetry,'retrying departure never restarts the persisted timer');await h.sync(p);
+ assert.equal((await h.action(p,{type:'travel',edgeId:getAreaLinks('SC02_LONDON').find(link=>link.kind==='walk').id})).code,'TRANSIT_ACTIVE');
+ assert.equal((await h.action(p,{type:'retry'})).code,'TRANSIT_ACTIVE');
+ h.advance(transit.arriveAt-h.now-1);await h.sync(p);assert.equal(p.character.areaId,'SC02_LONDON');assert.equal(p.scene.transit.remainingSeconds,1);
+ h.advance(1);await h.sync(p);assert.equal(p.character.areaId,'SC02_HOGSMEADE');assert.deepEqual(p.character.position,onboard);assert.equal(p.character.transit,null);assert.equal(p.character.xpCents,xp);
+ const epoch=p.character.locationEpoch;await h.sync(p);assert.equal(p.character.locationEpoch,epoch,'arrival occurs once');h.sql.close();
+});
+
+test('one friend crossing a door preserves every other character position and quest',async()=>{
+ const h=harness(),a=await h.create(),b=await h.create('b'.repeat(64),'hermione');await h.action(a,{type:'room-create'});await h.action(b,{type:'room-join',code:a.room.code});
+ const edge=getAreaLinks('SC01')[0];h.edit(a,c=>{c.currentQuestId='M02';c.completedQuestIds=['M01'];c.position={...edge.anchor,yaw:0};});await h.sync(a);
+ const other=h.raw(b);assert.equal((await h.action(a,{type:'travel',edgeId:edge.id})).status,200);assert.deepEqual(h.raw(b),other);
+ await h.sync(b);const peer=b.room.members.find(m=>m.id===a.id);assert.equal(peer.areaId,edge.to);assert.equal(peer.locationEpoch,1);assert.equal(b.character.areaId,'SC01');assert.equal(b.character.currentQuestId,'M01');h.sql.close();
+});
+
+test('train arrival is persisted once when an offline passenger reconnects after the deadline',async()=>{
+ const h=harness(),p=await h.create(),edge=getAreaLinks('SC02_LONDON').find(link=>link.kind==='train');
+ h.edit(p,c=>{c.currentQuestId='M03';c.sceneId='SC02';c.areaId='SC02_LONDON';c.completedQuestIds=['M01','M02'];c.position={...edge.anchor,yaw:.9};});await h.sync(p);
+ assert.equal((await h.action(p,{type:'travel',edgeId:edge.id})).status,200);const before=h.raw(p),epoch=p.character.locationEpoch;
+ h.advance(180000);assert.deepEqual(h.raw(p),before,'no browser process or in-memory timer is required');
+ const reconnect=await h.call(p.token,`characters/${p.id}`);assert.equal(reconnect.status,200);assert.equal(reconnect.character.areaId,'SC02_HOGSMEADE');assert.equal(reconnect.character.transit,null);assert.equal(reconnect.character.locationEpoch,epoch+1);assert.deepEqual(reconnect.character.position,before.position);assert.equal(reconnect.character.xpCents,before.xpCents);
+ await h.sync(p);assert.equal(p.character.locationEpoch,epoch+1);h.sql.close();
+});
+
+test('old lake saves move to the correct shore or crossing progress without replaying rewards',async()=>{
+ const h=harness();
+ for(const index of [0,1,2]){
+  const p=await h.create();h.edit(p,c=>{delete c.areaId;c.sceneId='SC03';c.currentQuestId='M03';c.objectiveIndex=index;c.completedQuestIds=['M01','M02'];c.xpCents=60000;c.wallet.coins=17;c.position={x:0,y:0,z:1,yaw:.4};c.escortOrigin={x:1.5,y:0,z:-.5};c.escort=index===2?{targetId:'M03-3',origin:{x:1.5,y:0,z:-.5},progress:.4,lastTick:h.now,near:true}:null;});
+  const before=h.raw(p);await h.sync(p);assert.equal(p.character.areaId,'SC03');assert.equal(p.character.objectiveIndex,index);assert.equal(p.character.xpCents,before.xpCents);assert.deepEqual(p.character.wallet,before.wallet);assert.deepEqual(p.character.completedQuestIds,before.completedQuestIds);assert.deepEqual(p.character.inventory,before.inventory);
+  assert.equal(p.character.position.z,index===0?66:index===1?56:26);if(index===2){assert.equal(p.scene.escort.progress,.4);assert.deepEqual(p.character.escort.origin,{x:1.5,y:0,z:46});}
+  const epoch=p.character.locationEpoch,position={...p.character.position};await h.sync(p);assert.equal(p.character.locationEpoch,epoch);assert.deepEqual(p.character.position,position);
+ }h.sql.close();
+});
+
+test('real stair travel follows the surface to ten metres without flight or forged jump height',async()=>{
+ const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M04';c.completedQuestIds=['M01','M02','M03'];c.sceneId='STAIR_G1';c.areaId='STAIR_G1';c.position={x:-3.5,y:0,z:12,yaw:0};});await h.sync(p);
+ for(const destination of [{x:-3.5,y:5,z:-10},{x:3.5,y:5,z:-10},{x:3.5,y:10,z:12}]){await h.move(p,destination,{radius:.15});assert.equal(p.character.flying,false);assert.equal(p.character.jumpMotion,null);}
+ const before={...p.character.position},edge=getAreaLinks('STAIR_G1').find(link=>link.to==='CORRIDOR_1');
+ assert.equal((await h.action(p,{type:'travel',edgeId:edge.id})).status,200);assert(Math.abs(p.character.position.y)<.0001);assert(Math.abs(before.y-(p.character.position.y+10))<.0001);
+ h.advance(500);assert.equal((await h.action(p,{type:'move',sequence:++p.sequence,position:{...p.character.position,y:10}})).code,'OUT_OF_BOUNDS');h.sql.close();
+});
+
+test('multi-room objectives require the real next room, retain the full journal and allow flight only at its field',async()=>{
+ const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M05';c.sceneId='SC05';c.areaId='SC05';c.objectiveIndex=1;c.completedQuestIds=runtimeQuests.slice(0,4).map(q=>q.id);c.position={...runtimeQuests[4].objectives[1].position,yaw:.2};});await h.sync(p);
+ const before={...p.character.position};assert.equal((await h.action(p,{type:'interact',targetId:'M05-2'})).status,200);assert.equal(p.character.objectiveIndex,2);assert.equal(p.character.areaId,'SC05');assert.deepEqual(p.character.position,before);assert.equal(p.scene.questAreaId,'SC07');assert.equal(p.scene.quest.allObjectives.length,3);assert(!p.scene.targets.some(t=>t.id==='M05-3'));assert(p.scene.route.length>0);
+ assert.equal((await h.action(p,{type:'interact',targetId:'M05-3'})).code,'WRONG_STORY_SCENE');await h.travel(p,'SC07');await h.move(p,runtimeQuests[4].objectives[2].position);assert.equal((await h.action(p,{type:'interact',targetId:'M05-3'})).status,200);assert.equal(p.character.currentQuestId,'M06');assert.equal(p.character.areaId,'SC07');
+ h.edit(p,c=>{c.currentQuestId='M24';c.objectiveIndex=2;c.completedQuestIds=runtimeQuests.slice(0,23).map(q=>q.id);c.sceneId='SC05';c.areaId='SC05';});await h.sync(p);assert.equal(p.scene.questAreaId,'SC09');assert.equal(p.scene.flight.allowed,false);
+ h.edit(p,c=>{c.sceneId='SC09';c.areaId='SC09';c.position={x:0,y:0,z:6,yaw:0};});await h.sync(p);assert.equal(p.scene.flight.allowed,true);assert(p.scene.targets.some(t=>t.id==='M24-3'&&t.active));
+ const expected={M05:['SC05','SC05','SC07'],M12:[null,null,'CORRIDOR_2'],M15:['GRYFFINDOR','SC07','CORRIDOR_2'],M19:[null,null,'SC11'],M21:[null,'SC12','SC12'],M24:[null,null,'SC09'],M26:['SC07','SC05','SC06'],M27:['SC06','SC10','SC06']};
+ for(const [id,areas]of Object.entries(expected))for(const [index,area]of areas.entries())if(area)assert.equal(runtimeQuests.find(q=>q.id===id).objectives[index].areaId,area,`${id} objective ${index}`);
+ h.sql.close();
+});
+
+test('legacy saves infer a physical area without replacing valid position, inventory or progression',async()=>{
+ const h=harness();
+ for(const [sceneId,quest]of[['SC05','M11'],['SC02','M02'],['SC14','M31']]){
+  const p=await h.create();h.edit(p,c=>{delete c.areaId;delete c.locationEpoch;c.sceneId=sceneId;c.visitSceneId=sceneId;c.currentQuestId=quest;c.position={x:.25,y:0,z:6,yaw:.31};c.wallet.coins=123;c.xpCents=500000;});
+  const before=h.raw(p);assert.equal((await h.sync(p)).status,200);
+  for(const key of ['heroId','position','xpCents','wallet','inventory','equipment','currentQuestId','completedQuestIds'])assert.deepEqual(p.character[key],before[key]);
+  assert.equal(p.character.areaId,sceneId==='SC02'?'SC02_LONDON':sceneId==='SC14'?'SC14-M31':'SC05');assert.equal(p.character.locationEpoch,0);
+ }h.sql.close();
+});
 
 test('simultaneous identical creation returns one durable character and original receipt',async()=>{
  const h=harness(),token='f'.repeat(64),body={requestId:'parallel-create',heroId:'hermione',name:'Hermione'};
@@ -110,7 +221,7 @@ test('requests replay exactly, reject changed payloads and do not share characte
  assert.equal((await h.action(p,{...body,targetId:'M01-2'})).code,'REQUEST_CONFLICT');
  for(let i=0;i<12;i++){h.advance(500);await h.sync(p);await h.move(p,p.scene.escort.position);}
  await h.action(p,{type:'interact',targetId:'M01-1'});
- await h.move(p,{x:1.5,y:0,z:-.5});await h.action(p,{type:'interact',targetId:'M01-2'});
+ await h.move(p,runtimeQuests[0].objectives[1].position);await h.action(p,{type:'interact',targetId:'M01-2'});
  assert.equal(p.character.currentQuestId,'M02');assert.equal(p.character.xpCents,20000);
  const other=await h.sync(second);assert.equal(other.character.xpCents,0);assert.equal(other.character.currentQuestId,'M01');h.sql.close();
 });
@@ -167,10 +278,12 @@ test('party snapshots expose trusted health and flight mode, distinguish jumps a
  let member=b.room.members.find(m=>m.id===a.id);assert.equal(member.flying,true);assert.equal(a.character.flying,true);assert.equal(member.hp,a.character.hp);assert.notEqual(member.hp,999999);
  h.advance(500);assert.equal((await h.action(a,{type:'move',sequence:++a.sequence,position:{x:.2,y:0,z:5,yaw:0},flying:false})).status,200);
  h.advance(500);assert.equal((await h.action(a,{type:'move',sequence:++a.sequence,position:{x:.2,y:1,z:5,yaw:0},flying:false})).status,200);assert.equal(a.character.flying,false,'a real jump after landing is not flight mode');
- h.edit(a,c=>{c.flying=true;c.position={x:0,y:0,z:-7,yaw:0};});await h.sync(a);
- assert.equal((await h.action(a,{type:'travel',targetId:'exit',sceneId:'SC04'})).status,200);assert.equal(a.character.flying,false);await h.sync(b);assert.equal(b.room.members.find(m=>m.id===a.id).flying,false);
- h.advance(500);await h.action(a,{type:'move',sequence:++a.sequence,position:{x:0,y:1,z:6,yaw:0},flying:true});assert.equal(a.character.flying,false,'a flight lesson does not authorize flying in another scene');
- h.advance(500);assert.equal((await h.action(a,{type:'move',sequence:++a.sequence,position:{x:0,y:2,z:6,yaw:0},flying:true})).code,'OUT_OF_BOUNDS');h.sql.close();
+ const edge=getAreaLinks('SC09').find(link=>link.to==='GROUNDS');h.edit(a,c=>{c.flying=true;c.position={...edge.anchor,yaw:0};});await h.sync(a);
+ assert.equal((await h.action(a,{type:'travel',edgeId:edge.id})).code,'LANDING_REQUIRED');
+ h.advance(500);await h.action(a,{type:'move',sequence:++a.sequence,position:{...a.character.position},flying:false});
+ assert.equal((await h.action(a,{type:'travel',edgeId:edge.id})).status,200);assert.equal(a.character.flying,false);await h.sync(b);assert.equal(b.room.members.find(m=>m.id===a.id).flying,false);
+ h.advance(500);await h.action(a,{type:'move',sequence:++a.sequence,position:{...a.character.position,y:1},flying:true});assert.equal(a.character.flying,false,'a flight lesson does not authorize flying in another scene');
+ h.advance(500);assert.equal((await h.action(a,{type:'move',sequence:++a.sequence,position:{...a.character.position,y:2},flying:true})).code,'OUT_OF_BOUNDS');h.sql.close();
 });
 
 test('M06 keeps trial flight through both aerial goals and requires a real landing before course completion',async()=>{
@@ -190,7 +303,7 @@ test('M06 keeps trial flight through both aerial goals and requires a real landi
  assert.equal(p.character.flying,false,'historical flying samples in the final ground packet must not keep the rider mounted');
  assert.equal(p.character.position.y,0);assert.equal((await h.action(p,{type:'interact',targetId:target.id})).status,200);
  assert.equal(p.character.currentQuestId,'M07');assert(p.character.completedQuestIds.includes('M06'));assert(p.character.skills.includes('broom'));
- assert.equal(p.character.flying,false);assert.equal(p.character.position.y,0);assert.equal(p.scene.flight.allowed,false);h.sql.close();
+ assert.equal(p.character.flying,false);assert.equal(p.character.position.y,0);assert.equal(p.character.areaId,'SC09');assert.equal(p.scene.flight.allowed,true,'the learned broom remains usable on the field after the lesson without teleporting');h.sql.close();
 });
 
 test('flight goals reject ordinary jumping and revoked flight allows descent but never a new ascent',async()=>{
@@ -218,20 +331,20 @@ test('M30 requires its real broom interaction, retains flight after key capture,
  await h.move(p,{x:0,y:1.8,z:-6});assert.equal((await h.action(p,{type:'interact',targetId:'gate'})).code,'LANDING_REQUIRED');
  for(const y of [1.2,.6,0]){h.advance(250);assert.equal((await h.action(p,{type:'move',sequence:++p.sequence,position:{...p.character.position,y},flying:true})).status,200);}
  assert.equal(p.character.flying,false);assert.equal((await h.action(p,{type:'interact',targetId:'gate'})).status,200);h.advance(1100);await h.sync(p);
- assert.equal(p.character.currentQuestId,'M31');assert(p.character.completedQuestIds.includes('M30'));assert.equal(p.character.flying,false);assert.equal(p.scene.flight.allowed,false);h.sql.close();
+ assert.equal(p.character.currentQuestId,'M31');assert(p.character.completedQuestIds.includes('M30'));assert.equal(p.character.areaId,'SC14-M30');assert.equal(p.scene.dungeon,null);assert.equal(p.character.flying,false);assert.equal(p.scene.flight.allowed,false);h.sql.close();
 });
 
 test('Hagrid escort advances over time, waits for distance and cannot be completed by one interaction',async()=>{
  const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M03';c.sceneId='SC03';c.completedQuestIds=['M01','M02'];});await h.sync(p);
- assert.deepEqual(p.scene.escort.position,{x:1.8,y:0,z:5.2});assert.notDeepEqual(p.scene.escort.position,p.character.position);
+ assert.deepEqual(p.scene.escort.position,{x:1.8,y:0,z:65.2});assert.notDeepEqual(p.scene.escort.position,p.character.position);
  const start=await h.action(p,{type:'interact',targetId:'M03-1'});assert.equal(start.status,200);assert.equal(start.character.objectiveIndex,0);assert.equal(start.scene.escort.progress,0);
- await h.move(p,{x:0,y:0,z:12});
+ await h.move(p,{x:0,y:0,z:71});
  for(let i=0;i<10;i++){h.advance(500);await h.sync(p);}
  assert(p.scene.escort.progress>0);assert(p.scene.escort.progress<1,'NPC should wait when too far');
  await h.move(p,p.scene.escort.position);
  for(let i=0;i<12&&p.scene.escort?.progress<1;i++){h.advance(500);await h.sync(p);await h.move(p,p.scene.escort.position);}
- await h.move(p,{x:-1.5,y:0,z:3});await h.action(p,{type:'interact',targetId:'M03-1'});
- assert.equal(p.character.objectiveIndex,1);assert.deepEqual(p.scene.escort.position,{x:-1.5,y:0,z:3});h.sql.close();
+ await h.move(p,{x:-1.5,y:0,z:56});await h.action(p,{type:'interact',targetId:'M03-1'});
+ assert.equal(p.character.objectiveIndex,1);assert.deepEqual(p.scene.escort.position,{x:-1.5,y:0,z:56});h.sql.close();
 });
 
 test('dungeon chess validates real timed commands and safe cells instead of a completion button',async()=>{
@@ -365,7 +478,7 @@ test('equipped robe HP reaches the UI and combat, preserving low/full/zero healt
 test('real quest XP preserves health and focus percentages across levels without healing zero resources or replaying',async()=>{
  for(const fraction of [.25,1,0]){
   const h=harness(),p=await h.create(),base=getHeroStats('harry',1);
-  h.edit(p,c=>{c.objectiveIndex=1;c.position={x:1.5,y:0,z:-.5,yaw:0};c.hp=base.hp*fraction;c.focus=base.focusMax*fraction;});await h.sync(p);
+  h.edit(p,c=>{c.objectiveIndex=1;c.position={...runtimeQuests[0].objectives[1].position,yaw:0};c.hp=base.hp*fraction;c.focus=base.focusMax*fraction;});await h.sync(p);
   const body={type:'interact',targetId:'M01-2',requestId:'level-resource-percent'};
   const first=await h.action(p,body);assert.equal(first.status,200);assert(p.character.level>1);
   const after={hp:p.character.hp,focus:p.character.focus};
@@ -426,10 +539,10 @@ test('story fights, teaching and underground actions reject matching coordinates
 test('server movement shares the narrow train carriage walls and cannot walk through the lake',async()=>{
  const h=harness(),p=await h.create();h.edit(p,c=>{c.currentQuestId='M02';c.sceneId='SC02';c.position={x:.8,y:0,z:4,yaw:0};});await h.sync(p);
  h.advance(1000);const move=await h.action(p,{type:'move',sequence:++p.sequence,position:{x:2,y:0,z:4,yaw:0}});assert.equal(move.status,200);assert(p.character.position.x<=.951);
- h.edit(p,c=>{c.currentQuestId='M03';c.sceneId='SC03';c.position={x:0,y:0,z:0,yaw:0};});await h.sync(p);
+ h.edit(p,c=>{c.currentQuestId='M03';c.sceneId='SC03';c.areaId='SC03';c.position={x:0,y:0,z:46,yaw:0};});await h.sync(p);
  const firstZ=p.character.position.z;
  for(let i=0;i<12;i++){h.advance(500);await h.action(p,{type:'move',sequence:++p.sequence,position:{x:0,y:0,z:p.character.position.z-1,yaw:0}});}
- assert(p.character.position.z>=-.651&&p.character.position.z<firstZ,'water collision must stop an ordinary walker before the water strip');h.sql.close();
+ assert(p.character.position.z>=45.299&&p.character.position.z<firstZ,'water collision must stop an ordinary walker before the water strip');h.sql.close();
 });
 
 test('first M04 defeat has no supply or skill soft lock: dodge trial, free retry and checkpoint refill',async()=>{
@@ -479,7 +592,7 @@ test('all 36 runtime quests retain catalog coverage, guard the ending and expose
  const h=harness(),p=await h.create();assert.equal(runtimeQuests.length,36);assert.equal(runtimeQuests.filter(q=>q.objectives.some(o=>['battle','boss'].includes(o.kind))).length,7);
  h.edit(p,c=>{c.currentQuestId='M36';c.sceneId='SC04';c.objectiveIndex=1;c.position={x:1.5,y:0,z:-.5,yaw:0};});await h.sync(p);
  assert.equal((await h.action(p,{type:'interact',targetId:'M36-2'})).code,'ENDING_REQUIREMENTS');
- const view=getSceneView({...p.character,currentQuestId:'M31',objectiveIndex:0});assert.equal(view.targets[0].answer,undefined);assert(view.targets[0].options.length===3);h.sql.close();
+ const view=getSceneView({...p.character,currentQuestId:'M31',objectiveIndex:0,areaId:questAreaId('M31'),sceneId:'SC14'});assert.equal(view.targets[0].answer,undefined);assert(view.targets[0].options.length===3);h.sql.close();
 });
 
 test('five real HTTP clients share a full-health troll, reconnect and preserve helper versus first-clear rewards',async t=>{
@@ -566,9 +679,10 @@ test('level-one character follows all 127 exact reward events through 36 goals a
  assert.equal(p.character.xpCents,0);
  const plans=contentData.rewardEvents.filter(e=>e.type==='practice'&&e.id.endsWith('-complete')).map(e=>({id:e.id,after:e.questId,cycleId:e.id.replace(/-\d+-complete$/,'')}));
  const completedPlans=new Set();
- async function travel(sceneId){if(p.character.sceneId===sceneId)return;await h.move(p,{x:0,y:0,z:-7});const out=await h.action(p,{type:'travel',targetId:'exit',sceneId});assert.equal(out.status,200,JSON.stringify(out));}
+ async function travel(areaId){await h.travel(p,areaId);}
  let actions=0;
  while(!p.character.chapterComplete&&actions++<400){
+  if(process.env.STONE_REPLAY_TRACE)console.error('REPLAY',actions,p.character.currentQuestId,p.character.areaId,p.character.objectiveIndex);
   if(p.encounter?.status==='won'){await h.action(p,{type:'retry'});continue;}
   const plan=plans.find(r=>!completedPlans.has(r.id)&&p.character.completedQuestIds.includes(r.after));
   if(plan){
@@ -580,15 +694,16 @@ test('level-one character follows all 127 exact reward events through 36 goals a
     const done=p.character.commissionRuns.find(r=>r.runId===runId).serverState==='completed';await h.action(p,{type:'retry'});if(done)break;
    }
    assert.equal(p.character.commissionRuns.find(r=>r.runId===runId).serverState,'completed');completedPlans.add(plan.id);
-   await travel(runtimeQuests.find(q=>q.id===p.character.currentQuestId).sceneId);continue;
+   await travel(p.scene.questAreaId);continue;
   }
+  await travel(p.scene.questAreaId);
   const scene=p.scene;
   if(scene.dungeon){
    const d=scene.dungeon;let t;
    if(d.roomId==='M31')t=d.chessCommandAt!==null?scene.targets.find(t=>t.id==='safe'):d.chessTurn<3?scene.targets.find(t=>t.id===`piece-${[0,2,1][d.chessTurn]}`):scene.targets.find(t=>t.id==='gate');
    else if(d.roomId==='M30')t=!d.flags.observe?scene.targets.find(t=>t.id==='observe'):!d.flyingPlayers.includes(p.id)?scene.targets.find(t=>t.id==='broom'):!d.flags.key?scene.targets.find(t=>t.id==='key'):scene.targets.find(t=>t.id==='gate');
    else if(d.roomId==='M33')t=!d.flags['clue-left']?scene.targets.find(t=>t.id==='clue-left'):!d.flags['clue-right']?scene.targets.find(t=>t.id==='clue-right'):!d.flags.potion?scene.targets.find(t=>t.id==='potion-1'):scene.targets.find(t=>t.id==='gate');
-   else t=scene.targets.find(t=>t.active&&!['service','training','exit','collection'].includes(t.kind));
+   else t=scene.targets.find(t=>t.active&&!['service','training','exit','passage','collection'].includes(t.kind));
    assert(t,`No dungeon target ${d.roomId}`);
    if(t.id==='key'){
     // The key moves while the player travels; stay within its capture radius.
@@ -599,10 +714,10 @@ test('level-one character follows all 127 exact reward events through 36 goals a
    const out=await h.action(p,{type:'interact',targetId:t.id});assert.equal(out.status,200,`${d.roomId}/${t.id}: ${JSON.stringify(out)}`);
    h.advance(t.durationMs+50);await h.sync(p);continue;
   }
-  const t=scene.targets.find(t=>t.active&&!['service','training','exit','collection'].includes(t.kind));assert(t,`No story target ${p.character.currentQuestId}`);
+  const t=scene.targets.find(t=>t.active&&!['service','training','exit','passage','collection'].includes(t.kind));assert(t,`No story target ${p.character.currentQuestId}`);
   if(['escort','boat'].includes(t.kind)){
    await h.move(p,scene.escort.position);assert.equal((await h.action(p,{type:'interact',targetId:t.id})).status,200);
-   for(let k=0;k<100&&p.scene.escort?.progress<1;k++){h.advance(500);await h.sync(p);if(t.kind!=='boat')await h.move(p,p.scene.escort.position);}
+   for(let k=0;k<180&&p.scene.escort?.progress<1;k++){h.advance(500);await h.sync(p);if(t.kind!=='boat')await h.move(p,p.scene.escort.position);}
    await h.move(p,t.position);await h.action(p,{type:'interact',targetId:t.id});continue;
   }
   await h.move(p,{...t.position,y:t.kind==='flight'?t.minY??1:0});
@@ -612,7 +727,7 @@ test('level-one character follows all 127 exact reward events through 36 goals a
   }else if(t.actionType==='skill'){
    const out=await h.action(p,{type:'skill',skillId:t.skillId,targetId:t.id});assert.equal(out.status,200,JSON.stringify(out));h.advance(2000);await h.sync(p);
   }else{
-   const out=await h.action(p,{type:'interact',targetId:t.id,choice:1});assert.equal(out.status,200,JSON.stringify(out));if(t.seconds){h.advance(t.seconds*1000+50);await h.sync(p);}
+   const out=await h.action(p,{type:'interact',targetId:t.id,choice:1});assert.equal(out.status,200,`${t.id} at ${JSON.stringify(p.character.position)} flying=${p.character.flying}: ${JSON.stringify(out)}`);if(t.seconds){h.advance(t.seconds*1000+50);await h.sync(p);}
   }
  }
  assert(p.character.chapterComplete,`Stopped at ${p.character.currentQuestId}`);assert.equal(p.character.completedQuestIds.length,36);assert.equal(p.character.bagCapacity,36);assert.equal(p.character.wallet.coins,440);
@@ -699,9 +814,9 @@ test('a real completed boat crossing releases player movement and polling cannot
  }
  await follow('M03-1');await follow('M03-2');
  assert.equal(p.character.objectiveIndex,2);assert.equal((await h.action(p,{type:'interact',targetId:'M03-3'})).status,200);
- const began=h.now;
- for(let n=0;n<45&&p.scene.escort.progress<1;n++){h.advance(500);await h.sync(p);}
- assert.equal(p.scene.escort.progress,1);assert.ok(h.now-began>=18000);
+ const began=h.now,departure={...p.character.position};
+ for(let n=0;n<145&&p.scene.escort.progress<1;n++){h.advance(500);await h.sync(p);}
+ assert.equal(p.scene.escort.progress,1);assert.ok(h.now-began>=70000);assert.ok(Math.hypot(p.character.position.x-departure.x,p.character.position.z-departure.z)>49.5,'the 70-second journey traverses fifty real metres');
  const arrival={...p.character.position},arrivalMoveAt=h.raw(p).lastMoveAt;
  for(let n=0;n<3;n++){h.advance(500);await h.sync(p);}
  assert.equal(h.raw(p).lastMoveAt,arrivalMoveAt,'a finished crossing cannot repeatedly reset the walking speed budget');

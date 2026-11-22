@@ -4,13 +4,15 @@ import { occupiedBagSlots } from '../rules/bag.mjs';
 import { getFlightPermission } from '../rules/flight.mjs';
 import { isSelectableHero } from '../roster.mjs';
 import { buildJournal } from '../quests/journal.mjs';
-import { runtimeQuests,questById,getSceneView,commissionUnlocked,SPAWN,ESCORT_START,BOUNDS,SERVICE_POSITION,TRAINING_POSITION,availableServices,dangerQuestIds,isSafeExploration } from './catalog.mjs';
+import { runtimeQuests,questById,activeQuestAreaId,getSceneView,commissionUnlocked,SPAWN,ESCORT_START,escortStartForQuest,BOUNDS,SERVICE_POSITION,TRAINING_POSITION,availableServices,dangerQuestIds,isSafeExploration } from './catalog.mjs';
 import { readAccount,readRoom,readReceipt,commit } from './storage.mjs';
 import { getSceneNavigation } from '../client/scene-navigation.mjs';
-import { replayMovement,standingFloor } from '../client/scene-geometry.mjs';
+import { standingFloor } from '../client/scene-geometry.mjs';
 import { WALK_SPEED,RUN_SPEED,FLIGHT_SPEED,JUMP_SPEED,JUMP_APEX,MAX_MOVE_CREDIT_SECONDS,MAX_MOVE_STEPS,movementPath } from '../movement.mjs';
 import { createEncounter,advanceEncounter,applyCombatIntent,moveCombatPlayer,getEncounterView,rewardEligibility } from '../combat/engine.mjs';
 import { createRoom,advanceRoom,applyRoomIntent } from '../dungeons/stone-route.mjs';
+import { resolveAreaId,getWorldArea,questAreaId,getAreaLinks,canUseLink,areaFloor,isAtAreaLink } from '../world-atlas.mjs';
+import { locationEpoch,currentArea,locationSnapshot,locationProblem,pinLocation,groundHeight,replayAreaMovement,arrivalIsValid,relocateCharacter } from './location.mjs';
 
 export class StoneError extends Error { constructor(code,message,status=400){super(message);this.code=code;this.status=status;} }
 const fail=(code,message,status=400)=>{throw new StoneError(code,message,status);};
@@ -31,9 +33,9 @@ const canonical=x=>Array.isArray(x)?x.map(canonical):x&&typeof x==='object'?Obje
 const questId=c=>c.activity?.questId??c.currentQuestId;
 const objectiveIndex=c=>c.activity?.objectiveIndex??c.objectiveIndex;
 const activeObjective=c=>questById.get(questId(c))?.objectives[objectiveIndex(c)];
-const inStoryScene=c=>c.sceneId===questById.get(questId(c))?.sceneId;
+const inStoryScene=c=>resolveAreaId(c)===activeQuestAreaId(c);
 function requireStoryScene(c){if(!inStoryScene(c))fail('WRONG_STORY_SCENE','请通过场景出口回到当前主线所在区域。',409);}
-const activeEncounter=(c,room)=>room?.state.encounter?.players?.[c.id]&&room.state.encounter.status==='active'?room.state.encounter:c.soloEncounter??(room?.state.encounter?.players?.[c.id]?room.state.encounter:null);
+const activeEncounter=(c,room)=>{const shared=room?.state.encounter?.players?.[c.id]&&room.state.encounter.id!==c.closedEncounterId?room.state.encounter:null;return shared?.status==='active'?shared:c.soloEncounter??shared;};
 function setEncounter(c,room,encounter){if(room?.state.encounter?.id===encounter.id)room.state.encounter=encounter;else c.soloEncounter=encounter;}
 function unlocked(c,rule={}){return c.level>=(rule.requiredLevel??1)&&(rule.requiredQuestIds??[]).every(q=>c.completedQuestIds.includes(q));}
 function recalc(c){
@@ -52,7 +54,7 @@ function createCharacter(heroId,name,now){
  const id=crypto.randomUUID();
  const c={id,characterId:id,heroId,name:name.trim(),contentVersion,revision:0,createdAt:now,lastSeenAt:now,
   xpCents:0,level:1,stats:{},hp:null,focus:null,flying:false,position:{...SPAWN},lastMoveAt:now,moveSequence:-1,moveAllowance:.12,
-  currentQuestId:'M01',sceneId:'SC01',objectiveIndex:0,completedQuestIds:[],skills:[],questReceipts:[],
+  currentQuestId:'M01',sceneId:'SC01',areaId:'SC01',locationEpoch:0,objectiveIndex:0,completedQuestIds:[],skills:[],questReceipts:[],
   inventory:[],equipment:{weapon:'ITEM-GEAR-BASE-WAND',top:'ITEM-GEAR-BASE-TOP',gloves:'ITEM-GEAR-BASE-GLOVES'},
   wallet:{coins:0,learningCredits:0},potions:{health:1,focus:1},potionPreference:{health:1,focus:1},
   tools:[],appearances:[],collectionIds:[],collectionItems:[],acceptedSideQuestIds:[],commissionRuns:[],trackedIds:[],pendingClaims:[],
@@ -76,6 +78,7 @@ function grantItem(c,itemId,key){
  return true;
 }
 function completeQuest(c,now){
+ pinLocation(c);
  const id=questId(c),q=questById.get(id),replay=!!c.activity;
  if(replay){
   for(const event of contentData.rewardEvents.filter(e=>e.questId===id&&e.type==='dungeon'&&!e.id.endsWith('run-clear')))grantXp(c,event.id,`${c.activity.runId}:${event.id}`);
@@ -86,8 +89,8 @@ function completeQuest(c,now){
     grantXp(c,'M34run-run-clear',`${c.activity.runId}:run-clear`);
     if(creditEligible)c.wallet.learningCredits+=6;
    }
-   c.activity=null;c.visitSceneId=null;c.sceneId=questById.get(c.currentQuestId)?.sceneId??'SC04';c.notice='魔法石完整重演完成，个人奖励已保存。';
-  }else{c.activity.questId=q.nextQuestId;c.activity.objectiveIndex=0;c.sceneId=questById.get(q.nextQuestId).sceneId;}
+   c.activity=null;c.notice='魔法石完整重演完成，个人奖励已保存。沿出口返回校园。';
+  }else{c.activity.questId=q.nextQuestId;c.activity.objectiveIndex=0;}
  }else if(!c.completedQuestIds.includes(id)){
   const events=contentData.rewardEvents.filter(e=>e.questId===id&&(e.type==='first_goal'||e.type==='story_enemy'||e.type==='dungeon'));
   let creditLevel=c.level;
@@ -106,15 +109,17 @@ function completeQuest(c,now){
   if(id==='M34'&&creditLevel<28&&['M28','M29','M30','M31','M32','M33'].every(x=>c.completedDungeonRooms.includes(x)))c.wallet.learningCredits+=6;
   for(const item of contentData.items)if(item.storage==='permanentTools'&&unlocked(c,item.unlock))grantItem(c,item.itemId,`unlock:${item.itemId}`);
   if(id==='M36')c.chapterComplete=true;
-  else{c.currentQuestId=q.nextQuestId;c.objectiveIndex=0;c.sceneId=questById.get(q.nextQuestId).sceneId;}
+  else{c.currentQuestId=q.nextQuestId;c.objectiveIndex=0;}
   c.notice=`已完成「${q.name}」，奖励与进度已保存。`;
  }
- c.escort=null;c.escortOrigin={...ESCORT_START};c.hold=null;c.dungeonRoom=null;c.flying=false;c.position={...SPAWN};c.lastMoveAt=now;c.visitSceneId=null;
+ c.escort=null;c.escortOrigin=escortStartForQuest(questId(c));c.hold=null;c.pendingWorldAction=null;c.dungeonRoom=null;c.visitSceneId=null;
 }
 function completeObjective(c,now){
+ const previousArea=activeQuestAreaId(c);
  if(questId(c)==='M27')grantXp(c,['M27A','M27B','M27C'][objectiveIndex(c)]);
  c.escortOrigin={...activeObjective(c).position};
  if(c.activity)c.activity.objectiveIndex++;else c.objectiveIndex++;
+ if(activeQuestAreaId(c)!==previousArea)c.escortOrigin=escortStartForQuest(questId(c));
  c.hold=null;c.escort=null;
  const q=questById.get(questId(c));
  if(objectiveIndex(c)>=q.objectives.length)completeQuest(c,now);
@@ -123,16 +128,17 @@ function completeObjective(c,now){
 function project(c,now){
  const result=clone(c);delete result.soloEncounter;delete result.questReceipts;delete result.lastMoveAt;delete result.moveSequence;delete result.xpLedger;
  result.lastAcceptedMoveSequence=c.moveSequence;
+ result.areaId=resolveAreaId(c);result.sceneId=currentArea(c).sceneId;result.locationEpoch=locationEpoch(c);
  result.bagSlotsUsed=occupiedBagSlots(c);
  result.flying=Boolean(c.flying);
- result.courseTrialSkillIds=c.currentQuestId==='M04'&&!c.completedQuestIds.includes('M04')?['bolt','dodge']:activeObjective(c)?.kind==='cast'?[activeObjective(c).skillId]:[];
+ result.courseTrialSkillIds=inStoryScene(c)?c.currentQuestId==='M04'&&!c.completedQuestIds.includes('M04')?['bolt','dodge']:activeObjective(c)?.kind==='cast'?[activeObjective(c).skillId]:[]:[];
  result.xp=getXpProgress(c.xpCents);result.progressRevision=c.revision;
  result.mainQuestStates=Object.fromEntries(contentData.quests.map(q=>[q.id,{serverState:c.completedQuestIds.includes(q.id)?'completed':q.id===c.currentQuestId?'active':'locked',confirmedObjectives:q.id===c.currentQuestId?questById.get(q.id).objectives.slice(0,c.objectiveIndex).map(o=>o.id):[]}]));
  result.commissionEntryStates=Object.fromEntries(contentData.commissionCycles.map(x=>[x.cycleId,{available:commissionUnlocked(c,x.cycleId)}]));
  result.journal=buildJournal({mainQuests:contentData.quests,sideQuests:contentData.sideQuests,commissions:contentData.journalCommissionIndex,character:result});
- result.scene=getSceneView(c,now);return result;
+ result.scene=getSceneView(c,now);result.transit=result.scene.transit;return result;
 }
-// This explicitly approved presentation-only revision preserves every numeric
+// World-layout revisions add area identities while preserving every numeric
 // progression, reward and enemy combat value from the published v13 saves.
 const compatibleSaveVersions=new Set([contentVersion,'stone-prd-v2-55cc655e22950524']);
 function characterIn(account,id){const c=account.state.characters.find(c=>c.id===id);if(!c)fail('CHARACTER_NOT_FOUND','找不到该玩家的角色。',404);if(!compatibleSaveVersions.has(c.contentVersion))fail('CONTENT_VERSION_MISMATCH','存档版本需要兼容更新，请保留恢复码。',409);return c;}
@@ -148,14 +154,14 @@ async function bodyOf(req){
  const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
  const text=new TextDecoder().decode(bytes);
  let body;try{body=JSON.parse(text);}catch{fail('INVALID_JSON','请求格式错误。');}
- const bundledMove=body?.type==='skill'&&body.movement&&typeof body.movement==='object'&&!Array.isArray(body.movement)&&Array.isArray(body.movement.steps)&&body.movement.steps.length<=MAX_MOVE_STEPS;
+ const bundledMove=['skill','travel','transition'].includes(body?.type)&&body.movement&&typeof body.movement==='object'&&!Array.isArray(body.movement)&&Array.isArray(body.movement.steps)&&body.movement.steps.length<=MAX_MOVE_STEPS;
  if(length>8192&&body?.type!=='move'&&!bundledMove)fail('BODY_TOO_LARGE','请求太大。',413);
  if(!body||typeof body!=='object'||Array.isArray(body))fail('INVALID_BODY','请求格式错误。');return body;
 }
 async function actor(req){const token=/^Bearer ([a-f0-9]{64})$/i.exec(req.headers.get('Authorization')??'')?.[1];if(!token)fail('UNAUTHORIZED','请使用原设备或恢复码进入冒险。',401);return digest(`stone-account-v1:${token.toLowerCase()}`);}
-function roomPublic(room,accounts,now){if(!room)return null;return {code:room.state.code,leaderId:room.state.leaderId,revision:room.state.revision??0,
- members:room.state.members.map(m=>{const c=accounts.find(a=>a.id===m.accountId)?.state.characters.find(c=>c.id===m.characterId);return c?{id:c.id,heroId:c.heroId,name:c.name,level:c.level,hp:c.hp,flying:Boolean(c.flying),equipment:{...c.equipment},sceneId:c.sceneId,position:c.position,currentQuestId:c.currentQuestId,lastSeenAt:c.lastSeenAt}:null;}).filter(Boolean),
- encounter:room.state.encounter?getEncounterView(room.state.encounter):null,serverTime:now};}
+function roomPublic(room,accounts,now,viewer){if(!room)return null;return {code:room.state.code,leaderId:room.state.leaderId,revision:room.state.revision??0,
+ members:room.state.members.map(m=>{const c=accounts.find(a=>a.id===m.accountId)?.state.characters.find(c=>c.id===m.characterId);return c?{id:c.id,heroId:c.heroId,name:c.name,level:c.level,hp:c.hp,flying:Boolean(c.flying),equipment:{...c.equipment},sceneId:currentArea(c).sceneId,areaId:resolveAreaId(c),locationEpoch:locationEpoch(c),position:c.position,currentQuestId:c.currentQuestId,lastSeenAt:c.lastSeenAt}:null;}).filter(Boolean),
+ encounter:room.state.encounter&&viewer?.closedEncounterId!==room.state.encounter.id?getEncounterView(room.state.encounter):null,serverTime:now};}
 
 export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRandomValues(new Uint32Array(1))[0]}={}){
  async function loadContext(db,accountId,characterId,now,roomCode){
@@ -165,7 +171,7 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
   if(room)for(const member of room.state.members)if(!accounts.some(a=>a.id===member.accountId))accounts.push(await readAccount(db,member.accountId,now));
   return {account,c,room,accounts};
  }
- function resultOf(ctx,now){return {character:project(ctx.c,now),room:roomPublic(ctx.room,ctx.accounts,now),encounter:activeEncounter(ctx.c,ctx.room)?getEncounterView(activeEncounter(ctx.c,ctx.room),ctx.c.id):null,scene:getSceneView(ctx.c,now),revision:ctx.c.revision,serverTime:now};}
+ function resultOf(ctx,now){return {character:project(ctx.c,now),room:roomPublic(ctx.room,ctx.accounts,now,ctx.c),encounter:activeEncounter(ctx.c,ctx.room)?getEncounterView(activeEncounter(ctx.c,ctx.room),ctx.c.id):null,scene:getSceneView(ctx.c,now),revision:ctx.c.revision,serverTime:now};}
  async function mutate(db,accountId,id,body,now,{sync=false}={}){
   const persistent=!sync&&body.type!=='move';
   const requestId=body.requestId;
@@ -180,9 +186,9 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
    await settleEncounter(ctx,now);
    tickWorld(ctx.c,now);
    if(!sync){
-    const rejectedPosition={...ctx.c.position},movement=body.type==='move'?body:body.type==='skill'?body.movement:null;
+    const rejectedPosition={...ctx.c.position},movement=body.type==='move'?body:['skill','travel','transition'].includes(body.type)?body.movement:null;
     try{
-     if(body.type==='skill'&&body.movement!==undefined){
+     if(['skill','travel','transition'].includes(body.type)&&body.movement!==undefined){
       if(!movement||typeof movement!=='object'||Array.isArray(movement)||(movement.type!==undefined&&movement.type!=='move'))fail('INVALID_MOVEMENT_STEPS','随施法提交的移动路径无效。');
       await applyAction(ctx,{...movement,type:'move'},now);
      }
@@ -191,6 +197,7 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
      // Both stages share one CAS/receipt: a spell rejection also rolls back its
      // preceding movement, so the client must reconcile the entire batch.
      if(movement){error.rejectedSequence=movement.sequence;error.rejectedPosition=rejectedPosition;}
+     if(['LOCATION_CHANGED','CLIENT_UPDATE_REQUIRED'].includes(error.code)){error.location={...locationSnapshot(ctx.c),...(movement?{position:rejectedPosition}:{})};}
      throw error;
     }
    }
@@ -245,9 +252,9 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
   if(body.cycleId){
    if(!near(c,TRAINING_POSITION))fail('TOO_FAR','请走到练习委托台旁。',409);
    if(!commissionUnlocked(c,body.cycleId))fail('COMMISSION_LOCKED','请先完成对应的课程或剧情。',409);
-   const entrance=contentData.journalCommissionIndex.find(x=>x.cycleId===body.cycleId);if(entrance?.initiator.sceneId!==c.sceneId)fail('WRONG_TRAINING_SCENE','请通过场景出口前往该委托所在区域。',409);
+   const entrance=contentData.journalCommissionIndex.find(x=>x.cycleId===body.cycleId);if(!entrance||getWorldArea(entrance.initiator.sceneId).id!==resolveAreaId(c))fail('WRONG_TRAINING_SCENE','请通过场景出口前往该委托所在区域。',409);
    const cycle=contentData.commissionCycles.find(x=>x.cycleId===body.cycleId);if(!cycle)fail('UNKNOWN_COMMISSION','找不到这个委托。');
-   if(cycle.cycleId==='REPLAY-STONE-M23'){c.activity={questId:'M28',objectiveIndex:0,runId:crypto.randomUUID(),completedRooms:[]};c.sceneId='SC14';c.visitSceneId=null;c.flying=false;c.position={...SPAWN};c.notice='开始完整魔法石试炼重演。';return;}
+   if(cycle.cycleId==='REPLAY-STONE-M23'){pinLocation(c);c.activity={questId:'M28',objectiveIndex:0,runId:crypto.randomUUID(),completedRooms:[]};c.visitSceneId=null;c.notice='开始完整魔法石试炼重演，沿入口进入路威房间。';return;}
    if(cycle.cycleId==='REPLAY-TROLL-M18'){kind='troll';context={mode:'replay-troll',kind};}
    else{
     let run=c.commissionRuns.find(r=>r.cycleId===cycle.cycleId&&r.serverState==='active');
@@ -272,24 +279,30 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
   if(room&&(kind==='troll'||kind==='stone')){
    for(const member of room.state.members){const other=ctx.accounts.find(a=>a.id===member.accountId)?.state.characters.find(x=>x.id===member.characterId);if(!other||other.id===c.id)continue;
     const q=kind==='troll'?'M13':'M34';
-    if((questId(other)===q||other.completedQuestIds.includes(q))&&other.sceneId===c.sceneId&&distance(other.position,c.position)<=8&&now-other.lastSeenAt<30000&&other.soloEncounter?.status!=='active')eligibleCharacters.push(other);
+    if((questId(other)===q||other.completedQuestIds.includes(q))&&resolveAreaId(other)===resolveAreaId(c)&&distance(other.position,c.position)<=8&&now-other.lastSeenAt<30000&&other.soloEncounter?.status!=='active')eligibleCharacters.push(other);
    }
   }
   if(eligibleCharacters.length>5)fail('ROOM_FULL','每支队伍最多五名玩家。',409);
   const players=eligibleCharacters.map((p,index)=>({id:p.id,heroId:p.heroId,level:p.level,stats:p.stats,...(!['troll','stone'].includes(kind)?{hp:p.hp,focus:p.focus}:{}),learnedSkillIds:!p.completedQuestIds.includes('M04')?['bolt','dodge']:p.skills,position:{x:(index-(eligibleCharacters.length-1)/2)*1.5,z:5,y:0},potions:p.potions}));
   const encounter=createEncounter({id:crypto.randomUUID(),kind,enemyId,players,now,seed:randomSeed()});encounter.runtimeContext=context;
   if(room&&(kind==='troll'||kind==='stone'))room.state.encounter=encounter;else c.soloEncounter=encounter;
-  for(const p of eligibleCharacters){if(room&&(kind==='troll'||kind==='stone'))p.soloEncounter=null;p.pendingObservation=null;p.flying=false;p.position={...p.position,...players.find(x=>x.id===p.id).position};p.lastMoveAt=now;p.moveAllowance=.12;p.notice='挑战开始，观察敌人的蓄力预告并保持移动。';}
+  for(const p of eligibleCharacters){
+   const area=pinLocation(p);p.encounterReturn={areaId:area.id,position:{...p.position}};
+   if(room&&(kind==='troll'||kind==='stone'))p.soloEncounter=null;p.closedEncounterId=null;
+   relocateCharacter(p,area.id,{...p.position,...players.find(x=>x.id===p.id).position},now);
+   p.locationReason='encounter';p.notice='挑战开始，观察敌人的蓄力预告并保持移动。';
+  }
  }
  async function applyAction(ctx,b,now){
   const {c,account}=ctx;let room=ctx.room;
   if(b.type==='move'){
+   const problem=locationProblem(c,b);if(problem)fail(problem.code,problem.message,409);
    const p=b.position;if(!p||!['x','y','z','yaw'].every(k=>Number.isFinite(p[k]??(k==='yaw'?0:NaN))))fail('INVALID_POSITION','移动位置无效。');
    if(!Number.isSafeInteger(b.sequence)||b.sequence<0)fail('INVALID_SEQUENCE','移动序号无效。');
    if(b.sequence<=c.moveSequence)return;
    const elapsed=Math.max(0,Math.min(MAX_MOVE_CREDIT_SECONDS,(now-c.lastMoveAt)/1000));
    const encounter=activeEncounter(c,room),inCombat=encounter?.status==='active';
-   const permission=getFlightPermission(c,{questId:questId(c),questSceneId:questById.get(questId(c))?.sceneId,objectiveKind:activeObjective(c)?.kind,inCombat});
+   const permission=getFlightPermission({...c,sceneId:currentArea(c).sceneId,visitSceneId:null},{questId:questId(c),questSceneId:inStoryScene(c)?getWorldArea(activeQuestAreaId(c)).sceneId:undefined,objectiveKind:activeObjective(c)?.kind,inCombat});
    const flight=Boolean(b.flying)&&permission.allowed;
    // An already-authorized airborne player may finish descending even when a
    // lesson changes objectives or the client has begun dismounting. This never
@@ -299,17 +312,20 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
    let path;try{path=movementPath(c.position,p,b.steps);}catch{fail('INVALID_MOVEMENT_STEPS','移动路径无效。');}
    const allowance=Math.min(maxSpeed*MAX_MOVE_CREDIT_SECONDS,(c.moveAllowance??.12)+maxSpeed*elapsed);
    if(path.travel>allowance+.0001)fail('MOVE_TOO_FAST','移动距离过大，已保留服务器位置。',409);
-   if([p,...path.points].some(point=>point.x< -40||point.x>40||point.z< -40||point.z>40||point.y<-.15||point.y>(flight||landing?permission.maxHeight:2.65)))fail('OUT_OF_BOUNDS','不能越过场景边界。',409);
-   const nav=getSceneNavigation(c.sceneId,{arena:inCombat?encounter.arena:undefined});
+   const nav=inCombat?getSceneNavigation(c.sceneId,{arena:encounter.arena}):currentArea(c).navigation;
+   const floorAt=point=>inCombat?standingFloor(point,point.y,nav.walls):groundHeight(c,point,nav.walls);
+   if([p,...path.points].some(point=>point.x<Math.min(-40,nav.bounds[0]-4)||point.x>Math.max(40,nav.bounds[1]+4)||point.z<Math.min(-40,nav.bounds[2]-4)||point.z>Math.max(40,nav.bounds[3]+4)||point.y<floorAt(point)-.15||point.y>floorAt(point)+(flight||landing?permission.maxHeight:2.65)))fail('OUT_OF_BOUNDS','不能越过场景边界。',409);
    if(landing&&path.ascent>1e-6)fail('LANDING_REQUIRED','请先降到地面，当前不能继续升高。',409);
    if(!flight&&!landing){
-    if(path.ascent>JUMP_SPEED*elapsed+.14)fail('MOVE_TOO_FAST','跳跃高度变化过快。',409);
-    const motionKey=String(c.sceneId)+':'+(inCombat?encounter.id:'');
+    let ascent=0,previousHeight=c.position.y-floorAt(c.position);
+    for(const point of path.points){const height=point.y-floorAt(point);ascent+=Math.max(0,height-previousHeight);previousHeight=height;}
+    if(ascent>JUMP_SPEED*elapsed+.14)fail('MOVE_TOO_FAST','跳跃高度变化过快。',409);
+    const motionKey=resolveAreaId(c)+':'+locationEpoch(c)+':'+(inCombat?encounter.id:'');
     let jump=c.jumpMotion?.key===motionKey?c.jumpMotion:null,previous=c.position;
     for(const point of path.points){
-     const floor=standingFloor(point,Math.max(previous.y,point.y),nav.walls);
+     const floor=Math.max(floorAt(point),standingFloor(point,Math.max(previous.y,point.y),nav.walls));
      if(point.y<=floor+.04){jump=null;previous=point;continue;}
-     if(!jump)jump={key:motionKey,origin:standingFloor(previous,previous.y,nav.walls),startedAt:now};
+     if(!jump)jump={key:motionKey,origin:floorAt(previous),startedAt:now};
      if(point.y>jump.origin+JUMP_APEX+.16||now-jump.startedAt>1800)fail('OUT_OF_BOUNDS','跳跃必须从地面或可站立的平台开始。',409);
      previous=point;
     }
@@ -320,10 +336,10 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
     const moved=moveCombatPlayer(encounter,{playerId:c.id,position:p,steps:b.steps,yaw:p.yaw??0,sprint:Boolean(b.sprint??b.run),now});
     setEncounter(c,room,moved);c.position={...moved.players[c.id].position,yaw:p.yaw??0};
    }else{
-    const moved=replayMovement(c.position,path.points,nav.bounds,nav.walls);
+    const moved=replayAreaMovement(c,path.points,nav,{airborne:flight||landing});
     c.position={...moved,yaw:p.yaw??0};
    }
-   c.flying=(flight||landing)&&c.position.y>standingFloor(c.position,c.position.y,nav.walls)+.08;c.lastMoveAt=now;c.moveSequence=b.sequence;
+   c.flying=(flight||landing)&&c.position.y>floorAt(c.position)+.08;c.lastMoveAt=now;c.moveSequence=b.sequence;
    updateEscort(c,now);return;
   }
   if(b.type==='interact'){
@@ -334,17 +350,17 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
     if(!applied.result.ok)fail(applied.result.code,'请观察机关提示，靠近已开放的目标再试。',409);
     c.dungeonRoom=applied.state;c.notice=applied.result.code==='COMPLETED'?'机关已完成。':'正在操作机关，请保持位置。';tickDungeon(c,now);return;
    }
-   if(!t||b.targetId!==t.id||c.visitSceneId&&c.visitSceneId!==questById.get(questId(c)).sceneId)fail('INVALID_TARGET','请跟随当前任务目标。',409);
+   if(!t||b.targetId!==t.id)fail('INVALID_TARGET','请跟随当前任务目标。',409);
    if(['battle','boss','cast'].includes(t.kind))fail('ACTION_REQUIRED','这个目标需要实际施法或完成战斗。',409);
    if(['escort','boat'].includes(t.kind)){
-    if(!c.escort&&objectiveIndex(c)===0&&(!c.escortOrigin||(c.escortOrigin.x===SPAWN.x&&c.escortOrigin.z===SPAWN.z)))c.escortOrigin={...ESCORT_START};
+    if(!c.escort&&objectiveIndex(c)===0)c.escortOrigin=escortStartForQuest(questId(c));
     if(!c.escort){if(distance(c.position,c.escortOrigin??SPAWN)>3.5)fail('TOO_FAR','请先走到引路者身旁。',409);c.escort={targetId:t.id,origin:{...(c.escortOrigin??SPAWN)},lastTick:now,progress:0,near:true};}
     updateEscort(c,now);
     if(c.escort.progress<1){c.notice=t.kind==='boat'?'船正在渡过黑湖。':'跟随引路者移动；离得太远时他会等你。';return;}
    }
    if(!near(c,t.position))fail('TOO_FAR','请走近场景中的目标。',409);
-   if(t.kind==='flight'&&(!c.flying||c.position.y<(t.minY??.6)))fail('FLIGHT_REQUIRED','请骑扫帚飞到目标高度。',409);
-   if(t.requiresLanding&&(c.flying||c.position.y>standingFloor(c.position,c.position.y,getSceneNavigation(c.sceneId).walls)+.12))fail('LANDING_REQUIRED','请先降落并收起扫帚，再完成这个目标。',409);
+   if(t.kind==='flight'&&(!c.flying||c.position.y+1e-7<(t.minY??.6)))fail('FLIGHT_REQUIRED','请骑扫帚飞到目标高度。',409);
+   if(t.requiresLanding&&(c.flying||c.position.y>groundHeight(c,c.position)+.12))fail('LANDING_REQUIRED','请先降落并收起扫帚，再完成这个目标。',409);
    if(['hold','sneak'].includes(t.kind)){
     if(!c.hold||c.hold.targetId!==t.id){c.hold={targetId:t.id,startedAt:now,position:{...c.position}};c.notice=`正在${t.label}，请保持 ${t.seconds} 秒。`;return;}
     if(now-c.hold.startedAt<t.seconds*1000){c.notice='操作还在进行，请稍候。';return;}
@@ -376,8 +392,13 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
    c.lastAction={id:b.requestId,skillId:b.skillId,startedAt:now};return;
   }
   if(b.type==='retry'){
+   if(c.transit)fail('TRANSIT_ACTIVE','列车正在行驶，请等待到站后再返回检查点。',409);
    const e=activeEncounter(c,room);if(e?.status==='active')fail('IN_COMBAT','挑战尚未结束。',409);
-   if(room?.state.encounter?.players[c.id])room.state.encounter=null;c.soloEncounter=null;c.hp=c.stats.hp;c.focus=c.stats.focusMax;c.flying=false;c.position={...SPAWN};c.lastMoveAt=now;c.notice='已回到当前检查点。';return;
+   const checkpoint=c.encounterReturn??c.checkpoint,area=checkpoint?.areaId?getWorldArea(checkpoint.areaId):currentArea(c);
+   const position=checkpoint&&arrivalIsValid(area,checkpoint.position)?checkpoint.position:area.spawn;
+   if(e&&room?.state.encounter?.id===e.id)c.closedEncounterId=e.id;c.soloEncounter=null;
+   relocateCharacter(c,area.id,position,now,{checkpoint:true});c.locationReason='checkpoint';c.encounterReturn=null;
+   c.hp=c.stats.hp;c.focus=c.stats.focusMax;c.notice='已回到本次挑战的入口，进度已保留。';return;
   }
   if(b.type==='room-create'){
    safe(c,room);if(c.roomCode)fail('ALREADY_IN_ROOM','你已经在一支队伍中。',409);
@@ -427,7 +448,8 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
    c.pendingClaims.splice(index,1);grantItem(c,id,claim.id);return;
   }
   if(b.type==='refill'){
-   safe(c,room);const checkpoint=(c.currentQuestId==='M04'||dangerQuestIds.has(questId(c)))&&near(c,SPAWN);
+   safe(c,room);const checkpointPosition=c.checkpoint?.areaId===resolveAreaId(c)?c.checkpoint.position:currentArea(c).spawn;
+   const checkpoint=inStoryScene(c)&&(c.currentQuestId==='M04'||dangerQuestIds.has(questId(c)))&&near(c,checkpointPosition);
    if(!checkpoint)safeService(c,room);
    const health=b.health??c.potionPreference.health,focus=b.focus??c.potionPreference.focus;
    if(!Number.isInteger(health)||!Number.isInteger(focus)||health<0||focus<0||health+focus!==2)fail('INVALID_POTION_ALLOCATION','每次补给请选择两瓶药剂。');
@@ -436,25 +458,45 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
   }
   if(b.type==='track'){if(!Array.isArray(b.trackedIds)||b.trackedIds.length>2||b.trackedIds.some(x=>typeof x!=='string'||x.length>128))fail('INVALID_TRACKING','最多追踪两个可选任务。');c.trackedIds=[...new Set(b.trackedIds)];return;}
   if(b.type==='side'){
-   safe(c,room);const side=contentData.sideQuests.find(x=>x.id===b.questId);if(!side||!isSafeExploration(c)||c.sceneId!==side.startNpc.sceneId||!near(c,SERVICE_POSITION)||!side.prerequisites.completedQuestIds.every(q=>c.completedQuestIds.includes(q)))fail('SIDE_LOCKED','请前往对应教授所在的已开放安全区域接受邀请。',409);
+   safe(c,room);const side=contentData.sideQuests.find(x=>x.id===b.questId);if(!side||!isSafeExploration(c)||resolveAreaId(c)!==getWorldArea(side.startNpc.sceneId).id||!near(c,SERVICE_POSITION)||!side.prerequisites.completedQuestIds.every(q=>c.completedQuestIds.includes(q)))fail('SIDE_LOCKED','请前往对应教授所在的已开放安全区域接受邀请。',409);
    if(!c.acceptedSideQuestIds.includes(side.id))c.acceptedSideQuestIds.push(side.id);return;
   }
   if(b.type==='collect'){
    safe(c,room);const side=contentData.sideQuests.find(x=>x.id===b.questId);
-   if(!side||!isSafeExploration(c)||!side.steps.some(s=>s.sceneId===c.sceneId)||!side.prerequisites.completedQuestIds.every(q=>c.completedQuestIds.includes(q))||!near(c,{x:1.5,z:-6},2))fail('COLLECTION_UNAVAILABLE','请到已开放安全场景中的收藏点观察。',409);
-   if(!c.collectionIds.includes(side.reward.collectionId)&&c.pendingObservation?.questId!==side.id)c.pendingObservation={questId:side.id,startedAt:now,sceneId:c.sceneId,position:{...c.position}};
+   if(!side||!isSafeExploration(c)||!side.steps.some(s=>getWorldArea(s.sceneId)?.id===resolveAreaId(c))||!side.prerequisites.completedQuestIds.every(q=>c.completedQuestIds.includes(q))||!near(c,{x:1.5,z:-6},2))fail('COLLECTION_UNAVAILABLE','请到已开放安全场景中的收藏点观察。',409);
+   if(!c.collectionIds.includes(side.reward.collectionId)&&c.pendingObservation?.questId!==side.id)c.pendingObservation={questId:side.id,startedAt:now,sceneId:c.sceneId,areaId:resolveAreaId(c),position:{...c.position}};
    c.notice='保持站立观察一秒，记录会自动保存。';return;
   }
-  if(b.type==='travel'){
-   safe(c,room);if(b.targetId!=='exit'||!near(c,{x:0,z:-7}))fail('EXIT_REQUIRED','请走到场景出口后选择前往地点。',409);
-   const scenes=new Set([questById.get(c.currentQuestId).sceneId,...c.completedQuestIds.flatMap(q=>contentData.questSceneMap[q]??[])]);
-   if(!scenes.has(b.sceneId))fail('SCENE_LOCKED','还没有解锁通往这里的路线。',409);
-   c.visitSceneId=b.sceneId;c.sceneId=b.sceneId;c.flying=false;c.position={...SPAWN};c.lastMoveAt=now;c.notice='已通过场景出口抵达目的地。';return;
+  if(b.type==='travel'||b.type==='transition'){
+   safe(c,room);
+   if(c.transit)fail('TRANSIT_ACTIVE','列车正在行驶，你可以在车厢里活动，请等待到站。',409);
+   const problem=locationProblem(c,b,{allowLegacy:false});if(problem)fail(problem.code,problem.message,409);
+   const from=locationSnapshot(c),edgeId=b.edgeId??b.targetId,link=getAreaLinks(from.areaId).find(link=>link.id===edgeId&&link.from===from.areaId);
+   if(!link)fail('EXIT_REQUIRED','请走到相邻区域的实际门口或交通站点，旧版地点菜单需要刷新。',409);
+   if(!canUseLink(c,link))fail('SCENE_LOCKED','当前门尚未开放，请先完成对应的课程或剧情。',409);
+   if(c.hp<=0)fail('RETRY_REQUIRED','请先在检查点恢复，再继续移动。',409);
+   if(c.flying||Math.abs(c.position.y-groundHeight(c,c.position))>.16)fail('LANDING_REQUIRED','请先落地，再穿过门口。',409);
+   if(c.escort&&activeObjective(c)?.kind==='boat'&&c.escort.progress<1)fail('BOAT_IN_TRANSIT','请等船靠岸后再离开。',409);
+   if(!isAtAreaLink(c.position,link))fail('TOO_FAR','请走近这扇门或交通站点。',409);
+   if(link.kind==='train'){
+    c.transit={edgeId:link.id,fromAreaId:from.areaId,toAreaId:link.to,startedAt:now,arriveAt:now+120000,durationSeconds:120};
+    c.notice='霍格沃茨特快已出发。你可以在车厢内活动，约两分钟后抵达。';return;
+   }
+   const source=currentArea(c),destination=getWorldArea(link.to),arrival=link.kind==='walk'?{
+    x:c.position.x+source.origin.x-destination.origin.x,
+    y:c.position.y+source.origin.y-destination.origin.y,
+    z:c.position.z+source.origin.z-destination.origin.z,yaw:c.position.yaw??0,
+   }:{...link.arrival,y:link.arrival.y??areaFloor(link.to,link.arrival)};
+   if(!arrivalIsValid(destination,arrival))fail('INVALID_ENTRY','目的地入口暂不可用，请留在当前位置。',503);
+   relocateCharacter(c,destination.id,arrival,now,{checkpoint:true});c.locationReason=link.kind;
+   c.lastTransition={id:b.requestId,edgeId:link.id,fromAreaId:from.areaId,toAreaId:destination.id,kind:link.kind,fromPosition:from.position,toPosition:{...c.position},locationEpoch:c.locationEpoch,at:now};
+   c.notice=link.kind==='train'?`已抵达${destination.name}。`:`已走入${destination.name}。`;return;
   }
   if(b.type==='learn'){safeService(c,room,'SERVICE-TOOLS');const eligible=getSkillEligibility({heroTemplateId:c.heroId,level:c.level,skillId:b.skillId,completedQuestIds:c.completedQuestIds});if(!eligible.allowed)fail('SKILL_LOCKED','请先完成课程并达到等级要求。',409);if(!c.skills.includes(b.skillId))c.skills.push(b.skillId);return;}
   fail('UNKNOWN_ACTION','暂不支持这项操作。');
  }
  function updateEscort(c,now){
+  if(!inStoryScene(c))return;
   const t=activeObjective(c);if(!t||!['escort','boat'].includes(t.kind))return;
   if(!c.escort||c.escort.targetId!==t.id)return;
   const e=c.escort,wasCrossing=e.progress<1;const npc={x:e.origin.x+(t.position.x-e.origin.x)*e.progress,z:e.origin.z+(t.position.z-e.origin.z)*e.progress};
@@ -463,9 +505,26 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
   if(t.kind==='boat'&&e.near&&wasCrossing){c.position={x:e.origin.x+(t.position.x-e.origin.x)*e.progress,y:0,z:e.origin.z+(t.position.z-e.origin.z)*e.progress,yaw:c.position.yaw};c.lastMoveAt=now;}
  }
  function tickWorld(c,now){
+  // The published lake was a short courtyard. Move only legacy lake saves to
+  // the corresponding shore/boat progress before its new water collider runs.
+  // Story steps, XP receipts and owned items are deliberately not replayed.
+  if(!c.areaId&&c.sceneId==='SC03'&&questId(c)==='M03'){
+   const index=objectiveIndex(c),objectives=questById.get('M03').objectives,oldEscort=c.escort;
+   const origin=index===0?escortStartForQuest('M03'):{...objectives[Math.max(0,index-1)].position};
+   const target=objectives[index]?.position??origin,progress=Math.max(0,Math.min(1,Number(oldEscort?.progress)||0));
+   const position=index===2&&oldEscort?{x:origin.x+(target.x-origin.x)*progress,y:0,z:origin.z+(target.z-origin.z)*progress,yaw:c.position.yaw??0}:{...(index===0?getWorldArea('SC03').spawn:origin),yaw:c.position.yaw??0};
+   relocateCharacter(c,'SC03',position,now,{checkpoint:true});c.escortOrigin={...origin};c.locationReason='layout-migration';
+   if(index===2&&oldEscort)c.escort={...oldEscort,origin:{...origin},progress,lastTick:now,near:true};
+  }
+  if(c.transit&&now>=c.transit.arriveAt){
+   const transit=c.transit,from=locationSnapshot(c),destination=getWorldArea(transit.toAreaId),position={...c.position};
+   relocateCharacter(c,destination.id,position,now,{checkpoint:true});c.transit=null;c.locationReason='train';
+   c.lastTransition={id:`train:${transit.edgeId}:${transit.startedAt}`,edgeId:transit.edgeId,fromAreaId:from.areaId,toAreaId:destination.id,kind:'train',fromPosition:from.position,toPosition:{...c.position},locationEpoch:c.locationEpoch,at:now};
+   c.notice=`列车已抵达${destination.name}，可以从车门下车。`;
+  }
   if(c.pendingObservation){
    const observation=c.pendingObservation;
-   if(!isSafeExploration(c)||c.sceneId!==observation.sceneId||distance(c.position,observation.position)>.15||Math.abs(c.position.y-observation.position.y)>.15)c.pendingObservation=null;
+   if(!isSafeExploration(c)||(observation.areaId?resolveAreaId(c)!==observation.areaId:c.sceneId!==observation.sceneId)||distance(c.position,observation.position)>.15||Math.abs(c.position.y-observation.position.y)>.15)c.pendingObservation=null;
    else if(now-observation.startedAt>=1000){
     const side=contentData.sideQuests.find(s=>s.id===observation.questId);c.pendingObservation=null;
     if(side&&!c.collectionIds.includes(side.reward.collectionId)){c.collectionIds.push(side.reward.collectionId);grantItem(c,side.reward.itemId,`collection:${side.id}`);c.notice='观察记录已收入个人收藏。';}
@@ -518,7 +577,7 @@ export function createChapterOneApi({clock=Date.now,randomSeed=()=>crypto.getRan
    if(m&&request.method==='GET'&&!m[2])return response(await mutate(db,accountId,m[1],{type:'sync'},now,{sync:true}));
    if(m&&request.method==='POST'&&m[2])return response(await mutate(db,accountId,m[1],await bodyOf(request),now));
    fail('NOT_FOUND','找不到这个游戏接口。',404);
-  }catch(e){return response({error:e instanceof StoneError?e.message:e.name==='CombatError'?'动作暂时无法执行，请检查位置、速度或目标。':'游戏服务暂时忙，请重试同一操作。',code:e.code??'SERVER_ERROR',...(Number.isSafeInteger(e.rejectedSequence)?{rejectedSequence:e.rejectedSequence,rejectedPosition:e.rejectedPosition}:{})},e.status??(e.name==='CombatError'?409:500));}
+  }catch(e){return response({error:e instanceof StoneError?e.message:e.name==='CombatError'?'动作暂时无法执行，请检查位置、速度或目标。':'游戏服务暂时忙，请重试同一操作。',code:e.code??'SERVER_ERROR',...(e.location?{location:e.location}:{}),...(Number.isSafeInteger(e.rejectedSequence)?{rejectedSequence:e.rejectedSequence,rejectedPosition:e.rejectedPosition}:{})},e.status??(e.name==='CombatError'?409:500));}
  };
 }
 export const handleChapterOne=createChapterOneApi();

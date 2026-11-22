@@ -5,6 +5,7 @@ import {readFile} from 'node:fs/promises';
 import {createChapterOneApi} from '../chapter-one/online/api.mjs';
 import {getHeroStats} from '../chapter-one/rules/index.mjs';
 import {growthData} from '../chapter-one/data/index.mjs';
+import {resolveAreaId} from '../chapter-one/world-atlas.mjs';
 
 const migration=await readFile(new URL('../drizzle/0009_stone_runtime.sql',import.meta.url),'utf8');
 function harness(){
@@ -14,8 +15,8 @@ function harness(){
  const handle=createChapterOneApi({clock:()=>now,randomSeed:()=>1827});let id;
  async function call(path,body){const response=await handle(new Request('https://qa.invalid/api/stone/'+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+'a'.repeat(64),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})}),{DB});return{status:response.status,...await response.json()};}
  const raw=()=>JSON.parse(sql.prepare('SELECT state FROM stone_accounts').get().state).characters[0];
- function edit(fn){const row=sql.prepare('SELECT account_id,state FROM stone_accounts').get(),state=JSON.parse(row.state);fn(state.characters[0]);sql.prepare('UPDATE stone_accounts SET state=?,revision=revision+1 WHERE account_id=?').run(JSON.stringify(state),row.account_id);}
- const action=body=>call(`characters/${id}/actions`,{requestId:`action-${++request}`, ...body});
+ function edit(fn){const row=sql.prepare('SELECT account_id,state FROM stone_accounts').get(),state=JSON.parse(row.state),c=state.characters[0],scene=c.sceneId;fn(c);if(c.sceneId!==scene)delete c.areaId;sql.prepare('UPDATE stone_accounts SET state=?,revision=revision+1 WHERE account_id=?').run(JSON.stringify(state),row.account_id);}
+ const action=body=>{const c=raw(),location={areaId:resolveAreaId(c),locationEpoch:c.locationEpoch??0};return call(`characters/${id}/actions`,{requestId:`action-${++request}`,...(body.type==='move'?location:{}),...body,...(body.movement?{movement:{...location,...body.movement}}:{})});};
  async function start(){const created=await call('characters',{requestId:'create-qa-student',heroId:'harry',name:'Skill transport QA'});assert.equal(created.status,201);id=created.character.id;
   edit(c=>{c.currentQuestId='M04';c.sceneId='SC04';c.objectiveIndex=1;c.completedQuestIds=['M01','M02','M03'];c.position={x:1.5,y:0,z:-.5,yaw:0};c.hp=Math.min(c.hp,100);c.focus=10;});
   const encounter=await action({type:'encounter',targetId:'M04-2'});assert.equal(encounter.status,200,JSON.stringify(encounter));return encounter;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { refineLearningSpaces } from './scene-finishing.mjs';
 
 // Physical scale is in metres. These details sit outside the existing navigation
 // footprint; they never silently introduce a new obstacle into authored quests.
@@ -91,7 +92,7 @@ export function refineArchitecture(a, group, sceneId) {
   const station = sceneId === 'SC01', hall = ['SC00', 'SC04'].includes(sceneId);
   markLegacySurfaces(group, sceneId, station || hall);
   if (sceneId === 'SC02') { refineCoach(a, group); return; }
-  if (!station && !hall) return;
+  if (!station && !hall) { refineLearningSpaces(a, group, sceneId); return; }
   const limestone = surface(a, 'stone', 0xc8bfa9, [.45, .3]);
   const darkerStone = surface(a, 'stone', 0xb0a894, [.45, .3]);
   const mortar = a.material(0x776f60), metal = a.material(0x34473f, .55), bronze = a.material(0xb49a69, .65);

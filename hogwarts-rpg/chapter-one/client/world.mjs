@@ -13,15 +13,16 @@ import { contentData } from '../data/index.mjs';
 import { abilityState } from './ability-state.mjs';
 import { createBoltVisual, createImpactVisual } from './spell-fx.mjs';
 import { createEnemyWarning, createEnemyStrike } from './enemy-fx.mjs';
-import { planJourney, createJourneyTransition, configureGateway } from './journey-transition.mjs';
+import { resolveAreaId, getWorldArea, getAreaLinks, areaFloor, isAtAreaLink } from '../world-atlas.mjs';
+import { trainPassengers, trainConversationTargets } from './train-life.mjs';
+import { createWorldStreaming, areaOffset } from './world-streaming.mjs';
 import { targetCenter, aimFromPlayer, targetingObstacles, pickAimTarget, targetAvailability, cycleAimTarget } from './targeting.mjs';
-import { moveWithCollisions, standingFloor, cameraCollisionFraction, telegraphDescriptors, visibleTargets, correctionPlan, sceneNpcTargets, chaseCameraPose, visiblePartyMembers, nameplateWidth } from './scene-geometry.mjs';
+import { moveWithCollisions, standingFloor, cameraCollisionFraction, telegraphDescriptors, visibleTargets, correctionPlan, sceneNpcTargets, npcAppearanceId, chaseCameraPose, visiblePartyMembers, nameplateWidth } from './scene-geometry.mjs';
 
 const clamp = THREE.MathUtils.clamp, damp = THREE.MathUtils.damp;
 const point = p => new THREE.Vector3(p?.x ?? 0, p?.y ?? 0, p?.z ?? 0);
 const identity = c => c?.characterId ?? c?.id;
-const npcId = name => /海格/.test(name) ? 'hagrid' : /麦格/.test(name) ? 'mcgonagall' : /弗立维/.test(name) ? 'flitwick' : /邓布利多/.test(name) ? 'dumbledore' : /韦斯莱夫人/.test(name) ? 'molly' : /纳威/.test(name) ? 'neville' : /费伦泽/.test(name) ? 'firenze' : /赫敏/.test(name) ? 'hermione' : /斯内普/.test(name) ? 'snape' : /斯普劳特/.test(name) ? 'sprout' : /庞弗雷/.test(name) ? 'pomfrey' : 'generic';
-const shortTargetLabel = target => ({ 'rescue-point': '救援同学', club: '漂浮木棒', mirror: '保护魔镜', passage: '开启通路', music: '演奏', fire: '点亮明火', key: '飞钥匙', safe: '安全棋格', gate: '通道' })[target.id] ?? ({ talk: '交谈', escort: '跟随', boat: '乘船', move: '前往', hold: '查看', collect: '拾取', collection: '观察收藏', cast: '施法练习', flight: '飞行目标', service: '补给与用品', training: '练习与委托', side: '接取委托', exit: '出口', puzzle: '调查机关' })[target.kind] ?? '互动';
+const shortTargetLabel = target => ({ 'rescue-point': '救援同学', club: '漂浮木棒', mirror: '保护魔镜', passage: '开启通路', music: '演奏', fire: '点亮明火', key: '飞钥匙', safe: '安全棋格', gate: '通道' })[target.id] ?? ({ talk: '交谈', conversation: '交谈', escort: '跟随', boat: '乘船', move: '前往', hold: '查看', collect: '拾取', collection: '观察收藏', cast: '施法练习', flight: '飞行目标', service: '补给与用品', training: '练习与委托', side: '接取委托', exit: '出口', passage: target.travelKind === 'train' ? '乘坐列车' : target.label, puzzle: '调查机关' })[target.kind] ?? '互动';
 function disposeGroup(root) {
   if (!root) return;
   const geometries = new Set(), materials = new Set(), textures = new Set();
@@ -118,7 +119,9 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   let pendingAbility = null, queuedAbility = null, heldBolt = null;
   const localCasts = new Map(), enemyStrikeEffects = [];
   let landing = false, lastFlightAt = 0, lastFlightStamp = '';
-  let journey = null, entryGateway = null, wasBoatRide = false, boarding = null;
+  let journey = null, wasBoatRide = false, boarding = null, crossing = null, crossingCooldown = 0;
+  const streaming = createWorldStreaming(scene);
+  const floorAt = (p, previousY = p.y) => Math.max(selection ? 0 : areaFloor(resolveAreaId(character), p), standingFloor(p, previousY, map?.walls));
   const serverNow = () => serverAt + Math.max(0, performance.now() - receivedAt);
   function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
   addEventListener('resize', resize); resize();
@@ -126,81 +129,39 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   function removeEnemy(entry) { disposeGroup(entry.warning); disposeGroup(entry.tag); entry.actor?.dispose(); }
   function disposeEffect(entry) { if (entry.visual) entry.visual.dispose(); else disposeGroup(entry.root); }
   function clearEffects() { for (const entry of projectiles.values()) disposeEffect(entry); projectiles.clear(); for (const flash of flashes) disposeEffect(flash); flashes.length = 0; enemyStrikeEffects.forEach(effect => effect.dispose()); enemyStrikeEffects.length = 0; }
-  function releaseRetained(old) {
-    if (!old) return;
-    old.gateway?.dispose(); old.exitGateway?.dispose(); old.map?.dispose(); old.area.removeFromParent();
-    old.npcs.forEach(removeNpc); old.enemies.forEach(removeEnemy);
-    old.peers.forEach(entry => { disposeGroup(entry.tag); entry.actor?.dispose(); });
-    old.entities.removeFromParent(); old.entities.clear();
-  }
-  function finishJourney(cancelled = false) {
-    if (!journey) return;
-    const trip = journey; journey = null;
-    trip.old.environmentTransition?.finish();
-    area.position.set(0,0,0); entities.position.set(0,0,0); targetGroup.position.set(0,0,0);
-    actor?.root.position.sub(trip.offset); camera.position.sub(trip.offset);
-    if (cancelled && actor && character?.position) actor.root.position.copy(point(character.position));
-    if (!cancelled) for (const guide of trip.old.npcs) {
-      if (guide.name !== '海格' || !guide.actor) continue;
-      const incoming = npcs.get(guide.name);
-      if (!incoming) continue; // The guide stopped at the doorway behind the camera.
-      if (incoming.actor) removeNpc(incoming);
-      incoming.actor = guide.actor; incoming.tag = guide.tag; incoming.journeyArrival = true;
-      incoming.actor.root.position.sub(trip.offset); incoming.actor.root.visible = true;
-      entities.add(incoming.actor.root);
-      guide.actor = null; guide.tag = null;
-    }
-    releaseRetained(trip.old); trip.runtime.dispose(); resetMovement();
-    if (actor) selfPose = { x:actor.root.position.x,y:actor.root.position.y,z:actor.root.position.z,yaw:actor.root.rotation.y,grounded:true,flying:false,sprint:false };
-    dy = 0; grounded = true; keys.clear(); velocity.set(0,0); onJourney?.({active:false});
-  }
-  function resetArea(sceneId, encounter, retain = false) {
+  function finishJourney() { journey = null; crossing = null; onJourney?.({ active: false }); }
+  function resetArea(sceneId, encounter) {
     sceneGeneration++; boarding = null; landing = false; resetAbilities();
-    const previousEnvironment = retain ? snapshotJourneyEnvironment(scene, area) : null;
-    const old = { area, entities, map, gateway: entryGateway, npcs:[...npcs.values()], enemies:[...enemies.values()], peers:[...peers.values()] };
-    entryGateway = null; if (!retain) releaseRetained(old);
-    npcs.clear(); enemies.clear(); peers.clear();
+    for (const entry of npcs.values()) removeNpc(entry);
+    for (const entry of enemies.values()) removeEnemy(entry);
+    for (const entry of peers.values()) { disposeGroup(entry.tag); entry.actor?.dispose(); }
+    npcs.clear(); enemies.clear(); peers.clear(); entities.clear();
     for (const object of targets.values()) disposeGroup(object); targets.clear(); clearEffects();
-    area = new THREE.Group(); entities = new THREE.Group(); scene.add(area, entities);
-    map = createSceneEnvironment(sceneId, area, { questId: view?.quest?.id ?? character?.currentQuestId, combat: encounter });
-    const navigation = getSceneNavigation(sceneId, { arena: encounter?.arena }); map.bounds = navigation.bounds; map.walls = navigation.walls;
-    if (['SC03', 'SC08', 'SC09', 'SC11', 'SC12'].includes(sceneId) || encounter) { const sky = encounter ? 0x2c4148 : ({ SC03: 0x2d4352, SC08: 0xb0bca5, SC09: 0xa6c5cc, SC11: 0x3c5363, SC12: 0x43584d })[sceneId]; scene.background = new THREE.Color(sky); scene.fog = new THREE.Fog(sky, 25, 85); }
-    const directionalTargets = [];
-    area.traverse(light => { if (light.isDirectionalLight && !light.target.parent) directionalTargets.push(light.target); });
-    directionalTargets.forEach(target => area.add(target));
-    if (retain) old.environmentTransition = blendJourneyEnvironment(scene, previousEnvironment, snapshotJourneyEnvironment(scene, area));
-    seenSelfHp = null; return old;
-  }
-  function advanceJourney(dt) {
-    const trip = journey, before = actor.root.position.clone(), state = trip.runtime.update(dt);
-    trip.old.environmentTransition?.update(state.progress);
-    trip.old.map?.update(dt,elapsed); actor.root.position.copy(point(state.position));
-    for (const entry of trip.old.npcs) {
-      if (!entry.actor) continue;
-      const p = entry.actor.root.position, prior = p.clone();
-      if (entry.name === '海格') {
-        const goal = point(state.position).add(new THREE.Vector3(-Math.sin(state.yaw) * 1.5, 0, -Math.cos(state.yaw) * 1.5));
-        if (!npcs.has(entry.name)) {
-          const plan = trip.runtime.plan, gateZ = plan.toGateway.z + trip.offset.z;
-          const forward = Math.sign(gateZ - plan.fromGateway.z), stopZ = gateZ - forward * 1.5;
-          if (!entry.journeyStop && forward * (state.position.z - stopZ) >= -1.6) entry.journeyStop = new THREE.Vector3(.84, 0, stopZ);
-          if (entry.journeyStop) goal.copy(entry.journeyStop);
-        }
-        p.lerp(goal, 1 - Math.exp(-5 * dt));
-        if (p.distanceTo(prior) > .001) entry.actor.root.rotation.y = Math.atan2(prior.x - p.x, prior.z - p.z);
-      }
-      const travel = p.distanceTo(prior);
-      entry.actor.update(dt, { speed: travel / Math.max(dt, .001), time: elapsed, action: travel > .001 ? 'walk' : 'idle' });
-      if (entry.tag) entry.tag.visible = false;
+    if (sceneId === 'SC00') {
+      if (streaming.active) streaming.clear(); else { map?.dispose(); area.removeFromParent(); }
+      area = new THREE.Group(); scene.add(area); map = createSceneEnvironment('SC00', area);
+      const nav = getSceneNavigation('SC00'); map.bounds = nav.bounds; map.walls = nav.walls;
+    } else {
+      if (!streaming.active) { map?.dispose(); area.removeFromParent(); }
+      const entry = streaming.activate(resolveAreaId(character), { questId: view?.quest?.id, combat: encounter });
+      area = entry.root; map = entry.map;
+      const nav = encounter ? getSceneNavigation(sceneId, { arena: encounter.arena }) : view?.navigation ?? entry.area.navigation;
+      map.bounds = nav.bounds; map.walls = nav.walls;
+      map.cameraWalls = nav.cameraWalls ?? nav.walls;
+      const outdoor = ['SC03','SC08','SC09','SC11','SC12'].includes(sceneId) || !/^SC/.test(entry.area.id);
+      const sky = encounter ? 0x2c4148 : outdoor ? 0x667d83 : 0x17252b;
+      scene.background = new THREE.Color(sky); scene.fog = new THREE.Fog(sky, outdoor ? 65 : 35, outdoor ? 210 : 100);
     }
-
-    actor.root.rotation.y += Math.atan2(Math.sin(state.yaw-actor.root.rotation.y),Math.cos(state.yaw-actor.root.rotation.y))*(1-Math.exp(-12*dt));
-    actor.root.visible = true; actor.setPresentationState?.({}); actor.updateTravel(dt,actor.root.position.distanceTo(before),true,0);
-    yaw += Math.atan2(Math.sin(state.yaw-yaw),Math.cos(state.yaw-yaw))*(1-Math.exp(-3*dt));
-    const pose=chaseCameraPose(actor.root.position,yaw,pitch,cameraDistance),desired=point(pose.eye);
-    camera.position.lerp(desired,1-Math.exp(-10*dt));camera.lookAt(camera.position.clone().addScaledVector(point(pose.direction),20));
-    onJourney?.({active:true,label:trip.label,progress:state.progress});
-    if(state.complete)finishJourney();
+    seenSelfHp = null;
+  }
+  function requestPassage(target) {
+    if (crossing || blocked || selection || combat || selfPose?.riding || !target?.active) return;
+    const fromAreaId = resolveAreaId(character), request = { edgeId: target.edgeId ?? target.id, fromAreaId, locationEpoch: character.locationEpoch ?? 0 };
+    crossing = request;
+    Promise.resolve(onAction?.({ type: 'travel', ...request, target })).catch(error => onError?.(error)).finally(() => {
+      if (crossing === request) crossing = null;
+      crossingCooldown = elapsed + .65;
+    });
   }
   async function prepareSelection(heroId = selected) {
     if (!selection) selectionStage(heroId);
@@ -252,27 +213,34 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   }
   function updateTargets() {
     const expected = new Set();
-    for (const target of visibleTargets(view, combat)) {
+    const occupiedHeroes = [character?.heroId, ...(room?.members ?? []).filter(member => resolveAreaId(member) === resolveAreaId(character)).map(member => member.heroId)];
+    const trainPeople = combat ? [] : trainPassengers(view, occupiedHeroes);
+    for (const target of [...visibleTargets(view, combat), ...(combat ? [] : trainConversationTargets(view, occupiedHeroes))]) {
       expected.add(target.id); let object = targets.get(target.id); const signature = JSON.stringify([target.label, target.kind, target.active]);
       if (!object || object.userData.signature !== signature) { if (object) disposeGroup(object); object = targetMarker(target); object.userData.signature = signature; targets.set(target.id, object); targetGroup.add(object); }
       object.userData.target = target; object.position.copy(point(target.position));
     }
     for (const [id, object] of targets) if (!expected.has(id)) { disposeGroup(object); targets.delete(id); }
-    const desiredNpcs = sceneNpcTargets(view, combat), allowed = new Set(desiredNpcs.map(n => n.name));
-    for (const [id, entry] of npcs) if (!allowed.has(id)) { removeNpc(entry); npcs.delete(id); }
+    const cast = new Map(trainPeople.map(person => [person.name, person]));
+    for (const npc of sceneNpcTargets(view, combat, occupiedHeroes)) { const passenger = cast.get(npc.name); cast.set(npc.name, passenger ? { ...passenger, targetId: npc.targetId, kind: npc.kind } : npc); }
+    const desiredNpcs = [...cast.values()], allowed = new Set(desiredNpcs.map(n => n.name));
+    for (const [id, entry] of npcs) if (!allowed.has(id)) {
+      if (['escort','boat','ambient'].includes(entry.kind)) { entry.kind = 'ambient'; entry.boat = false; if (entry.actor) entry.target.copy(entry.actor.root.position); }
+      else { removeNpc(entry); npcs.delete(id); }
+    }
     for (const target of desiredNpcs) {
       const { name, position } = target; let npc = npcs.get(name);
       if (!npc) {
         npc = { target: point(position), name, generation: sceneGeneration }; npcs.set(name, npc);
-        const variant = npcId(name);
-        const loading = ['hermione', 'neville'].includes(variant) ? loadPlayableCharacter(variant).then(student => ({ root: student.root, dispose: student.dispose, update(dt, state) { student.updateTravel(dt, Math.max(0, state.speed ?? 0) * dt, true, 0, state.action === 'sit'); student.setExpressionContext({ mood: 'curious', talking: state.talking }); } })) : loadNpc({ id: variant, name });
+        const variant = target.appearanceId ?? npcAppearanceId(name);
+        const loading = ['harry', 'ron', 'hermione'].includes(variant) ? loadPlayableCharacter(variant).then(student => ({ root: student.root, dispose: student.dispose, update(dt, state) { student.updateTravel(dt, Math.max(0, state.speed ?? 0) * dt, true, 0, state.action === 'sit'); student.setExpressionContext({ mood: 'curious', talking: state.talking }); } })) : loadNpc({ id: variant, name });
         loading.then(loaded => {
           if (disposed || npcs.get(name) !== npc || npc.generation !== sceneGeneration || npc.actor) { loaded.dispose(); return; }
-          npc.actor = loaded; const height = new THREE.Box3().setFromObject(loaded.root).max.y; npc.tag = label(name, '#c9dfcf'); npc.tag.scale.set(2.0, .25, 1); npc.tag.position.y = Number.isFinite(height) ? height + .22 : 2.5; loaded.root.add(npc.tag); loaded.root.position.copy(npc.target); loaded.root.rotation.y = Math.PI; entities.add(loaded.root);
-          loaded.root.visible = !(name === '海格' && journey?.old.npcs.some(entry => entry.name === name && entry.actor));
+          npc.actor = loaded; const height = new THREE.Box3().setFromObject(loaded.root).max.y; npc.tag = label(name, '#c9dfcf'); npc.tag.scale.set(2.0, .25, 1); npc.tag.position.y = Number.isFinite(height) ? height + .22 : 2.5; loaded.root.add(npc.tag); loaded.root.position.copy(npc.target); loaded.root.rotation.y = npc.facing ?? Math.PI; entities.add(loaded.root);
+          loaded.root.visible = true;
         }).catch(onError);
       }
-      npc.target.copy(point(position)); npc.boat = target.seated; npc.targetId = target.targetId;
+      npc.target.copy(point(position)); npc.boat = target.kind === 'boat' && target.seated; npc.seated = target.seated; npc.facing = target.yaw; npc.phase = target.phase; npc.targetId = target.targetId; npc.kind = target.kind;
       if (npc.boat) { npc.target.z += .85; npc.target.y = .14; }
     }
   }
@@ -389,22 +357,24 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     const compensated = sample + Math.min(250, Math.max(0, view.clientTiming?.rttMs ?? 0) / 2);
     serverAt = previous && identity(previous) === identity(character) ? Math.max(serverNow(), compensated) : compensated; receivedAt = clock;
     if (previous && identity(previous) !== identity(character)) resetAbilities();
-    const stamp = `${view.sceneId}:${combat?.id ?? ''}:${view.sceneId === 'SC14' ? view.quest?.id ?? character.currentQuestId : ''}`;
+    const areaId = resolveAreaId(character), previousAreaId = previous ? resolveAreaId(previous) : null;
+    const stamp = `${areaId}:${combat?.id ?? ''}`;
     const changed = stamp !== sceneStamp;
+    const linked = previousAreaId && previousAreaId !== areaId && getAreaLinks(previousAreaId).find(link => link.to === areaId && link.kind === 'walk');
+    const trainArrival = previousAreaId !== areaId && previous?.sceneId === 'SC02' && character.sceneId === 'SC02' && character.lastTransition?.kind === 'train';
+    const continuous = changed && actor && previous && identity(previous) === identity(character) && (linked || trainArrival) && !combat;
     if (changed) {
-      const continuing = !journey && actor && previous && identity(previous) === identity(character) && previousView && !combat && (previousView.sceneId !== view.sceneId || view.sceneId === 'SC14' && previousView.quest?.id !== view.quest?.id);
-      const plan = continuing ? planJourney({ fromSceneId:previousView.sceneId,toSceneId:view.sceneId,fromPosition:actor.root.position,toPosition:character.position,fromNavigation:{bounds:map.bounds,walls:map.walls},toNavigation:getSceneNavigation(view.sceneId),routeKey:stamp }) : null;
-      if(journey)finishJourney(true);
-      resetMovement(); clearTarget(); jumpPreparation=0; wasBoatRide=false; sceneStamp=stamp;
-      const old=resetArea(view.sceneId,combat,Boolean(plan)); dy=0;grounded=true;flying=false;stalledSnapshots=0;velocity.set(0,0);keys.clear();
-      if(plan){
-        old.map?.setTrainStopped?.(true);old.exitGateway=configureGateway(old.area,plan.fromGateway.side,{sceneId:plan.fromSceneId});
-        entryGateway=configureGateway(area,plan.toGateway.side,{sceneId:plan.toSceneId});
-        const offset=point(plan.destinationOffset),runtime=createJourneyTransition({plan});
-        area.position.copy(offset);entities.position.copy(offset);targetGroup.position.copy(offset);scene.add(runtime.root);
-        journey={old,offset,runtime,label:plan.kind==='boarding'?'沿站台登上霍格沃茨特快':plan.kind==='lakeside'?'列车已停靠 · 沿湖岸小径前行':plan.kind==='castle'?'靠岸后沿门廊走进城堡':`沿通路前往${view.name}`};
-        selfPose=null;nearest=null;lastHint='';onHint?.(null);onJourney?.({active:true,label:journey.label,progress:0});
-      }else{targetGroup.position.set(0,0,0);yaw=character.position.yaw??0;if(actor)actor.resetPresentation({position:[character.position.x,character.position.y??0,character.position.z],yaw});}
+      if (continuous && linked) {
+        const delta = point(areaOffset(previousAreaId, areaId));
+        actor.root.position.add(delta); camera.position.add(delta);
+      }
+      resetMovement(); clearTarget(); jumpPreparation = 0; wasBoatRide = false; sceneStamp = stamp;
+      resetArea(view.sceneId, combat); dy = 0; grounded = true; flying = false; stalledSnapshots = 0;
+      crossing = null; crossingCooldown = elapsed + .65; targetGroup.position.set(0, 0, 0);
+      if (!continuous) {
+        velocity.set(0, 0); keys.clear(); yaw = character.position.yaw ?? 0;
+        if (actor) actor.resetPresentation({ position: [character.position.x, character.position.y ?? 0, character.position.z], yaw });
+      }
     }
     if (!actor || selected !== character.heroId || actor.root.parent !== scene) await chooseHero(character.heroId, false);
     if (disposed || selection || snapshot !== snapshotGeneration) return;
@@ -412,7 +382,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     if (actor && !journey) {
       const p = point(character.position), ack = character.lastAcceptedMoveSequence ?? -1;
       const plan = correctionPlan(actor.root.position, p, previous?.position, stalledSnapshots, { acknowledgedSequence: ack, previousAcknowledgedSequence: previousAck, acknowledgedPosition: acknowledgedPoint(ack) });
-      if (changed || !previous || identity(previous) !== identity(character)) { actor.root.position.copy(p); velocity.set(0, 0); correction = null; }
+      if (changed || !previous || identity(previous) !== identity(character)) { actor.root.position.copy(p); if (!continuous) velocity.set(0, 0); correction = null; }
       else if (plan.mode === 'snap') { recordCorrection(point(plan.target).sub(actor.root.position));actor.root.position.copy(point(plan.target)); correction = null; }
       else if (ack > previousAck && moveHistory.has(ack)) correction = plan.mode === 'smooth' ? point(plan.delta) : null;
       else if (plan.mode === 'smooth' && plan.delta) correction = (correction ?? new THREE.Vector3()).add(point(plan.delta));
@@ -425,7 +395,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     // A completed flight objective may revoke ascent. Keep the mounted descent
     // until actual ground contact instead of submitting a high-altitude jump.
     if (flying && !canMountBroom()) { landing = true; dy = Math.min(0, dy); }
-    updateTargets(); syncPeers(); syncCombat(); map.setEscort?.(view.escort); map.setContext?.(view);
+    updateTargets(); syncPeers(); syncCombat(); map.setEscort?.(view.escort); map.setContext?.(view); map.setTrainStopped?.(!view.transit); streaming.setTransit?.(Boolean(view.transit));
   }
   function canMountBroom() {
     if (combat) return false;
@@ -445,7 +415,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     publishFlight(true); return Boolean(flying);
   }
   function getFlightState() {
-    const floor = actor ? standingFloor(actor.root.position, actor.root.position.y, map?.walls) : 0;
+    const floor = actor ? floorAt(actor.root.position) : 0;
     const available = !selection && !journey && canMountBroom(), height = Math.max(0, (actor?.root.position.y ?? 0) - floor);
     return { available, mode: flying ? landing ? 'landing' : 'flying' : 'grounded', height: Math.round(height * 100) / 100, verticalSpeed: Math.round(dy * 100) / 100, canAscend: Boolean(flying && !landing && available && !blocked), canDescend: Boolean(flying && height > .015 && !blocked), landing: Boolean(flying && landing), controls: { ascend: 'Space', descend: 'Z / Ctrl', toggle: 'X' } };
   }
@@ -468,7 +438,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   function takeMovementPacket() {
     if (!selfPose || selection || journey) return null;
     const consumed = movementSteps.splice(0, 96), position = consumed.length ? consumed.at(-1).position : selfPose;
-    return { position: { x: position.x, y: position.y, z: position.z, yaw: position.yaw }, steps: consumed.map(s => s.delta), sprint: consumed.some(s => s.sprint) || selfPose.sprint, flying: consumed.some(s=>s.flying)||selfPose.flying };
+    return { areaId: resolveAreaId(character), locationEpoch: character.locationEpoch ?? 0, position: { x: position.x, y: position.y, z: position.z, yaw: position.yaw }, steps: consumed.map(s => s.delta), sprint: consumed.some(s => s.sprint) || selfPose.sprint, flying: consumed.some(s=>s.flying)||selfPose.flying };
   }
   function rejectMovement(sequence, position) {
     const sent = acknowledgedPoint(sequence); if (!sent || !position || !actor) return;
@@ -607,7 +577,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     if (heldBolt && now >= heldBolt.nextAt) cast('bolt', null, { automatic: true });
   }
 
-  function interact() { if (nearest && !blocked && !journey && !selfPose?.riding) onAction?.({ type: nearest.actionType ?? 'interact', targetId: nearest.id, skillId: nearest.skillId, questId: nearest.questId, target: nearest }); }
+  function interact() { if (nearest?.kind === 'passage') { requestPassage(nearest); return; } if (nearest && !blocked && !journey && !selfPose?.riding) onAction?.({ type: nearest.actionType ?? 'interact', targetId: nearest.id, skillId: nearest.skillId, questId: nearest.questId, target: nearest }); }
   function inputTarget(event) { return /INPUT|TEXTAREA|SELECT/.test(event.target?.tagName) || event.target?.isContentEditable; }
   function keydown(event) {
     if (inputTarget(event) || blocked || selection || journey) return;
@@ -642,10 +612,9 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
   listen(window, 'keydown', keydown); listen(window, 'keyup', keyup); listen(window, 'blur', blur); listen(document, 'visibilitychange', () => { if (document.hidden) blur(); });
   function frame(time) {
     if (disposed) return;
-    const dt = Math.min(.05, Math.max(0, (time - lastTime) / 1000)); lastTime = time; elapsed += dt; map?.update(dt, elapsed);
+    const dt = Math.min(.05, Math.max(0, (time - lastTime) / 1000)); lastTime = time; elapsed += dt; if (selection) map?.update(dt, elapsed); else streaming.update(dt, elapsed);
     if (actor) {
       if (selection) { stage.update(dt, { aspect: camera.aspect }); actor = stage.getActor(stage.getState().selected); const pose = selectionCameraPose(camera.aspect); camera.position.lerp(new THREE.Vector3().fromArray(pose.eye), 1 - Math.exp(-5 * dt)); camera.lookAt(...pose.focus); }
-      else if(journey){advanceJourney(dt);}
       else {
         const self = combat?.players?.[identity(character)], boatPose=map.getBoatPose?.('player');
         const boat=Boolean(boatPose&&(boatPose.phase==='crossing'||boatPose.phase==='disembarking'||boatPose.phase==='boarding'&&boatPose.progress>0));
@@ -655,18 +624,18 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
         const justDisembarked=wasBoatRide&&!boat;wasBoatRide=boat;
         const downed = (self?.hp ?? character?.hp) <= 0; if (downed) flying = false;
         const awaitingConnection = movementInFlight && performance.now() - movementInFlight.at > 1500 || pendingAbility && serverNow() - pendingAbility.startedAt > 1500;
-        const canMove = !blocked && !boat && !downed && !awaitingConnection; const old = actor.root.position.clone();
+        const canMove = !blocked && !crossing && !boat && !downed && !awaitingConnection; const old = actor.root.position.clone();
         if (!blocked) { yaw += (Number(keys.has('ArrowLeft')) - Number(keys.has('ArrowRight'))) * 1.25 * dt; pitch = clamp(pitch + (Number(keys.has('ArrowDown')) - Number(keys.has('ArrowUp'))) * .70 * dt, -.35, .9); }
         let ix = canMove ? Number(keys.has('KeyD')) - Number(keys.has('KeyA')) : 0, iz = canMove ? Number(keys.has('KeyW')) - Number(keys.has('KeyS')) : 0; const length = Math.max(1, Math.hypot(ix, iz)); ix /= length; iz /= length;
         const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight'), speed = flying ? FLIGHT_SPEED : sprint ? RUN_SPEED : WALK_SPEED;
-        velocity.x = damp(velocity.x, (Math.cos(yaw) * ix - Math.sin(yaw) * iz) * speed, grounded ? 16 : 7, dt); velocity.y = damp(velocity.y, (-Math.sin(yaw) * ix - Math.cos(yaw) * iz) * speed, grounded ? 16 : 7, dt);
-        const moved = moveWithCollisions(old, { x: old.x + velocity.x * dt, y: old.y, z: old.z + velocity.y * dt }, map.bounds, map.walls); actor.root.position.set(moved.x, moved.y, moved.z);
+        if (!crossing) { velocity.x = damp(velocity.x, (Math.cos(yaw) * ix - Math.sin(yaw) * iz) * speed, grounded ? 16 : 7, dt); velocity.y = damp(velocity.y, (-Math.sin(yaw) * ix - Math.cos(yaw) * iz) * speed, grounded ? 16 : 7, dt); }
+        const moved = moveWithCollisions(old, { x: old.x + (crossing ? 0 : velocity.x * dt), y: old.y, z: old.z + (crossing ? 0 : velocity.y * dt) }, map.bounds, map.walls); actor.root.position.set(moved.x, moved.y, moved.z);
         if (grounded) coyote = .10; else coyote = Math.max(0, coyote - dt);
         if (jumpGrace > 0 && coyote > 0 && canMove && !jumpPreparation && !flying) { jumpPreparation = .11; actor.prepareJump?.({ durationMs: 110 }); jumpGrace = 0; }
         if (jumpPreparation > 0) { if (!canMove || flying) { jumpPreparation = 0; actor.cancelJumpPreparation?.(); } else { jumpPreparation = Math.max(0, jumpPreparation - dt); if (!jumpPreparation) { dy = JUMP_SPEED; grounded = false; coyote = 0; } } }
         jumpGrace = Math.max(0, jumpGrace - dt);
         if (flying) {
-          const floor = standingFloor(actor.root.position, old.y, map.walls), descend = canMove && (keys.has('KeyZ') || keys.has('ControlLeft') || keys.has('ControlRight'));
+          const floor = floorAt(actor.root.position, old.y), descend = canMove && (keys.has('KeyZ') || keys.has('ControlLeft') || keys.has('ControlRight'));
           const ascend = canMove && !landing && canMountBroom() && keys.has('Space');
           const descending = landing || descend;
           // Z/Ctrl and automatic landing win if Space is also held. A blocked
@@ -679,7 +648,7 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
           if (descending && nextY <= floor + .005) { actor.root.position.y = floor; dy = 0; grounded = true; flying = false; landing = false; }
           else if (actor.root.position.y >= maximum && dy > 0) dy = 0;
         }
-        else { dy -= GRAVITY * dt; actor.root.position.y += dy * dt; const floor = standingFloor(actor.root.position, old.y, map.walls); if (actor.root.position.y <= floor) { actor.root.position.y = floor; dy = 0; grounded = true; } else grounded = false; }
+        else { const oldFloor = floorAt(old, old.y); const newFloor = floorAt(actor.root.position, old.y); if (grounded && dy <= 0 && old.y <= oldFloor + .04) actor.root.position.y = newFloor; dy -= GRAVITY * dt; actor.root.position.y += dy * dt; const floor = newFloor; if (actor.root.position.y <= floor) { actor.root.position.y = floor; dy = 0; grounded = true; } else grounded = false; }
         const voluntary = actor.root.position.clone().sub(old);
         if (boat) {
           const seat = point(boatPose.position);
@@ -698,14 +667,35 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
         }
         const travel = boat ? 0 : Math.hypot(actor.root.position.x - old.x, actor.root.position.z - old.z);
         if (travel > .001) { const angle = Math.atan2(old.x - actor.root.position.x, old.z - actor.root.position.z); actor.root.rotation.y += Math.atan2(Math.sin(angle - actor.root.rotation.y), Math.cos(angle - actor.root.rotation.y)) * (1 - Math.exp(-14 * dt)); }
-        actor.setPresentationState?.({ flying, downed, floorY: standingFloor(actor.root.position, old.y, map.walls) });
+        actor.setPresentationState?.({ flying, downed, floorY: floorAt(actor.root.position, old.y) });
         actor.updateTravel(dt, boat&&!seatedBoat?actor.root.position.distanceTo(old):travel, grounded, dy, seatedBoat);
         selfPose = { x: actor.root.position.x, y: actor.root.position.y, z: actor.root.position.z, yaw: actor.root.rotation.y, grounded, flying, riding:boat, sprint: sprint || Math.hypot(velocity.x, velocity.y) > WALK_SPEED * 1.2 }; if (!boat && voluntary.lengthSq() > 1e-10) movementSteps.push({ delta: { dx: voluntary.x, dy: voluntary.y, dz: voluntary.z }, position: { ...selfPose }, sprint: selfPose.sprint, flying:selfPose.flying }); if(justDisembarked){movementSteps=[{delta:{dx:selfPose.x-character.position.x,dy:selfPose.y-(character.position.y??0),dz:selfPose.z-character.position.z},position:{...selfPose},sprint:false,flying:false}];} onPose?.(selfPose);
-        const pose = chaseCameraPose(actor.root.position, yaw, pitch, cameraDistance), focus = point(pose.focus), desired = point(pose.eye);
-        desired.lerpVectors(focus, desired, cameraCollisionFraction(focus, desired, map.walls)); camera.position.lerp(desired, 1 - Math.exp(-15 * dt)); camera.lookAt(camera.position.clone().addScaledVector(point(pose.direction), 20)); actor.root.visible = camera.position.distanceTo(focus) > .45;
+        const cameraAnchor = boat ? actor.root.position.clone().add(new THREE.Vector3(0, .9, 0)) : actor.root.position;
+        const pose = chaseCameraPose(cameraAnchor, yaw, boat ? clamp(pitch + .12, -.12, .72) : pitch, cameraDistance + (boat ? 3.7 : 0));
+        // On the lake, frame both passengers from above and slightly beside the
+        // boat. Hagrid's broad silhouette stays clear of the view of the castle;
+        // yaw and pitch still come from the player's normal camera controls.
+        if (boat) { pose.eye.x += Math.cos(yaw) * 1.1; pose.eye.z -= Math.sin(yaw) * 1.1; }
+        const focus = point(pose.focus), desired = point(pose.eye);
+        const cameraWalls = map.cameraWalls ?? map.walls;
+        desired.lerpVectors(focus, desired, cameraCollisionFraction(focus, desired, cameraWalls));
+        camera.position.lerp(desired, 1 - Math.exp(-15 * dt));
+        // A smoothed camera can already be beyond a wall after a doorway,
+        // snapshot or fast turn. Constrain the rendered position as well as its
+        // desired destination so interpolation never reveals a wall interior.
+        camera.position.lerpVectors(focus, camera.position, cameraCollisionFraction(focus, camera.position, cameraWalls));
+        camera.lookAt(camera.position.clone().addScaledVector(point(pose.direction), 20)); actor.root.visible = camera.position.distanceTo(focus) > .45;
 
-        nearest = null; let nearestDistance = Infinity;
-        for (const object of targets.values()) { const target = object.userData.target, distance = actor.root.position.distanceTo(point(target.position)); if (target.active && !target.completed && distance < nearestDistance && distance < (target.radius ?? 2) + .15) { nearestDistance = distance; nearest = target; } if (object.userData.tag) { const cameraDistance = scaleNameplate(object.userData.tag, object.position, 1.1); object.userData.tag.visible = distance < 3.8 && cameraDistance > 2.3; } if (object.userData.indicator) { object.userData.indicator.rotation.y += dt; object.userData.indicator.position.y = 1.32 + Math.sin(elapsed * 2) * .04; } }
+        nearest = null; let nearestDistance = Infinity, nearestPriority = -1;
+        for (const object of targets.values()) { const target = object.userData.target, distance = actor.root.position.distanceTo(point(target.position)); const link = target.kind === 'passage' ? getAreaLinks(resolveAreaId(character)).find(link => link.id === target.edgeId) : null; const closeEnough = link ? isAtAreaLink(actor.root.position, link) : distance < (target.radius ?? 2) + .15; const priority = target.kind === 'conversation' ? 0 : 1; if (target.active && !target.completed && closeEnough && (priority > nearestPriority || priority === nearestPriority && distance < nearestDistance)) { nearestPriority = priority; nearestDistance = distance; nearest = target; } if (object.userData.tag) { const cameraDistance = scaleNameplate(object.userData.tag, object.position, 1.1); object.userData.tag.visible = distance < 3.8 && cameraDistance > 2.3; } if (object.userData.indicator) { object.userData.indicator.rotation.y += dt; object.userData.indicator.position.y = 1.32 + Math.sin(elapsed * 2) * .04; } }
+        if (!crossing && elapsed > crossingCooldown && canMove && grounded && travel > .001) {
+          const passage = [...targets.values()].map(object => object.userData.target).find(target => {
+            if (target.kind !== 'passage' || target.travelKind !== 'walk' || !target.active) return false;
+            const link = getAreaLinks(resolveAreaId(character)).find(link => link.id === target.edgeId);
+            return link && isAtAreaLink(actor.root.position, link, { normalTolerance: .45 }) && voluntary.x * link.normal.x + voluntary.z * link.normal.z > .00001;
+          });
+          if (passage) requestPassage(passage);
+        }
         const hint = nearest ? `${nearest.id}/${Math.floor(nearestDistance)}/${nearest.label}/${nearest.active}` : ''; if (hint !== lastHint) { lastHint = hint; onHint?.(nearest, nearestDistance); }
       }
     }
@@ -728,8 +718,13 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
       else p.lerp(entry.target,1-Math.exp(-6*dt));const travel=p.distanceTo(before);
       if (travel > .001 && !aboard) entry.actor.root.rotation.y = Math.atan2(before.x - p.x, before.z - p.z);
       const npcDistance = actor ? actor.root.position.distanceTo(p) : Infinity;
+      const engaged = nearest?.id === entry.targetId && ['talk','conversation','service','training','side'].includes(nearest?.kind);
+      if (engaged && travel <= .001 && !aboard && !entry.seated && actor) {
+        const facing = Math.atan2(p.x - actor.root.position.x, p.z - actor.root.position.z);
+        entry.actor.root.rotation.y += Math.atan2(Math.sin(facing - entry.actor.root.rotation.y), Math.cos(facing - entry.actor.root.rotation.y)) * (1 - Math.exp(-5 * dt));
+      }
       const tagCameraDistance = scaleNameplate(entry.tag, p, 1.4); entry.tag.visible = !journey && npcDistance > (entry.name.includes('海格') ? 2.6 : 1.2) && npcDistance < 7 && tagCameraDistance > 2.8;
-      entry.actor.update(dt, { speed: dt ? travel / dt : 0, time: elapsed, action: aboard&&boatPose.seated ? 'sit' : travel > .001 ? 'walk' : 'idle', lookAt: actor?.root.position, talking: nearest?.id === entry.targetId && nearest?.kind === 'talk' });
+      entry.actor.update(dt, { speed: dt ? travel / dt : 0, time: elapsed, action: aboard&&boatPose.seated || entry.seated ? 'sit' : travel > .001 ? 'walk' : 'idle', lookAt: npcDistance < 6 && !aboard ? actor?.root.position : undefined, talking: engaged || entry.kind === 'passenger' && Math.sin(elapsed * .6 + (entry.phase ?? 0)) > .7, engaged, interactionKind: entry.kind });
     }
     for (const entry of enemies.values()) {
       const before = entry.root.position.clone(); entry.root.position.lerp(entry.target, 1 - Math.exp(-12 * dt));
@@ -746,5 +741,5 @@ export function createStoneWorld(canvas, { onAction, onPose, onHint, onError, on
     updateAim(); advanceAbilityInput(); publishFlight(); renderer.render(scene, camera); frameId = requestAnimationFrame(frame);
   }
   selectionStage(); frameId = requestAnimationFrame(frame);
-  return { prepareSelection, chooseHero, selectionStage, setSnapshot, cast, getFlightState, getAbilitySnapshot, setAbilityRequestStatus, interact, clearTarget, getAimState: () => aimState, noteMovementSent, takeMovementPacket, rejectMovement, getSelectionState: () => stage.getState(), getPose: () => selfPose, getNearest: () => nearest, setBlocked(value) { blocked = value; if (value) stopAbilityInput(); keys.clear(); velocity.set(0, 0); }, setFlying, getRendererInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, environmentMaterials: area.userData.materialState ?? 'unmarked', pbrSurfaces: area.userData.pbrSurfaces ?? 0 }), dispose() { resetAbilities(); finishJourney(true); entryGateway?.dispose(); disposed = true; generation++; sceneGeneration++; cancelAnimationFrame(frameId); removeEventListener('resize', resize); for (const [target, type, handler, options] of listeners) target.removeEventListener(type, handler, options); stage.dispose(); for (const legacy of legacyActors.values()) legacy.dispose(); for (const entry of peers.values()) { disposeGroup(entry.tag); entry.actor?.dispose(); } for (const entry of npcs.values()) removeNpc(entry); for (const entry of enemies.values()) removeEnemy(entry); for (const object of targets.values()) disposeGroup(object); clearEffects(); disposeGroup(contactShadow); targetRing.geometry.dispose(); targetRing.material.dispose(); targetRing.removeFromParent(); map?.dispose(); renderer.dispose(); } };
+  return { prepareSelection, chooseHero, selectionStage, setSnapshot, cast, getFlightState, getAbilitySnapshot, setAbilityRequestStatus, interact, clearTarget, getAimState: () => aimState, noteMovementSent, takeMovementPacket, rejectMovement, getSelectionState: () => stage.getState(), getPose: () => selfPose, getNearest: () => nearest, getLocationState: () => ({ areaId: character ? resolveAreaId(character) : null, locationEpoch: character?.locationEpoch ?? 0, player: actor?.root.position.toArray(), camera: camera.position.toArray(), residentAreas: streaming.entries.map(entry => ({ id: entry.area.id, offset: entry.root.position.toArray() })), crossing: crossing?.edgeId ?? null }), setBlocked(value) { blocked = value; if (value) stopAbilityInput(); keys.clear(); velocity.set(0, 0); }, setFlying, getRendererInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, environmentMaterials: area.userData.materialState ?? 'unmarked', pbrSurfaces: area.userData.pbrSurfaces ?? 0 }), dispose() { resetAbilities(); finishJourney(true); disposed = true; generation++; sceneGeneration++; cancelAnimationFrame(frameId); removeEventListener('resize', resize); for (const [target, type, handler, options] of listeners) target.removeEventListener(type, handler, options); stage.dispose(); for (const legacy of legacyActors.values()) legacy.dispose(); for (const entry of peers.values()) { disposeGroup(entry.tag); entry.actor?.dispose(); } for (const entry of npcs.values()) removeNpc(entry); for (const entry of enemies.values()) removeEnemy(entry); for (const object of targets.values()) disposeGroup(object); clearEffects(); disposeGroup(contactShadow); targetRing.geometry.dispose(); targetRing.material.dispose(); targetRing.removeFromParent(); if (streaming.active) streaming.dispose(); else map?.dispose(); renderer.dispose(); } };
 }

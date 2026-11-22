@@ -1,12 +1,18 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createAvatarMotion, createLimbRig } from '../../world/avatar-motion.mjs';
+import { createNpcFace } from './npc-face.mjs';
+import { createNpcHair } from './npc-hair.mjs';
+import { addNpcAttire, addNpcOccupationProp } from './npc-attire.mjs';
+import { fitNpcProportions } from './npc-proportions.mjs';
 
 // Independently authored supporting actors. The three protected workshop GLBs are
 // never imported or modified here. Smooth geometry, fabric/skin microstructure and
 // articulated joints use a restrained palette compatible with their PBR materials.
 export function createSculptureKit() {
-  const geometries = new Set(), materials = new Set(), textures = new Set();
+  const geometries = new Set(), materials = new Set(), textures = new Set(), instanceMeshes = new Set();
+  let disposed = false;
+  const trackInstance = node => (instanceMeshes.add(node), node);
   const geometry = g => (geometries.add(g), g);
   const material = options => { const m = new THREE.MeshStandardMaterial(options); materials.add(m); return m; };
   function texture(kind = 'cloth', size = 64) {
@@ -42,7 +48,7 @@ export function createSculptureKit() {
   };
   function instances(parent, m, transforms, shape = 'sphere') {
     const g = geometry(shape === 'curl' ? new THREE.TorusGeometry(1, .30, 4, 9) : shape === 'cylinder' ? new THREE.CylinderGeometry(1, 1, 1, 8) : new THREE.SphereGeometry(1, shape === 'fiber' ? 8 : 14, shape === 'fiber' ? 6 : 10));
-    const model = new THREE.InstancedMesh(g, m, transforms.length), dummy = new THREE.Object3D();
+    const model = trackInstance(new THREE.InstancedMesh(g, m, transforms.length)), dummy = new THREE.Object3D();
     transforms.forEach((t, i) => { dummy.position.set(...t.position); dummy.scale.set(...t.scale); dummy.rotation.set(...(t.rotation ?? [0, 0, 0])); dummy.updateMatrix(); model.setMatrixAt(i, dummy.matrix); });
     model.instanceMatrix.needsUpdate = true; model.castShadow = true; model.receiveShadow = true; parent.add(model); return model;
   }
@@ -66,12 +72,16 @@ export function createSculptureKit() {
     }
     return added;
   }
-  function dispose() { for (const g of geometries) g.dispose(); for (const m of materials) m.dispose(); for (const t of textures) t.dispose(); }
-  return { geometry, material, texture, mesh, oval, tube, lathe, instances, bake, dispose, geometries, materials };
+  function dispose() {
+    if (disposed) return; disposed = true;
+    for (const node of instanceMeshes) node.dispose(); instanceMeshes.clear();
+    for (const g of geometries) g.dispose(); for (const m of materials) m.dispose(); for (const t of textures) t.dispose();
+  }
+  return { geometry, material, texture, mesh, oval, tube, lathe, instances, trackInstance, bake, dispose, geometries, materials };
 }
 
 const designs = {
-  hagrid: { name: '鲁伯·海格', scale: 1.56, width: 1.26, skin: '#b98668', cloth: '#66513b', hair: '#2c211b', beard: true, longHair: true, coat: true },
+  hagrid: { name: '鲁伯·海格', scale: 1.56, width: 1.26, skin: '#b98668', cloth: '#66513b', hair: '#3d2b20', beard: true, longHair: true, coat: true },
   mcgonagall: { name: '麦格教授', scale: 1.14, width: .96, skin: '#c99d85', cloth: '#254c41', hair: '#393b38', hat: true, glasses: true, bun: true },
   flitwick: { name: '弗立维教授', scale: .78, width: 1.05, skin: '#c7a388', cloth: '#4c4059', hair: '#b4b0a1', beard: true, glasses: true },
   snape: { name: '斯内普教授', scale: 1.17, width: .94, skin: '#c4b2a1', cloth: '#22252c', hair: '#17191d', longHair: true },
@@ -80,6 +90,17 @@ const designs = {
   pomfrey: { name: '庞弗雷夫人', scale: 1.09, width: 1.02, skin: '#c89f87', cloth: '#d0c8b4', hair: '#7b6a59', bun: true },
   sprout: { name: '斯普劳特教授', scale: 1.04, width: 1.14, skin: '#c39172', cloth: '#6c6650', hair: '#70604e', hat: true, longHair: true },
   molly: { name: '韦斯莱夫人', scale: 1.05, width: 1.12, skin: '#cda084', cloth: '#78534e', hair: '#8d462b', bun: true },
+  hooch: { name: '霍琦夫人', scale: 1.09, width: .98, skin: '#c8a58d', cloth: '#715c3e', hair: '#c3c1b1', flight: true },
+  wood: { name: '奥利弗·伍德', scale: 1.05, width: 1.04, skin: '#c49a7a', cloth: '#68383a', hair: '#3c2e27', student: true, flight: true },
+  pince: { name: '平斯夫人', scale: 1.10, width: .92, skin: '#c6ad98', cloth: '#343e46', hair: '#47403b', bun: true, glasses: true, book: true },
+  filch: { name: '阿格斯·费尔奇', scale: 1.12, width: .97, skin: '#b59880', cloth: '#585145', hair: '#686052', longHair: true, caretaker: true },
+  neville: { name: '纳威·隆巴顿', scale: .96, width: 1.04, skin: '#d0af92', cloth: '#574b43', hair: '#69503b', student: true },
+  draco: { name: '德拉科·马尔福', scale: .97, width: .95, skin: '#d1b9a2', cloth: '#25362f', hair: '#c7b684', student: true },
+  supply: { name: '诺拉·佩恩', scale: 1.05, width: 1.06, skin: '#b78d72', cloth: '#536650', hair: '#4b3526', bun: true, apron: true },
+  gear: { name: '埃文·里德', scale: 1.12, width: 1.08, skin: '#b89175', cloth: '#4f576b', hair: '#59483e', apron: true },
+  tools: { name: '米拉·格林', scale: 1.04, width: .98, skin: '#cba28a', cloth: '#586a6a', hair: '#845b3d', bun: true, glasses: true },
+  post: { name: '艾达·莫斯', scale: 1.06, width: 1.01, skin: '#c19a7f', cloth: '#786149', hair: '#4c4039', bun: true },
+  trolley: { name: '糖果车女巫', scale: 1.02, width: 1.03, skin: '#cba58b', cloth: '#66546b', hair: '#a9a69a', bun: true, apron: true },
   generic: { name: '学校职员', scale: 1.1, width: 1, skin: '#bc997f', cloth: '#53605b', hair: '#615346' },
 };
 const pivot = (parent, name, x, y, z) => { const group = new THREE.Group(); group.name = name; group.position.set(x, y, z); parent.add(group); return group; };
@@ -91,7 +112,7 @@ export function createNpc({ id = 'hagrid', scale = 1 } = {}) {
   const wool = texture('cloth'), pores = texture('skin');
   const skin = material({ color: design.skin, roughness: .68, bumpMap: pores, bumpScale: .0018 });
   const skinWarm = material({ color: new THREE.Color(design.skin).multiplyScalar(.91), roughness: .77 });
-  const cloth = material({ color: design.cloth, roughness: .95, bumpMap: wool, bumpScale: .0023 });
+  const cloth = material({ color: design.cloth, roughness: .87, bumpMap: wool, bumpScale: .0015 });
   const edge = material({ color: new THREE.Color(design.cloth).multiplyScalar(.7), roughness: .9, bumpMap: wool, bumpScale: .0015 });
   const hair = material({ color: design.hair, roughness: .9 });
   const hairLight = material({ color: new THREE.Color(design.hair).multiplyScalar(1.2), roughness: .88 });
@@ -99,16 +120,14 @@ export function createNpc({ id = 'hagrid', scale = 1 } = {}) {
   const sole = material({ color: '#171817', roughness: 1 });
   const brass = material({ color: '#92754c', metalness: .62, roughness: .43 });
   const ivory = material({ color: '#dfd6bd', roughness: .82 });
-  const sclera = material({ color: '#e7dcc9', roughness: .3 });
-  const iris = material({ color: id === 'hagrid' ? '#30231d' : '#4c5b55', roughness: .25 });
-  const pupil = material({ color: '#111311', roughness: .18 });
   const root = new THREE.Group(); root.name = `DetailedNPC:${id}`;
   const body = pivot(root, 'Body', 0, 0, 0); body.scale.set(design.scale * design.width * scale, design.scale * scale, design.scale * scale);
   const head = pivot(body, 'Head', 0, 1.53, 0);
+  head.scale.setScalar(id === 'hagrid' ? .86 : id === 'flitwick' ? .82 : .75);
   const torsoRings = design.coat ? [[.29, 0], [.30, .06], [.31, .30], [.32, .45], [.315, .65], [.27, .80], [.12, .88]] : [[.32, 0], [.31, .1], [.255, .45], [.24, .65], [.27, .79], [.11, .87]];
   lathe(body, cloth, torsoRings, [0, .47, 0], [1, 1, .72], .024);
   lathe(body, edge, [[.31, 0], [.31, .028]], [0, .472, 0], [1, 1, .73]);
-  oval(body, ivory, [0, 1.28, -.102], [.115, .15, .046]);
+  oval(body, id === 'snape' ? edge : ivory, [0, 1.32, -.075], [.063, .061, .021]);
   for (const side of [-1, 1]) {
     tube(body, edge, [[side * .13, 1.35, -.08], [side * .25, 1.21, -.15], [side * .09, 1.01, -.21]], .014);
     for (let i = 0; i < 4; i++) tube(body, edge, [[side * (.15 + i * .034), .55, -.19], [side * (.13 + i * .032), .70, -.205], [side * (.12 + i * .028), .87, -.19]], .0025);
@@ -121,67 +140,8 @@ export function createNpc({ id = 'hagrid', scale = 1 } = {}) {
     mesh(body, new THREE.TorusGeometry(.034, .006, 8, 20), brass, [.035, .905, -.243], [1.1, .75, 1]);
     oval(body, leather, [.245, .71, .08], [.082, .11, .10]);
   }
-  // One continuous cheek/nose/jaw surface removes the stacked-sphere seams.
-  const face = new THREE.SphereGeometry(1, 64, 48), facePosition = face.attributes.position;
-  for (let i = 0; i < facePosition.count; i++) {
-    const nx = facePosition.getX(i), ny = facePosition.getY(i), nz = facePosition.getZ(i);
-    const x = nx * .172 * (1 - Math.max(0, -ny) * .13), y = ny * .223 - .005;
-    const front = Math.max(0, -nz) ** 5;
-    const bridge = Math.exp(-((x / .024) ** 2) - (((y + .002) / .073) ** 2)) * (id === 'snape' ? .068 : .047);
-    const tip = Math.exp(-((x / .031) ** 2) - (((y + .043) / .025) ** 2)) * .024;
-    const cheeks = Math.exp(-(((Math.abs(x) - .09) / .048) ** 2) - (((y + .049) / .043) ** 2)) * .012;
-    facePosition.setXYZ(i, x, y, nz * .154 - .006 - front * (bridge + tip + cheeks));
-  }
-  face.computeVertexNormals(); mesh(head, face, skin);
-  oval(head, skin, [0, -.22, .01], [.079, .1, .074]);
-  const lids = [];
-  for (const side of [-1, 1]) {
-    oval(head, skin, [side * .17, .002, .001], [.037, .063, .034]);
-    oval(head, skinWarm, [side * .184, .002, -.022], [.019, .038, .008]);
-    oval(head, sclera, [side * .068, .035, -.143], [.026, .014, .013]);
-    oval(head, iris, [side * .068, .035, -.154], [.011, .0115, .004]);
-    oval(head, pupil, [side * .068, .035, -.157], [.0058, .0075, .002]);
-    oval(head, ivory, [side * .065, .039, -.159], [.0017, .0017, .001]);
-    const lid = oval(head, skin, [side * .068, .049, -.149], [.027, .006, .008]); lid.userData.keepSeparate = true; lids.push(lid);
-    tube(head, skinWarm, [[side * .042, .026, -.145], [side * .068, .020, -.153], [side * .095, .027, -.14]], .0018);
-    oval(head, hair, [side * .068, .071, -.139], [.041, .007, .009], [0, 0, side * .09]);
-    if (design.glasses) mesh(head, new THREE.TorusGeometry(.042, .0035, 6, 24), brass, [side * .067, .035, -.176], [1.05, .82, 1]);
-  }
-  if (design.glasses) tube(head, brass, [[-.022, .038, -.178], [0, .046, -.187], [.022, .038, -.178]], .003);
-  for (const side of [-1, 1]) oval(head, skinWarm, [side * .017, -.055, -.177], [.006, .003, .003]);
-  tube(head, skinWarm, [[-.038, -.089, -.141], [0, -.095, -.152], [.038, -.089, -.141]], .004);
-  for (let i = 0; i < 3; i++) tube(head, skinWarm, [[-.066, .116 + i * .018, -.133], [0, .12 + i * .018, -.144], [.066, .116 + i * .018, -.133]], .0007);
-  oval(head, hair, [0, .145, .018], [.179, .118, .16]);
-  if (design.longHair) for (const side of [-1, 1]) oval(head, hair, [side * .16, -.05, .035], [.066, .25, .10]);
-  const locks = [];
-  const hairCount = design.longHair ? 380 : 130;
-  for (let i = 0; i < hairCount; i++) {
-    const a = i * 2.399963, ring = i / hairCount;
-    const x = Math.sin(a) * (.155 + .015 * Math.sin(i * 1.7)), z = Math.cos(a) * .145 + .02;
-    if (z < -.08 && ring > .40) continue;
-    locks.push({ position: [x, .17 - ring * (design.longHair ? .46 : .19), z], scale: [.011 + .003 * Math.sin(i), design.longHair ? .035 : .023, .012], rotation: [.16 * Math.sin(i), .1 * Math.cos(i), .25 * Math.sin(a)] });
-  }
-  instances(head, hairLight, locks, 'fiber');
-  if (id === 'hagrid') {
-    const curls = [];
-    for (let i = 0; i < 400; i++) {
-      const a = i * 2.399963, h = Math.sin(i * 37.12) * .5 + .5, radius = Math.sqrt(1 - h * h);
-      curls.push({ position: [Math.sin(a) * .181 * radius, .13 + h * .13, .018 + Math.cos(a) * .163 * radius], scale: [.011, .013, .010], rotation: [a, h * 4, i * .7] });
-    }
-    instances(head, hairLight, curls, 'curl');
-  }
-  if (design.bun) oval(head, hair, [0, .16, .175], [.10, .095, .08]);
-  if (design.beard) {
-    const beard = [];
-    const length = design.longBeard ? .48 : id === 'hagrid' ? .32 : .22;
-    oval(head, hair, [0, -.09 - length * .45, -.10], [.147, length * .57, .072]);
-    for (let i = 0; i < 460; i++) {
-      const p = (Math.sin(i * 23.31) + 1) * .5, width = 1 - .57 * p ** 1.8, x = Math.sin(i * 91.73) * .15 * width;
-      beard.push({ position: [x, -.088 - p * length, -.173 + p * .023 + (Math.abs(x) / .15) ** 2 * .032], scale: [.008, .013 + .005 * Math.sin(i), .009], rotation: [Math.sin(i) * .8, Math.cos(i) * .8, i * .7] });
-    }
-    instances(head, hairLight, beard, id === 'hagrid' ? 'curl' : 'fiber');
-    for (const side of [-1, 1]) oval(head, hair, [side * .034, -.075, -.163], [.043, .010, .012], [0, 0, side * .18]);
-  }
+  const face = createNpcFace({ kit, head, id, skin, skinWarm, hair, ivory, brass, glasses: design.glasses });
+  createNpcHair({ kit, head, id, design, hair });
   if (design.hat) {
     lathe(head, cloth, [[.23, 0], [.245, .015], [.18, .034], [.145, .15], [.08, .27], [.012, .36]], [0, .19, .005], [1, 1, .9], .015);
     lathe(head, brass, [[.176, 0], [.171, .018]], [0, .235, .005], [1, 1, .9]);
@@ -194,10 +154,12 @@ export function createNpc({ id = 'hagrid', scale = 1 } = {}) {
     }
     lathe(head, cloth, [[.035, 0], [.04, .30], [.055, .34]], [.15, -.20, .13], [1, 1, .5]);
   }
+  const attire = addNpcAttire({ kit, body, head, id, design, cloth, edge, leather, ivory, brass, wool });
   const arms = [], legs = [], armRigs = [], legRigs = [];
   for (const side of [-1, 1]) {
     const arm = pivot(body, side < 0 ? 'ArmL' : 'ArmR', side * .285, 1.265, .004);
-    lathe(arm, cloth, [[.057, 0], [.067, .035], [.076, .10], [.078, .24], [.091, .34], [.087, .39], [.061, .425], [.025, .442], [0, .445]], [side * .035, -.39, 0], [1, 1, .95], .025);
+    const sleeve = new THREE.SplineCurve([[.057, 0], [.067, .035], [.076, .10], [.078, .24], [.091, .34], [.087, .39], [.061, .425], [.025, .442], [0, .445]].map(([x, y]) => new THREE.Vector2(x, y))).getPoints(32).map(p => [Math.max(0, p.x), p.y]);
+    lathe(arm, cloth, sleeve, [side * .035, -.39, 0], [1, 1, .95], .012);
     lathe(arm, edge, [[.066, 0], [.066, .028]], [side * .04, -.387, 0]);
     oval(arm, skin, [side * .052, -.43, -.012], [.054, .069, .043]);
     for (let f = 0; f < 4; f++) oval(arm, skin, [side * .047 + (f - 1.5) * .018, -.478, -.019], [.010, .032, .012], [.12, 0, -.025 * side]);
@@ -230,42 +192,59 @@ export function createNpc({ id = 'hagrid', scale = 1 } = {}) {
     lathe(held, wand, [[.012, 0], [.014, .07], [.008, .20], [.0035, .37]], [0, -.33, -.015]);
   }
   const glow = new THREE.Object3D(); held.add(glow); glow.position.set(0, -.33, -.015);
+  addNpcOccupationProp({ kit, hand: armRigs[0].tip, id, brass, leather, ivory, ...attire });
+  const proportions = fitNpcProportions({ id, root, body, head, arms, legs, armRigs, legRigs });
   kit.bake(body); kit.bake(head); kit.bake(held);
   const motion = createAvatarMotion({ body, head, arms, legs, armRigs, legRigs, glow, seed: id.length * 13 });
-  let time = 0, lastAction = 'idle', disposed = false, seated = 0;
+  let time = 0, lastAction = 'idle', disposed = false, seated = 0, engagement = 0, gazeYaw = 0, expression = null;
   function update(dt, state = {}) {
     if (disposed) return;
     dt = Math.max(0, Math.min(.1, Number(dt) || 0)); time += dt;
-    const action = state.action ?? 'idle', speed = Math.max(0, state.speed ?? state.moveSpeed ?? 0);
+    const action = state.action ?? 'idle', requestedSpeed = state.speed ?? state.moveSpeed ?? 0, speed = Number.isFinite(requestedSpeed) ? Math.max(0, requestedSpeed) : 0;
     if (action !== lastAction) {
       if (action === 'attack' || action === 'cast') motion.playAction('bolt');
       if (action === 'hurt') motion.playAction('hit');
       lastAction = action;
     }
     motion.animate(dt, { moving: speed > .01, speed: speed / design.scale, grounded: true, combat: id === 'quirrell', downed: action === 'downed' || action === 'dead' });
+    proportions?.animate();
     seated = THREE.MathUtils.damp(seated, action === 'sit' ? 1 : 0, 9, dt);
     if (seated > .001) {
-      body.position.y -= .23 * seated;
+      if (proportions) proportions.sit(seated);
+      else body.position.y -= .23 * seated;
       // Actors face -Z: positive hip flexion brings knees forward, and the
       // counter-rotated knee leaves shins vertical with feet near the boat deck.
-      for (let i = 0; i < legs.length; i++) { legs[i].rotation.x += 1.25 * seated; legRigs[i].bend.rotation.x -= 1.25 * seated; }
+      if (!proportions) for (let i = 0; i < legs.length; i++) { legs[i].rotation.x += 1.25 * seated; legRigs[i].bend.rotation.x -= 1.25 * seated; }
       arms[0].rotation.x += .18 * seated; arms[1].rotation.x += .18 * seated;
       head.rotation.x += Math.sin(time * 1.3) * .012 * seated;
     }
-    const blink = Math.pow(Math.max(0, Math.sin(time * .9 + id.length)), 28);
-    for (const lid of lids) { lid.scale.y = .006 * (1 + blink * 1.5); lid.position.y = .049 - blink * .012; }
-    if (state.lookAt && action !== 'downed') {
+    const inactive = action === 'downed' || action === 'dead';
+    let targetYaw = 0;
+    if (Number.isFinite(state.lookAt?.x) && Number.isFinite(state.lookAt?.z) && !inactive) {
       const a = Math.atan2(state.lookAt.x - root.position.x, state.lookAt.z - root.position.z) - root.rotation.y - Math.PI;
-      head.rotation.y += THREE.MathUtils.clamp(Math.atan2(Math.sin(a), Math.cos(a)), -.38, .38) * .5;
+      targetYaw = THREE.MathUtils.clamp(Math.atan2(Math.sin(a), Math.cos(a)), -.55, .55);
     }
-    if (state.talking) head.rotation.x += Math.sin(time * 3.8) * .025;
+    gazeYaw = THREE.MathUtils.damp(gazeYaw, targetYaw, 7, dt); head.rotation.y += gazeYaw * .55;
+    const speaking = Boolean(state.talking || state.engaged) && !inactive;
+    expression = face.update(dt, { lookX: gazeYaw / .55, talking: speaking, inactive });
+    engagement = THREE.MathUtils.damp(engagement, speaking && speed < .05 && seated < .1 && !['attack', 'cast', 'hurt'].includes(action) ? 1 : 0, 7, dt);
+    // A small asymmetrical greeting, with the prop-bearing hand kept low. The
+    // controller continues to own root movement and escort destination.
+    if (engagement > .001) {
+      const measured = ['snape', 'mcgonagall', 'pince'].includes(id) ? .55 : 1;
+      const gesture = (.5 + .5 * Math.sin(time * 1.7 + id.length)) * engagement * measured;
+      arms[0].rotation.x += .10 * gesture; armRigs[0].bend.rotation.x += .19 * gesture;
+      armRigs[0].tip.rotation.z += .055 * gesture;
+      head.rotation.x += Math.sin(time * 3.2) * .012 * engagement;
+      head.rotation.z += Math.sin(time * .8) * .012 * engagement;
+    }
   }
   function dispose() {
     if (disposed) return; disposed = true; root.removeFromParent();
     for (const rig of [...armRigs, ...legRigs]) rig.dispose(); kit.dispose(); root.clear();
   }
-  root.userData.visualKind = id; root.userData.explicitGenericFallback = !designs[id]; root.userData.visualTier = 'authored_supporting_actor_v1_pending_render_review';
-  return { root, name: design.name, update, animate: update, dispose, react: () => motion.playAction('hit'), getCastOriginWorld: (out = new THREE.Vector3()) => { root.updateMatrixWorld(true); return glow.getWorldPosition(out); } };
+  root.userData.visualKind = id; root.userData.explicitGenericFallback = !designs[id]; root.userData.visualTier = 'authored_supporting_actor_v2';
+  return { root, name: design.name, update, animate: update, dispose, react: () => motion.playAction('hit'), debugSnapshot: () => ({ face: face.profile, proportions: proportions?.measurements ?? null, expression: expression ? { ...expression } : null, seated, engagement, action: lastAction }), getCastOriginWorld: (out = new THREE.Vector3()) => { root.updateMatrixWorld(true); return glow.getWorldPosition(out); } };
 }
 export async function loadNpc(options) { return createNpc(typeof options === 'string' ? { id: options } : options); }
 

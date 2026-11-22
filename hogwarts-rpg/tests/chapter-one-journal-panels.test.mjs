@@ -58,15 +58,18 @@ test('magic book uses the selected character roster, permanent learning and exac
   assert.match(trial, /<strong>0<span> \/ 8<\/span>/, 'trial does not count as permanent mastery');
 });
 
-test('world atlas shows every playable scene, trusts supplied destinations, and only selects locations', () => {
-  const c = character({ sceneId: 'SC04', completedQuestIds: ['M34'] }), html = renderMapPanel({ character: c, view: { sceneId: 'SC04', destinations: [{ sceneId: 'SC01' }] }, selectedSceneId: 'SC14' });
-  assert.equal(total(html, /data-scene-select=/g), contentData.scenes.filter(scene => scene.id !== 'SC00').length);
-  assert.doesNotMatch(html, /data-scene-select="SC00"|data-travel=/);
-  assert.match(html, /data-scene-select="SC04" data-current="true" data-open="true"/);
-  assert.match(html, /data-scene-select="SC14" data-current="false" data-open="false" data-selected="true"/);
-  assert.match(html, /第一学年 · 世界路线图/);
-  assert.match(html, /viewBox="0 0 880 540"/);
-  assert.match(html, /此处只查看路线/);
+test('world atlas separates floors, uses the authoritative walk graph, and never teleports', () => {
+  const c = character({ areaId: 'SC04', sceneId: 'SC04', completedQuestIds: ['M01','M02','M03'] });
+  const ground = renderMapPanel({ character: c, view: { areaId: 'SC04', sceneId: 'SC04' }, selectedSceneId: 'SC04' });
+  assert.match(ground, /data-scene-select="SC04" data-current="true" data-open="true"/);
+  assert.match(ground, /data-scene-select="SC10"/);
+  assert.doesNotMatch(ground, /data-scene-select="SC05"/);
+  const upper = renderMapPanel({ character: c, view: { areaId: 'SC04', sceneId: 'SC04' }, selectedSceneId: 'SC05' });
+  assert.match(upper, /data-scene-select="SC05" data-current="false" data-open="true" data-selected="true"/);
+  assert.match(upper, /城堡折返楼梯/);
+  assert.doesNotMatch(upper, /data-travel=|data-scene-select="SC00"/);
+  assert.match(upper, /地图不会传送人物/);
+  assert.match(upper, /viewBox="0 0 880 540"/);
 });
 
 test('local atlas projects actual bounds and coordinates and only shows teammates in the same scene', () => {

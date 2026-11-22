@@ -88,7 +88,7 @@ function hullGeometry(inner = false) {
 }
 
 export function createBoatMotion() {
-  const position = { x: 1.5, y: .02, z: -.5 }, target = { ...position };
+  const position = { x: 1.5, y: .02, z: 46 }, target = { ...position };
   let yaw = 0, targetYaw = 0, progress = 0, phase = 'moored', arrival = 0, rowing = 0, stroke = 0;
   const mix = (a, b, t) => a + (b - a) * t;
   function setEscort(escort) {
@@ -134,13 +134,20 @@ export function buildLake(a, group, walls) {
     base.rgb = mix(vec3(.095, .16, .18), base.rgb, .28 + .5 * fresnel);
     base.rgb += pow(max(0.0, sin(lakeWorld.x * 5.0 + lakeWorld.z * 3.0 + lakeTime * .8)), 30.0) * .014;
   `);
-  const waterGeometry = new THREE.PlaneGeometry(110, 110), water = new Reflector(waterGeometry, { color: 0xa6c0c7, textureWidth: 512, textureHeight: 512, multisample: 0, clipBias: .002, shader });
-  water.rotation.x = -Math.PI / 2; water.position.set(0, -.075, -8); group.add(water); water.userData.dynamic = true;
+  const waterGeometry = new THREE.PlaneGeometry(104, 86), water = new Reflector(waterGeometry, { color: 0xa6c0c7, textureWidth: 512, textureHeight: 512, multisample: 0, clipBias: .002, shader });
+  water.rotation.x = -Math.PI / 2; water.position.set(0, -.075, 29); group.add(water); water.userData.dynamic = true;
   const reflectionRender = water.onBeforeRender; let reflectionFrame = 0;
   water.onBeforeRender = function (...args) { if (reflectionFrame++ % 2 === 0) reflectionRender.apply(this, args); };
-  // The route remains the authored server route. Docks extend into a much larger
-  // surrounding lake, so crossing is no longer represented by a narrow strip.
-  for (const [z, depth] of [[5.6, 9.3], [-9.35, 11.1]]) {
+  // A real south shore, twenty-four metres deep, meets a short embarkation dock.
+  // Between it and the north shore are fifty metres of uninterrupted water.
+  const earth=a.surface('earth','#657059'),gravel=a.surface('earth','#9b967d');
+  a.box(104,.50,25,earth,0,-.27,60.5,.025);
+  a.box(4.8,.035,24.2,gravel,0,-.006,60.1,.008);
+  for(let i=-10;i<=10;i++) {
+    const x=i*4.9;if(Math.abs(x)<4)continue;
+    const bank=a.sphere(1,i%3?0x6f7b61:0x697264,x,-.14,48.35+Math.sin(i*1.7)*.32,12,8);bank.scale.set(2.7,.32,1.10);
+  }
+  for(const [z,depth]of [[49.25,3.5],[-9.35,11.1]]) {
     a.box(6.5, .28, depth, 0x525c4c, 0, -.19, z, .06);
     const rows = Math.floor(depth / .40);
     for (let i = 0; i < rows; i++) a.box(6.30, .07, .383, i % 3 ? wood : paleWood, 0, -.025, z + (i - (rows - 1) / 2) * .40, .012);
@@ -154,12 +161,13 @@ export function buildLake(a, group, walls) {
       }
     }
   }
-  walls.push({ x: 0, z: -2.25, w: 25, d: 2.6, height: 5, water: true });
-  for (const side of [-1, 1]) walls.push({ x: side * 7.0, z: 0, w: 7.2, d: 29, height: 5, water: true });
-  for (const side of [-1, 1]) for (const z of [9.8, -13]) {
+  walls.push({ x: 0, z: 21, w: 25, d: 48, height: 5, water: true });
+  for (const side of [-1, 1]) walls.push({ x: side * 7.0, z: 16, w: 7.2, d: 61, height: 5, water: true });
+  for (const side of [-1, 1]) for (const z of [49.8, -13]) {
     const shore = a.sphere(1, 0x4d5b47, side * 4.6, -.3, z, 16, 10); shore.scale.set(3.1, .65, 3.2);
     buildTree(a, side * 5.0, z, 6 + (side > 0 ? .5 : 0), z + side);
   }
+  for(const side of[-1,1])for(const z of[57,68])buildTree(a,side*(z===57?12:17),z,6.6+(side>0?.6:0),z+side);
   castle(a);
   const boat = new THREE.Group(); boat.userData.dynamic = true; group.add(boat);
   const boatGeometries = [], boatMaterials = [];
@@ -183,7 +191,7 @@ export function buildLake(a, group, walls) {
   const wakeMaterial = new THREE.MeshBasicMaterial({ color: 0x9caeac, transparent: true, opacity: .12, side: THREE.DoubleSide, depthWrite: false }); boatMaterials.push(wakeMaterial);
   const wakeGeometry = new THREE.RingGeometry(.72, .75, 48); boatGeometries.push(wakeGeometry);
   const wakes = Array.from({ length: 3 }, () => { const m = new THREE.Mesh(wakeGeometry, wakeMaterial); m.rotation.x = -Math.PI / 2; group.add(m); m.userData.dynamic = true; return m; });
-  const motion = createBoatMotion(); boat.position.set(1.5, .02, -.5); boat.name = 'PersistentLakeBoat';
+  const motion = createBoatMotion(); boat.position.set(1.5, .02, 46); boat.name = 'PersistentLakeBoat';
   return {
     setEscort: motion.setEscort,
     getBoatPose: motion.getPose,

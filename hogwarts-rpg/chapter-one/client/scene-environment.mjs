@@ -6,6 +6,7 @@ import { bindEnvironmentMaterials } from './scene-materials.mjs';
 import { buildLake, buildTree, forestFloor, greenhouseDetails } from './scene-landscape.mjs';
 import { createCreature } from '../presentation/creatures.mjs';
 import { createTrainScenery } from './journey-transition.mjs';
+import { refineTowerWalk, refineFlyingField, refineBattleLocation } from './scene-finishing.mjs';
 
 export const SCENE_MAPS = Object.freeze({ SC00: 'sorting', SC01: 'kings-cross', SC02: 'express', SC03: 'lake', SC04: 'sorting', SC05: 'charms', SC06: 'practice-gallery', SC07: 'library-record', SC08: 'practice-gallery', SC09: 'practice-gallery', SC10: 'team-puzzle', SC11: 'trapdoor-return', SC12: 'lake', SC13: 'troll-washroom', SC14: 'team-puzzle', SC15: 'trapdoor-return' });
 
@@ -23,7 +24,10 @@ function atelier(group) {
     object.position.set(x, y, z); object.rotation.set(rx, ry, rz); object.castShadow = object.receiveShadow = true; group.add(object); return object;
   }
   function box(w, h, d, color, x, y, z, bevel = .02, ry = 0) {
-    const key = [w, h, d, bevel].join(':'); if (!geos.has(key)) geos.set(key, new RoundedBoxGeometry(w, h, d, 2, Math.min(bevel, w / 4, h / 4, d / 4)));
+    const key = [w, h, d, bevel].join(':');
+    // Millimetre seams and metal inlays never show a rounded silhouette at the
+    // gameplay camera. Keep their topology cheap; furniture retains its bevel.
+    if (!geos.has(key)) geos.set(key, bevel <= .008 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, 2, Math.min(bevel, w / 4, h / 4, d / 4)));
     return add(geos.get(key), color, x, y, z, 0, ry);
   }
   function cyl(r, h, color, x, y, z, top = r, sides = 20) {
@@ -46,9 +50,24 @@ function atelier(group) {
       else c.lineTo(x + 1.5, y + (kind === 'cloth' ? .3 : 1.5));
       c.stroke();
     }
+    if (kind === 'grass' || kind === 'earth') {
+      // Multi-scale mottling and fine blades/litter replace a flat terrain tint.
+      // One small shared tile per environment; no grass geometry or alpha cards.
+      for (let i = 0; i < 380; i++) {
+        const x = random() * 512, y = random() * 512, r = 2 + random() * 16;
+        c.fillStyle = i % 3 ? 'rgba(193,177,116,.035)' : 'rgba(18,27,16,.08)';
+        c.beginPath(); c.ellipse(x, y, r * 1.6, r, random() * Math.PI, 0, Math.PI * 2); c.fill();
+      }
+      for (let i = 0; i < 2600; i++) {
+        const x = random() * 512, y = random() * 512;
+        c.strokeStyle = i % 3 ? 'rgba(173,170,103,.19)' : 'rgba(28,39,23,.22)'; c.lineWidth = .5 + random() * 1.4;
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x + (random() - .5) * 9, y + 2 + random() * 7); c.stroke();
+      }
+    }
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.anisotropy = 4; textures.add(texture);
+    if (kind === 'grass' || kind === 'earth') texture.repeat.set(12, 12);
     const bump = texture.clone(); bump.colorSpace = THREE.NoColorSpace; textures.add(bump);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: texture, bumpMap: bump, bumpScale: kind === 'wood' ? .003 : .0015, roughness: kind === 'leather' ? .68 : kind === 'cloth' ? .91 : .56 });
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: texture, bumpMap: bump, bumpScale: kind === 'wood' ? .003 : .0015, roughness: kind === 'leather' ? .68 : ['cloth', 'grass', 'earth'].includes(kind) ? .93 : .56 });
     if (kind === 'wood') mat.userData.environmentSurface = { kind: 'wood', repeat: [1, 1] };
     materials.set(key, mat); return mat;
   }
@@ -130,7 +149,7 @@ function refinePublicSpace(a, sceneId, walls) {
   }
 }
 function terrain(a, group, kind, showGround = true) {
-  const ground = a.material(kind === 'forest' ? 0x404e3c : kind === 'grass' ? 0x758160 : 0x8d8b71);
+  const ground = kind === 'forest' ? a.surface('earth', '#4d5540') : kind === 'grass' ? a.surface('grass', '#788462') : a.material(0x8d8b71);
   if (kind === 'stone') ground.userData.environmentSurface = { kind: 'floor', repeat: [18, 18] };
   if (showGround) a.box(36, .2, 36, ground, 0, -.12, -1, .01);
   group.add(new THREE.HemisphereLight(kind === 'forest' ? 0xb7c8d5 : 0xd8e7e2, 0x535c43, 2.0));
@@ -168,7 +187,7 @@ function underground(a, questId) {
 
 export function createSceneEnvironment(sceneId, group, { questId, combat } = {}) {
   const extra = new THREE.Group(); group.add(extra); const a = atelier(extra); let base = null, walls = [], bounds = [-10, 10, -14, 12], landscape = null;
-  let supportingActors = [], currentQuest = questId, dungeonState = null, trainScenery = null, trainElapsed = 0, trainStopped = false;
+  let supportingActors = [], currentQuest = questId, dungeonState = null, trainScenery = null, trainElapsed = 0, trainStopped = false, disposed = false;
   function support(templateId, position, yaw, scale, action = () => 'idle') {
     const actor = createCreature({ templateId, scale }); actor.root.position.fromArray(position); actor.root.rotation.y = yaw; actor.root.userData.dynamic = true; group.add(actor.root); supportingActors.push({ actor, action });
   }
@@ -182,7 +201,7 @@ export function createSceneEnvironment(sceneId, group, { questId, combat } = {})
     if (sceneId === 'SC07' && currentQuest === 'M09') support('B1-E04', [0, 1.5, -6], Math.PI, .9);
   }
   if (combat) {
-    terrain(a, extra, 'stone'); bounds = [combat.arena?.bounds?.minX ?? -14, combat.arena?.bounds?.maxX ?? 14, combat.arena?.bounds?.minZ ?? -14, combat.arena?.bounds?.maxZ ?? 14];
+    terrain(a, extra, sceneId === 'SC12' ? 'forest' : sceneId === 'SC09' ? 'grass' : 'stone'); bounds = [combat.arena?.bounds?.minX ?? -14, combat.arena?.bounds?.maxX ?? 14, combat.arena?.bounds?.minZ ?? -14, combat.arena?.bounds?.maxZ ?? 14];
     walls = (combat.arena?.obstacles ?? []).map(o => ({ ...o, height: o.height ?? 3 }));
     const pillarStone = a.material(0x9c9e8c); pillarStone.userData.environmentSurface = { kind: 'stone', repeat: [2, .35] };
     const pillarTrim = a.material(0xb5b39d); pillarTrim.userData.environmentSurface = { kind: 'stone', repeat: [2, .15] };
@@ -192,11 +211,14 @@ export function createSceneEnvironment(sceneId, group, { questId, combat } = {})
       for (let level = 0; level < 4; level++) a.cyl(r * .86, .558 * heightScale, pillarStone, o.x, (.61 + level * .574) * heightScale, o.z, r * .85, 32);
       for (let flute = 0; flute < 16; flute++) { const angle = flute * Math.PI / 8; a.cyl(.016, 2.18 * heightScale, pillarTrim, o.x + Math.sin(angle) * r * .86, 1.43 * heightScale, o.z + Math.cos(angle) * r * .86, .016, 8); }
     }
-    for (let i = 0; i < 12; i++) { const angle = i / 12 * Math.PI * 2, x = Math.sin(angle) * 15, z = Math.cos(angle) * 15; a.cyl(.38, 6, pillarStone, x, 3, z, .35, 24); a.cyl(.52, .20, pillarTrim, x, .10, z, .52, 24); a.cyl(.52, .24, pillarTrim, x, 5.9, z, .52, 24); }
+    if (sceneId === 'SC12') {
+      for (const side of [-1, 1]) for (const z of [bounds[2] + 1, bounds[3] - 1]) buildTree(a, side < 0 ? bounds[0] - 3.5 : bounds[1] + 3.5, z, 6.5, z + side);
+    } else for (let i = 0; i < 12; i++) { const angle = i / 12 * Math.PI * 2, x = Math.sin(angle) * 15, z = Math.cos(angle) * 15; a.cyl(.38, 6, pillarStone, x, 3, z, .35, 24); a.cyl(.52, .20, pillarTrim, x, .10, z, .52, 24); a.cyl(.52, .24, pillarTrim, x, 5.9, z, .52, 24); }
+    refineBattleLocation(a, sceneId, combat);
     if (combat.kind === 'stone') underground(a, 'M34');
   } else if (['SC03', 'SC08', 'SC09', 'SC11', 'SC12'].includes(sceneId)) {
     if (sceneId === 'SC03') {
-      terrain(a, extra, 'forest', false); landscape = buildLake(a, extra, walls);
+      bounds = [-10, 10, -14, 72]; terrain(a, extra, 'forest', false); landscape = buildLake(a, extra, walls);
     } else if (sceneId === 'SC08') {
       terrain(a, extra, 'stone');
       for (const side of [-1, 1]) for (const z of [-8, -4, 0, 4, 8]) {
@@ -212,10 +234,22 @@ export function createSceneEnvironment(sceneId, group, { questId, combat } = {})
       terrain(a, extra, 'grass');
       for (const x of [-7, 7]) for (const z of [-9, -2, 5]) { a.cyl(.065, 5, 0xa28654, x, 2.5, z); a.torus(.7, .055, 0xc3a46a, x, 5.25, z); }
       for (let i = 0; i < 5; i++) { a.box(3.3, .28, .7, 0x7d6750, -7, .2 + i * .35, 8 + i * .5, .02); a.box(3.3, .28, .7, 0x7d6750, 7, .2 + i * .35, 8 + i * .5, .02); }
+      refineFlyingField(a);
     } else if (sceneId === 'SC11') {
       terrain(a, extra, 'stone');
-      for (let i = 0; i < 16; i++) { const angle = i / 16 * Math.PI * 2, x = Math.sin(angle) * 10, z = Math.cos(angle) * 12 - 1; a.box(.8, 1.6, .8, 0x9d9b83, x, .8, z, .04, angle); }
+      const pier = a.material(0xa7ac9a), pierEdge = a.material(0xc0c2ae);
+      pier.userData.environmentSurface = { kind: 'stone', repeat: [.4, .8] };
+      pierEdge.userData.environmentSurface = { kind: 'stone', repeat: [.4, .12] };
+      for (let i = 0; i < 16; i++) {
+        const angle = i / 16 * Math.PI * 2, x = Math.sin(angle) * 10, z = Math.cos(angle) * 12 - 1;
+        // Reuse each original footprint: the shaft is inset, while its base
+        // and coping retain the same .8 m width and 1.6 m total height.
+        a.box(.70, 1.28, .70, pier, x, .8, z, .03, angle);
+        a.box(.8, .18, .8, pierEdge, x, .09, z, .025, angle);
+        a.box(.8, .14, .8, pierEdge, x, 1.53, z, .025, angle);
+      }
       a.box(3.2, .1, 3.2, 0x745a3e, 4.2, .1, -3, .025); luggage(a, 4.2, -3);
+      refineTowerWalk(a);
     } else {
       terrain(a, extra, 'forest');
       for (const side of [-1, 1]) for (let i = 0; i < 10; i++) { const x = side * (4.0 + i % 3 * 2.2), z = 10 - i * 2.5; buildTree(a, x, z, 5.8 + i % 3 * .65, i * 2 + (side > 0 ? 1 : 0)); walls.push({ shape: 'circle', x, z, radius: .28, height: 6 }); }
@@ -228,7 +262,7 @@ export function createSceneEnvironment(sceneId, group, { questId, combat } = {})
     if (sceneId === 'SC14') underground(a, questId);
     if (sceneId === 'SC10') { a.box(2.1, .2, 1.2, a.surface('wood', '#5b4636'), 3.8, .85, -2.5, .05); a.sphere(.29, 0x988b6b, 3.8, 1.24, -2.5); lamp(a, -3.8, 1.7, -5.5); }
   }
-  refineArchitecture(a, group, sceneId);
+  if (!combat) refineArchitecture(a, group, sceneId);
   if (sceneId === 'SC02' && !combat) { trainScenery = createTrainScenery(); group.add(trainScenery.root); }
   a.consolidate();
   updateSupporting();
@@ -244,12 +278,12 @@ export function createSceneEnvironment(sceneId, group, { questId, combat } = {})
   });
   const pbr = typeof window !== 'undefined' && typeof Image !== 'undefined' ? bindEnvironmentMaterials(group) : null;
   return {
-    bounds, walls, materialReady: pbr?.ready, spawn: base?.spawn ?? [0, 6],
+    bounds, walls, materialReady: pbr?.ready, spawn: base?.spawn ?? (sceneId === 'SC03' ? [0, 66] : [0, 6]),
     update(dt, time) { if (trainScenery && !trainStopped) trainElapsed += dt; base?.update(dt, trainScenery ? trainElapsed : time); landscape?.update(dt, time); trainScenery?.update(dt); windUniforms.forEach(uniform => { uniform.value = time; }); supportingActors.forEach(({ actor, action }) => actor.update(dt, { action: action(), speed: 0, time })); },
     setEscort(escort) { landscape?.setEscort(escort); },
     getBoatPose(role) { return landscape?.getBoatPose?.(role) ?? null; },
     setTrainStopped(value) { trainStopped = Boolean(value); trainScenery?.setStopped(value); },
     setContext(context) { dungeonState = context?.dungeon; if (context?.quest?.id && currentQuest !== context.quest.id) { currentQuest = context.quest.id; updateSupporting(); } },
-    dispose() { pbr?.dispose(); supportingActors.forEach(({ actor }) => actor.dispose()); shadowLights.forEach(light => light.shadow.dispose()); trainScenery?.dispose(); landscape?.dispose(); base?.dispose(); a.dispose(); extra.removeFromParent(); },
+    dispose() { if (disposed) return; disposed = true; pbr?.dispose(); supportingActors.forEach(({ actor }) => actor.dispose()); supportingActors = []; shadowLights.forEach(light => light.shadow.dispose()); trainScenery?.dispose(); landscape?.dispose(); base?.dispose(); a.dispose(); extra.removeFromParent(); },
   };
 }

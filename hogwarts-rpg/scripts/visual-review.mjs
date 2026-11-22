@@ -13,6 +13,8 @@ const heroEntries = [['harry', '哈利 · 工坊原角色'], ['hermione', '赫�
 const npcEntries = [
   ['hagrid', '鲁伯·海格'], ['molly', '韦斯莱夫人'], ['firenze', '费伦泽'], ['mcgonagall', '麦格教授'], ['flitwick', '弗立维教授'],
   ['snape', '斯内普教授'], ['dumbledore', '邓布利多'], ['quirrell', '奇洛'], ['pomfrey', '庞弗雷夫人'], ['sprout', '斯普劳特教授'],
+  ['hooch', '霍琦夫人'], ['wood', '奥利弗·伍德'], ['pince', '平斯夫人'], ['filch', '费尔奇'], ['draco', '德拉科·马尔福'],
+  ['supply', '诺拉·佩恩 · 补给'], ['gear', '埃文·里德 · 装备'], ['tools', '米拉·格林 · 工具'], ['post', '艾达·莫斯 · 邮务'],
 ].map(([id, name]) => ({ id: `npc:${id}`, sourceId: id, name, type: 'npc' }));
 const creatureEntries = [...contentData.enemies, ...contentData.bosses, { id: 'key', name: '有翅膀的钥匙' }, { id: 'B1-E10', name: '路威 · 三头犬' }, { id: 'B1-E08', name: '诺伯 · 挪威脊背龙幼龙' }, { id: 'B1-E04', name: '皮皮鬼' }]
   .map(entry => ({ ...entry, sourceId: entry.id, id: `creature:${entry.id}`, type: 'creature', name: `${entry.name}${entry.level ? ` · ${entry.level} 级` : ' · 情节生物'}` }));
@@ -40,6 +42,30 @@ const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshS
 const grid = new THREE.GridHelper(8, 16, 0x667575, 0x4a5a5d); grid.position.y = .003; studio.add(grid);
 const markers = new THREE.Group(); scene.add(markers);
 let actor, actorKind, area, environment, generation = 0, actorGeneration = 0, elapsed = 0, actorTime = 0, lastTime = performance.now(), inspectionBounds = new THREE.Box3(), lastStatsAt = 0, lastVisualAction = 'idle', actionSequence = 0, disposed = false;
+const frameTimes = [], party = [];
+let partyGeneration = 0;
+function positionParty() {
+  const spawn = environment?.spawn ?? [0, 0];
+  for (const [i, member] of party.entries()) {
+    member.root.position.set(spawn[0] + (i - 2) * 1.1, 0, spawn[1] - 1.7);
+    member.root.rotation.y = 0;
+  }
+}
+async function changeParty() {
+  const request = ++partyGeneration;
+  for (const member of party) member.dispose();
+  party.length = 0; frameTimes.length = 0;
+  if (!ui['party-preview'].checked) return;
+  setStatus('准备五人同屏渲染检查…');
+  const results = await Promise.allSettled(['harry', 'ron', 'hermione', 'harry', 'ron'].map(id => loadPlayableCharacter(id)));
+  if (disposed || request !== partyGeneration) {
+    for (const result of results) if (result.status === 'fulfilled') result.value.dispose();
+    return;
+  }
+  for (const result of results) if (result.status === 'fulfilled') { party.push(result.value); scene.add(result.value.root); }
+  positionParty(); frameTimes.length = 0;
+  setStatus(party.length === 5 ? '五位工坊角色已就位；仅检查本机渲染，不代表五人联网验收。' : '部分人物未加载完成，请重试。', party.length !== 5);
+}
 
 function setStatus(text, error = false) { ui.status.textContent = text; ui.status.classList.toggle('error', error); }
 function writeUrl() { const q = new URLSearchParams({ model: ui.model.value, scene: ui.scene.value, action: ui.action.value }); if (ui.quest.value) q.set('quest', ui.quest.value); history.replaceState(null, '', `${location.pathname}?${q}`); }
@@ -84,6 +110,7 @@ function animateActor(dt, state) {
   lastVisualAction = state.action;
 }
 async function changeActor() {
+  frameTimes.length = 0;
   const request = ++actorGeneration, entry = entryMap.get(ui.model.value);
   try {
     setStatus(entry.type === 'hero' ? `正在加载${entry.name}…` : '正在准备模型…');
@@ -96,6 +123,7 @@ async function changeActor() {
   } catch (error) { if (request === actorGeneration) setStatus(`模型加载失败：${error.message}`, true); console.error(error); }
 }
 async function changeScene() {
+  frameTimes.length = 0;
   const request = ++generation; environment?.dispose(); area?.removeFromParent(); environment = null; area = null; scene.background = new THREE.Color('#303c43'); scene.fog = null; studio.visible = ui.scene.value === 'studio';
   try {
     if (!studio.visible) {
@@ -103,9 +131,9 @@ async function changeScene() {
       const sky = ({ SC03: 0x2d4352, SC08: 0xb0bca5, SC09: 0xa6c5cc, SC11: 0x3c5363, SC12: 0x43584d })[ui.scene.value];
       if (sky) { scene.background = new THREE.Color(sky); scene.fog = new THREE.Fog(sky, 25, 85); }
       setStatus('加载场景材质…'); const pending = environment.materialReady;
-      placeActor(); focus('spawn'); refreshTargets(); writeUrl(); await pending;
+      placeActor(); positionParty(); focus('spawn'); refreshTargets(); writeUrl(); await pending;
       if (generation !== request) return; setStatus(`场景就绪 · 材质 ${area.userData.materialState ?? 'ready'}`);
-    } else { placeActor(); focus(); refreshTargets(); writeUrl(); setStatus('中性光照摄影棚就绪。'); }
+    } else { placeActor(); positionParty(); focus(); refreshTargets(); writeUrl(); setStatus('中性光照摄影棚就绪。'); }
   } catch (error) { setStatus(`场景加载失败：${error.message}`, true); console.error(error); }
 }
 ui.model.addEventListener('change', changeActor);
@@ -113,6 +141,7 @@ ui.scene.addEventListener('change', () => { const quest = runtimeQuests.find(q =
 ui.quest.addEventListener('change', () => { const quest = runtimeQuests.find(q => q.id === ui.quest.value); if (quest) ui.scene.value = quest.sceneId; changeScene(); });
 ui.action.addEventListener('change', () => { actorTime = 0; animateActor(.001, { action: 'idle', speed: 0 }); writeUrl(); });
 ui.targets.addEventListener('change', refreshTargets); ui['actor-visible'].addEventListener('change', () => { if (actor) actor.root.visible = ui['actor-visible'].checked; });
+ui['party-preview'].addEventListener('change', changeParty);
 ui.speed.addEventListener('input', () => { ui['speed-label'].textContent = `${Number(ui.speed.value).toFixed(1)}×`; });
 ui.exposure.addEventListener('input', () => { renderer.toneMappingExposure = Number(ui.exposure.value); ui['exposure-label'].textContent = renderer.toneMappingExposure.toFixed(2); });
 for (const button of document.querySelectorAll('[data-camera]')) button.addEventListener('click', () => { if (actor) { actor.root.updateMatrixWorld(true); inspectionBounds.setFromObject(actor.root); } focus(button.dataset.camera); });
@@ -124,7 +153,11 @@ const query = new URLSearchParams(location.search); for (const name of ['model',
 if (ui.quest.value) ui.scene.value = runtimeQuests.find(q => q.id === ui.quest.value).sceneId;
 changeActor(); changeScene();
 function frame(now) {
-  requestAnimationFrame(frame); const realDt = Math.min(.06, (now - lastTime) / 1000); lastTime = now; const dt = ui.pause.checked ? 0 : realDt * Number(ui.speed.value); elapsed += dt; actorTime += dt;
+  requestAnimationFrame(frame);
+  const frameMs = now - lastTime;
+  if (!document.hidden && frameMs > 0 && frameMs < 1000) { frameTimes.push(frameMs); if (frameTimes.length > 240) frameTimes.shift(); }
+  const realDt = Math.min(.06, frameMs / 1000); lastTime = now;
+  const dt = ui.pause.checked ? 0 : realDt * Number(ui.speed.value); elapsed += dt; actorTime += dt;
   if (actor) {
     let action = ui.action.value, speed = action === 'walk' ? 1.1 : action === 'run' ? 2.6 : 0;
     const cycle = actorTime % 2.8, windupProgress = Math.min(1, cycle / 1.5), attackPhase = cycle < 1.5 ? 'windup' : 'recover';
@@ -132,14 +165,21 @@ function frame(now) {
     if (action === 'revive') action = actorTime % 7 < 2.5 ? 'downed' : 'idle';
     if (action === 'attack' && cycle >= 1.5) action = 'idle';
     if (action === 'hurt' && actorTime % 1.8 > .65) action = 'idle';
-    if (dt) animateActor(dt, { time: elapsed, action, speed, windupProgress, attackPhase });
+    if (dt) animateActor(dt, { time: elapsed, action: action === 'talk' ? 'idle' : action, speed, windupProgress, attackPhase,
+      talking: action === 'talk', engaged: action === 'talk', interactionKind: 'service', lookAt: action === 'talk' ? camera.position : undefined });
     if (ui.turntable.checked) actor.root.rotation.y += dt * .25;
   }
+  for (const member of party) member.updateTravel(dt, 0, true, 0);
   environment?.update(dt, elapsed); controls.update(); renderer.render(scene, camera);
   if (now - lastStatsAt > 500) {
     lastStatsAt = now; const size = inspectionBounds.getSize(new THREE.Vector3());
-    ui.details.textContent = `初始尺寸 ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} 米\n场景绘制 ${renderer.info.render.calls} 次 · 三角形 ${renderer.info.render.triangles.toLocaleString()}\n显存资源：${renderer.info.memory.geometries} 几何 / ${renderer.info.memory.textures} 纹理\n生物条目含同类等级变体，不代表 19 种独立骨架。`;
+    const timings = [...frameTimes].sort((a, b) => a - b), median = timings[Math.floor(timings.length * .5)] ?? 0, p95 = timings[Math.floor(timings.length * .95)] ?? 0;
+    ui.details.textContent = `初始尺寸 ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} 米\n场景绘制 ${renderer.info.render.calls} 次 · 三角形 ${renderer.info.render.triangles.toLocaleString()}\n显存资源：${renderer.info.memory.geometries} 几何 / ${renderer.info.memory.textures} 纹理\n最近${timings.length}帧：中位 ${median.toFixed(1)}ms · P95 ${p95.toFixed(1)}ms\n当前画布 ${renderer.domElement.width} × ${renderer.domElement.height}；仅此设备此机位。\n生物条目含同类等级变体，不代表 19 种独立骨架。`;
   }
 }
 requestAnimationFrame(frame);
-addEventListener('pagehide', () => { disposed = true; actorGeneration++; actor?.dispose(); environment?.dispose(); clearMarkers(); controls.dispose(); renderer.dispose(); });
+addEventListener('pagehide', () => {
+  disposed = true; actorGeneration++; partyGeneration++;
+  for (const member of party) member.dispose();
+  party.length = 0; actor?.dispose(); environment?.dispose(); clearMarkers(); controls.dispose(); renderer.dispose();
+});

@@ -40,7 +40,9 @@ test('bat membrane wings flap symmetrically around a low hovering body and react
   assert.notDeepEqual(flying.wingAngles, initial); assert(Math.abs(flying.wingAngles[0] + flying.wingAngles[1]) < 1e-7); assert(flying.bodyHeight > 1.05 && flying.bodyHeight < 1.15);
   bat.update(.05, { action: 'attack', windupProgress: 1 }); const raised = bat.debugSnapshot().bodyHeight;
   bat.update(.1, { action: 'idle', attackPhase: 'recover' }); assert(bat.debugSnapshot().bodyHeight < raised); assert(bat.root.getObjectByName('BatBody').position.z < 0);
-  for (let i = 0; i < 30; i++) bat.update(.1, { action: 'downed' }); assert(bat.debugSnapshot().bodyHeight < .3);
+  for (let i = 0; i < 30; i++) bat.update(.1, { action: 'downed' });
+  assert(bat.debugSnapshot().bodyHeight < .4,'folded wings and feet support the fallen body');
+  const fallenBounds=new THREE.Box3().setFromObject(bat.root);assert(fallenBounds.min.y>=0 && fallenBounds.min.y<.04);
   bat.dispose();
 });
 
