@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { resolveAreaId, getWorldArea } from '../chapter-one/world-atlas.mjs';
 import { iconMarkup } from '../chapter-one/client/ui-icons.mjs';
 
 const source=(await readFile(new URL('../chapter-one/client/app.mjs',import.meta.url),'utf8')).replace(/^import .*;\s*$/gm,'').replace(/^boot\(\);\s*$/m,'');
@@ -14,7 +15,7 @@ function harness(){
  const nodes=new Map(),requests=[],packets=[],sent=[],rejected=[],snapshots=[],skillStatuses=[];let takes=0,clock=1000;
  const element=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,textContent:'',innerHTML:'',value:'',style:{},dataset:{},classList:{toggle(){}},addEventListener(){},querySelector:x=>element(id+':'+x),querySelectorAll(selector){return id==='quick-menu'&&selector==='button[data-panel]'?['character','inventory','skills','map'].map(panel=>{const button=element(`${id}:${panel}`);button.dataset.panel=panel;return button;}):[];},insertAdjacentHTML(where,html){this.innerHTML=where==='afterbegin'?html+this.innerHTML:this.innerHTML+html;},append(){},remove(){}});return nodes.get(id);};
  const renderer={setAbilityRequestStatus(...args){skillStatuses.push(args);},takeMovementPacket(){takes++;return packets.shift()??{position:{x:0,y:0,z:0,yaw:0},steps:[],sprint:false,flying:false};},noteMovementSent(...args){sent.push(structuredClone(args));},rejectMovement(...args){rejected.push(structuredClone(args));},setSnapshot(...args){snapshots.push(structuredClone(args));return Promise.resolve();},setBlocked(){},getPose(){return{x:0,y:0,z:0,yaw:0};}};
- const context=vm.createContext({iconMarkup,crypto,structuredClone,URL,AbortSignal,console,performance:{now:()=>clock},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},
+ const context=vm.createContext({resolveAreaId,getWorldArea,iconMarkup,crypto,structuredClone,URL,AbortSignal,console,performance:{now:()=>clock},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},
  document:{getElementById:element,addEventListener(){},createElement:element},localStorage:{getItem:()=>JSON.stringify({token:'a'.repeat(64),characterId:'A'}),setItem(){}},location:{href:'https://game.test/stone.html'},
  createSound:()=>({status:{state:'locked'},setScene(){},updateMotion(){},unlock(){},consume(){},cue(){}}),__renderer:renderer,
  fetch:(url,options)=>{const job=defer();requests.push({url,options,...job});return job.promise;},

@@ -12,19 +12,22 @@ const source = { x: 1.4, y: 0, z: -.4 }, destination = { x: 0, y: 0, z: 6 };
 const close = (a, b) => assert(Math.abs(a - b) < 1e-7, `${a} != ${b}`);
 
 test('three opening journeys and every scene fallback retain source, destination and a real connecting route', () => {
+  // Compatibility helpers remain tested although the runtime now uses the
+  // persistent atlas; the expanded lake's old z6 spawn is open water.
   for (const [from, to, kind] of [['SC01', 'SC02', 'boarding'], ['SC02', 'SC03', 'lakeside'], ['SC03', 'SC04', 'castle'], ...sceneNavigationIds.filter(s => s !== 'SC00').map(s => [s, 'SC05', undefined])]) {
     const fromPosition = from === 'SC02' ? { x: .4, y: 0, z: -.4 } : from === 'SC03' ? { x: 1.5, y: 0, z: -6 } : source;
-    const plan = planJourney({ fromSceneId: from, toSceneId: to, fromPosition, toPosition: destination });
+    const arrival=to==='SC03'?{x:0,y:0,z:66}:destination;
+    const plan = planJourney({ fromSceneId: from, toSceneId: to, fromPosition, toPosition: arrival });
     assert(plan, `${from}->${to}`); if (kind) assert.equal(plan.kind, kind);
     assert.deepEqual(plan.waypoints[0], fromPosition);
     assert(plan.destinationOffset.z < -20); assert(plan.duration > 2);
     const journey = createJourneyTransition({ plan }); const initial = journey.update(0);
     assert.deepEqual(initial.position, fromPosition); assert.equal(initial.complete, false);
     const end = journey.update(plan.duration + 1); assert.equal(end.complete, true);
-    close(end.position.x - plan.destinationOffset.x, destination.x); close(end.position.z - plan.destinationOffset.z, destination.z);
+    close(end.position.x - plan.destinationOffset.x, arrival.x); close(end.position.z - plan.destinationOffset.z, arrival.z);
     const camera = new THREE.Vector3(1, 2, end.position.z + 4), relative = camera.clone().sub(new THREE.Vector3(...Object.values(end.position)));
     camera.sub(new THREE.Vector3(...Object.values(plan.destinationOffset)));
-    assert(camera.clone().sub(new THREE.Vector3(destination.x, destination.y, destination.z)).distanceTo(relative) < 1e-7);
+    assert(camera.clone().sub(new THREE.Vector3(arrival.x, arrival.y, arrival.z)).distanceTo(relative) < 1e-7);
     journey.dispose(); assert.equal(journey.root.children.length, 0);
   }
 });
@@ -37,9 +40,9 @@ test('journey route navigates around furniture rather than clipping through it',
   for (let i = 0; i < 60; i++) a.update(1 / 60);
   b.update(1); close(a.getState().position.z, b.getState().position.z); close(a.getState().position.x, b.getState().position.x);
   a.dispose(); b.dispose();
-  const shore = planJourney({ fromSceneId: 'SC03', toSceneId: 'SC05', fromPosition: { x: 1.5, y: 0, z: 3 }, toPosition: destination });
+  const shore = planJourney({ fromSceneId: 'SC03', toSceneId: 'SC05', fromPosition: { x: 1.5, y: 0, z: 60 }, toPosition: destination });
   assert(shore); assert.equal(shore.fromGateway.side, 'entry'); assert.equal(shore.toGateway.side, 'exit'); assert(shore.destinationOffset.z > 20);
-  assert(shore.waypoints.every(p => p.z > -.7));
+  assert(shore.waypoints.every(p => p.z > 46.5));
 });
 
 test('gateway opens only intersecting wall instances and restores them without disposing original art', () => {

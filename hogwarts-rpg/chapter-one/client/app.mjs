@@ -9,6 +9,7 @@ import { createStoneWorld } from './world.mjs';
 import { contentData } from '../data/index.mjs';
 import { SELECTABLE_HERO_IDS, isSelectableHero } from '../roster.mjs';
 import { getHeroStats, getSkillEligibility } from '../rules/index.mjs';
+import { resolveAreaId, getWorldArea } from '../world-atlas.mjs';
 import { getSceneView, runtimeCatalog, commissionUnlocked } from '../online/catalog.mjs';
 
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -19,7 +20,7 @@ let saved;try{saved=JSON.parse(localStorage.getItem(slotKey));}catch{}if(!/^[a-f
 let storageWorks=true;function persist(){try{localStorage.setItem(slotKey,JSON.stringify(saved));}catch{storageWorks=false;}}
 persist();const sound=createSound({muted:Boolean(saved.muted),mix:saved.audioMix,onStatusChange:paintSound});
 const unlockSound=e=>{if(!e.target?.closest?.('[data-audio-control],#sound-toggle,#toggle-sound'))sound.unlock();};
-document.addEventListener('pointerdown',unlockSound,{passive:true});document.addEventListener('keydown',unlockSound,{passive:true});let account={characters:[]},character=null,room=null,encounter=null,view=null,selected='harry',selectionReady=false,entryBusy=false,world=null,playing=false,panel=null,panelContext=null,pending=0,pollBusy=false,moveBusy=false,sequence=Math.floor(Date.now()/10),latestPose=null,lastSentPose=null,lastSentAt=0,epoch=0,notice='',actionbarStamp='',partyStamp='',toastTimer,dialogueTimer,queue=Promise.resolve(),filmTimer,movementPromise=null,movementRetry=null,journeyActive=false,skillTransport=null,abilityBar=null,characterPreview=null,folioStamp='',equipmentBusy=false,returnBusy=false;
+document.addEventListener('pointerdown',unlockSound,{passive:true});document.addEventListener('keydown',unlockSound,{passive:true});let account={characters:[]},character=null,room=null,encounter=null,view=null,selected='harry',selectionReady=false,entryBusy=false,world=null,playing=false,panel=null,panelContext=null,pending=0,pollBusy=false,moveBusy=false,sequence=Math.floor(Date.now()/10),latestPose=null,lastSentPose=null,lastSentAt=0,epoch=0,notice='',actionbarStamp='',partyStamp='',toastTimer,dialogueTimer,queue=Promise.resolve(),filmTimer,movementPromise=null,movementRetry=null,journeyActive=false,skillTransport=null,abilityBar=null,characterPreview=null,folioStamp='',equipmentBusy=false,returnBusy=false,passageTransport=false;
 const folioState={gearSlot:'top',bagFilter:'all',selectedItemId:null,magicFilter:'all',selectedSkillId:null,mapMode:'world',selectedSceneId:null};
 const folioPages=new Set(['character','inventory','skills','map']);
 const invitation=new URL(location.href).searchParams.get('party');
@@ -50,20 +51,22 @@ function changeVolume(key,value){
 }
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,5000);}
 function speak(name,message){$('dialogue').querySelector('strong').textContent=name;$('dialogue').querySelector('p').textContent=message;$('dialogue').hidden=false;clearTimeout(dialogueTimer);dialogueTimer=setTimeout(()=>$('dialogue').hidden=true,5000);}
-async function api(path,body,token=saved.token){const began=performance.now();let response;try{response=await fetch('/api/stone'+path,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+token,...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(12000)});}catch{throw Object.assign(new Error('连接中断，进度保留在服务器。正在尝试重新连接。'),{code:'NETWORK'});}let data;try{data=await response.json();}catch{throw Object.assign(new Error('暂时无法读取游戏服务，正在恢复连接。'),{code:'NETWORK',status:response.status});}if(!response.ok)throw Object.assign(new Error(data.error??'操作未完成'),{code:response.status>=500?'NETWORK':data.code,status:response.status,rejectedSequence:data.rejectedSequence,rejectedPosition:data.rejectedPosition});data.clientTiming={rttMs:performance.now()-began,receivedAt:performance.now()};return data;}
-async function accept(data){if(!data.character)return;const acceptEpoch=epoch,acceptToken=saved.token;const c=data.character;sequence=Math.max(sequence,(c.lastAcceptedMoveSequence??-1)+1);if(character&&c.id===character.id&&c.revision<character.revision)return;const old=character;character=c;room=data.room??null;const candidate=data.encounter??room?.encounter;encounter=candidate?.players?.[c.id]?candidate:null;view={...(data.scene??c.scene??getSceneView(c,data.serverTime)),clientTiming:data.clientTiming};character={...c,encounter};if(room)room={...room,encounter};
+async function api(path,body,token=saved.token){const began=performance.now();let response;try{response=await fetch('/api/stone'+path,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+token,...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(12000)});}catch{throw Object.assign(new Error('连接中断，进度保留在服务器。正在尝试重新连接。'),{code:'NETWORK'});}let data;try{data=await response.json();}catch{throw Object.assign(new Error('暂时无法读取游戏服务，正在恢复连接。'),{code:'NETWORK',status:response.status});}if(!response.ok)throw Object.assign(new Error(data.error??'操作未完成'),{code:response.status>=500?'NETWORK':data.code,status:response.status,rejectedSequence:data.rejectedSequence,rejectedPosition:data.rejectedPosition,location:data.location});data.clientTiming={rttMs:performance.now()-began,receivedAt:performance.now()};return data;}
+async function accept(data){if(!data.character)return;const acceptEpoch=epoch,acceptToken=saved.token;const c=data.character;sequence=Math.max(sequence,(c.lastAcceptedMoveSequence??-1)+1);if(character&&c.id===character.id&&c.revision<character.revision)return;const old=character;if(old&&(resolveAreaId(old)!==resolveAreaId(c)||(old.locationEpoch??0)!==(c.locationEpoch??0))){latestPose=null;lastSentPose=null;movementRetry=null;}character=c;room=data.room??null;const candidate=data.encounter??room?.encounter;encounter=candidate?.players?.[c.id]?candidate:null;view={...(data.scene??c.scene??getSceneView(c,data.serverTime)),clientTiming:data.clientTiming};character={...c,encounter};if(room)room={...room,encounter};
  $('connection').textContent='已连接 · 云端存档';if(playing){await world.setSnapshot(character,room,view);if(epoch!==acceptEpoch||saved.token!==acceptToken||character?.id!==c.id)return;paintHud();refreshFolio();}
  if(c.notice&&c.notice!==notice){notice=c.notice;if(old&&playing&&!journeyActive)toast(notice);}if(old&&c.level>old.level&&!journeyActive)speak('新的成长',`你升到了 ${c.level} 级。基础属性已提高，打开人物面板查看成长。`);
  if(playing){sound.setScene({sceneId:view?.sceneId,combat:encounter?.status==='active',selection:false});sound.consume(encounter,c.id,data.serverTime);if(old&&c.completedQuestIds.length>old.completedQuestIds.length)sound.cue('reward');}saved.characterId=c.id;persist();
 }
 function notifySkillRequest(body,status){if(body.type==='skill')world?.setAbilityRequestStatus?.(body.requestId,status);}
 function releaseSkillTransport(body){if(skillTransport?.requestId===body.requestId)skillTransport=null;}
+function locationScope(){return character?`${character.id}:${resolveAreaId(character)}:${character.locationEpoch??0}`:null;}
+function locationRejection(error){return error.code==='LOCATION_CHANGED'||error.code==='CLIENT_UPDATE_REQUIRED';}
 function act(payload,{quiet=false,retryId=null}={}){
- const identity=character?.id,requestEpoch=epoch,requestToken=saved.token;if(!identity)return Promise.resolve();
+ const identity=character?.id,requestEpoch=epoch,requestToken=saved.token,requestLocation=locationScope();if(!identity)return Promise.resolve();
  const body={...payload,requestId:retryId??payload.clientActionId??crypto.randomUUID()};delete body.clientActionId;
  const current=()=>identity===character?.id&&epoch===requestEpoch&&saved.token===requestToken;
  const task=async()=>{
-  if(!current())return;pending++;
+  if(!current()||requestLocation!==locationScope())return;pending++;
   try{
    // Check at execution time as well as the input boundary: this task may have
    // queued while the preceding request's commit outcome was still unknown.
@@ -76,12 +79,13 @@ function act(payload,{quiet=false,retryId=null}={}){
    if(saved.pendingAction?.body.requestId===body.requestId){delete saved.pendingAction;persist();}
    return response;
   }catch(error){
-   if(!current())return;
+   if(!current()||requestLocation!==locationScope()){releaseSkillTransport(body);return;}
    if(error.code==='NETWORK'){
     saved.pendingAction={characterId:identity,body};persist();notifySkillRequest(body,'retrying');
     if(body.type==='skill')skillTransport={requestId:body.requestId,characterId:identity,epoch:requestEpoch};
    }else{
-    if(Number.isSafeInteger(error.rejectedSequence)&&error.rejectedPosition)world?.rejectMovement?.(error.rejectedSequence,error.rejectedPosition);
+    if(locationRejection(error)){movementRetry=null;latestPose=null;lastSentPose=null;void poll();}
+    else if(Number.isSafeInteger(error.rejectedSequence)&&error.rejectedPosition)world?.rejectMovement?.(error.rejectedSequence,error.rejectedPosition);
     notifySkillRequest(body,'rejected');releaseSkillTransport(body);
    }
    if(!quiet)toast(error.message);throw error;
@@ -90,32 +94,34 @@ function act(payload,{quiet=false,retryId=null}={}){
  const running=queue.then(task,task);queue=running.catch(()=>{});return running;
 }
 async function sendMove(force=false,{allowPanel=false}={}){
- if(moveBusy){if(!force)return;const waitEpoch=epoch,waitToken=saved.token;await movementPromise;if(epoch!==waitEpoch||saved.token!==waitToken||movementRetry)return;return sendMove(true,{allowPanel});}
- if(!playing||!character||!latestPose||latestPose.riding||panel&&!allowPanel||returnBusy&&!allowPanel||journeyActive||skillTransport?.characterId===character.id&&skillTransport.epoch===epoch||saved.pendingAction?.characterId===character.id&&saved.pendingAction.body.type==='skill')return;
- const now=performance.now(),scope=`${character.id}:${character.sceneId}:${encounter?.id??''}:${character.sceneId==='SC14'?character.currentQuestId:''}`;
+ if(moveBusy){if(!force)return;const waitEpoch=epoch,waitToken=saved.token,waitLocation=locationScope();await movementPromise;if(epoch!==waitEpoch||saved.token!==waitToken||waitLocation!==locationScope()||movementRetry)return;return sendMove(true,{allowPanel});}
+ if(passageTransport||!playing||!character||!latestPose||latestPose.riding||panel&&!allowPanel||returnBusy&&!allowPanel||journeyActive||skillTransport?.characterId===character.id&&skillTransport.epoch===epoch||saved.pendingAction?.characterId===character.id&&saved.pendingAction.body.type==='skill')return;
+ const now=performance.now(),scope=`${character.id}:${resolveAreaId(character)}:${character.locationEpoch??0}:${encounter?.id??''}`;
  if(movementRetry?.scope!==scope)movementRetry=null;
  const changed=!lastSentPose||Math.hypot(latestPose.x-lastSentPose.x,latestPose.y-lastSentPose.y,latestPose.z-lastSentPose.z)>.012||Math.abs(latestPose.yaw-lastSentPose.yaw)>.04;
  if(!force&&!movementRetry&&!changed&&now-lastSentAt<1200)return;
- const requestEpoch=epoch,requestToken=saved.token,id=character.id;
+ const requestEpoch=epoch,requestToken=saved.token,id=character.id,requestLocation=locationScope();
  const packet=movementRetry??(()=>{const value=typeof world.takeMovementPacket==='function'?world.takeMovementPacket():{position:{x:latestPose.x,y:latestPose.y,z:latestPose.z,yaw:latestPose.yaw},sprint:latestPose.sprint,flying:latestPose.flying};if(!value)return null;return{scope,body:{type:'move',requestId:crypto.randomUUID(),sequence:sequence++,...value}};})();
  if(!packet)return;
  if(!movementRetry)world.noteMovementSent?.(packet.body.sequence,packet.body.position);
  moveBusy=true;lastSentAt=now;
- const current=()=>character?.id===id&&epoch===requestEpoch&&saved.token===requestToken;
+ const current=()=>character?.id===id&&epoch===requestEpoch&&saved.token===requestToken&&requestLocation===locationScope();
  movementPromise=(async()=>{try{
    const data=await api(`/characters/${id}/actions`,packet.body,requestToken);
    if(current()){movementRetry=null;lastSentPose=packet.body.position;await accept(data);}
   }catch(e){if(!current())return;
    if(e.code==='NETWORK'){movementRetry=packet;$('connection').textContent='等待连接 · 进度已保留';}
-   else{movementRetry=null;if(Number.isSafeInteger(e.rejectedSequence)&&e.rejectedPosition)world.rejectMovement?.(e.rejectedSequence,e.rejectedPosition);if(!/SPEED|POSITION|MOVE|REVISION/.test(e.code??''))toast(e.message);}
+   else{movementRetry=null;if(locationRejection(e)){latestPose=null;lastSentPose=null;void poll();return;}if(Number.isSafeInteger(e.rejectedSequence)&&e.rejectedPosition)world.rejectMovement?.(e.rejectedSequence,e.rejectedPosition);if(!/SPEED|POSITION|MOVE|REVISION/.test(e.code??''))toast(e.message);}
   }finally{moveBusy=false;movementPromise=null;}
  })();return movementPromise;
 }
 
 async function onWorldAction(action){
  if(!playing||panel||journeyActive||returnBusy)return;
- const actionEpoch=epoch,actionToken=saved.token,actionCharacterId=character?.id;
- const current=()=>playing&&epoch===actionEpoch&&saved.token===actionToken&&character?.id===actionCharacterId;
+ const actionEpoch=epoch,actionToken=saved.token,actionCharacterId=character?.id,actionLocation=locationScope();
+ const current=()=>playing&&epoch===actionEpoch&&saved.token===actionToken&&character?.id===actionCharacterId&&actionLocation===locationScope();
+ if(action.type==='travel'&&((action.fromAreaId&&action.fromAreaId!==resolveAreaId(character))||(action.locationEpoch!==undefined&&action.locationEpoch!==(character.locationEpoch??0))))return;
+ const localTarget=action.target;if(localTarget?.kind==='conversation'){speak(localTarget.npc,localTarget.dialogue);return;}
  const isSkill=action.type==='skill',requestId=action.clientActionId??crypto.randomUUID();
  if(isSkill){
   if(skillTransport?.characterId===actionCharacterId&&skillTransport.epoch===epoch||saved.pendingAction)throw Object.assign(new Error('上一项操作正在确认，请稍候。'),{code:'ACTION_PENDING'});
@@ -124,12 +130,18 @@ async function onWorldAction(action){
   skillTransport={requestId,characterId:actionCharacterId,epoch:actionEpoch};
  }
  try{
-  if(isSkill){if(movementPromise)await movementPromise;}
+  if(isSkill||action.type==='travel'){if(action.type==='travel')passageTransport=true;if(movementPromise)await movementPromise;}
   else await sendMove(true);
   if(!current()||panel)return;
   if(movementRetry)throw Object.assign(new Error('正在确认移动位置，请稍后施咒。'),{code:'MOVEMENT_PENDING'});
   const target=action.target??view?.targets.find(t=>t.id===action.targetId);
-  if(action.type==='service'){showPanel('shop',target);return;}if(action.type==='training'){showPanel('training',target);return;}if(action.type==='travel'||target?.id==='exit'){showPanel('travel');return;}
+  if(action.type==='service'){showPanel('shop',target);return;}if(action.type==='training'){showPanel('training',target);return;}if(action.type==='travel'&&target?.edgeId){
+   const packet=world.takeMovementPacket?.(), transport=['drop','recovery'].includes(target.travelKind);
+   const payload={type:'travel',edgeId:target.edgeId,fromAreaId:resolveAreaId(character),locationEpoch:character.locationEpoch??0,requestId};
+   if(packet?.steps?.length){payload.movement={...packet,sequence:sequence++};world.noteMovementSent?.(payload.movement.sequence,payload.movement.position);}
+   if(transport)paintJourney({active:true,label:target.label,progress:.15});
+   try{return await act(payload,{retryId:requestId});}finally{if(transport)paintJourney({active:false});}
+  }
   if(target?.kind==='puzzle'){showPanel('puzzle',target);return;}
   if(target?.kind==='flight'){world.setFlying(true);if((latestPose?.y??0)<(target.minY??.6)){speak('飞行练习','空格上升，Z 或 Ctrl 下降。飞到金色目标旁按 E；按 X 可自动降落，再靠近落地点按 E。');return;}}
   if(target?.kind==='talk')speak(target.label.includes('：')?target.label.split('：')[0]:(view.quest.npc??'同伴').split(/[、，,]/)[0],target.label);
@@ -149,7 +161,7 @@ async function onWorldAction(action){
   if(current()&&target&&['hold','sneak'].includes(target.kind))speak(view.quest.npc??'行动',`保持在目标附近，完成${target.label}。`);
   return result;
  }catch(error){if(isSkill)throw error;}
- finally{if(isSkill&&current()&&saved.pendingAction?.body.requestId!==requestId)releaseSkillTransport({requestId});}
+ finally{if(action.type==='travel')passageTransport=false;if(isSkill&&current()&&saved.pendingAction?.body.requestId!==requestId)releaseSkillTransport({requestId});}
 }
 async function choose(hero){
  if(!isSelectableHero(hero)||!selectionReady||entryBusy||returnBusy||playing)return;
@@ -226,9 +238,9 @@ function paintJourney(state){
 function startFilm(){const shots=[['猫头鹰带来一封信','十一岁生日那天，通往魔法世界的大门打开了。'],['你被霍格沃茨录取了','海格带你认识了魔法世界，买齐书本，也选中了属于你的魔杖。'],['九又四分之三站台','九月的伦敦。行李已经备好，特快列车正在等候。']];let index=0;$('film').hidden=false;world.setBlocked(true);const next=()=>{const shot=shots[index++];if(!shot){endFilm();return;}$('film').querySelector('h1').textContent=shot[0];$('film').querySelector('p').textContent=shot[1];filmTimer=setTimeout(next,4200);};next();}
 function endFilm(){clearTimeout(filmTimer);$('film').hidden=true;world.setBlocked(false);saved.sawFilm=true;persist();if(invitation&&!room)showPanel('party');}
 function paintHud(){const c=character,h=heroes[c.heroId],self=encounter?.players?.[c.id],stats=c.stats;$('place').textContent=(journeyActive?'旅途中 · ':'')+view.name;$('hero-name').textContent=c.name;$('level').textContent='Lv.'+c.level;const hp=self?.hp??c.hp??stats.hp,focus=self?.focus??c.focus??stats.focusMax;$('hp-fill').style.width=(hp/stats.hp*100)+'%';$('hp-label').textContent=`${Math.ceil(hp)} / ${stats.hp}`;$('focus-fill').style.width=(focus/stats.focusMax*100)+'%';$('focus-label').textContent=`${Math.floor(focus)} / ${stats.focusMax}`;const xp=c.xp??{};$('xp-fill').style.width=((xp.requiredThisLevelCents?xp.earnedThisLevelCents/xp.requiredThisLevelCents:xp.atCap?1:0)*100)+'%';$('xp-label').textContent=c.level>=40?'已达到最高等级':`累计经验 ${(c.xpCents/100).toLocaleString('zh-CN',{maximumFractionDigits:2})}`;
- $('quest-title').textContent=c.chapterComplete?'第一学年 · 冒险完成':view.quest.name;const objective=view.targets.find(t=>t.active&&!['service','training','collection'].includes(t.kind));$('quest-objective').textContent=c.chapterComplete?'魔法石已被守护。你可以继续探索校园，或帮助朋友重返副本。':objective?.label??'沿着路标继续冒险';$('quest-distance').textContent=view.escort?view.escort.waitingForPlayer?'同伴正在等你跟上':`同行进度 ${Math.round(view.escort.progress*100)}%`:c.hold?'正在行动，请保持在目标附近':'';
+ $('quest-title').textContent=c.chapterComplete?'第一学年 · 冒险完成':view.quest.name;const objective=view.targets.find(t=>t.active&&!['service','training','collection','passage'].includes(t.kind));const nextDoor=view.targets.find(t=>t.kind==='passage'&&t.recommended&&t.active);$('quest-objective').textContent=c.chapterComplete?'魔法石已被守护。你可以继续探索校园，或帮助朋友重返副本。':view.transit?'列车正在前往'+view.transit.destinationName+'，可在车内与同伴交谈。':objective?.label??(nextDoor?nextDoor.label:'打开地图，沿走廊前往任务地点');$('quest-distance').textContent=view.transit?`列车行进中 · 约 ${Math.ceil(view.transit.remainingSeconds)} 秒后抵达${view.transit.destinationName??'霍格莫德'} · 可在车内走动交谈`:view.escort?view.escort.waitingForPlayer?'同伴正在等你跟上':`同行进度 ${Math.round(view.escort.progress*100)}%`:c.hold?'正在行动，请保持在目标附近':'';
  $('optional-tracking').innerHTML=(c.journal?selectHud(c.journal,c.trackedIds).optional:[]).map(q=>`<p class="note">◇ ${esc(q.name)}</p>`).join('');
- $('team-button').innerHTML=(room?'队伍 '+esc(room.code):'好友队伍')+' <kbd>P</kbd>';$('party-roster').innerHTML=(room?.members??[]).filter(p=>p.id!==c.id).map(p=>`<p>${esc(p.name)}　Lv.${p.level}<br><small>${(view.serverTime-p.lastSeenAt)>30000?'暂时离线':p.sceneId===c.sceneId?'正在同一场景':esc(contentData.scenes.find(s=>s.id===p.sceneId)?.name??'校园中')}</small></p>`).join('');
+ $('team-button').innerHTML=(room?'队伍 '+esc(room.code):'好友队伍')+' <kbd>P</kbd>';$('party-roster').innerHTML=(room?.members??[]).filter(p=>p.id!==c.id).map(p=>`<p>${esc(p.name)}　Lv.${p.level}<br><small>${(view.serverTime-p.lastSeenAt)>30000?'暂时离线':resolveAreaId(p)===resolveAreaId(c)?'正在同一区域':esc(getWorldArea(resolveAreaId(p)).name)}</small></p>`).join('');
  const rosterStamp=JSON.stringify(room?.members.map(p=>[p.id,p.level,(view.serverTime-p.lastSeenAt)>30000]));if(panel==='party'&&room&&rosterStamp!==partyStamp){partyStamp=rosterStamp;showPanel('party');}
  const enemy=encounter?.enemies?.[world.getAimState?.()?.targetId]??Object.values(encounter?.enemies??{}).find(e=>e.hp>0);$('enemy-hud').hidden=!enemy;if(enemy){$('enemy-name').textContent=enemy.name;$('enemy-phase').textContent=enemy.attack?enemy.attack.name:'观察敌人，移动寻找机会';$('enemy-fill').style.width=enemy.hp/enemy.maxHp*100+'%';$('enemy-hp').textContent=`${Math.ceil(enemy.hp)} / ${enemy.maxHp}`;}
  paintAbilities();
@@ -249,8 +261,7 @@ function showPanel(name,context){if(characterPreview&&name!=='character'){charac
  else if(name==='inventory'){title='背包';html=renderInventoryPanel({character:c,filter:folioState.bagFilter,selectedItemId:folioState.selectedItemId});}
  else if(name==='skills'){title='魔法手册';html=renderMagicPanel({character:c,filter:folioState.magicFilter,selectedSkillId:folioState.selectedSkillId});}
  else if(name==='map'){title='地图集';html=renderMapPanel({character:c,view,room,mode:folioState.mapMode,selectedSceneId:folioState.selectedSceneId});}
- else if(name==='journal'){title='任务日志';const journal=c.journal;html=`<h3>正在进行 · ${esc(view.quest.name)}</h3><p>${esc(view.quest.description)}</p>${view.targets.filter(t=>!['service','training','collection'].includes(t.kind)).map(t=>`<div class="row"><span>${esc(t.label)}</span><span class="${t.completed?'complete':'note'}">${t.completed?'已完成':t.active?'进行中':'待完成'}</span></div>`).join('')}<h3>探索邀请</h3>${contentData.sideQuests.map(q=>{const row=journal?.side.find(s=>s.id===q.id);return `<div class="card"><strong>${esc(q.name??q.title??q.id)}</strong><p>${esc(row?.serverState==='completed'?'已经找到收藏':row?.serverState==='locked'?'随着主线推进开放':'前往'+q.startNpc.name+'所在的'+(contentData.scenes.find(s=>s.id===q.startNpc.sceneId)?.name??'区域')+'领取邀请，再寻找收藏点。')}</p>${['available','active'].includes(row?.serverState)?`<button data-track="${esc(row.key)}">${c.trackedIds.includes(row.key)?'取消追踪':'追踪任务'}</button>`:''}</div>`;}).join('')}<h3>已完成主线 ${c.completedQuestIds.length} / 36</h3>${c.completedQuestIds.map(id=>`<div class="row complete">✓ ${esc(contentData.quests.find(q=>q.id===id)?.name)}</div>`).join('')}<h3>回归接续</h3><p>你上次保存的任务是「${esc(view.quest.name)}」。关闭窗口后沿金色标记前往当前目标，任务和已领取奖励不会重置。</p>`;}
- else if(name==='travel'){title=name==='travel'?'选择出口路线':'霍格沃茨地图';const available=new Set([view.sceneId,...c.completedQuestIds.flatMap(q=>contentData.questSceneMap[q]??[]),contentData.questSceneMap[c.currentQuestId]?.[0]]);html='<p class="note">地图用于查看路线。走到场景出口并按 E，才能选择前往已开放地点。</p><div class="grid">'+contentData.scenes.filter(s=>s.id!=='SC00').map(s=>`<div class="card"><strong>${esc(s.name)} ${s.id===view.sceneId?'· 你在这里':''}</strong><p>${esc(s.zones.join(' · '))}</p>${name==='travel'&&available.has(s.id)?`<button data-travel="${s.id}">沿出口前往</button>`:`<span class="note">${available.has(s.id)?'路线已开放':'随主线开放'}</span>`}</div>`).join('')+'</div>';}
+ else if(name==='journal'){title='任务日志';const journal=c.journal;html=`<h3>正在进行 · ${esc(view.quest.name)}</h3><p>${esc(view.quest.description)}</p>${(view.quest.allObjectives??view.targets.filter(t=>!['service','training','collection','passage','conversation'].includes(t.kind))).map(t=>`<div class="row"><span>${esc(t.label)}${t.areaId?' · '+esc(getWorldArea(t.areaId)?.name??''):''}</span><span class="${t.completed?'complete':'note'}">${t.completed?'已完成':t.active?'进行中':'待完成'}</span></div>`).join('')}<h3>探索邀请</h3>${contentData.sideQuests.map(q=>{const row=journal?.side.find(s=>s.id===q.id);return `<div class="card"><strong>${esc(q.name??q.title??q.id)}</strong><p>${esc(row?.serverState==='completed'?'已经找到收藏':row?.serverState==='locked'?'随着主线推进开放':'前往'+q.startNpc.name+'所在的'+(contentData.scenes.find(s=>s.id===q.startNpc.sceneId)?.name??'区域')+'领取邀请，再寻找收藏点。')}</p>${['available','active'].includes(row?.serverState)?`<button data-track="${esc(row.key)}">${c.trackedIds.includes(row.key)?'取消追踪':'追踪任务'}</button>`:''}</div>`;}).join('')}<h3>已完成主线 ${c.completedQuestIds.length} / 36</h3>${c.completedQuestIds.map(id=>`<div class="row complete">✓ ${esc(contentData.quests.find(q=>q.id===id)?.name)}</div>`).join('')}<h3>回归接续</h3><p>你上次保存的任务是「${esc(view.quest.name)}」。关闭窗口后沿金色标记前往当前目标，任务和已领取奖励不会重置。</p>`;}
  else if(name==='party'){title='好友队伍';html=room?`<p class="note">把邀请码发给朋友，最多五人同行。每个人的角色、任务和奖励独立保存。</p><div class="room-code">${esc(room.code)}</div><button id="copy-invite">复制邀请链接</button><h3>同行伙伴 ${room.members.length} / 5</h3>${room.members.map(p=>`<div class="row"><span>${esc(p.name)} · ${esc(heroes[p.heroId]?.name)} · Lv.${p.level}</span><span>${(view.serverTime-p.lastSeenAt)>30000?'暂时离线':p.id===room.leaderId?'队长':p.id===c.id?'你':'队友'}</span></div>`).join('')}<p class="note">挑战Boss前，全员走到同一副本入口附近。开始后锁定本轮人数，战斗难度随参与人数调整。</p><button data-action="room-leave">离开队伍</button>`:`<p>独自探索，也可以邀请最多四位朋友同行。</p><button class="primary" data-action="room-create">创建好友队伍</button><h3>加入朋友的队伍</h3><div class="tabs"><input id="join-code" placeholder="8位队伍邀请码" maxlength="8" value="${esc(invitation??'')}" aria-label="队伍邀请码"><button id="join-room">加入队伍</button></div>`;}
  else if(name==='shop'){const localIds=context?.serviceIds??[];title=context?.label??'校园补给与用品';html=`<div class="row"><strong>金币 ${c.wallet.coins}</strong><strong>学习凭证 ${c.wallet.learningCredits}</strong></div>${localIds.some(id=>['SERVICE-SUPPLY','CHECKPOINT'].includes(id))?`<h3>免费恢复与药剂补给</h3><div class="tabs">${[[1,1],[2,0],[0,2]].map(([h,f])=>`<button data-refill="${h},${f}">生命 ${h} · 专注 ${f}</button>`).join('')}</div><p class="note">总计两瓶。每场战斗共享一次药剂使用额度，失败后可回补给点再准备。</p>`:''}`+contentData.services.filter(s=>s.catalog.length&&localIds.includes(s.serviceId)).map(s=>`<h3>${esc(s.name)}</h3><div class="grid">${s.catalog.map(o=>{const i=contentData.items.find(i=>i.itemId===o.itemId);const owned=[...c.inventory,...Object.values(c.equipment),...(c.tools??[]),...(c.appearances??[])].includes(i.itemId);const unlocked=c.level>=(o.unlock.requiredLevel??1)&&o.unlock.requiredQuestIds.every(id=>c.completedQuestIds.includes(id));return `<div class="card"><strong>${esc(i.name)}</strong><p>${esc(effectText(i))}</p><p>${o.price.amount} ${o.price.currencyId==='CUR-COIN'?'金币':'学习凭证'}</p><button data-buy="${esc(o.offerId)}" data-service="${s.serviceId}" ${owned||!unlocked?'disabled':''}>${owned?'已拥有':unlocked?'购买 / 兑换':'尚未开放'}</button></div>`;}).join('')}</div>`).join('');html+='<h3>探索邀请</h3>'+contentData.sideQuests.filter(q=>q.startNpc.sceneId===view.sceneId&&q.prerequisites.completedQuestIds.every(id=>c.completedQuestIds.includes(id))).map(q=>`<button data-side="${q.id}">${esc(q.name??q.title??q.id)}</button>`).join('');}
  else if(name==='training'){title='练习与副本重演';const localIds=context?.cycleIds??[];html='<p class="note">在委托人所在的区域开启挑战。灰色内容不再提供重复经验；已通关的朋友可以协助重打。</p><div class="grid">'+runtimeCatalog.commissions.map(q=>{const open=commissionUnlocked(c,q.cycleId),local=localIds.includes(q.cycleId);const place=contentData.scenes.find(s=>s.id===q.sceneId)?.name??q.sceneId;return `<div class="card"><strong>${esc(q.displayName)}</strong><p>${esc(place)} · ${esc(q.initiator.name)}</p><p>内容等级 ${q.contentLevel} · ${c.level-q.contentLevel>=5?'灰色 · 0经验':'完成后按真实等级结算'}</p>${open&&local?`<button data-cycle="${q.cycleId}">开始挑战</button>`:`<span class="note">${open?'前往该区域的练习委托台':'随主线开放'}</span>`}</div>`;}).join('')+'</div>';}
@@ -276,7 +287,7 @@ function updateCharacterSheet(){
 }
 function currentFolioStamp(){
  if(!folioPages.has(panel)||!character)return '';
- return JSON.stringify([panel,character.id,character.level,character.hp,character.focus,character.xpCents,character.stats,character.equipment,character.inventory,character.potions,character.bagCapacity,character.tools,character.collectionItems,character.appearances,character.pendingClaims,character.skills,character.completedQuestIds,character.wallet,encounter?.status,panel==='map'?[character.position,view?.sceneId,view?.targets,room?.members]:null]);
+ return JSON.stringify([panel,character.id,character.level,character.hp,character.focus,character.xpCents,character.stats,character.equipment,character.inventory,character.potions,character.bagCapacity,character.tools,character.collectionItems,character.appearances,character.pendingClaims,character.skills,character.completedQuestIds,character.wallet,encounter?.status,panel==='map'?[character.position,view?.areaId,view?.targets,room?.members]:null]);
 }
 function refreshFolio(){if(folioPages.has(panel)&&currentFolioStamp()!==folioStamp)showPanel(panel);}
 async function changeEquipment(button,payload){
@@ -296,7 +307,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button');i
  if(b.dataset.skillSelect){folioState.selectedSkillId=b.dataset.skillSelect;showPanel('skills');return;}
  if(b.dataset.mapMode){folioState.mapMode=b.dataset.mapMode;showPanel('map');return;}
  if(b.dataset.sceneSelect){folioState.selectedSceneId=b.dataset.sceneSelect;showPanel('map');return;}
- if(b.dataset.hero){await choose(b.dataset.hero);return;}if(b.dataset.resume){await enter(b.dataset.resume);return;}if(b.dataset.panel&&character){showPanel(b.dataset.panel);return;}if(b.dataset.skill){world.cast(b.dataset.skill);return;}if(b.dataset.track){const ids=selectHud(character.journal,character.trackedIds).trackedIds;const tracked=ids.includes(b.dataset.track);if(!tracked&&ids.length>=2){toast('最多追踪两个可选任务，请先取消一个。');return;}await act({type:'track',trackedIds:tracked?ids.filter(id=>id!==b.dataset.track):[...ids,b.dataset.track]});showPanel('journal');}if(b.dataset.equip){await changeEquipment(b,{type:'equip',itemId:b.dataset.equip});return;}if(b.dataset.unequip){await changeEquipment(b,{type:'unequip',slot:b.dataset.unequip});return;}if(b.dataset.claim){await act({type:'claim',claimId:b.dataset.claim,itemId:b.dataset.item});showPanel('inventory');}if(b.dataset.buy){await act({type:'buy',serviceId:b.dataset.service,offerId:b.dataset.buy});showPanel('shop');}if(b.dataset.refill){const[health,focus]=b.dataset.refill.split(',').map(Number);await act({type:'refill',health,focus});showPanel('shop');}if(b.dataset.cycle){closePanel();await act({type:'encounter',cycleId:b.dataset.cycle});}if(b.dataset.travel){await act({type:'travel',targetId:'exit',sceneId:b.dataset.travel});closePanel();}if(b.dataset.answer){closePanel();await act({type:'interact',targetId:b.dataset.target,choice:Number(b.dataset.answer)});}if(b.dataset.side){await act({type:'side',questId:b.dataset.side});toast('已记录探索邀请，可在任务日志中查看。');}if(b.dataset.action){const action=b.dataset.action;if(action==='retry')closePanel();await act({type:action});if(action.startsWith('room'))showPanel('party');}}
+ if(b.dataset.hero){await choose(b.dataset.hero);return;}if(b.dataset.resume){await enter(b.dataset.resume);return;}if(b.dataset.panel&&character){showPanel(b.dataset.panel);return;}if(b.dataset.skill){world.cast(b.dataset.skill);return;}if(b.dataset.track){const ids=selectHud(character.journal,character.trackedIds).trackedIds;const tracked=ids.includes(b.dataset.track);if(!tracked&&ids.length>=2){toast('最多追踪两个可选任务，请先取消一个。');return;}await act({type:'track',trackedIds:tracked?ids.filter(id=>id!==b.dataset.track):[...ids,b.dataset.track]});showPanel('journal');}if(b.dataset.equip){await changeEquipment(b,{type:'equip',itemId:b.dataset.equip});return;}if(b.dataset.unequip){await changeEquipment(b,{type:'unequip',slot:b.dataset.unequip});return;}if(b.dataset.claim){await act({type:'claim',claimId:b.dataset.claim,itemId:b.dataset.item});showPanel('inventory');}if(b.dataset.buy){await act({type:'buy',serviceId:b.dataset.service,offerId:b.dataset.buy});showPanel('shop');}if(b.dataset.refill){const[health,focus]=b.dataset.refill.split(',').map(Number);await act({type:'refill',health,focus});showPanel('shop');}if(b.dataset.cycle){closePanel();await act({type:'encounter',cycleId:b.dataset.cycle});}if(b.dataset.answer){closePanel();await act({type:'interact',targetId:b.dataset.target,choice:Number(b.dataset.answer)});}if(b.dataset.side){await act({type:'side',questId:b.dataset.side});toast('已记录探索邀请，可在任务日志中查看。');}if(b.dataset.action){const action=b.dataset.action;if(action==='retry')closePanel();await act({type:action});if(action.startsWith('room'))showPanel('party');}}
  catch(e){if(e.code!=='NETWORK')toast(e.message);}});
 for(const b of $('quick-menu').querySelectorAll('button[data-panel]'))b.insertAdjacentHTML('afterbegin',iconMarkup(b.dataset.panel));
 $('enter-game').addEventListener('click',()=>enter());$('skip-film').addEventListener('click',endFilm);$('close-panel').addEventListener('click',closePanel);$('team-button').addEventListener('click',()=>character?showPanel('party'):toast('先选择人物进入冒险，再邀请朋友。'));$('menu-button').addEventListener('click',()=>showPanel('settings'));

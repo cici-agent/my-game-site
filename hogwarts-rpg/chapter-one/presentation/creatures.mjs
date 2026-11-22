@@ -3,12 +3,14 @@ import { buildCreature } from '../../world/chapter-creature.mjs';
 import { createNpc, createSculptureKit } from './npcs.mjs';
 import { creatureCollision } from '../combat/collision-profiles.mjs';
 import { createCommonSpider, createCommonBat } from './ordinary-creatures.mjs';
+import { creatureSurface, creatureTufts, leafBladeGeometry, organicLoft, blinkAmount, visualDt, creatureFloorSupport } from './creature-detail.mjs';
 
-const disposeTree = root => {
+const disposeTree = (root, owner = {}) => {
   const geometry = new Set(), material = new Set();
   root.traverse(n => { if (n.geometry) geometry.add(n.geometry); for (const m of [].concat(n.material ?? [])) material.add(m); });
-  for (const g of geometry) g.dispose(); for (const m of material) m.dispose();
+  for (const g of geometry) if (!owner.geometries?.has(g)) g.dispose(); for (const m of material) if (!owner.materials?.has(m)) m.dispose();
 };
+const detailOval = (kit, parent, material, at, scale, rotation) => kit.mesh(parent, new THREE.SphereGeometry(1, 16, 12), material, at, scale, rotation);
 const pivot = (parent, name, p) => { const g = new THREE.Group(); g.name = name; g.position.set(...p); parent.add(g); return g; };
 
 function createTroll() {
@@ -16,7 +18,7 @@ function createTroll() {
   root.name = 'DetailedCreature:MountainTroll'; source.root.rotation.y = Math.PI; root.add(source.root);
   const body = source.root.getObjectByName('CreatureBody'), torso = source.root.getObjectByName('CreatureTorso');
   const club = source.root.getObjectByName('CreatureClub');
-  const pore = kit.texture('skin'), clothMap = kit.texture('cloth');
+  const pore = creatureSurface(kit, 'skin'), clothMap = kit.texture('cloth'), woodMap = kit.texture('wood');
   source.root.traverse(node => {
     if (!node.isMesh) return;
     const prior = node.geometry, p = prior.parameters ?? {};
@@ -25,21 +27,27 @@ function createTroll() {
     if (node.geometry !== prior) prior.dispose();
     if (node.material.isMeshStandardMaterial) {
       node.castShadow = true; node.receiveShadow = true;
-      node.material.roughness = .88; node.material.bumpMap = pore; node.material.bumpScale = .004;
+      const color = node.material.color.getHexString();
+      const skinSurface = ['839886','697c69','858b83','69716b'].includes(color);
+      const wooden = ['694c35','8a6747','9d7a55'].includes(color);
+      const fabric = ['75604a','4f4235'].includes(color);
+      node.material.roughness = skinSurface ? .86 : wooden ? .8 : fabric ? .95 : .62;
+      node.material.map = skinSurface ? pore : wooden ? woodMap : fabric ? clothMap : null;
+      node.material.bumpMap = node.material.map; node.material.bumpScale = skinSurface ? .004 : wooden ? .006 : .002;
       if (node.material.color.getHexString() === '839886') node.material.color.set('#858b83');
       if (node.material.color.getHexString() === '697c69') node.material.color.set('#69716b');
     }
   });
-  const skin = kit.material({ color: '#858b83', roughness: .82, bumpMap: pore, bumpScale: .004 });
-  const dark = kit.material({ color: '#5c675e', roughness: .9, bumpMap: pore, bumpScale: .003 });
+  const skin = kit.material({ color: '#8b9189', roughness: .82, map: pore, bumpMap: pore, bumpScale: .004 });
+  const dark = kit.material({ color: '#657066', roughness: .9, map: pore, bumpMap: pore, bumpScale: .003 });
   const lips = kit.material({ color: '#656a62', roughness: .7 });
   const ivory = kit.material({ color: '#cfc4a2', roughness: .72 });
   const iris = kit.material({ color: '#816a3c', roughness: .28 });
   const pupil = kit.material({ color: '#161b16', roughness: .2 });
-  const hide = kit.material({ color: '#665647', roughness: 1, bumpMap: clothMap, bumpScale: .005 });
+  const hide = kit.material({ color: '#806b55', roughness: 1, map: clothMap, bumpMap: clothMap, bumpScale: .005 });
   const seam = kit.material({ color: '#b6a181', roughness: .94 });
   const iron = kit.material({ color: '#454944', metalness: .35, roughness: .66 });
-  const wood = kit.material({ color: '#795b3d', roughness: .92, bumpMap: kit.texture('wood'), bumpScale: .008 });
+  const wood = kit.material({ color: '#997551', roughness: .86, map: woodMap, bumpMap: woodMap, bumpScale: .008 });
   const grain = kit.material({ color: '#523b29', roughness: .98 });
   const at = (x, y, z) => [x, y - 1.1, z];
   for (const side of [-1, 1]) {
@@ -107,22 +115,37 @@ function createTroll() {
     const a = i * Math.PI * 2 / 18;
     kit.tube(club, grain, [[Math.cos(a) * .095, .22, Math.sin(a) * .095 + .03], [Math.cos(a + .016) * .17, .73, Math.sin(a + .016) * .17 + .03], [Math.cos(a) * .22, 1.23, Math.sin(a) * .22 + .03]], .0035);
   }
+  const eyelids = [-1,1].map(side => {
+    const lid=detailOval(kit,head,skin,[side*.20,.174,.448],[.070,.018,.014]);lid.name=`TrollEyelid:${side}`;lid.userData.keepSeparate=true;return lid;
+  });
   kit.bake(head); kit.bake(torso); kit.bake(club);
-  let time = 0, disposed = false, lastAction = 'idle';
+  const floorSupport = creatureFloorSupport(body);
+  let time = 0, down = 0, disposed = false, lastAction = 'idle';
   function update(dt, state = {}) {
-    if (disposed) return; dt = Math.min(.1, Math.max(0, dt)); time += dt;
-    const action = state.action ?? 'idle';
+    if (disposed) return; dt = visualDt(dt); time += dt;
+    const action = state.action ?? 'idle', sleeping=['downed','dead'].includes(action);
     if (action === 'hurt' && lastAction !== action) source.react('hit', .8);
     lastAction = action;
     const phase = action === 'attack' ? 'windup' : state.attackPhase === 'recover' ? 'opening' : state.attackPhase === 'vulnerable' ? 'vulnerable' : 'waiting';
-    source.update({ dt, status: action === 'downed' || action === 'dead' ? 'won' : 'active', started: true, phase,
-      moveSpeed: state.speed ?? 0, windupProgress: state.windupProgress ?? (action === 'attack' ? (time % 1.6) / 1.6 : undefined),
+    // Own the reversible collapse blend here: the legacy terminal won pose
+    // resets instantly on revival and rolls the shoulder through the floor.
+    source.update({ dt, status: 'active', started: true, phase: sleeping ? 'waiting' : phase,
+      moveSpeed: sleeping ? 0 : state.speed ?? 0, windupProgress: state.windupProgress ?? (action === 'attack' ? (time % 1.6) / 1.6 : undefined),
     }, time, null);
+    down = THREE.MathUtils.damp(down,sleeping?1:0,4.5,dt);
+    body.rotation.z = THREE.MathUtils.lerp(body.rotation.z,1.27,down);
+    body.position.y = THREE.MathUtils.lerp(body.position.y,.28,down);
+    torso.rotation.x *= 1-down; torso.rotation.y *= 1-down; torso.rotation.z *= 1-down;
+    const blink=sleeping?1:blinkAmount(time,.4,6.1);
+    eyelids.forEach(lid=>{lid.position.y=.174-blink*.06;lid.scale.y=.018+blink*.035;});
+    head.rotation.x=Math.sin(time*.75)*.018*(sleeping?0:1)+(action==='attack'?-.035*(state.windupProgress??0):0);
+    head.rotation.y=Math.sin(time*.53)*.025*(action==='idle'?1:0);
+    if (down > .0001) floorSupport.lift(.002);
     // The original telegraph ring is disabled: server-driven ground telegraphs
     // belong to the world renderer, never to the cosmetic creature animation.
     const ring = source.root.children.find(n => n.isMesh && n.geometry?.type === 'RingGeometry'); if (ring) ring.visible = false;
   }
-  function dispose() { if (disposed) return; disposed = true; root.removeFromParent(); disposeTree(source.root); kit.dispose(); root.clear(); }
+  function dispose() { if (disposed) return; disposed = true; root.removeFromParent(); disposeTree(source.root,kit); kit.dispose(); root.clear(); }
   root.userData.visualKind = 'mountain-troll'; root.userData.visualTier = 'detailed_supporting_creature_pending_render_review';
   return { root, update, dispose, react: source.react, forward: 'negative-z', dimensions: { height: 3.8, radius: .95 } };
 }
@@ -157,7 +180,8 @@ function createBooks() {
 function createPlant(elite = false) {
   const kit = createSculptureKit(), root = new THREE.Group(); root.name = elite ? 'DetailedCreature:RootMass' : 'DetailedCreature:TrainingVine';
   const bark = kit.material({ color: elite ? '#4e5943' : '#61714a', roughness: .93, bumpMap: kit.texture('skin'), bumpScale: .004 });
-  const edge = kit.material({ color: '#87916a', roughness: .88 });
+  const leafMap = creatureSurface(kit, 'leaf');
+  const edge = kit.material({ color: '#8e9d6a', map: leafMap, bumpMap: leafMap, bumpScale: .001, roughness: .82, side: THREE.DoubleSide });
   const earth = kit.material({ color: '#322a22', roughness: 1 });
   const clay = kit.material({ color: '#865940', roughness: .97, bumpMap: kit.texture('skin'), bumpScale: .003 });
   if (!elite) kit.lathe(root, clay, [[.29, 0], [.30, .04], [.36, .36], [.39, .38], [.39, .43], [.35, .44]], [0, 0, 0], [1, 1, 1]);
@@ -170,8 +194,16 @@ function createPlant(elite = false) {
     kit.tube(vine, bark, [[0, 0, 0], [.13, height * .3, -.1], [.19, height * .7, -.05], [.42, height, -.12]], elite ? .075 : .04);
     for (let j = 0; j < 4; j++) {
       const y = height * (.2 + j * .18), side = j % 2 ? 1 : -1;
-      kit.oval(vine, edge, [.12 + side * .10, y, -.05], [.14, .034, .067], [0, 0, side * -.45]);
-      kit.tube(vine, bark, [[.13, y, -.05], [.13 + side * .18, y + .08, -.05]], .004);
+      const leaf = pivot(vine, `LeafBlade:${i}:${j}`, [.13, y, -.05]); leaf.rotation.set(.1, -side * Math.PI / 2, side * .25);
+      kit.mesh(leaf, leafBladeGeometry(.29, .09, .03), edge);
+      kit.tube(leaf, bark, [[0,0,0],[0,.03,-.14],[0,0,-.29]], .0022);
+      for(const veinSide of [-1,1]) for(let vein=0;vein<3;vein++) {
+        const z=-.055-vein*.058, width=Math.sin(Math.PI*(-z/.29))*.075;
+        kit.tube(leaf,bark,[[0,.024,z],[veinSide*width,.012,z-.025]],.0008);
+      }
+      // Leaves stay static on their animated vine; fold them into its two
+      // material batches instead of adding a draw call for every small vein.
+      leaf.updateMatrix(); for (const mesh of [...leaf.children]) { mesh.applyMatrix4(leaf.matrix); vine.add(mesh); } leaf.removeFromParent();
     }
     kit.bake(vine);
   }
@@ -256,74 +288,198 @@ function createKey() {
 
 function createFluffy() {
   const kit = createSculptureKit(), root = new THREE.Group(); root.name = 'DetailedCreature:ThreeHeadedHound';
-  const fur = kit.material({ color: '#493b2f', roughness: .97, bumpMap: kit.texture('skin'), bumpScale: .005 });
-  const muzzle = kit.material({ color: '#655442', roughness: .95 });
-  const nose = kit.material({ color: '#24231e', roughness: .45 });
-  const teeth = kit.material({ color: '#d9c9a3', roughness: .75 });
-  const eyes = kit.material({ color: '#af813e', emissive: '#5b3811', emissiveIntensity: .15, roughness: .3 });
+  const furMap = creatureSurface(kit, 'fur');
+  const fur = kit.material({ color: '#625044', map: furMap, roughness: .94, bumpMap: furMap, bumpScale: .0035 });
+  const softFur = kit.material({ color: '#78614d', roughness: 1, emissive: '#33291f', emissiveIntensity: .2 });
+  const earFur = kit.material({ color: '#3e342c', map: furMap, roughness: .96, bumpMap: furMap, bumpScale: .006, side: THREE.DoubleSide });
+  const muzzle = kit.material({ color: '#83694f', map: furMap, roughness: .88, bumpMap: furMap, bumpScale: .003 });
+  const nose = kit.material({ color: '#252720', roughness: .54 });
+  const mouth = kit.material({ color: '#392b29', roughness: .86 });
+  const teeth = kit.material({ color: '#cdbd98', roughness: .74 });
+  const eyes = kit.material({ color: '#7a683b', roughness: .26 });
+  const glint = teeth;
   const body = pivot(root, 'HoundBody', [0, 0, 0]);
-  kit.oval(body, fur, [0, 1.11, .25], [.67, .68, 1.0]);
+  kit.mesh(body, organicLoft([
+    { z: -.72, y: 1.18, rx: .04, ry: .06 }, { z: -.60, y: 1.18, rx: .47, ry: .48 },
+    { z: -.32, y: 1.18, rx: .65, ry: .62 }, { z: .10, y: 1.10, rx: .61, ry: .58 },
+    { z: .48, y: 1.04, rx: .49, ry: .46 }, { z: .86, y: 1.08, rx: .43, ry: .41 },
+    { z: 1.14, y: 1.08, rx: .32, ry: .33 }, { z: 1.27, y: 1.08, rx: .03, ry: .04 },
+  ]), fur);
+  creatureTufts(kit, body, softFur, { name: 'HoundShoulderFur', center: [0, 1.16, -.16], radii: [.64, .60, .53], count: 1800, length: .035, lower: -.65, comb:[0,-.45,.65] });
   const heads = [];
   for (let i = 0; i < 3; i++) {
-    const x = (i - 1) * .56, head = pivot(body, `HoundHead${i}`, [x, 1.67 + (i === 1 ? .18 : 0), -.58]); heads.push(head);
-    kit.oval(head, fur, [0, -.15, .03], [.31, .45, .34]); kit.oval(head, fur, [0, .12, -.14], [.32, .34, .36]);
-    kit.oval(head, muzzle, [0, -.015, -.44], [.235, .17, .30]); kit.oval(head, nose, [0, .05, -.68], [.15, .085, .07]);
+    const x = (i - 1) * .56, head = pivot(body, `HoundHead${i}`, [x, 1.67 + (i === 1 ? .18 : 0), -.58]);
+    // Neck, cheekbone, brow and upper muzzle form one tapered surface.
+    kit.mesh(head, organicLoft([
+      { z: .34, y: -.30, rx: .07, ry: .11 }, { z: .22, y: -.20, rx: .26, ry: .34 },
+      { z: .04, y: 0, rx: .27, ry: .31 }, { z: -.10, y: .06, rx: .30, ry: .25 },
+      { z: -.23, y: .035, rx: .285, ry: .20 }, { z: -.32, y: -.025, rx: .215, ry: .135 },
+      { z: -.44, y: -.08, rx: .16, ry: .10 }, { z: -.63, y: -.085, rx: .14, ry: .085 }, { z: -.69, y: -.08, rx: .05, ry: .035 },
+    ]), fur);
+    const jaw = pivot(head, `HoundJaw${i}`, [0, -.13, -.29]);
+    kit.mesh(jaw, organicLoft([
+      { z: .06, y: -.025, rx: .025, ry: .03 }, { z: -.05, y: -.03, rx: .18, ry: .075 },
+      { z: -.23, y: -.035, rx: .16, ry: .065 }, { z: -.37, y: -.02, rx: .09, ry: .04 },
+      { z: -.39, y: -.02, rx: .012, ry: .012 },
+    ]), muzzle);
+    detailOval(kit, jaw, mouth, [0, .015, -.19], [.14, .022, .17]);
+    detailOval(kit, head, nose, [0, -.025, -.666], [.12, .068, .043]);
     for (const side of [-1, 1]) {
-      kit.oval(head, fur, [side * .28, .29, -.03], [.12, .23, .08], [0, 0, side * -.3]);
-      kit.oval(head, eyes, [side * .14, .18, -.435], [.051, .042, .025]); kit.oval(head, nose, [side * .14, .18, -.46], [.014, .030, .006]);
-      kit.tube(head, nose, [[side * .04, -.11, -.68], [side * .18, -.11, -.53], [side * .23, -.09, -.34]], .012);
-      for (let j = 0; j < 3; j++) kit.mesh(head, new THREE.ConeGeometry(.018, .065, 9), teeth, [side * .18, -.13, -.52 + j * .08], [1, 1, 1], [Math.PI, 0, 0]);
+      detailOval(kit, head, muzzle, [side * .092, -.075, -.54], [.11, .075, .12]);
+      detailOval(kit, head, nose, [side * .06, -.026, -.705], [.024, .019, .009]);
+      kit.tube(head, nose, [[side * .025, -.126, -.66], [side * .15, -.143, -.51], [side * .21, -.11, -.34]], .008);
+      for (let j = 0; j < 3; j++) {
+        kit.mesh(head, new THREE.ConeGeometry(j === 0 ? .018 : .012, j === 0 ? .085 : .04, 8), teeth, [side * .156, -.17, -.48 + j * .07], [1, 1, 1], [Math.PI, 0, 0]);
+        kit.mesh(jaw, new THREE.ConeGeometry(.011, .038, 8), teeth, [side * .135, .037, -.21 + j * .06]);
+      }
+      // Drooping, folded ears read as a heavy hound rather than round toy ears.
+      const ear = pivot(head, `HoundEar${i}:${side}`, [side * .31, .19, -.15]);
+      const earGeometry = leafBladeGeometry(.34, .12, .065); earGeometry.rotateX(-Math.PI / 2); earGeometry.rotateY(side * -.5); earGeometry.rotateZ(side * -.12);
+      kit.mesh(ear, earGeometry, earFur, [0, .025, 0]); kit.bake(ear);
+      detailOval(kit, head, eyes, [side * .177, .132, -.36], [.041, .031, .019]);
+      detailOval(kit, head, nose, [side * .178, .132, -.376], [.017, .018, .006]);
+      detailOval(kit, head, glint, [side * .170, .142, -.381], [.004, .004, .003]);
+      kit.tube(head, fur, [[side * .10, .19, -.34], [side * .18, .192, -.365], [side * .25, .16, -.29]], .025);
+      const lid = detailOval(kit, head, fur, [side * .177, .17, -.385], [.045, .014, .01]); lid.name = `HoundLid${i}:${side}`; lid.userData.keepSeparate = true;
+      for (let dot = 0; dot < 4; dot++) detailOval(kit, head, nose, [side * (.10 + (dot % 2) * .035), -.065 - Math.floor(dot / 2) * .026, -.636 + (dot % 2) * .03], [.003, .003, .002]);
     }
-    kit.bake(head);
+    creatureTufts(kit, head, softFur, { name: `HoundNeckFur${i}`, center: [0, -.10, .08], radii: [.27, .34, .25], count: 500, length: .035, lower: -.7, comb:[0,-.8,.2] });
+    kit.bake(jaw); kit.bake(head);
+    heads.push({ head, jaw, lids: [-1, 1].map(side => head.getObjectByName(`HoundLid${i}:${side}`)), ears: [-1, 1].map(side => head.getObjectByName(`HoundEar${i}:${side}`)) });
   }
   const legs = [];
   for (const x of [-.46, .46]) for (const z of [-.42, .88]) {
-    const leg = pivot(body, `HoundLeg:${x}:${z}`, [x, .92, z]); legs.push(leg);
-    kit.oval(leg, fur, [0, -.33, 0], [.16, .43, .19]); kit.oval(leg, muzzle, [0, -.80, -.08], [.21, .13, .27]);
-    for (let i = -1; i <= 1; i++) kit.oval(leg, nose, [i * .075, -.82, -.30], [.026, .023, .055]); kit.bake(leg);
+    const front = z < 0, leg = pivot(body, `HoundLeg:${x}:${z}`, [x, .92, z]);
+    const knee = pivot(leg, `HoundKnee:${x}:${z}`, [0, -.32, front ? .015 : .10]);
+    const paw = pivot(knee, `HoundPaw:${x}:${z}`, [0, -.43, front ? -.035 : -.10]);
+    kit.lathe(leg, fur, [[.105, -.36], [.14, -.22], [.19, 0], [.22, .17], [.12, .27]], [0, 0, 0], [1, 1, 1.15]);
+    kit.lathe(knee, fur, [[.075, -.45], [.078, -.28], [.10, -.12], [.12, .04]], [0, 0, 0], [1, 1, 1.1]);
+    detailOval(kit, paw, muzzle, [0, -.065, -.085], [.17, .10, .22]);
+    for (let toe = -1; toe <= 1; toe++) {
+      detailOval(kit, paw, fur, [toe * .081, -.06, -.24], [.055, .07, .085]);
+      detailOval(kit, paw, nose, [toe * .081, -.058, -.305], [.018, .018, .038]);
+    }
+    kit.bake(leg); kit.bake(knee); kit.bake(paw); legs.push({ leg, knee, paw, front, side: Math.sign(x) });
   }
-  const tail = pivot(body, 'HoundTail', [0, 1.32, 1.12]); kit.tube(tail, fur, [[0, 0, 0], [.10, .19, .30], [.22, .25, .57]], .085); kit.bake(tail); kit.bake(body);
-  let time = 0, phase = 0, sleep = 0;
-  return { root, forward: 'negative-z', update(dt, state = {}) {
-    time += dt; const speed = state.speed ?? 0; phase += speed * dt * 3.7;
-    sleep = THREE.MathUtils.damp(sleep, ['downed', 'sleep'].includes(state.action) ? 1 : 0, 3, dt);
-    body.position.y = -sleep * .53 + Math.sin(time * 1.1) * .013;
-    heads.forEach((head, i) => { head.rotation.x = .45 * sleep + Math.sin(time * (1.1 + i * .1) + i) * .035; head.rotation.y = Math.sin(time * .6 + i * 2) * .11 * (1 - sleep); });
-    legs.forEach((leg, i) => { leg.rotation.x = Math.sin(phase + (i % 3 ? Math.PI : 0)) * .24 * Math.min(1, speed); });
-    tail.rotation.z = Math.sin(time * 1.7) * .17;
-  }, dispose() { root.removeFromParent(); kit.dispose(); root.clear(); } };
+  const tail = pivot(body, 'HoundTail', [0, 1.32, 1.12]); kit.tube(tail, fur, [[0, 0, 0], [.10, .19, .30], [.22, .25, .57]], .075); kit.bake(tail); kit.bake(body);
+  let time = 0, phase = 0, sleep = 0, recoil = 0, releaseAge = 2, lastAction = 'idle', disposed = false;
+  function update(dt, state = {}) {
+    if (disposed) return; dt = visualDt(dt); time += dt;
+    const action = state.action ?? 'idle', speed = Math.max(0, state.speed ?? 0), resting = ['downed','dead','sleep'].includes(action);
+    if (action === 'hurt' && lastAction !== action) recoil = 1;
+    if (lastAction === 'attack' && state.attackPhase === 'recover' && !resting && action !== 'hurt') releaseAge = 0;
+    if (resting) releaseAge = 2;
+    releaseAge += dt; recoil *= Math.exp(-dt * 8); lastAction = action; phase += speed * dt * 3.7;
+    sleep = THREE.MathUtils.damp(sleep, resting ? 1 : 0, 3, dt);
+    const moving = Math.min(1, speed) * (1 - sleep), charge = action === 'attack' ? THREE.MathUtils.clamp(state.windupProgress ?? .5, 0, 1) : 0;
+    const bite = releaseAge < .34 ? Math.sin(releaseAge / .34 * Math.PI) : 0;
+    // Fold the hocks before settling the torso so the paws stay above the floor.
+    body.position.set(0, -(sleep ** 3) * .49 + Math.sin(time * 1.1) * .009 * (1 - sleep), recoil * .055 - bite * .075);
+    body.rotation.x = -charge * .035 + recoil * .065; body.rotation.z = Math.sin(phase) * .014 * moving;
+    heads.forEach(({head, jaw, lids, ears}, i) => {
+      head.rotation.x = .42 * sleep + Math.sin(time * (1.1 + i * .1) + i) * .022 * (1 - sleep) - charge * .11 + bite * .12;
+      head.rotation.y = Math.sin(time * .6 + i * 2) * .085 * (1 - sleep) * (1 - charge);
+      jaw.rotation.x = -(charge * (.20 + i * .035) + bite * .32 + (.045 + Math.sin(time * 1.2 + i) * .012) * (1 - sleep));
+      const blink = Math.max(sleep, blinkAmount(time, i * 1.23));
+      lids.forEach(lid => { lid.position.y = .17 - blink * .037; lid.scale.y = .014 + blink * .023; });
+      ears.forEach((ear, side) => ear.rotation.z = Math.sin(time * 1.5 + i + side) * .035 + (side ? -1 : 1) * recoil * .11);
+    });
+    legs.forEach(({leg,knee,paw,front,side}) => {
+      const angle = phase + (front === (side < 0) ? 0 : Math.PI), swing = Math.max(0, Math.sin(angle));
+      leg.rotation.x = Math.cos(angle) * .21 * moving + sleep * (front ? -1.45 : 1.35);
+      knee.rotation.x = swing * .35 * moving + sleep * (front ? 2.45 : -2.5);
+      paw.rotation.x = -leg.rotation.x - knee.rotation.x + swing * .07 * moving;
+      knee.position.z=(front?.015:.10)*(1-sleep);paw.position.z=(front?-.035:-.10)*(1-sleep);
+    });
+    tail.rotation.z = Math.sin(time * 1.7) * .11 * (1 - sleep);
+  }
+  update(0); root.userData.visualKind = 'three-headed-hound';
+  return { root, forward: 'negative-z', update,
+    debugSnapshot: () => ({ heads: heads.length, legs: legs.length, sleep, recoil, releaseAge, jawAngles: heads.map(h=>h.jaw.rotation.x), kneeAngles: legs.map(l=>l.knee.rotation.x) }),
+    dispose() { if (disposed) return; disposed = true; root.removeFromParent(); kit.dispose(); root.clear(); } };
 }
 
 function createDragon() {
   const kit = createSculptureKit(), root = new THREE.Group(); root.name = 'DetailedCreature:Norbert';
-  const scales = kit.material({ color: '#647568', roughness: .85, bumpMap: kit.texture('skin'), bumpScale: .003 });
-  const membrane = kit.material({ color: '#7e6b52', roughness: .86, side: THREE.DoubleSide });
-  const horn = kit.material({ color: '#c5b593', roughness: .8 });
-  const eye = kit.material({ color: '#c09a3e', roughness: .3 });
-  const dark = kit.material({ color: '#252c27', roughness: .75 });
+  const scaleMap = creatureSurface(kit, 'scales');
+  const scales = kit.material({ color: '#798b78', roughness: .72, map: scaleMap, bumpMap: scaleMap, bumpScale: .004 });
+  const membrane = kit.material({ color: '#826f54', roughness: .84, side: THREE.DoubleSide, bumpMap: scaleMap, bumpScale: .001 });
+  const horn = kit.material({ color: '#b9ab8b', roughness: .8 });
+  const eye = kit.material({ color: '#b29345', roughness: .25 });
+  const dark = kit.material({ color: '#242d24', roughness: .7 });
   const body = pivot(root, 'DragonBody', [0, 0, 0]);
-  kit.oval(body, scales, [0, .35, .05], [.23, .28, .43]);
+  kit.mesh(body, organicLoft([
+    {z:-.36,y:.38,rx:.03,ry:.05},{z:-.23,y:.39,rx:.18,ry:.23},{z:.04,y:.35,rx:.23,ry:.27},
+    {z:.28,y:.32,rx:.19,ry:.20},{z:.48,y:.32,rx:.045,ry:.06},
+  ]), scales);
   const head = pivot(body, 'DragonHead', [0, .56, -.36]);
-  kit.oval(head, scales, [0, 0, 0], [.20, .18, .24]); kit.oval(head, scales, [0, -.055, -.22], [.13, .085, .17]);
+  kit.mesh(head, organicLoft([
+    {z:.18,y:-.03,rx:.04,ry:.07},{z:.07,y:0,rx:.17,ry:.18},{z:-.10,y:0,rx:.19,ry:.16},
+    {z:-.20,y:-.035,rx:.125,ry:.09},{z:-.35,y:-.045,rx:.09,ry:.055},{z:-.39,y:-.045,rx:.01,ry:.015},
+  ]), scales);
+  const jaw = pivot(head, 'DragonJaw', [0, -.085, -.13]);
+  kit.mesh(jaw, organicLoft([{z:.06,y:0,rx:.015,ry:.02},{z:-.045,y:0,rx:.105,ry:.035},{z:-.20,y:.005,rx:.075,ry:.025},{z:-.24,y:.006,rx:.01,ry:.008}]), scales);
+  detailOval(kit, jaw, dark, [0, .023, -.10], [.08,.009,.10]);
+  const lids = [];
   for (const side of [-1, 1]) {
-    kit.oval(head, eye, [side * .14, .045, -.15], [.04, .035, .03]); kit.oval(head, dark, [side * .15, .045, -.175], [.009, .026, .007]);
-    kit.mesh(head, new THREE.ConeGeometry(.035, .18, 12), horn, [side * .13, .17, .04], [1, 1, 1], [.4, 0, -side * .3]);
+    detailOval(kit, head, eye, [side * .147, .035, -.15], [.033, .026, .020]); detailOval(kit, head, dark, [side * .15, .035, -.168], [.007, .022, .005]);
+    kit.tube(head, scales, [[side*.10,.08,-.16],[side*.16,.08,-.13],[side*.19,.05,-.08]],.019);
+    const lid=detailOval(kit, head,scales,[side*.147,.067,-.173],[.035,.012,.007]);lid.name=`DragonLid:${side}`;lid.userData.keepSeparate=true;lids.push(lid);
+    detailOval(kit, head,dark,[side*.052,-.031,-.362],[.011,.007,.006]);
+    kit.mesh(head, new THREE.ConeGeometry(.031, .18, 12), horn, [side * .13, .17, .04], [1, 1, 1], [.4, 0, -side * .3]);
+    for(let i=0;i<4;i++)kit.mesh(jaw,new THREE.ConeGeometry(.006,.021,6),horn,[side*.069,.035,-.045-i*.036]);
   }
-  kit.tube(body, scales, [[0, .34, .36], [.03, .24, .62], [.15, .14, .86], [.24, .24, 1.02]], .065);
-  for (let i = 0; i < 7; i++) kit.mesh(body, new THREE.ConeGeometry(.028, .10, 8), horn, [0, .60 - i * .045, -.05 + i * .12]);
-  const wings = [];
+  const tail = [], tailRoot = pivot(body,'DragonTailBase',[0,.34,.36]); let tailParent=tailRoot;
+  for(let i=0;i<3;i++){
+    const segment = i===0?tailRoot:pivot(tailParent,`DragonTailJoint${i}`,[0,-.025,.22]);
+    kit.tube(segment,scales,[[0,0,0],[.015,-.02,.12],[0,-.025,.23]],.058-i*.016);
+    kit.mesh(segment,new THREE.ConeGeometry(.017-i*.003,.07-i*.01,7),horn,[0,.03,.13]);kit.bake(segment);tail.push(segment);tailParent=segment;
+  }
+  for (let i = 0; i < 6; i++) kit.mesh(body, new THREE.ConeGeometry(.025, .09, 8), horn, [0, .61 - i * .038, -.08 + i * .085]);
+  const wings = [], legs=[];
   for (const side of [-1, 1]) {
-    const wing = pivot(body, `DragonWing${side}`, [side * .17, .48, .05]); wings.push(wing);
-    const points = [[0, 0, 0], [side * .54, .33, .06], [side * .67, .05, .37], [side * .34, -.08, .30], [side * .12, -.12, .25]];
-    const g = new THREE.BufferGeometry(); const vertices = [];
-    for (let i = 1; i < points.length - 1; i++) vertices.push(...points[0], ...points[i], ...points[i + 1]);
-    g.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3)); g.computeVertexNormals(); kit.mesh(wing, g, membrane);
-    for (const p of points.slice(1)) kit.tube(wing, scales, [[0, 0, 0], p], .014);
+    const wing = pivot(body, `DragonWing${side}`, [side * .17, .48, .05]), shape = new THREE.Shape(); wings.push({wing,side});
+    shape.moveTo(0,0); shape.quadraticCurveTo(side*.18,-.18,side*.38,-.21); shape.lineTo(side*.67,-.08);
+    shape.quadraticCurveTo(side*.42,-.02,side*.55,.32);shape.quadraticCurveTo(side*.30,.17,side*.31,.39);
+    shape.quadraticCurveTo(side*.13,.23,side*.065,.23);shape.lineTo(0,0);
+    const g=new THREE.ShapeGeometry(shape,20);g.rotateX(Math.PI/2);const positions=g.attributes.position;
+    for(let i=0;i<positions.count;i++)positions.setY(i,-.045*Math.sin(Math.abs(positions.getX(i))/.68*Math.PI));g.computeVertexNormals();
+    kit.mesh(wing,g,membrane).name=`DragonWingMembrane:${side}`;
+    const elbow=[side*.18,.025,-.12],wrist=[side*.38,0,-.21];
+    kit.tube(wing,scales,[[0,0,0],elbow,wrist],.017);
+    for(const tip of [[side*.67,0,-.08],[side*.55,0,.32],[side*.31,0,.39],[side*.065,0,.23]]){
+      kit.tube(wing,scales,[wrist,[tip[0]*.85,-.025,tip[2]*.65],tip],.008);
+      kit.tube(wing,horn,[elbow,[tip[0]*.60,-.03,tip[2]*.56],[tip[0]*.80,-.02,tip[2]*.83]],.0018);
+    }
+    kit.mesh(wing,new THREE.ConeGeometry(.016,.07,8),horn,[side*.22,.04,-.16],[1,1,1],[0,0,-side*.7]);
     kit.bake(wing);
-    for (const z of [-.20, .29]) { const leg = pivot(body, `DragonLeg${side}:${z}`, [side * .17, .24, z]); kit.oval(leg, scales, [0, -.1, 0], [.055, .14, .06]); for (let i = -1; i <= 1; i++) kit.oval(leg, horn, [i * .023, -.22, -.045], [.012, .012, .035]); kit.bake(leg); }
+    for (const z of [-.20, .29]) {
+      const leg = pivot(body, `DragonLeg${side}:${z}`, [side * .17, .24, z]),knee=pivot(leg,`DragonKnee${side}:${z}`,[0,-.105,.025]),foot=pivot(knee,`DragonFoot${side}:${z}`,[0,-.10,-.025]);
+      kit.lathe(leg,scales,[[.032,-.12],[.05,-.04],[.065,.03]], [0,0,0]);kit.lathe(knee,scales,[[.024,-.10],[.03,-.06],[.035,.025]],[0,0,0]);
+      detailOval(kit, foot,scales,[0,-.01,-.025],[.045,.025,.065]);
+      for(let toe=-1;toe<=1;toe++)detailOval(kit, foot,horn,[toe*.027,-.015,-.08],[.010,.010,.036]);
+      kit.bake(leg);kit.bake(knee);kit.bake(foot);legs.push({leg,knee,foot,front:z<0,side});
+    }
   }
-  kit.bake(body); kit.bake(head); let time = 0;
-  return { root, forward: 'negative-z', update(dt, state = {}) { time += dt; head.rotation.y = Math.sin(time * 1.1) * .13; head.rotation.x = state.action === 'attack' ? -.25 : Math.sin(time * .8) * .045; wings.forEach((wing, i) => { wing.rotation.z = (i ? -1 : 1) * (.35 + Math.sin(time * 2.2) * .11); }); body.position.y = Math.sin(time * 1.8) * .009; }, dispose() { root.removeFromParent(); kit.dispose(); root.clear(); } };
+  kit.bake(body); kit.bake(head);kit.bake(jaw);
+  let time=0,gait=0,down=0,recoil=0,lastAction='idle',releaseAge=2,disposed=false;
+  function update(dt,state={}){
+    if(disposed)return;dt=visualDt(dt);time+=dt;const action=state.action??'idle',speed=Math.max(0,state.speed??0),dead=['downed','dead','sleep'].includes(action);
+    if(action==='hurt'&&lastAction!==action)recoil=1;
+    if(lastAction==='attack'&&state.attackPhase==='recover'&&!dead&&action!=='hurt')releaseAge=0;
+    if(dead)releaseAge=2;
+    recoil*=Math.exp(-dt*9);releaseAge+=dt;lastAction=action;gait+=dt*speed*9;down=THREE.MathUtils.damp(down,dead?1:0,5,dt);
+    const charge=action==='attack'?THREE.MathUtils.clamp(state.windupProgress??.5,0,1):0,breath=releaseAge<.4?Math.sin(releaseAge/.4*Math.PI):0,moving=Math.min(1,speed)*(1-down);
+    body.position.set(0,Math.sin(time*1.8)*.007*(1-down)-down*.08,recoil*.035);body.rotation.z=down*.08+recoil*.06;
+    head.rotation.y=Math.sin(time*1.1)*.10*(1-down)*(1-charge);head.rotation.x=charge*-.20+breath*.10+down*.20;
+    jaw.rotation.x=-charge*.13-breath*.26-(.018+Math.sin(time*1.6)*.012)*(1-down);
+    const blink=Math.max(down,blinkAmount(time,.7,5.3));lids.forEach(lid=>{lid.position.y=.067-blink*.029;lid.scale.y=.012+blink*.015;});
+    wings.forEach(({wing,side})=>{wing.rotation.z=-side*((.32+Math.sin(time*2.2)*.09)*(1-down)-down*.7+charge*.23);wing.rotation.y=side*(Math.sin(time*1.7)*.045+breath*.12-down);});
+    tail.forEach((segment,i)=>{segment.rotation.y=Math.sin(time*1.5-i*.65)*(.09+i*.035)*(1-down);segment.rotation.x=down*.07+Math.sin(time*1.1-i*.5)*.025;});
+    legs.forEach(({leg,knee,foot,front,side})=>{const phase=gait+(front===(side<0)?0:Math.PI),swing=Math.max(0,Math.sin(phase));leg.rotation.x=Math.cos(phase)*.26*moving-down*1.3; knee.rotation.x=swing*.48*moving+down*2.2;foot.rotation.x=-leg.rotation.x-knee.rotation.x;});
+  }
+  update(0);root.userData.visualKind='norwegian-ridgeback-hatchling';
+  return{root,forward:'negative-z',update,debugSnapshot:()=>({wings:wings.length,tailJoints:tail.length,legs:legs.length,down,recoil,releaseAge,kneeAngles:legs.map(l=>l.knee.rotation.x),tailAngles:tail.map(t=>t.rotation.y)}),dispose(){if(disposed)return;disposed=true;root.removeFromParent();kit.dispose();root.clear();}};
 }
 
 function createPeeves() {
@@ -355,5 +511,10 @@ export function createCreature({ templateId = 'PAPER-L1', kind, scale = 1 } = {}
   else result = createPaper();
   result.root.scale.multiplyScalar(scale); result.root.userData.templateId = templateId;
   result.collision = creatureCollision(templateId); result.root.userData.collision = result.collision;
+  // The scene can release an arena twice after an interrupted transition. Every
+  // creature shares the same idempotent lifecycle, including legacy variants.
+  const update = result.update, dispose = result.dispose; let disposed = false;
+  result.update = (dt,state) => { if (!disposed) update(visualDt(dt),state); };
+  result.dispose = () => { if (disposed) return; disposed = true; dispose(); };
   return result;
 }

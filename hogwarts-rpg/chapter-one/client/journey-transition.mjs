@@ -8,7 +8,7 @@ const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const gatewayZ = (id, side) => side === 'exit'
   ? ({ SC01: -11.4, SC02: -10.22, SC00: -12.24, SC04: -12.24 })[id] ?? (outdoor.has(id) ? -14 : -10.69)
-  : id === 'SC02' ? 10.9 : id === 'SC01' ? 16.8 : outdoor.has(id) ? 11.8 : 14.6;
+  : id === 'SC02' ? 10.9 : id === 'SC01' ? 16.8 : id === 'SC03' ? getSceneNavigation(id).bounds[3] - .2 : outdoor.has(id) ? 11.8 : 14.6;
 
 // Path only within authored navigation; the connector itself is a temporary
 // presentation corridor. Its coordinates must never be sent as player moves.

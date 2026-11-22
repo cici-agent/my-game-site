@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { Vector3 } from 'three';
+import { resolveAreaId, getWorldArea, getAreaLinks } from '../chapter-one/world-atlas.mjs';
 import { WALK_SPEED } from '../chapter-one/movement.mjs';
 import { correctionPlan, moveWithCollisions } from '../chapter-one/client/scene-geometry.mjs';
 import { applyEquipmentAppearance, resetEquipmentAppearance } from '../chapter-one/presentation/equipment-appearance.mjs';
@@ -29,13 +30,13 @@ const sampleFrame = source.slice(sampleStart, sampleEnd);
 const json = value => JSON.parse(JSON.stringify(value));
 const position = (x = 0, y = 0, z = 0) => ({ x, y, z, yaw: 0 });
 function harness() {
-  const areas = [], context = vm.createContext({ THREE: { Vector3 }, correctionPlan, moveWithCollisions, WALK_SPEED, applyEquipmentAppearance, resetEquipmentAppearance, performance: { now: () => 1000 }, Date, console, __areas: areas });
+  const areas = [], context = vm.createContext({ resolveAreaId, getWorldArea, getAreaLinks, areaOffset: (a,b)=>{const from=getWorldArea(a).origin,to=getWorldArea(b).origin;return{x:from.x-to.x,y:from.y-to.y,z:from.z-to.z};}, THREE: { Vector3 }, correctionPlan, moveWithCollisions, WALK_SPEED, applyEquipmentAppearance, resetEquipmentAppearance, performance: { now: () => 1000 }, Date, console, __areas: areas });
   vm.runInContext(`
-const scene = {}, keys = new Set(), velocity = {x:0,y:0,set(x,y){this.x=x;this.y=y;}}, moveHistory = new Map(), correctionApplied = new THREE.Vector3();
+const streaming = {setTransit(){}}, scene = {}, keys = new Set(), velocity = {x:0,y:0,set(x,y){this.x=x;this.y=y;}}, moveHistory = new Map(), correctionApplied = new THREE.Vector3();
 let movementSteps = [], previousAck = 10, movementInFlight = null, rejectedMove = null;
-let journey = null, wasBoatRide = false; const planJourney=()=>null,getSceneNavigation=()=>({bounds:[-5,5,-5,5],walls:[]}),targetGroup={position:new THREE.Vector3()};
-let snapshotGeneration = 0, view = {sceneId:'SC04',serverTime:100,targets:[]}, character = {id:'self',heroId:'harry',position:{x:0,y:0,z:0,yaw:0},lastAcceptedMoveSequence:10,skills:[]}, room = null, combat = null;
-let sceneStamp = 'SC04::', selection = false, selected = 'harry', disposed = false, serverAt = 0, receivedAt = 0, jumpPreparation = 0, dy = 0, grounded = true, flying = false, correction = null, stalledSnapshots = 0, yaw = 0;
+let journey = null, wasBoatRide = false, crossing=null, crossingCooldown=0, elapsed=0, landing=false; const camera={position:new THREE.Vector3()}; const planJourney=()=>null,getSceneNavigation=()=>({bounds:[-5,5,-5,5],walls:[]}),targetGroup={position:new THREE.Vector3()};
+let snapshotGeneration = 0, view = {sceneId:'SC04',serverTime:100,targets:[]}, character = {id:'self',heroId:'harry',sceneId:'SC04',position:{x:0,y:0,z:0,yaw:0},lastAcceptedMoveSequence:10,skills:[]}, room = null, combat = null;
+let sceneStamp = 'SC04:', selection = false, selected = 'harry', disposed = false, serverAt = 0, receivedAt = 0, jumpPreparation = 0, dy = 0, grounded = true, flying = false, correction = null, stalledSnapshots = 0, yaw = 0;
 let selfPose = {x:0,y:0,z:0,yaw:0,grounded:true,flying:false,sprint:false};
 const actor = {root:{position:new THREE.Vector3(),rotation:{y:0},parent:scene},resetPresentation({position,yaw}){this.root.position.set(...position);this.root.rotation.y=yaw;}};
 const map = {bounds:[-5,5,-5,5],walls:[],setEscort(){},setContext(){}}, point=p=>new THREE.Vector3(p.x,p.y??0,p.z), identity=c=>c?.id??c?.characterId;
@@ -55,7 +56,7 @@ globalThis.__world={resetMovement,noteMovementSent,takeMovementPacket,rejectMove
  state(){return {applied:{x:correctionApplied.x,y:correctionApplied.y,z:correctionApplied.z},steps:movementSteps,history:[...moveHistory],previousAck,inFlight:movementInFlight,rejectedMove,correction:correction&&{x:correction.x,y:correction.y,z:correction.z},local:{x:actor.root.position.x,y:actor.root.position.y,z:actor.root.position.z},selfPose,flying,character,view,selection};}
 };`, context);
   const world = context.__world;
-  return { world, areas, state: () => json(world.state()), snapshot: (ack, p, extra = {}) => world.setSnapshot({ id: 'self', heroId: 'harry', position: p, lastAcceptedMoveSequence: ack, skills: [], ...extra.character }, null, { sceneId: 'SC04', serverTime: 200, targets: [], ...extra.view }) };
+  return { world, areas, state: () => json(world.state()), snapshot: (ack, p, extra = {}) => world.setSnapshot({ id: 'self', heroId: 'harry', sceneId: extra.view?.sceneId ?? 'SC04', position: p, lastAcceptedMoveSequence: ack, skills: [], ...extra.character }, null, { sceneId: 'SC04', serverTime: 200, targets: [], ...extra.view }) };
 }
 function nearPoint(actual, expected, label) { for (const axis of ['x', 'y', 'z']) assert(Math.abs((actual?.[axis] ?? 0) - (expected?.[axis] ?? 0)) < 1e-8, `${label}.${axis}: ${actual?.[axis]} != ${expected?.[axis]}`); }
 

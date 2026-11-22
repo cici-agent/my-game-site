@@ -218,30 +218,30 @@ const layouts = freeze({
       -10,
       10,
       -14,
-      12
+      72
     ],
     "walls": [
       {
         "x": 0,
-        "z": -2.25,
+        "z": 21,
         "w": 25,
-        "d": 2.6,
+        "d": 48,
         "height": 5,
         "water": true
       },
       {
         "x": -7,
-        "z": 0,
+        "z": 16,
         "w": 7.2,
-        "d": 29,
+        "d": 61,
         "height": 5,
         "water": true
       },
       {
         "x": 7,
-        "z": 0,
+        "z": 16,
         "w": 7.2,
-        "d": 29,
+        "d": 61,
         "height": 5,
         "water": true
       }
