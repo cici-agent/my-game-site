@@ -36,7 +36,7 @@ export const SHOP_ITEMS = [
   { key: 'hay', price: 3, lv: 1, note: '一份草料：倒进牛棚、羊圈的食槽（生菜、胡萝卜、玉米也行）', shop: 'animal' },
   { key: 'shears', price: 10, lv: 1, note: '剪羊毛用（不会用完）', once: true, shop: 'animal' },
   // 萌宠小屋（用户说：宠物店，现在只有小狗，以后有更多）
-  { key: 'puppy', price: 80, lv: 1, note: '一只呆萌的小狗，买了就跟着你（只能养一只）', once: true, shop: 'pet' },
+  { key: 'puppy', price: 80, lv: 1, note: '只能养一只。记得备粮和洗澡，长期断粮可能饿死', once: true, shop: 'pet' },
   { shop: 'pet', key: 'kennel', price: 30, lv: 1, note: '小狗窝：先放进背包，选中按 E 放在地上（放好就不能再挪了）；狗晚上回去睡觉；在狗屋前按 E 能升级', once: true },
   { shop: 'pet', key: 'leash', price: 8, lv: 1, note: '把狗拴在狗屋门口（或者地上的小木桩）上，它就不会乱跑；不会用完', once: true },
   { shop: 'pet', key: 'bowl', price: 10, lv: 1, note: '放在地上，往里面加狗粮，狗饿了自己去吃' },
@@ -59,7 +59,7 @@ function tex(w, h, draw) { const c = document.createElement('canvas'); c.width =
 export const SHOPS = {
   general: { name: '菜鸟小卖部', icon: '🏪', a: '#e8473e', b: '#ffffff', keeper: 'chef', desc: '买种子、树苗、蜡烛、杀虫剂、菜刀、木头、煤；把东西卖掉换菜币' },
   hall: { name: '镇政府', icon: '🏛️', a: '#34588f', b: '#ffffff', keeper: 'explorer', desc: '镇长在这里：新来的找他领空地' },
-  pet: { name: '萌宠小屋', icon: '🐾', a: '#ff7aa8', b: '#ffffff', keeper: 'explorer', desc: '买小狗、狗屋、狗盆、狗粮、狗链、飞盘（以后会有更多宠物）' },
+  pet: { name: '萌宠小屋', icon: '🐾', a: '#ff7aa8', b: '#ffffff', keeper: 'explorer', desc: '买小狗和狗粮，也能给自家小狗洗澡、看病' },
   animal: { name: '动物小铺', icon: '🐔', a: '#4caf50', b: '#fff4c2', keeper: 'farmer', desc: '买小鸡、小牛、小羊、小猪、小鸭、鱼苗、小虾、小螃蟹，各种动物的家，饲料、剪刀、渔网' },
 };
 export const shopOf = it => it.shop || 'general';

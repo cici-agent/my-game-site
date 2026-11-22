@@ -6,10 +6,11 @@ import * as THREE from 'three';
 import { buildKennel, KENNEL } from './kennel.js';
 import { createGate } from './gate.js';
 
+import { advanceCare, advanceAway, freshCare, careLabel, services, DIRTY_AFTER, MEAL, HUNGRY } from './dog-care.js';
+
 const KEY = 'xcn_dog_v1';
 const LEASH = 3.5;   // 狗链长度（米）：拴上以后只能在这一圈里走
-const HUNGER_RATE = .012;   // 饱的程度每秒掉多少（100 → 0 大约 2 小时多）
-const MEAL = 40, BOWL_MAX = 5, HUNGRY = 40;
+const BOWL_MAX = 5;
 export const DOG_NAMES = ['豆豆', '团子', '旺财', '布丁', '小黄'];
 
 // ---------- 小狗模型：大头、大眼睛、耷拉耳朵、短腿、摇尾巴、吐舌头 ----------
@@ -67,7 +68,7 @@ export function buildDog() {
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(.42, 20), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .2, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = .02; shadow.scale.set(1, 1.3, 1); root.add(shadow);
   root.scale.setScalar(1.15);
-  return { root, body, head, legs, tail, ears, tongue, mouth, bell, shadow, eyes };
+  return { fur, root, body, head, legs, tail, ears, tongue, mouth, bell, shadow, eyes };
 }
 
 // 头上冒的小表情（❤️、💤、😢、🍖）
@@ -86,11 +87,16 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
   st ||= { has: false };
   const save = () => { st.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
   // 离线这段时间：肚子饿了会自己去吃狗盆里的
-  if (st.has && st.t) {
-    let away = Math.max(0, (Date.now() - st.t) / 1000);
-    while (away > 0) { const step = Math.min(away, 600); st.full = Math.max(0, st.full - step * HUNGER_RATE); away -= step;
-      if (st.full < HUNGRY && st.bowl && st.bowl.food > 0) { st.bowl.food--; st.full = Math.min(100, st.full + MEAL); }
-      if (st.full <= 0) st.loyal = Math.max(0, st.loyal - step / 600); }
+  if (st.has) {
+    const upgrading = !st.care;
+    st.care ??= freshCare();
+    const away = Math.max(0, (Date.now() - (st.t || Date.now())) / 1000);
+    if (upgrading) {
+      // 旧存档先结算已有的饥饿和狗盆，新规则从首次进入开始。
+      advanceAway(st, Math.min(away, 24 * 3600));
+      st.care = freshCare();
+    } else advanceAway(st, away);
+    save();
   }
 
   // ---------- 模型 ----------
@@ -149,7 +155,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
   const circ = new THREE.Vector3(); let entering = false, napT = 0, zzT = 0, fetchT = 0, circA = 0, air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
   const say = (e, dur = 2) => {};   // 用户说：动物、宠物头上不要显示状态（比如睡觉、开心、饿了）
   function spawnNear(p) { pos.set(p.x + 1.5, 0, p.z + 1.5); }
-  function adopt(name) { if (st.has) return false; Object.assign(st, { has: true, name: name || DOG_NAMES[Math.floor(Math.random() * DOG_NAMES.length)], full: 80, loyal: 10, bowl: st.bowl || null }); save(); D.root.visible = true; placed = false; say('❤️', 3); return true; }
+  function adopt(name) { if (st.has) return false; Object.assign(st, { has: true, name: name || DOG_NAMES[Math.floor(Math.random() * DOG_NAMES.length)], full: 80, loyal: 10, care: freshCare(), died: false, bowl: st.bowl || null }); save(); D.root.visible = true; placed = false; mode = 'idle'; showKennel(); say('❤️', 3); return true; }
   let placed = false;
   const dist2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
   function pick(ppos) {
@@ -190,17 +196,28 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     if (d < .05) return d;
     const want = Math.atan2(dx, dz); let df = want - face; while (df > Math.PI) df -= Math.PI * 2; while (df < -Math.PI) df += Math.PI * 2;
     face += df * Math.min(1, dt * 8);
-    const s = Math.min(d, speed * dt); pos.x += Math.sin(face) * s; pos.z += Math.cos(face) * s; moving = speed;
+    const s = Math.min(d, speed * dt * (st.care.sick ? .65 : 1)); pos.x += Math.sin(face) * s; pos.z += Math.cos(face) * s; moving = speed;
     return d;
   }
 
+  let lastFrame = Date.now();
   function update(dt, ppos, pface) {
+    const now = Date.now();
+    const elapsed = (now - lastFrame) / 1000;
+    lastFrame = now;
     if (!st.has) { D.root.visible = false; return; }
     if (!placed) { spawnNear(ppos); placed = true; D.root.visible = true; showBowl(); }
     t0 += dt; petCd = Math.max(0, petCd - dt); moving = 0;
     if (kennelObj && kennelObj.gate) kennelObj.gate.update(dt);
-    st.full = Math.max(0, st.full - dt * HUNGER_RATE);
-    if (st.full <= 0) st.loyal = Math.max(0, st.loyal - dt / 600);   // 一直饿着，就没那么喜欢你了
+    if (elapsed > 5) {
+      advanceAway(st, elapsed);
+      showBowl(); save();
+    } else advanceCare(st, dt);
+    if (!st.has) {
+      D.root.visible = fris.visible = chainLine.visible = stake.visible = false;
+      frisState = null; save(); return;
+    }
+    D.fur.color.setHex(st.care.sinceBath >= DIRTY_AFTER ? 0xb2946d : 0xf1c27d);
     // 飞盘在天上飞
     if (frisState === 'fly') { fv.y -= 9 * dt; fris.position.addScaledVector(fv, dt); fris.rotation.y += dt * 14;
       const gy = groundAt(fris.position) + .03; if (fris.position.y <= gy) { fris.position.y = gy; frisState = 'ground'; } }
@@ -228,7 +245,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
         break; }
       case 'eat':
         if (st.bowl) { const want = Math.atan2(st.bowl.x - pos.x, st.bowl.z - pos.z); face += (want - face) * Math.min(1, dt * 6); }
-        if (timer <= 0) { if (st.bowl && st.bowl.food > 0) { st.bowl.food--; st.full = Math.min(100, st.full + MEAL); st.loyal = Math.min(100, st.loyal + 1); showBowl(); save(); say('😋', 1.8); } mode = 'idle'; }
+        if (timer <= 0) { if (st.bowl && st.bowl.food > 0) { st.bowl.food--; st.care.starving = 0; st.full = Math.min(100, st.full + MEAL); st.loyal = Math.min(100, st.loyal + 1); showBowl(); save(); say('😋', 1.8); } mode = 'idle'; }
         break;
       case 'beg': {
         const d = dP > 2 ? runTo(ppos.x, ppos.z, 6, dt) : 0;
@@ -298,7 +315,14 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
 
   // ---------- 主人跟它互动 ----------
   const api = {
-    get has() { return st.has; }, get name() { return st.name; }, get full() { return st.full; }, get loyal() { return st.loyal; }, get mode() { return mode; }, get pos() { return pos; },
+    get has() { return st.has; }, get died() { return st.died; },
+    get condition() { return careLabel(st); },
+    canCare(key) { return services[key].available(st); },
+    receiveCare(key, wallet) {
+      const service = services[key];
+      if (!service.available(st) || !wallet.spend(service.price)) return false;
+      service.apply(st); save(); return true;
+    }, get name() { return st.name; }, get full() { return st.full; }, get loyal() { return st.loyal; }, get mode() { return mode; }, get pos() { return pos; },
     get bowl() { return st.bowl; }, get frisbeeOut() { return !!frisState; },
     adopt, update, rename(n) { st.name = n; save(); say('❤️', 2); showKennel(); },
     get kennel() { return st.kennel; }, KENNEL,
@@ -338,7 +362,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     // 摸摸它
     pet() { if (petCd > 0) { say('😊', 1.2); return `🐶 ${st.name}蹭了蹭你`; } petCd = 20; st.loyal = Math.min(100, st.loyal + 2); say('❤️', 2); mode = 'sit'; timer = 2; save(); return `🐶 摸了摸${st.name}，它很开心（忠诚 +2）`; },
     // 用手喂狗粮
-    feed() { if (st.full >= 95) { say('😌', 1.5); return `🐶 ${st.name}已经吃饱了`; } st.full = Math.min(100, st.full + MEAL); st.loyal = Math.min(100, st.loyal + 3); say('😋', 2); mode = 'eat'; timer = 1.8; save(); return `🐶 ${st.name}吃得好香（忠诚 +3）`; },
+    feed() { if (st.full >= 95) { say('😌', 1.5); return `🐶 ${st.name}已经吃饱了`; } st.care.starving = 0; st.full = Math.min(100, st.full + MEAL); st.loyal = Math.min(100, st.loyal + 3); say('😋', 2); mode = 'eat'; timer = 1.8; save(); return `🐶 ${st.name}吃得好香（忠诚 +3）`; },
     // 放狗盆
     placeBowl(x, z) { st.bowl = { x, z, food: st.bowl ? st.bowl.food : 0 }; save(); showBowl(); },
     fillBowl() { if (!st.bowl) return false; if (st.bowl.food >= BOWL_MAX) return null; st.bowl.food++; save(); showBowl(); return st.bowl.food; },
