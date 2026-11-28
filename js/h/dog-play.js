@@ -7,21 +7,28 @@ export function practice(skills, key, random = Math.random) {
   return level === MASTERY && key !== 'fetch' || random() < chance;
 }
 
-export function commandPose(command, elapsed, startSit, startPaw) {
+export const neutralDogPose = { height: 0, pitch: 0, head: 0, legs: [0, 0, 0, 0] };
+const commandPoses = {
+  sit: { height: -.17, pitch: -.48, head: .27, legs: [.48, .48, -.95, -.95] },
+  stand: { height: .41, pitch: -1.06, head: .70, legs: [.10, .10, 1.06, 1.06] },
+  paw: { height: 0, pitch: -.22, head: .12, legs: [-1.55, .22, 1.07, 1.07] },
+};
+export function commandPose(command, elapsed, from = neutralDogPose) {
+  const to = commandPoses[command];
   const ease = (seconds, duration) => {
     const t = Math.max(0, Math.min(1, seconds / duration));
     return t * t * (3 - 2 * t);
   };
-  if (command === 'stand') {
-    // 已经四脚着地时也先略屈身，再撑直四腿。
-    const sit = startSit > .2 ? startSit * (1 - ease(elapsed, .65))
-      : startSit + .32 * ease(elapsed, .22) - (startSit + .32) * ease(elapsed - .22, .48);
-    return { sit, paw: startPaw * (1 - ease(elapsed, .24)) };
-  }
-  const sit = startSit + (1 - startSit) * ease(elapsed, .55);
-  const paw = command === 'paw' ? startPaw + (1 - startPaw) * ease(elapsed - .42, .32)
-    : startPaw * (1 - ease(elapsed, .22));
-  return { sit, paw };
+  const blend = ease(elapsed, command === 'stand' ? .72 : .54);
+  const raisedPaw = command === 'paw' ? ease(elapsed - .26, .43) : blend;
+  if (blend === 1 && raisedPaw === 1) return to;
+  const mix = (a, b, t) => a + (b - a) * t;
+  return {
+    height: mix(from.height, to.height, blend),
+    pitch: mix(from.pitch, to.pitch, blend),
+    head: mix(from.head, to.head, blend),
+    legs: to.legs.map((angle, i) => mix(from.legs[i], angle, i === 0 ? raisedPaw : blend)),
+  };
 }
 
 // 带侧倾的滑翔：先升高，滑行减速，最后向低翼一侧弯落。

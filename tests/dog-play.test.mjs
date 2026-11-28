@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { commands, commandPose, practice, MASTERY, launchDisc, discAt } from '../js/h/dog-play.js';
+import { commands, commandPose, neutralDogPose, practice, MASTERY, launchDisc, discAt } from '../js/h/dog-play.js';
 
 test('each command is learned independently; a mastered command always works', () => {
   const skills = {};
@@ -29,12 +29,16 @@ test('banked throws glide farther with a run-up and bend late in flight', () => 
   }
 });
 
-test('commands animate through distinct poses before holding the final stance', () => {
-  assert.deepEqual(commandPose('sit', 0, 0, 0), { sit: 0, paw: 0 });
-  assert.deepEqual(commandPose('sit', .6, 0, 0), { sit: 1, paw: 0 });
-  assert.ok(commandPose('stand', .3, 1, 0).sit < 1);
-  assert.deepEqual(commandPose('stand', .75, 1, 1), { sit: 0, paw: 0 });
-  assert.ok(commandPose('stand', .22, 0, 0).sit > .25);
-  assert.equal(commandPose('paw', .4, 0, 0).paw, 0);
-  assert.deepEqual(commandPose('paw', .8, 0, 0), { sit: 1, paw: 1 });
+test('stand lifts the front paws and handshake raises only one', () => {
+  const sit = commandPose('sit', .8);
+  assert.deepEqual(commandPose('sit', 0), neutralDogPose);
+  assert.ok(sit.height < 0);
+  assert.deepEqual(commandPose('stand', 0, sit), sit);
+  const stand = commandPose('stand', .8, sit);
+  assert.ok(stand.height > .35 && stand.pitch < -1);
+  assert.ok(stand.legs[0] === stand.legs[1] && stand.legs[2] === -stand.pitch);
+  assert.equal(commandPose('paw', .2).legs[0], 0);
+  const paw = commandPose('paw', .8);
+  assert.ok(paw.legs[0] < -1.4 && paw.legs[1] === -paw.pitch);
+  assert.ok(paw.legs[2] === paw.legs[3]);
 });

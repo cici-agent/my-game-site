@@ -4,7 +4,7 @@
 // 数字是 Claude 定的（现实里的秒），以后可以改
 import * as THREE from 'three';
 import { buildKennel, KENNEL } from './kennel.js';
-import { commands, commandPose, practice, MASTERY, launchDisc, discAt } from './dog-play.js';
+import { commands, commandPose, neutralDogPose, practice, MASTERY, launchDisc, discAt } from './dog-play.js';
 import { createGate } from './gate.js';
 
 import { advanceCare, advanceAway, settleBoarding, bookBoarding, freshCare, careLabel, services, DIRTY_AFTER, MEAL, HUNGRY } from './dog-care.js';
@@ -174,7 +174,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     notify('🥏 飞盘落在地上了，走近按 E 可以捡起来。');
   }
   let rewardCommand = null, rewardUntil = 0;
-  let commandMotion = null, sitBlend = 0, pawBlend = 0;
+  let commandMotion = null, currentCommandPose = neutralDogPose;
 
   // ---------- 行为 ----------
   const circ = new THREE.Vector3(); let entering = false, napT = 0, zzT = 0, fetchT = 0, circA = 0, air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
@@ -400,20 +400,15 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     if (zz) { D.body.position.y = -.15; D.body.rotation.x = 0; D.legs.forEach((l, i) => l.rotation.x = i < 2 ? -1.35 : 1.35); D.head.rotation.x = .3; D.head.rotation.z = .25; D.tail.rotation.z *= .1; D.tongue.visible = false; }
     if (commandMotion && mode === commandMotion.command + 'Command') {
       commandMotion.elapsed += dt;
-      const pose = commandPose(commandMotion.command, commandMotion.elapsed, commandMotion.sit, commandMotion.paw);
-      sitBlend = pose.sit;
-      pawBlend = pose.paw;
-      D.body.position.y = -.17 * sitBlend;
-      D.body.rotation.x = -.48 * sitBlend;
-      D.body.rotation.z = -.12 * pawBlend;
-      D.legs[0].rotation.x = .48 * sitBlend - 1.52 * pawBlend;
-      D.legs[1].rotation.x = .48 * sitBlend;
-      D.legs[2].rotation.x = D.legs[3].rotation.x = -.95 * sitBlend;
-      D.head.rotation.x = .27 * sitBlend;
+      currentCommandPose = commandPose(commandMotion.command, commandMotion.elapsed, commandMotion.from);
+      const { height, pitch, head, legs } = currentCommandPose;
+      D.body.position.y = height;
+      D.body.rotation.x = pitch;
+      D.legs.forEach((leg, i) => { leg.rotation.x = legs[i]; });
+      D.head.rotation.x = head;
     } else {
       commandMotion = null;
-      sitBlend = 0;
-      pawBlend = 0;
+      currentCommandPose = neutralDogPose;
     }
     D.shadow.position.y = .02 - D.body.position.y;
     if (frisState === 'mouth') { const hp = new THREE.Vector3(0, .72, .72).applyEuler(D.root.rotation).multiplyScalar(1.15).add(pos); fris.position.copy(hp); fris.rotation.set(.1, face, .18); }
@@ -464,7 +459,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
       if (!Object.hasOwn(commands,command) || !api.near(owner) || st.bath || frisState || st.returning) return '先走到空闲的小狗身边训练。';
       const success = practice(st.skills, command);
       rewardCommand = success ? command : null; rewardUntil = Date.now() + 10000;
-      if (success) commandMotion = { command, elapsed: 0, sit: sitBlend, paw: pawBlend };
+      if (success) commandMotion = { command, elapsed: 0, from: currentCommandPose };
       mode = success ? command + 'Command' : 'sniff'; timer = success ? 5 : 1; save();
       return success ? st.name + '做到了「' + commands[command] + '」！可以喂一份狗粮奖励。' : st.name + '歪了歪头。再示范一次吧。';
     },
