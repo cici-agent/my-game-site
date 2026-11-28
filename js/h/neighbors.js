@@ -49,7 +49,7 @@ export function createNeighbors({ scene, plots, myIdx, onPath, onPlot, daylight,
   // 用户说：游戏里每一块空地一开始都有一个小木屋、一块最低级的菜园、一个鸡舍，还有一个最低级的小池塘，别的都没有
   const EMPTY = () => ({ level: 1, beds: [], t: Date.now() });
   const lots = plots.map((plot, idx) => {
-    if (idx === myIdx) return null;
+    if (!plot || idx === myIdx) return null;
     const side = chooseSide(plot, (x, z) => onPath(x, z, 1.5) || onPlot(x, z, 1));
     const g = new THREE.Group(); scene.add(g);   // 这块空地的东西都放这里：离得远就整个藏起来（省电）
     const e = { idx, plot, side, g, uid: null, name: '', sign: null, guard: null, stamp: null };

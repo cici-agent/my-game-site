@@ -114,7 +114,7 @@ export function createLayout(rnd) {
     if (lane.slice(2, -2).some(q => plots.some(o => inPlot(o, q.x, q.z, 1.5)))) continue;
     plot.id = plots.length + 1;
     plots.push(plot);
-    lanes.push({ pts: lane, w: L.laneW });
+    lanes.push({ pts: lane, w: L.laneW, plotIds: [plot.id] });
   }
   // 相邻空地之间再连一些小道（每块最多连一条，连最近的那块）
   const linked = new Set();
@@ -132,7 +132,7 @@ export function createLayout(rnd) {
     const near = pts.slice(3, -3).filter(q => onPath(q.x, q.z, 4)).length;
     grid.clear(); roads.forEach(r => addPath(r.pts, r.w, r.closed));
     if (near > (pts.length - 6) * .3) return;
-    linked.add(k); lanes.push({ pts, w: L.laneW });
+    linked.add(k); lanes.push({ pts, w: L.laneW, plotIds: [a.id, best.id] });
   });
   lanes.forEach(l => addPath(l.pts, l.w, false));
 

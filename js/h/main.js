@@ -33,16 +33,49 @@ const LAY = createLayout(rnd), PLOTS = LAY.plots;
 const { onPath, onPlot } = LAY;
 // 我的空地：先用离出生点最近的那块（以后改成在镇政府领到的那块）；菜园围在它旁边
 const DEFAULT_PLOT = PLOTS.slice().sort((a, b) => Math.hypot(a.x - LAY.spawn.x, a.z - LAY.spawn.z) - Math.hypot(b.x - LAY.spawn.x, b.z - LAY.spawn.z))[0];
-// 新手：镇长随便分一块没人住的空地（以后联网了，takenPlots 换成别的玩家已经住了的那些）；老玩家还住原来那块
+// 保留原始数组下标：地块编号已经写入玩家存档。
 const HOME_KEY = 'xcn_home_plot', MET_KEY = 'xcn_met_mayor';
-const takenPlots = () => [];
-let metMayor = localStorage.getItem(MET_KEY) === '1';
-let homeIdx = parseInt(localStorage.getItem(HOME_KEY), 10);
-if (!(homeIdx >= 0 && homeIdx < PLOTS.length)) {
-  if (localStorage.getItem('xcn_garden_v1')) { homeIdx = PLOTS.indexOf(DEFAULT_PLOT); metMayor = true; }
-  else { const free = PLOTS.map((p, i) => i).filter(i => !takenPlots().includes(i)); homeIdx = free[Math.floor(Math.random() * free.length)]; metMayor = false; try { localStorage.setItem('xcn_newbie_pond', '1'); } catch (e) {} }
-  try { localStorage.setItem(HOME_KEY, homeIdx); localStorage.setItem(MET_KEY, metMayor ? '1' : '0'); } catch (e) {}
+const ME = window.__ME;
+const net = createNet(ME);
+async function loadPlotAssignments() {
+  let timeout;
+  try {
+    return await Promise.race([net.plots(), new Promise(resolve => {
+      timeout = setTimeout(() => resolve(null), 4000);
+    })]);
+  } finally { clearTimeout(timeout); }
 }
+const assignments = net.ok ? await loadPlotAssignments() : [];
+const mine = assignments?.find(row => row.user_id === net.id && PLOTS[row.plot_index]);
+const usedPlots = new Set((assignments || []).filter(row => PLOTS[row.plot_index]).map(row => row.plot_index));
+let metMayor = !!mine || localStorage.getItem(MET_KEY) === '1';
+let homeIdx = mine?.plot_index ?? parseInt(localStorage.getItem(HOME_KEY), 10);
+if (!PLOTS[homeIdx] && localStorage.getItem('xcn_garden_v1')) {
+  homeIdx = DEFAULT_PLOT.id - 1;
+  metMayor = true;
+}
+if (metMayor && PLOTS[homeIdx]) usedPlots.add(homeIdx);
+
+const activePlots = new Set(usedPlots);
+for (const plot of PLOTS) {
+  if (assignments && activePlots.size >= 12) break;
+  activePlots.add(plot.id - 1);
+}
+const occupiedByOthers = new Set((assignments || []).filter(row => row.user_id !== net.id).map(row => row.plot_index));
+const vacantPlots = [...activePlots].filter(index => !occupiedByOthers.has(index));
+if (!PLOTS[homeIdx] || (!mine && (!activePlots.has(homeIdx) || occupiedByOthers.has(homeIdx)))) {
+  if (vacantPlots.length) homeIdx = vacantPlots[Math.floor(Math.random() * vacantPlots.length)];
+  else {
+    homeIdx = activePlots.values().next().value;
+    metMayor = false;
+  }
+  if (!metMayor) try { localStorage.setItem('xcn_newbie_pond', '1'); } catch (e) {}
+}
+try {
+  localStorage.setItem(HOME_KEY, homeIdx);
+  localStorage.setItem(MET_KEY, metMayor ? '1' : '0');
+} catch (e) {}
+const visiblePlots = PLOTS.filter(plot => activePlots.has(plot.id - 1));
 const homePlot = PLOTS[homeIdx];
 const gardenSide = chooseSide(homePlot, (x, z) => onPath(x, z, 1.5) || onPlot(x, z, 1));
 // 三家店的位置：广场外面的草坪上（用户说：商店不要在中间的圆里，移到草坪上），挨在一起，靠近我家那边，面朝广场
@@ -68,9 +101,24 @@ const WR = L.worldR;
 const canvas = document.getElementById('scene');
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 if (isTouch) document.body.classList.add('touch');
-const colliders = [];   // 圆形障碍物 [x, z, r]：树、灌木、花坛
+// 将静态圆形障碍物放入它可能影响的网格，只检测脚边的障碍物。
+const PROP_CELL = 12;
+const propGrid = new Map();
+const propKey = (i, j) => i * 1024 + j;
+const propCell = value => Math.floor(value / PROP_CELL);
+function addPropCollider(x, z, radius) {
+  const pad = radius + .55;
+  const obstacle = [x, z, radius];
+  for (let i = propCell(x - pad); i <= propCell(x + pad); i++) {
+    for (let j = propCell(z - pad); j <= propCell(z + pad); j++) {
+      const key = propKey(i, j);
+      if (!propGrid.has(key)) propGrid.set(key, []);
+      propGrid.get(key).push(obstacle);
+    }
+  }
+}
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.5 : 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -87,7 +135,7 @@ const hemi = new THREE.HemisphereLight(0xe4f3ff, 0x5f8f3e, 1.4); scene.add(hemi)
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.3);
 sun.position.set(160, 230, 105);
 sun.castShadow = true;
-sun.shadow.mapSize.set(isTouch ? 2048 : 4096, isTouch ? 2048 : 4096);
+sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -350, right: 350, top: 350, bottom: -350, near: 10, far: 900 });
 sun.shadow.bias = -.0006; sun.shadow.normalBias = .4;
 scene.add(sun); scene.add(sun.target);
@@ -101,7 +149,7 @@ function flat(geo, m, x = 0, z = 0, rotZ = 0) {
 
 // ---------- 草地（深浅不一的绿色） ----------
 {
-  const geo = new THREE.PlaneGeometry(1800, 1800, 260, 260), pos = geo.attributes.position, cols = [];
+  const geo = new THREE.PlaneGeometry(1800, 1800, 180, 180), pos = geo.attributes.position, cols = [];
   const a = new THREE.Color(0x78c150), b = new THREE.Color(0x93d463), c = new THREE.Color(0x5fa53f);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i);
@@ -123,7 +171,7 @@ function flat(geo, m, x = 0, z = 0, rotZ = 0) {
     road(r.pts, r.w, r.closed, roadTop, roadEdge, .01);
     if (!r.closed) { const e = r.pts[r.pts.length - 1]; flat(new THREE.CircleGeometry(r.w / 2 + .3, 24), roadEdge, e.x, e.z); flat(new THREE.CircleGeometry(r.w / 2, 24), roadTop, e.x, e.z); }
   });
-  LAY.lanes.forEach(l => road(l.pts, l.w, false, laneTop, laneEdge, .015));
+  LAY.lanes.filter(l => l.plotIds.every(id => activePlots.has(id - 1))).forEach(l => road(l.pts, l.w, false, laneTop, laneEdge, .015));
 }
 
 // ---------- 中心广场：石板地，先空着 ----------
@@ -139,7 +187,7 @@ for (let k = 0; k < 16; k++) {   // 放射状石板缝
   const ring = new THREE.Mesh(new THREE.TorusGeometry(4, .4, 8, 48), mat(0xbdb3a2, { roughness: .8 }));
   ring.rotation.x = Math.PI / 2; ring.position.y = .25; ring.castShadow = ring.receiveShadow = true; scene.add(ring);
   flat(new THREE.CircleGeometry(3.85, 48), flatMat(0x6b4a2e, 6)).position.y = .18;
-  colliders.push([0, 0, 4.4]);
+  addPropCollider(0, 0, 4.4);
 }
 
 // ---------- 空地块：浅一点的草坪 + 一圈木栅栏（用户说：一竖一竖的木桩改成一整圈栅栏，门口有大栅栏门，能用钥匙锁） ----------
@@ -161,14 +209,15 @@ function fenceSegs(p) {
   });
   return out;
 }
-let postN = 0, panelN = 0; const FENCE = PLOTS.map(p => { const segs = fenceSegs(p); segs.forEach(([ax, az, bx, bz]) => { const k = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 2.2)); postN += k + 1; panelN += k; }); return segs; });
+let postN = 0, panelN = 0; const FENCE = PLOTS.map((p, i) => { if (!activePlots.has(i)) return []; const segs = fenceSegs(p); segs.forEach(([ax, az, bx, bz]) => { const k = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 2.2)); postN += k + 1; panelN += k; }); return segs; });
 const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(.16, FENCE_H + .2, .16), mat(0x8a5a30), postN);
 const panels = new THREE.InstancedMesh(new THREE.BoxGeometry(1, FENCE_H, .05), fenceMaterial(), panelN);
 const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
 let pi = 0, pj = 0;
 const plotGates = [];
 const homeInst = { p0: 0, p1: 0, q0: 0, q1: 0 };
-PLOTS.forEach((p, idx) => {
+visiblePlots.forEach(p => {
+  const idx = p.id - 1;
   if (p === homePlot) { homeInst.p0 = pi; homeInst.q0 = pj; }
   flat(new THREE.PlaneGeometry(p.size + .5, p.size + .5), plotBorder, p.x, p.z, p.rot);
   flat(new THREE.PlaneGeometry(p.size, p.size), plotLawn, p.x, p.z, p.rot);
@@ -182,7 +231,7 @@ PLOTS.forEach((p, idx) => {
   // 大门：在朝路那边（本地 +z）中间；只有自己家的能开关、上锁；别人家的先关着
   const holder = new THREE.Group(); holder.position.set(p.x, 0, p.z); holder.rotation.y = p.rot; scene.add(holder);
   const mine = p === homePlot;
-  plotGates.push(createGate({ parent: holder, x: 0, z: p.size / 2, axis: 'x', width: PLOT_GATE - .2, height: FENCE_H, double: true, out: 1, key: mine ? 'xcn_gate_plot' : null, live: mine, shadow: mine, name: '大门' }));
+  plotGates[idx] = createGate({ parent: holder, x: 0, z: p.size / 2, axis: 'x', width: PLOT_GATE - .2, height: FENCE_H, double: true, out: 1, key: mine ? 'xcn_gate_plot' : null, live: mine, shadow: mine, name: '大门' });
   if (mine) HOME_GAPS.forEach((gp, i) => { const [ax, az] = gp.a, [bx, bz] = gp.b, along = gp.si === 0 || gp.si === 2;
     gp.gate = createGate({ parent: holder, x: (ax + bx) / 2, z: (az + bz) / 2, axis: along ? 'x' : 'z', width: Math.hypot(bx - ax, bz - az) - .2, height: FENCE_H, double: Math.hypot(bx - ax, bz - az) > 3.5, out: gp.si === 0 ? -1 : gp.si === 2 ? 1 : gp.si === 1 ? 1 : -1, key: 'xcn_gate_plot_' + i, name: '空地侧门' }); });
 });
@@ -222,7 +271,8 @@ function plotFenceCollide(pos, pr = .45) {
 // 别人家 / 没人住的空地：四周的栅栏也挡人（用户说：每块地的栏杆都能穿过去 —— 以前只有自己家的挡）。能跳过去；路口的口子能走
 function otherFenceCollide(pos, pr = .45) {
   if (pos.y > FENCE_LV[1].jump) return;
-  PLOTS.forEach((p, i) => {
+  visiblePlots.forEach(p => {
+    const i = p.id - 1;
     if (p === homePlot) return;
     const h = p.size / 2, c = Math.cos(p.rot), sn = Math.sin(p.rot), dx = pos.x - p.x, dz = pos.z - p.z;
     let lx = dx * c - dz * sn, lz = dx * sn + dz * c; if (Math.abs(lx) > h + 2 || Math.abs(lz) > h + 2) return;
@@ -302,7 +352,7 @@ for (let k = 0; k < 140; k++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd
     const a = rnd() * Math.PI * 2, r = range(28, WR - 8), x = Math.sin(a) * r, z = Math.cos(a) * r;
     if (blocked(x, z, 2)) continue;
     const base = range(.7, 1.3), hue = range(.26, .33);
-    colliders.push([x, z, base * 1.4]);
+    addPropCollider(x, z, base * 1.4);
     for (let j = 0; j < 3 && n < N * 3; j++) {
       const sc = base * range(.6, 1);
       bush.setMatrixAt(n, m4.compose(v.set(x + range(-.9, .9), sc * .7, z + range(-.9, .9)), q.setFromAxisAngle(up, rnd() * 6), s.set(sc, sc * .85, sc)));
@@ -323,7 +373,7 @@ for (let k = 0; k < 140; k++) { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd
     const a = rnd() * Math.PI * 2, r = range(WR - 12, WR + 80), x = Math.sin(a) * r, z = Math.cos(a) * r;
     if (blocked(x, z, 3)) continue;
     const sc = range(.8, 1.5);
-    colliders.push([x, z, .55 * sc]);
+    addPropCollider(x, z, .55 * sc);
     m4.compose(v.set(x, 0, z), q.setFromAxisAngle(up, rnd() * 6), s.set(sc, sc * range(.9, 1.2), sc));
     trunk.setMatrixAt(n, m4); crown.setMatrixAt(n, m4); crown2.setMatrixAt(n, m4);
     col.setHSL(range(.25, .32), .5, range(.28, .38)); crown.setColorAt(n, col); crown2.setColorAt(n, col.offsetHSL(0, 0, .05));
@@ -446,8 +496,6 @@ if (metMayor) { [LAY.spawn.x, LAY.spawn.z] = garden.gateWorld(); LAY.spawn.yaw =
 const me = buildAvatar('farmer');
 scene.add(me.root);
 const player = { pos: new THREE.Vector3(LAY.spawn.x, 0, LAY.spawn.z), vy: 0, ground: true, face: LAY.spawn.yaw };
-const ME = window.__ME;
-
 const keys = {};
 let overview = false;
 const cam = { yaw: LAY.spawn.yaw, pitch: .3, dist: 13 };   // 离得远一点：整个人从头到脚都看得见   // 相机在玩家南边，看向北边的广场
@@ -727,11 +775,11 @@ const hall = createStore({ scene, x: HALL_SPOT.x, z: HALL_SPOT.z, face: HALL_SPO
   return []; } });
 const MAYOR = (() => { const [x, z] = hall.door(); return { x, z }; })();
 const mayor = { near: p => hall.near(p), update: dt => hall.update(dt, player.pos) };
-colliders.push([...(() => { const [x, z] = (() => { const c = Math.cos(HALL_SPOT.face), s2 = Math.sin(HALL_SPOT.face), lx = -5 - 1.2, lz = 4 - .5; return [HALL_SPOT.x + lx * c + lz * s2, HALL_SPOT.z - lx * s2 + lz * c]; })(); return [x, z, .2]; })()]);
+addPropCollider(...(() => { const [x, z] = (() => { const c = Math.cos(HALL_SPOT.face), s2 = Math.sin(HALL_SPOT.face), lx = -5 - 1.2, lz = 4 - .5; return [HALL_SPOT.x + lx * c + lz * s2, HALL_SPOT.z - lx * s2 + lz * c]; })(); return [x, z, .2]; })());
 // 出生的路边：一块路牌，告诉你镇长在广场
 if (!metMayor) { const g = new THREE.Group(); const a = Math.atan2(-ROAD_SPAWN.x, -ROAD_SPAWN.z), sx = ROAD_SPAWN.x + Math.sin(a + Math.PI / 2) * 3.2, sz = ROAD_SPAWN.z + Math.cos(a + Math.PI / 2) * 3.2; g.position.set(sx, 0, sz); g.rotation.y = a + Math.PI; scene.add(g);
   const p = new THREE.Mesh(new THREE.BoxGeometry(.1, 2, .1), mat(0x9a6a3c)); p.position.y = 1; g.add(p);
-  const b = new THREE.Mesh(new THREE.BoxGeometry(1.8, .6, .05), new THREE.MeshStandardMaterial({ map: boardTex('🏛️ 镇政府在广场旁边', 384, 128, '#f2e1bd', '#5a3a1a', 'bold 40px sans-serif') })); b.position.y = 1.8; g.add(b); colliders.push([sx, sz, .2]); }
+  const b = new THREE.Mesh(new THREE.BoxGeometry(1.8, .6, .05), new THREE.MeshStandardMaterial({ map: boardTex('🏛️ 镇政府在广场旁边', 384, 128, '#f2e1bd', '#5a3a1a', 'bold 40px sans-serif') })); b.position.y = 1.8; g.add(b); addPropCollider(sx, sz, .2); }
 let guideHome = localStorage.getItem('xcn_guide_home') === '1';
 if (!metMayor) homeGate.setLock(true);   // 还没找镇长：自己的空地大门先锁着
 function talk(msg, sec = 7) { const el = $('talk'); el.innerHTML = msg; el.classList.add('show'); clearTimeout(talk.t); talk.t = setTimeout(() => el.classList.remove('show'), sec * 1000); }
@@ -869,6 +917,7 @@ function mayorPrompt() {
   if (!mayor.near(player.pos)) return null;
   return metMayor ? { label: '🏛️ 拜访村长', sub: '聊聊近况，或送一份礼物', can: true } : { label: '🏛️ 和镇长说话：领一块空地', sub: '镇长会分给你一块没人住的空地', can: true };
 }
+let claimingHome = false;
 function mayorAction() {
   if (!mayor.near(player.pos)) return false;
   if (metMayor) {
@@ -879,10 +928,17 @@ function mayorAction() {
     $('mayorVisit').showModal();
     return true;
   }
-  metMayor = true; guideHome = true; homeGate.setLock(false);
-  net.claim(homeIdx).then(ok => { if (ok) publishMe(); else { toast('这块空地刚被别人领走了，镇长给你换一块'); setTimeout(() => location.reload(), 2500); } });
-  try { localStorage.setItem(MET_KEY, '1'); localStorage.setItem('xcn_guide_home', '1'); } catch (e) {}
-  talk(`🏛️ <b>镇长</b>：欢迎来到菜鸟小镇！<br>这块没人住的空地就分给你啦（${dirWord(homeGateW.x, homeGateW.z)}）。<br>里面给你准备了一个小菜园、一个小鸡窝和一间小木屋，大门钥匙在你背包里。<br>跟着上面的箭头走过去吧！`, 12);
+  if (claimingHome) return true;
+  if (!vacantPlots.length) { toast('村里的宅地已经领完了。'); return true; }
+  claimingHome = true;
+  net.claim(homeIdx).then(ok => {
+    claimingHome = false;
+    if (!ok) { toast('这次没能领到宅地，正在刷新分配。'); setTimeout(() => location.reload(), 2500); return; }
+    metMayor = true; guideHome = true; homeGate.setLock(false);
+    try { localStorage.setItem(MET_KEY, '1'); localStorage.setItem('xcn_guide_home', '1'); } catch (e) {}
+    talk(`🏛️ <b>镇长</b>：欢迎来到菜鸟小镇！<br>这块没人住的空地就分给你啦（${dirWord(homeGateW.x, homeGateW.z)}）。<br>里面给你准备了一个小菜园、一个小鸡窝和一间小木屋，大门钥匙在你背包里。<br>跟着上面的箭头走过去吧！`, 12);
+    publishMe();
+  });
   return true;
 }
 const homeGateW = (() => { const [x, z] = plotToWorld(homePlot, 0, homePlot.size / 2); return { x, z }; })();
@@ -905,8 +961,7 @@ function updateGuide(dt) {
 // 跳过矮栅栏、或者跑着使劲撞开栅栏（很费体力，2 分钟后自己修好），进别人家菜园挖菜；
 // 他家有狗：你挖第一棵菜时，狗在 4 个菜园远以内就会冲过来咬你，把你撞开；咬 3 次你就被赶回自己家。
 // 偷菜时被在线的主人看到：1 小时内不能再偷他家的菜。也可以帮别人抓虫、浇水。
-const net = createNet(ME);
-const neighbors = createNeighbors({ scene, plots: PLOTS, myIdx: homeIdx, onPath, onPlot, daylight: () => growLight(), darkness: () => darkness(), isNight: () => darkness() > .55, buildAvatar, onBite: (g, h) => {
+const neighbors = createNeighbors({ scene, plots: PLOTS.map((plot, index) => activePlots.has(index) ? plot : null), myIdx: homeIdx, onPath, onPlot, daylight: () => growLight(), darkness: () => darkness(), isNight: () => darkness() > .55, buildAvatar, onBite: (g, h) => {
   const dx = player.pos.x - g.pos.x, dz = player.pos.z - g.pos.z, d = Math.hypot(dx, dz) || 1;
   player.pos.x += dx / d * 3; player.pos.z += dz / d * 3; player.vy = 5; player.ground = false; stamina.use('work', 15);
   if (g.bites >= 3) { g.mode = 'back'; g.bites = 0; player.pos.set(LAY.spawn.x, 0, LAY.spawn.z); player.face = LAY.spawn.yaw; toast(`🐶 被${h.name}家的${g.name}咬了好几口，逃回自己家了！`); }
@@ -981,16 +1036,7 @@ const publishMe = () => net.publish(homeIdx, garden.snapshot(), dog.has ? { has:
 async function pullNeighbors() { neighbors.sync(await net.states()); }
 const live = net.presence(p => neighbors.onPos(p));
 if (net.ok) {
-  // 空地以数据库为准：我已经有一块 → 就住那块；我这块被别人住了 → 换一块空的
-  (async () => {
-    const rows = await net.plots(); if (!rows) return;
-    const mine = rows.find(r => r.user_id === net.id), taken = rows.filter(r => r.user_id !== net.id).map(r => r.plot_index);
-    const moveTo = i => { try { localStorage.setItem(HOME_KEY, i); } catch (e) {} location.reload(); };
-    if (mine) { if (mine.plot_index !== homeIdx) moveTo(mine.plot_index); return; }
-    if (taken.includes(homeIdx)) { const free = PLOTS.map((p, i) => i).filter(i => !taken.includes(i)); if (free.length) moveTo(free[Math.floor(Math.random() * free.length)]); return; }
-    if (metMayor) await net.claim(homeIdx);
-    publishMe();
-  })();
+  if (metMayor && assignments && !mine) net.claim(homeIdx).then(ok => { if (ok) publishMe(); });
   pullNeighbors(); readInbox();
   setInterval(pullNeighbors, 20000); setInterval(readInbox, 10000); setInterval(() => { if (metMayor) publishMe(); }, 20000);
   setInterval(() => live.send({ x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), face: +player.face.toFixed(2), plot: homeIdx }), 400);
@@ -1640,7 +1686,7 @@ $('dbgBirdHatch').onclick = () => { birds.debug.hatch(); toast('🐣 鸟屋里�
 $('dbgBird').onclick = () => { birds.debug.bird(); toast(`🐦 飞来一只小鸟（现在 ${birds.count} 只）`); };
 $('dbgBfly').onclick = () => { bfly.debug.add(3); toast(`🦋 多了 3 只蝴蝶（现在 ${bfly.count} 只）`); };
 $('dbgLoose').onclick = () => { if (!garden.bag.count('rope') && !loose.led) garden.bag.add('rope', 1); const [x, z] = frontOf(3); loose.add(['cow', 'sheep', 'pig', 'duck', 'chicken'][Math.floor(Math.random() * 5)], { born: Date.now() - 864e5, full: 80, ready: false, next: Date.now() + 6e5 }, x, z); renderBag(); toast('🪢 送了牵绳，前面跑出来一只动物'); };
-$('dbgNewbie').onclick = async () => { await net.release(); try { localStorage.setItem(HOME_KEY, Math.floor(Math.random() * PLOTS.length)); localStorage.setItem(MET_KEY, '0'); } catch (e) {} location.reload(); };
+$('dbgNewbie').onclick = async () => { await net.release(); try { localStorage.setItem(HOME_KEY, vacantPlots[Math.floor(Math.random() * vacantPlots.length)] ?? homeIdx); localStorage.setItem(MET_KEY, '0'); } catch (e) {} location.reload(); };
 $('dbgRanchStuff').onclick = () => { const ok = garden.bag.add('hay', 10) && (garden.bag.count('shears') || garden.bag.add('shears', 1)) && (garden.bag.count('knife') || garden.bag.add('knife', 1)); renderBag(); toast(ok ? '🎁 送了草料、剪刀、菜刀' : '🎒 背包满了'); };
 $('dbgDogHungry').onclick = () => { dog.debug.setFull(10); toast('🐶 狗饿了'); };
 $('dbgDogLoyal').onclick = () => { dog.debug.setLoyal(100); toast('🐶 忠诚度满了：会帮你看菜园'); };
@@ -1706,7 +1752,7 @@ function step(dt) {
     pond.collide(player.pos);
     grill.collide(player.pos); birds.collide(player.pos);
     shops.forEach(s => s.collide(player.pos)); hall.collide(player.pos);
-    colliders.forEach(([cx, cz, cr]) => {
+    propGrid.get(propKey(propCell(player.pos.x), propCell(player.pos.z)))?.forEach(([cx, cz, cr]) => {
       const dx = player.pos.x - cx, dz = player.pos.z - cz, d = Math.hypot(dx, dz), min = cr + pr;
       if (d < min && d > 1e-4 && player.pos.y < 1.5) { player.pos.x = cx + dx / d * min; player.pos.z = cz + dz / d * min; }
     });
