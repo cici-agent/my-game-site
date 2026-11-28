@@ -266,8 +266,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     const dP = dist2(pos, ppos);
     if (frisState) mode = frisState === 'mouth' ? 'return' : 'fetch';
     else if (st.boarding) {
-      mode = 'sit';
-      timer = 1;
+      mode = 'boarding';
       if (now >= st.boarding.until && !st.boarding.reminded) {
         st.boarding.reminded = true;
         save();
@@ -280,6 +279,14 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     // 正在玩的时候饿了：马上不玩了，去找吃的
     if (st.full < HUNGRY && ['sleep', 'toBed', 'wander', 'zoom', 'spin', 'circle', 'sit', 'sniff', 'follow', 'guard'].includes(mode)) mode = 'idle';
     switch (mode) {
+      case 'boarding': {
+        const route = st.boarding.route;
+        if (route?.length && runTo(route[0].x, route[0].z, 4, dt) < .18) {
+          route.shift();
+          save();
+        }
+        break;
+      }
       case 'bath': {
         const bath = st.bath;
         if (bath.stage === 'entering' && runTo(bath.x, bath.z, 2.6, dt) < .08) {
@@ -420,9 +427,11 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
   // ---------- 主人跟它互动 ----------
   const api = {
     get boarding() { return st.has && st.boarding; },
-    board(owner, days, wallet) {
-      if (!st.boarding && (!st.leading || !api.near(owner))) return false;
+    board(owner, days, wallet, route) {
+      if (!st.boarding && (!st.has || !D.root.visible || st.chain || dist2(pos, owner) > 3)) return false;
+      const pendingRoute = st.boarding?.route ?? route;
       if (st.bath || st.returning || frisState || !bookBoarding(st, days, Date.now(), wallet)) return false;
+      st.boarding.route = pendingRoute;
       st.leading = false;
       rewardCommand = null;
       save();

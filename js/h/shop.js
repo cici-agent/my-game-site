@@ -176,7 +176,11 @@ export function createStore({ scene, x, z, face, buildAvatar, kind, decor = null
   const world = (lx, lz) => { const c = Math.cos(face), s = Math.sin(face); return [x + lx * c + lz * s, z - lx * s + lz * c]; };
   const local = (wx, wz) => { const dx = wx - x, dz = wz - z, c = Math.cos(face), s = Math.sin(face); return [dx * c - dz * s, dx * s + dz * c]; };
   const [cx, cz] = world(0, -.4);
-  const near = pos => (kind === 'pet' && inside(pos)) || Math.hypot(pos.x - cx, pos.z - cz) < 2.2;
+  const near = pos => (kind === 'pet' && inside(pos)) || (kind === 'pet' && atEntrance(pos)) || Math.hypot(pos.x - cx, pos.z - cz) < 2.2;
+  const atEntrance = pos => {
+    const [lx, lz] = local(pos.x, pos.z);
+    return Math.abs(lx) < DOOR && lz >= D - .4 && lz <= D + 2.8;
+  };
   const inside = pos => { const [lx, lz] = local(pos.x, pos.z); return Math.abs(lx) < W - .1 && Math.abs(lz) < D - .1; };
   // 墙挡人（门口能进）；柜台、货架挡人
   const segs = [[-W, -D, W, -D], [-W, -D, -W, D], [W, -D, W, D], [-W, D, -DOOR, D], [DOOR, D, W, D]];
@@ -195,5 +199,5 @@ export function createStore({ scene, x, z, face, buildAvatar, kind, decor = null
     const ins = ppos && inside(ppos); fade += ((ins ? .08 : 1) - fade) * Math.min(1, dt * 5); roof.visible = fade > .1;
     roof.traverse(o => { if (o.isMesh) { o.material.opacity = fade; o.castShadow = fade > .5; } });
   }
-  return { kind, name: S.name, near, collide, update, inside, tub: kind === 'pet' ? world(W - 2, 2.4) : null, front: () => world(0, -.4), door: () => world(0, D + 2) };
+  return { kind, name: S.name, near, collide, update, inside, atEntrance, tub: kind === 'pet' ? world(W - 2, 2.4) : null, front: () => world(0, -.4), door: () => world(0, D + 2) };
 }

@@ -502,6 +502,10 @@ const cam = { yaw: LAY.spawn.yaw, pitch: .3, dist: 13 };   // 离得远一点：
 addEventListener('keydown', e => {
   if ($('mayorVisit').open) return;
   if ($('nameUI').classList.contains('show')) return;   // 正在打狗的名字
+  if (shopOpen && (e.target instanceof HTMLElement) && e.target.closest('#shopUI button, #shopUI select')) {
+    if (e.code === 'Escape') closeShop();
+    return;
+  }
   keys[e.code] = true;
   { const m = /^Digit([1-9])$/.exec(e.code); if (m && !e.repeat) select(+m[1] - 1); }   // 1~9 选第 1~9 格
   if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) doAction();
@@ -1439,7 +1443,16 @@ function eatSelected() {
   if (!garden.bag.take(k)) return;
   const n = stamina.eat(k); renderBag(); toast(`😋 吃了 1 个${itemInfo(k).name}，体力 +${Math.round(n)}`);
 }
-function toggleView() { firstPerson = !firstPerson; $('viewBtn').textContent = firstPerson ? '🎥 第三人称 (V)' : '👁️ 第一人称 (V)'; toast(firstPerson ? '👁️ 第一人称：用自己的眼睛看' : '🎥 第三人称'); }
+let thirdPersonPitch = cam.pitch;
+function toggleView() {
+  firstPerson = !firstPerson;
+  if (firstPerson) {
+    thirdPersonPitch = cam.pitch;
+    cam.pitch = 0;
+  } else cam.pitch = thirdPersonPitch;
+  $('viewBtn').textContent = firstPerson ? '🎥 第三人称 (V)' : '👁️ 第一人称 (V)';
+  toast(firstPerson ? '👁️ 第一人称：用自己的眼睛看' : '🎥 第三人称');
+}
 $('viewBtn').onclick = toggleView;
 let staShown = -1;
 function renderSta() {
@@ -1475,7 +1488,7 @@ function renderShop() {
       return `<option value="${days}" ${days === boardingDays ? 'selected' : ''}>${days} 天 · ${days * BOARDING_PRICE} 菜币</option>`;
     }).join('');
     $('shopList').insertAdjacentHTML('beforeend', `<div class="row boarding">
-      <span class="ic">🐾</span><span class="nm">预约寄养<small>${dog.boarding ? boardingStatus() : '先牵狗到店。按现实时间计费，店员包喂食、洗澡和治疗。'}</small></span>
+      <span class="ic">🐾</span><span class="nm">预约寄养<small>${dog.boarding ? boardingStatus() : '带小狗到店门口或柜台。费用从家园菜币扣除，店员包喂食、洗澡和治疗。'}</small></span>
       <select id="boardingDays" aria-label="寄养天数">${choices}</select>
       <button data-care="board" ${dog.has ? '' : 'disabled'}>${dog.boarding ? '续费' : '确认寄养'}</button>
       ${dog.boarding ? '<button data-care="pickup">接小狗</button>' : ''}
@@ -1498,12 +1511,26 @@ $('shopList').addEventListener('click', e => {
   if (shopTab === 'care' && curShop === 'pet') {
     const key = b.dataset.care;
     if (key === 'board' || key === 'pickup') {
+      const days = Number($('boardingDays').value);
+      const cost = days * BOARDING_PRICE;
+      const atShop = petStore.inside(player.pos) || petStore.atEntrance(player.pos);
+      const dogAtShop = petStore.inside(dog.pos) || petStore.atEntrance(dog.pos);
       let message;
-      if (!petStore.inside(player.pos) || !petStore.inside(dog.pos)) message = '请牵狗到萌宠小屋里办理。';
+      if (!atShop) message = '请到萌宠小屋门口或柜台办理。';
       else if (key === 'pickup') message = dog.pickUpBoarding(player.pos) ? '接到小狗了！' : '走到小狗旁边来接它。';
-      else if (garden.wallet.get() < boardingDays * BOARDING_PRICE) message = '菜币不足，可以少选几天。';
-      else if (dog.board(player.pos, boardingDays, garden.wallet)) message = '店员已经接手照料。' + boardingStatus();
-      else message = dog.boarding ? '续费后剩余寄养时间最多为 7 天。' : '先用狗链牵住小狗，让它跟到你身边。';
+      else if (!dogAtShop) message = '小狗还没走到这里。带它到萌宠小屋的门口再试。';
+      else if (dog.chained) message = '小狗还拴在固定的桩上，先解开狗链。';
+      else if (dog.bath || dog.returning || dog.frisbeeOut) message = '等小狗洗完澡、跑回来或捡完飞盘，再办理寄养。';
+      else if (garden.wallet.get() < cost) message = `需要 ${cost} 菜币，余额只有 ${garden.wallet.get()}。`;
+      else {
+        const [x, z] = petStore.front();
+        const route = dog.boarding || petStore.inside(dog.pos) ? [] : [{ x, z }];
+        if (dog.board(player.pos, days, garden.wallet, route)) {
+          message = `已支付 ${cost} 菜币，寄养 ${days} 天。` + boardingStatus();
+        } else {
+          message = dog.boarding ? '续费后剩余寄养时间最多为 7 天。' : '再靠近小狗一点，然后确认寄养。';
+        }
+      }
       $('careReceipt').textContent = message;
       renderShop(); renderMoney(); renderDogHud(true); return;
     }
@@ -1773,7 +1800,7 @@ function step(dt) {
   // 第三人称镜头：在人物身后，可以抬头看天
   camLook.set(player.pos.x, player.pos.y + 1.5, player.pos.z);
   if (firstPerson && !overview) {   // 第一人称：眼睛的位置，往镜头方向看
-    const eyeY = sleeping ? sleeping.y + 1.2 : player.pos.y + 1.55, p = THREE.MathUtils.clamp(cam.pitch - .3, -1.2, 1.2);
+    const eyeY = sleeping ? sleeping.y + 1.2 : player.pos.y + 1.78, p = cam.pitch;
     camera.position.set(player.pos.x, eyeY, player.pos.z);
     camera.lookAt(player.pos.x + Math.sin(cam.yaw) * Math.cos(p), eyeY - Math.sin(p), player.pos.z + Math.cos(cam.yaw) * Math.cos(p));
     return;
