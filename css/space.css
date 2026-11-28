@@ -163,6 +163,8 @@
     .hud-top { padding: 0 12px; } .brand { font-size: 16px; gap: 6px; } .brand .where { display: none; }
     .coin-hud { font-size: 15px; padding: 6px 12px; }
     .hint { font-size: 12px; white-space: normal; width: max-content; max-width: 92vw; text-align: center; border-radius: 14px; }
+    .label .name { font-size: 13px; padding: 4px 9px; }
+    .label .sub { display: none; }
     .dock { gap: 4px; padding: 6px; bottom: 10px; }
     .dock button { min-width: 32px; flex: 1; padding: 6px 3px; font-size: 0; white-space: nowrap; }
     .dock button .e { font-size: 19px; } .dock .sep { display: none; }
