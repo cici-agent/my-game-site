@@ -98,10 +98,56 @@ async function renderHome(el, ctx) {
         ${isAdmin ? '<a href="admin.html?from=home">⚙️ 管理后台</a>' : ''}
         <button id="hOut" class="out">🚪 退出登录</button>
       </div></div>
+    <section id="dailyCheckinCard" style="margin:16px 0;padding:18px;border:2px solid #ffd43b;border-radius:18px;background:linear-gradient(135deg,#fff8e1,#fff3cd);text-align:center">
+      <h3 style="margin:0 0 6px;color:#8a4b08">📅 每日签到</h3>
+      <p id="dailyCheckinStatus" style="margin:0 0 12px;color:#6b5b46">连续签到，领取金币并抽奖！</p>
+      <button id="dailyCheckinBtn" type="button" style="border:0;border-radius:999px;background:linear-gradient(135deg,#ff922b,#f08c00);color:#fff;font:800 16px inherit;font-family:inherit;padding:11px 28px;cursor:pointer;box-shadow:0 4px 12px #e6770033">🎁 签到抽奖</button>
+      <div id="dailyCheckinResult" role="status" style="margin-top:10px;font-weight:800;color:#8a4b08"></div>
+    </section>
     <div class="av-pick" id="avPick">${AVATARS.map(a => `<img src="${a}" data-a="${a}" class="${a === p.avatar_url ? 'on' : ''}" alt="">`).join('')}</div>
     <div class="st-tabs"><button data-k="tx" class="on">🪙 金币明细</button><button data-k="mine">🎯 我发布的游戏</button><button data-k="played">🕹️ 我玩过的游戏</button></div>
     <div id="hBody"><div class="empty">加载中…</div></div>`;
   el.querySelector('#hOut').onclick = async () => { await signOut(); ctx.onLogout && ctx.onLogout(); };
+  const checkinBtn = el.querySelector('#dailyCheckinBtn');
+  const checkinStatus = el.querySelector('#dailyCheckinStatus');
+  const checkinResult = el.querySelector('#dailyCheckinResult');
+  const todayInBeijing = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  if (p.last_checkin_date && String(p.last_checkin_date).slice(0, 10) === todayInBeijing()) {
+    checkinBtn.disabled = true;
+    checkinBtn.textContent = '✅ 今天已签到';
+    checkinBtn.style.background = '#868e96';
+    checkinStatus.textContent = `已连续签到 ${p.checkin_streak || 1} 天，明天再来哦！`;
+  }
+  checkinBtn.onclick = async () => {
+    if (checkinBtn.disabled) return;
+    checkinBtn.disabled = true;
+    checkinBtn.textContent = '🎲 正在抽奖…';
+    try {
+      const { data: reward, error } = await getSupabase().rpc('daily_checkin');
+      if (error) {
+        if (/already_checked_in/.test(error.message || '')) {
+          checkinBtn.textContent = '✅ 今天已签到';
+          checkinBtn.style.background = '#868e96';
+          checkinStatus.textContent = '今天已经签到过啦，明天再来！';
+          return;
+        }
+        throw error;
+      }
+      if (!reward) throw new Error('没有收到签到结果');
+      p.coins = reward.coins;
+      const balance = el.querySelector('.who .coins b');
+      if (balance) balance.textContent = reward.coins;
+      checkinBtn.textContent = '✅ 今天已签到';
+      checkinBtn.style.background = '#868e96';
+      checkinStatus.textContent = `已连续签到 ${reward.streak} 天，明天继续保持！`;
+      checkinResult.textContent = `今天固定获得 ${reward.fixed_coins} 金币 + 抽奖获得 ${reward.lottery_coins} 金币！共获得 ${reward.total} 金币 🎉`;
+    } catch (err) {
+      console.error('daily check-in failed', err);
+      checkinResult.textContent = '签到暂时没成功，请稍后再试。';
+      checkinBtn.disabled = false;
+      checkinBtn.textContent = '🎁 签到抽奖';
+    }
+  };
   el.querySelector('#hAvBtn').onclick = () => el.querySelector('#avPick').classList.toggle('show');
   el.querySelectorAll('#avPick img').forEach(img => img.onclick = async () => {
     const r = await getSupabase().from('profiles').update({ avatar_url: img.dataset.a }).eq('id', me.user.id);
