@@ -1,19 +1,50 @@
 // ===== 星球模型：按功能类型加上标志性装饰，一眼看出是干什么的 =====
 import * as THREE from 'three';
 import { glowTex, planetTexture, lighten, swirlTex } from './tex.js';
+import { layoutPlanetOrbits } from './orbits.js';
 
-const RADIUS = { plaza: 13, games: 9.5, coins: 9, create: 8.5, home: 8.5, magic: 10.5, homestead: 9.5 };
 const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .6, ...o });
 
-// 星球在宇宙里的位置：围成一圈，出生点在圈外，一眼能看到好几颗
+// 星球按递增半径和黄金角分散到多层轨道；每层带轻微倾角，避免排成一个平面圆环。
 export function layoutPlanets(planets) {
-  const n = planets.length, R = 120;
-  planets.forEach((p, i) => {
-    const a = (i / n) * Math.PI * 2;   // 第一颗正对出生点，出生点在两颗星球之间的空隙外
-    p.radius = RADIUS[p.kind] || 9;
-    p.pos = [Math.sin(a) * R, [2, -3, 4, -1, 3, 0][i % 6], Math.cos(a) * R];
+  return layoutPlanetOrbits(planets);
+}
+
+// 淡轨道与中心恒星只负责空间层次，不参与点击、碰撞或数据逻辑。
+export function createOrbitSystem(planets) {
+  const system = new THREE.Group();
+  const orbitMat = new THREE.MeshBasicMaterial({
+    color: 0xaab9ff,
+    transparent: true,
+    opacity: .13,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
   });
-  return planets;
+  planets.forEach((p, index) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(p.orbitRadius, .12, 4, 256), orbitMat.clone());
+    ring.material.opacity = .15 - Math.min(index, 6) * .009;
+    ring.rotation.x = Math.PI / 2 + p.orbitTilt;
+    system.add(ring);
+  });
+
+  const core = new THREE.Group();
+  const star = new THREE.Mesh(new THREE.SphereGeometry(8, 32, 24), new THREE.MeshBasicMaterial({ color: 0xffd47d }));
+  const innerGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex(), color: 0xffb14a, transparent: true, opacity: .82,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  const outerGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex(), color: 0xff7a45, transparent: true, opacity: .28,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  innerGlow.scale.setScalar(36); outerGlow.scale.setScalar(62);
+  core.add(outerGlow, innerGlow, star); system.add(core);
+  system.userData.update = t => {
+    star.rotation.y = t * .08;
+    innerGlow.scale.setScalar(36 + Math.sin(t * 1.3) * 2);
+    outerGlow.material.opacity = .25 + Math.sin(t * .7) * .04;
+  };
+  return system;
 }
 
 function onTop(group, obj, r, lift = 0) { obj.position.y = r * .96 + lift; group.add(obj); return obj; }

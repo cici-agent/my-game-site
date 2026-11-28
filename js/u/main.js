@@ -1,7 +1,8 @@
 // ===== 小菜鸟宇宙：主程序 =====
 import * as THREE from 'three';
 import { loadPlanets, loadGames, loadMe, loadEquipment } from './data.js';
-import { layoutPlanets, buildPlanet, createGate } from './planets.js';
+import { layoutPlanets, buildPlanet, createGate, createOrbitSystem } from './planets.js?v=20261128-orbits';
+import { orbitExtent } from './orbits.js';
 import { buildShip } from './ships.js';
 import { glowTex, rand } from './tex.js';
 import { renderStation } from './stations.js';
@@ -30,7 +31,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x120e3a, 180, 480);
+scene.fog = new THREE.Fog(0x120e3a, 260, 720);
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1200);
 scene.add(new THREE.HemisphereLight(0xbfd8ff, 0x3a2266, 1.1));
 const sun = new THREE.DirectionalLight(0xfff1dd, 2.2); sun.position.set(80, 120, 60); scene.add(sun);
@@ -110,6 +111,7 @@ const state = { mode: 'fly', heading: 0, speed: 0, bank: 0, target: null, landed
 const cine = { t: 0, p: null, next: null, travelled: 0, gateDist: 13, flashedAt: -1, setup: false };
 let PLANETS = [], GAMES = [], ME = null;
 const planetMeshes = [];
+let orbitSystem = null, worldLimit = 320;
 
 // ---------- 输入 ----------
 const keys = {};
@@ -319,13 +321,13 @@ function finishTakeoff() {
 
 // ---------- 主循环 ----------
 let lastT = performance.now(), elapsed = 0;
-const MAX = 28;
+const MAX = 28, AUTO_MAX = 44;
 function wrapAngle(a) { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; }
 function planetDist(p) { return Math.hypot(ship.position.x - p.pos[0], ship.position.z - p.pos[2]) - p.radius; }
 
 function tick() {
   const now = performance.now(), dt = Math.min((now - lastT) / 1000, .05); lastT = now; elapsed += dt; const t = elapsed;
-  let turn = 0, thrust = 0;
+  let turn = 0, thrust = 0, driveMax = MAX;
   if (state.mode === 'fly') {
     if (keys.ArrowLeft || keys.KeyA) turn -= 1;
     if (keys.ArrowRight || keys.KeyD) turn += 1;
@@ -341,10 +343,11 @@ function tick() {
       const diff = wrapAngle(Math.atan2(tmp.x, tmp.z) - state.heading);
       turn = THREE.MathUtils.clamp(-diff * 2.2, -1, 1);
       thrust = Math.abs(diff) > 1.2 ? .3 : THREE.MathUtils.clamp((planetDist(p) - 4) / 18, .25, 1);
+      driveMax = AUTO_MAX;
       if (planetDist(p) < 14) startLanding(p);
     }
     state.heading = wrapAngle(state.heading - turn * dt * 2.1);
-    const targetSpeed = thrust * MAX * (state.boost ? 1.4 : 1);
+    const targetSpeed = thrust * driveMax * (state.boost ? 1.4 : 1);
     state.speed += (targetSpeed - state.speed) * Math.min(1, dt * (thrust ? 1.6 : 2.4));
   }
   fwd.set(Math.sin(state.heading), 0, Math.cos(state.heading));
@@ -390,7 +393,7 @@ function tick() {
       if (Math.abs(face) < .35) startLanding(nearest);
     }
     const R = Math.hypot(ship.position.x, ship.position.z);
-    if (R > 240) { ship.position.x *= 240 / R; ship.position.z *= 240 / R; }
+    if (R > worldLimit) { ship.position.x *= worldLimit / R; ship.position.z *= worldLimit / R; }
   }
   if (nearest && nd < 30) targetY = nearest.pos[1] * (1 - nd / 30);
   if (state.mode === 'fly' || state.mode === 'takeoff') ship.position.y += (targetY + Math.sin(t * 2) * .25 - ship.position.y) * Math.min(1, dt * 2);
@@ -427,6 +430,7 @@ function tick() {
       m.rotation.x += dt; m.rotation.y += dt * .7;
     });
   });
+  orbitSystem && orbitSystem.userData.update(t);
   dust.rotation.y += dt * .004;
 
   if (state.mode === 'landed') {
@@ -448,14 +452,27 @@ function tick() {
   drawWarp(state.warp, dt);
   mp && mp.update(dt, t);
 
+  const labelCandidates = [];
   PLANETS.forEach(p => {
     if (!p.label) return;
     tmp.copy(p.group.position); tmp.y += p.radius + 4; tmp.project(camera);
     const vis = state.mode === 'fly' && tmp.z < 1 && Math.abs(tmp.x) < 1.2 && Math.abs(tmp.y) < 1.2;
     // 远处的星球只显示名字，近了才显示一句话简介，避免标签挤在一起
-    p.label.classList.toggle('far', planetDist(p) > 150);
-    p.label.style.opacity = vis ? 1 : 0; p.label.style.pointerEvents = vis ? 'auto' : 'none';
-    p.label.style.transform = `translate(${(tmp.x + 1) / 2 * innerWidth}px, ${(1 - tmp.y) / 2 * innerHeight}px) translate(-50%, -100%)`;
+    const distance = planetDist(p), rawX = (tmp.x + 1) / 2 * innerWidth, y = (1 - tmp.y) / 2 * innerHeight;
+    const labelMargin = innerWidth < 640 ? 78 : 92;
+    const x = THREE.MathUtils.clamp(rawX, labelMargin, innerWidth - labelMargin);
+    p.label.classList.toggle('far', distance > 150);
+    p.label.style.opacity = 0; p.label.style.pointerEvents = 'none';
+    p.label.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+    if (vis) labelCandidates.push({ p, x, y, distance });
+  });
+  // 近处标签优先；投影重叠时让远处标签暂时退场，飞近后自然出现。
+  const placedLabels = [], gapX = innerWidth < 640 ? 126 : 118, gapY = innerWidth < 640 ? 42 : 48;
+  labelCandidates.sort((a, b) => a.distance - b.distance).forEach(item => {
+    const crowded = placedLabels.some(other => Math.abs(item.x - other.x) < gapX && Math.abs(item.y - other.y) < gapY);
+    if (crowded) return;
+    item.p.label.style.opacity = 1; item.p.label.style.pointerEvents = 'auto';
+    placedLabels.push(item);
   });
 
   renderer.render(scene, camera);
@@ -503,6 +520,8 @@ async function boot() {
   if (ME) loadEquipment(ME.user.id).then(eq => { if (eq && eq.ship && eq.ship !== 'rookie') setShip(eq.ship); mp.connect(); });
   else mp.connect();
   PLANETS = layoutPlanets(planets);
+  worldLimit = orbitExtent(PLANETS);
+  orbitSystem = createOrbitSystem(PLANETS); scene.add(orbitSystem);
   try { sessionStorage.setItem('xcn_planets', JSON.stringify(Object.fromEntries(planets.map(p => [p.kind, [p.name, p.icon]])))); } catch (e) {}
   PLANETS.forEach((p, i) => { scene.add(buildPlanet(p, i)); p.moons = []; planetMeshes.push(p.mesh); });
   setLoad(60);
@@ -511,9 +530,10 @@ async function boot() {
   buildMoons();
   setLoad(90);
 
-  // 出生点：宇宙里（星球圈外），面朝圈内
-  ship.position.set(0, 0, -205); state.heading = 0;
-  camera.position.set(0, 9, -225); lookAt.set(0, 0, -195);
+  // 出生点：最外层轨道之外，面朝整个行星系统。
+  const spawnZ = -(worldLimit - 16);
+  ship.position.set(0, 0, spawnZ); state.heading = 0;
+  camera.position.set(0, 9, spawnZ - 20); lookAt.set(0, 0, spawnZ + 10);
 
   // 从其他页面回来：?land=games 直接落在该星球；?takeoff=plaza 从该星球起飞
   const land = PLANETS.find(p => p.kind === params.get('land'));
