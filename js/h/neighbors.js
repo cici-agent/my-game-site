@@ -90,7 +90,7 @@ export function createNeighbors({ scene, plots, myIdx, onPath, onPlot, daylight,
   function onPos(p) {
     if (!p || !p.id) return;
     let o = others.get(p.id);
-    if (!o) { const av = buildAvatar(p.skin || 'farmer'); scene.add(av.root); const tag = label(p.name || '玩家', '#2f4f8f'); tag.position.y = 2.6; av.root.add(tag); o = { av, tag, to: new THREE.Vector3(p.x, p.y || 0, p.z), face: p.face || 0, last: 0 }; av.root.position.copy(o.to); others.set(p.id, o); }
+    if (!o) { const av = buildAvatar('farmer'); scene.add(av.root); const tag = label(p.name || '玩家', '#2f4f8f'); tag.position.y = 2.6; av.root.add(tag); o = { av, tag, to: new THREE.Vector3(p.x, p.y || 0, p.z), face: p.face || 0, last: 0 }; av.root.position.copy(o.to); others.set(p.id, o); }
     o.to.set(p.x, p.y || 0, p.z); o.face = p.face || 0; o.last = performance.now(); o.plot = p.plot;
   }
   function update(dt, player) {

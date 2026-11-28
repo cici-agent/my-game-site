@@ -1,8 +1,7 @@
 // ===== 菜鸟家园：大致布局（中心广场 + 小路 + 空地块 + 花草树木），还没有房子 =====
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { buildAvatar, buildPet } from '../p/avatar.js';
-import { INV, loadInventory } from '../p/inventory.js';
+import { buildAvatar } from '../p/avatar.js';
 import { L, createLayout, ribbon } from './layout.js';
 import { visitMayor } from './mayor.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden, plotToWorld, worldToPlot } from './garden.js';
@@ -443,20 +442,11 @@ let curShop = 'general';
 const ROAD_SPAWN = { ...LAY.spawn };
 if (metMayor) { [LAY.spawn.x, LAY.spawn.z] = garden.gateWorld(); LAY.spawn.yaw = garden.gateYaw(); }   // 新手出生在路上（用户说的）
 
-// 在菜鸟家园里默认是小农民的样子；买了别的皮肤的照样穿自己的皮肤
-const homeSkin = k => (!k || k === 'explorer') ? 'farmer' : k;
-let me = buildAvatar('farmer'), pet = null;
+// 菜鸟家园使用自己的农夫形象。
+const me = buildAvatar('farmer');
 scene.add(me.root);
 const player = { pos: new THREE.Vector3(LAY.spawn.x, 0, LAY.spawn.z), vy: 0, ground: true, face: LAY.spawn.yaw };
-const petPos = new THREE.Vector3(LAY.spawn.x + 1.5, 0, LAY.spawn.z + 1.5);
 const ME = window.__ME;
-if (ME) loadInventory(ME.user.id).then(() => {
-  const e = INV.equip;
-  scene.remove(me.root);
-  me = buildAvatar(homeSkin(e.skin), { hand: e.hand, head: e.head, back: e.back });
-  scene.add(me.root);
-  if (e.pet) { pet = buildPet(e.pet); scene.add(pet.group); }
-}).catch(() => {});
 
 const keys = {};
 let overview = false;
@@ -1003,7 +993,7 @@ if (net.ok) {
   })();
   pullNeighbors(); readInbox();
   setInterval(pullNeighbors, 20000); setInterval(readInbox, 10000); setInterval(() => { if (metMayor) publishMe(); }, 20000);
-  setInterval(() => live.send({ x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), face: +player.face.toFixed(2), plot: homeIdx, skin: ME && INV.equip ? homeSkin(INV.equip.skin) : 'farmer' }), 400);
+  setInterval(() => live.send({ x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), face: +player.face.toFixed(2), plot: homeIdx }), 400);
   document.addEventListener('visibilitychange', () => { if (document.hidden && metMayor) publishMe(); });
 }
 
@@ -1609,9 +1599,9 @@ renderClock(); setInterval(renderClock, 1000);
 document.querySelectorAll('#dbgTime button').forEach(b => b.onclick = () => { if (b.dataset.h === 'real') resetTime(); else jumpTo(+b.dataset.h); renderClock(); toast(b.dataset.h === 'real' ? '回到真实时间' : `跳到 ${b.textContent}`); });
 
 const WALK = 7.5, RUN = 12, TIRED = 2.2, GRAV = 26, JUMP = 9.5, EDGE = WR - 6;
-const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
+const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
 camera.position.set(LAY.spawn.x - Math.sin(LAY.spawn.yaw) * 13, 5.5, LAY.spawn.z - Math.cos(LAY.spawn.yaw) * 13);
-function step(dt, t) {
+function step(dt) {
   let mx = 0, my = 0;
   if (keys.KeyW || keys.ArrowUp) my += 1;
   if (keys.KeyS || keys.ArrowDown) my -= 1;
@@ -1676,12 +1666,6 @@ function step(dt, t) {
   me.root.visible = !firstPerson || overview;
   if (me.rig.shadow) { me.rig.shadow.position.y = .02 - player.pos.y; me.rig.shadow.material.opacity = .25 / (1 + player.pos.y * .3); }
   me.animate(dt, Math.min(1, speed / WALK), !player.ground, false);
-  if (pet) {
-    const want = tmp.set(player.pos.x - Math.sin(player.face) * .7 + Math.cos(player.face) * 1.5, 0, player.pos.z - Math.cos(player.face) * .7 - Math.sin(player.face) * 1.5);
-    const d = want.distanceTo(petPos), moving = d > .25;
-    if (moving) { const dir = want.clone().sub(petPos).normalize(); petPos.addScaledVector(dir, Math.min(d, dt * Math.min(12, Math.max(4, d * 3)))); pet.group.rotation.y = Math.atan2(dir.x, dir.z); }
-    pet.group.position.copy(petPos); pet.update(dt, t, moving);
-  }
   // 第三人称镜头：在人物身后，可以抬头看天
   camLook.set(player.pos.x, player.pos.y + 1.5, player.pos.z);
   if (firstPerson && !overview) {   // 第一人称：眼睛的位置，往镜头方向看
@@ -1729,7 +1713,7 @@ renderer.setAnimationLoop(() => {
   grill.update(dt, grillCook.busy); grillCook.update(); houseCook.update();
   renderDogHud();
   homeGate.update(dt); HOME_GAPS.forEach(g => g.gate.update(dt));
-  step(dt, t);
+  step(dt);
   // 站在哪块田旁边：显示能做什么
   nearBed = overview ? null : garden.nearest(player.pos.x, player.pos.z);
   nearBox = !overview && !nearBed && garden.nearChest(player.pos.x, player.pos.z);
