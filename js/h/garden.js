@@ -6,6 +6,7 @@
 //   收法：拔（整棵拔起来，给种子）/ 摘（只摘果子，不给种子；过一阵还会结，结太多次会枯萎，枯萎时小概率给几颗种子）
 //   收获装进背包，背包满了就装不下
 import * as THREE from 'three';
+import { BUCKET_CAPACITY, IRRIGATORS, tankCapacity, pourIntoTank, drainTank } from './irrigation.js';
 import { createGate, PEN_FENCE, nearSegs } from './gate.js';
 
 // ---------- 作物（数值以后后台可改） ----------
@@ -93,6 +94,7 @@ const OTHER_ITEMS = { key: { icon: '🔑', name: '我的钥匙' }, candle: { ico
   grilledfish: { icon: '🐟', name: '烤鱼' }, cookedshrimp: { icon: '🍤', name: '炸虾' }, steamedcrab: { icon: '🦀', name: '清蒸螃蟹' }, friedegg: { icon: '🍳', name: '煎蛋' }, boiledduckegg: { icon: '🥚', name: '咸鸭蛋' },
   bakedpotato: { icon: '🍠', name: '烤土豆' }, roastcorn: { icon: '🌽', name: '烤玉米' }, wood: { icon: '🪵', name: '木头' }, coal: { icon: '⚫', name: '煤' }, sheeppen: { icon: '🐑', name: '羊圈' }, calf: { icon: '🐮', name: '小牛' }, lamb: { icon: '🐏', name: '小羊' }, chicken_meat: { icon: '🍗', name: '生鸡肉' }, dogfood: { icon: '🦴', name: '狗粮' }, frisbee: { icon: '🥏', name: '飞盘' }, spray: { icon: '🧴', name: '杀虫剂' }, birdseed: { icon: '🌻', name: '鸟食' }, cage: { icon: '🧺', name: '鸟笼' }, cagebird: { icon: '🐦', name: '笼子里的小鸟' }, birdhouse: { icon: '🏡', name: '鸟屋' }, birdegg: { icon: '🪺', name: '鸟蛋' }, bugnet: { icon: '🥍', name: '蝴蝶网' }, butterfly: { icon: '🦋', name: '蝴蝶' }, rope: { icon: '🪢', name: '牵绳' } };
 export const itemInfo = key => {
+  if (Object.hasOwn(IRRIGATORS, key)) return { icon: '🚿', name: IRRIGATORS[key].name };
   if (OTHER_ITEMS[key]) return OTHER_ITEMS[key];
   if (key.startsWith('seed_')) { const c = CROPS[key.slice(5)]; return { icon: '🌱', sub: c.icon, name: c.kind === 'tree' ? c.tree + '苗' : c.name + '种子', seed: true }; }
   const c = CROPS[key]; return c ? { icon: c.icon, name: c.name } : { icon: '❓', name: key };
@@ -313,6 +315,22 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   if (!st || !st.beds) st = { level: 1, speed: 1, beds: [], bag: null, t: Date.now() };
   if (st.coins === undefined) st.coins = 30;   // 菜币：刚来送 30 个；不能和金币换
   while (st.beds.length < LEVELS[4]) st.beds.push({ crop: null, g: 0, phase: 'grow', plants: PER_BED, picks: 0, moist: 0, bugs: 0, eat: 0 });
+  st.bucket ??= BUCKET_CAPACITY;
+  st.irrigation ??= { active: null, tanks: {} };
+  const irrigation = st.irrigation;
+  const tank = () => irrigation.active ? irrigation.tanks[irrigation.active] : null;
+  function drawTank(seconds) {
+    const current = tank();
+    if (!current?.water) return 0;
+    const result = drainTank(current.water, seconds);
+    current.water = result.water;
+    return result.wateredSeconds;
+  }
+  function useBucketWater() {
+    if (st.bucket < 1) return false;
+    st.bucket -= 1;
+    return true;
+  }
   st.mayorFriendship ??= { points: 0 };
   const bag = createBag();
   // 以前存的背包可能比 7 格多，多出来的放不下；第一次来送一些种子
@@ -424,8 +442,9 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   }
 
   // ---------- 时间往前走（游戏秒） ----------
-  function stepBed(b, gs) {
+  function stepBed(b, gs, irrigating = false) {
     b.moist = Math.max(0, b.moist - gs / (b.moist > 1 ? DRY_TIME / 2 : DRY_TIME));
+    if (irrigating) b.moist = Math.max(b.moist, .72);
     if (b.guard) b.guard = Math.max(0, b.guard - gs);
     if (!b.crop) { b.eat = 0; return null; }
     const C = CROPS[b.crop];
@@ -483,13 +502,22 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     });
     return events;
   }
-  {
-    const away = Math.min(2 * 86400, Math.max(0, (Date.now() - (st.t || Date.now())) / 1000));
-    const list = st.beds.slice(0, LEVELS[st.level]);
-    light = .81;   // 下线这段时间按一天的平均（晚上长得慢）来算
-    for (let left = away; left > 0; left -= 60) { const g = Math.min(60, left); list.forEach(b => stepBed(b, g)); stepBugs(list, g); }
-    light = 1;
+  function simulateAway(list, seconds, isWatered) {
+    for (let left = seconds; left > 0; left -= 60) {
+      const step = Math.min(60, left);
+      list.forEach(b => stepBed(b, step, isWatered));
+      stepBugs(list, step);
+    }
   }
+  let lastWaterTick = Date.now();
+  function catchUp(seconds, list) {
+    const watered = drawTank(seconds);
+    light = .81;
+    simulateAway(list, watered, true);
+    simulateAway(list, Math.min(2 * 86400, seconds - watered), false);
+  }
+  catchUp(Math.max(0, (lastWaterTick - (st.t || lastWaterTick)) / 1000), st.beds.slice(0, LEVELS[st.level]));
+  light = 1;
 
   const listeners = [];
   const on = fn => listeners.push(fn);
@@ -530,13 +558,20 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
     // 门被撞开了：门一直开着；时间到了自己关上（原来锁着的再锁上）
     if (gate && remote) { const br = brokenUntil > Date.now(); if (br && !gate.open) { if (gate.locked) gate.setLock(false); gate.toggle(); } else if (!br && brokenUntil && gate.open) { brokenUntil = 0; const g0 = remote.gate || {}; if (!g0.open) gate.toggle(); if (g0.locked) gate.setLock(true); } }
     const gs = dt * st.speed, active = LEVELS[st.level];
+    const now = Date.now();
+    const elapsed = Math.max(0, (now - lastWaterTick) / 1000);
+    lastWaterTick = now;
+    const resumed = !!tank() && elapsed > 5;
+    if (resumed) catchUp(elapsed, st.beds.slice(0, active));
+    if (!resumed) drawTank(elapsed);
+    const irrigating = !!tank()?.water;
     light = daylight();
     const bugEvents = stepBugs(st.beds.slice(0, active), gs);
     bugEvents.forEach(([kind, b]) => { const bd = beds.find(x => x.st === b); if (kind === 'flyOut' && bd) flyAway(bd); if (kind === 'bug' || kind === 'flyIn') emit('bug', bd); });
     beds.forEach((bd, i) => {
       const on = i < active; bd.g.visible = on;
       if (!on) return;
-      const b = bd.st, ev = stepBed(b, gs);
+      const b = bd.st, ev = stepBed(b, gs, irrigating);
       if (ev) emit(ev, bd);
       if (bd.key !== b.crop) rebuildPlants(bd);
       bd.plants.forEach((p, k) => { p.root.visible = p.tree || k < b.plants; p.set(b.g, b.phase); });
@@ -653,8 +688,9 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
       return { msg: n ? `🧴 喷了 ${cnt} 块田，${n} 只虫子都跑了；2 小时不会来虫` : `🧴 喷了 ${cnt} 块田，2 小时不会来虫` };
     }
     if (a.kind === 'water') {
+      if (!useBucketWater()) return { ok: false, msg: '🪣 水桶空了，去小溪装水。' };
       const over = b.moist >= .99;
-      b.moist = over ? Math.min(MOIST_MAX, b.moist + .3) : 1; burst(bd, dropMat, 30, 1.3);
+      b.moist = over ? Math.min(MOIST_MAX, b.moist + .3) : 1; burst(bd, dropMat, 30, 1.3); persist();
       return { msg: over ? '💦 水太多了！菜会长得慢，等它慢慢干一点' : '💧 浇好水了，土变深了' };
     }
     if (a.kind === 'plant') {
@@ -715,6 +751,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // item：'can' 水壶 / 'glove' 手套 / 'seed_xxx' 种子 / 菜 / null
   function plan(bd, item) {
     const b = bd.st;
+    if (item === 'can' && st.bucket < 1) return { kind: null, label: '🪣 水桶空了', msg: '🪣 去地图西边的小溪装水。' };
     if (item === 'can') return { kind: 'water', label: bd.st.moist >= .99 ? '💧 浇水（已经很湿了，再浇会太多）' : '💧 浇水' };
     if (item === 'glove') {
       if (b.bugs > 0) return { kind: 'shoo', label: `🧤 抓虫子（${b.bugs} 只）` };
@@ -736,7 +773,7 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   }
   function useItem(bd, item) {
     const p = plan(bd, item);
-    if (!p.kind) return { msg: p.msg };
+    if (!p.kind) return { msg: p.msg, ok: false };
     return act(bd, p.seed, p.kind);
   }
 
@@ -780,7 +817,36 @@ export function createGarden({ scene, plot, side = 1, rnd = Math.random, save = 
   // 小鸟帮忙吃虫子（好感满的小鸟会来）
   const bugBeds = () => beds.filter(bd => bd.st.bugs > 0).map(bd => ({ i: bd.i, x: bd.wx, z: bd.wz }));
   function birdEatBug(i) { const bd = beds[i]; if (!bd || bd.st.bugs <= 0) return false; bd.st.bugs--; catchBug(bd); syncBugs(bd); persist(); return true; }
-  return { mayorFriendship: st.mayorFriendship, saveVisit: persist, stealOne, helpShoo, helpWater, snapshot, dispose, breakFence(sec) { brokenUntil = Date.now() + sec * 1000; }, get broken() { return brokenUntil > Date.now(); }, get fenceJump() { return PEN_FENCE[st.fenceLv || 1].jump; }, bugBeds, birdEatBug, wallet, beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateSpot, gateYaw, get rect() { return rect; }, toLocal, get gate() { return gate; },
+  const water = {
+    get bucket() { return st.bucket; },
+    refill() { st.bucket = BUCKET_CAPACITY; persist(); },
+    spend() { if (!useBucketWater()) return false; persist(); return true; },
+    get active() { return irrigation.active; },
+    get stored() { return tank()?.water || 0; },
+    owns(key) { return Object.hasOwn(irrigation.tanks, key); },
+    equip(key) {
+      const spec = IRRIGATORS[key];
+      if (!spec || irrigation.active === key) return false;
+      if (!this.owns(key)) {
+        if (st.coins < spec.price) return false;
+        st.coins -= spec.price;
+        irrigation.tanks[key] = { water: 0 };
+      }
+      irrigation.active = key;
+      persist();
+      return true;
+    },
+    pour() {
+      const current = tank();
+      if (!current) return 0;
+      const result = pourIntoTank(st.bucket, current.water, tankCapacity(irrigation.active));
+      st.bucket = result.bucket;
+      current.water = result.tankWater;
+      persist();
+      return result.poured;
+    },
+  };
+  return { water, mayorFriendship: st.mayorFriendship, saveVisit: persist, stealOne, helpShoo, helpWater, snapshot, dispose, breakFence(sec) { brokenUntil = Date.now() + sec * 1000; }, get broken() { return brokenUntil > Date.now(); }, get fenceJump() { return PEN_FENCE[st.fenceLv || 1].jump; }, bugBeds, birdEatBug, wallet, beds, update, nearest, collide, actionFor, describe, act, plan, useItem, bag, chest, box, addContainer, nearChest, moveItem, quickMove, debug, on, gateWorld, gateSpot, gateYaw, get rect() { return rect; }, toLocal, get gate() { return gate; },
     get fenceLv() { return st.fenceLv || 1; }, fencePrice: { 2: 100, 3: 300 }, fenceName: '菜园的栅栏',
     nearFence(p) { if (!rect) return false; const [lx, lz] = toLocal(p.x, p.z); return nearSegs(lx, lz, fenceEdges); },
     upgradeFence() { const l = (st.fenceLv || 1) + 1; if (!PEN_FENCE[l]) return false; st.fenceLv = l; persist(); fenceG.scale.y = PEN_FENCE[l].k; if (gate) gate.setHeight(PEN_FENCE[l].k); return true; }, get level() { return st.level; }, get speed() { return st.speed; } };

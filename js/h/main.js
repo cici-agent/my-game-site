@@ -14,6 +14,8 @@ import { createCoop, inCoop, COOP } from './coop.js';
 import { createPond, inPond, CRITTER } from './pond.js';
 import { createBirds, createButterflies } from './birds.js';
 import { createLoose } from './loose.js';
+import { BUCKET_CAPACITY, IRRIGATORS, tankCapacity } from './irrigation.js';
+import { byStream, streamAccess, createStream } from './stream.js';
 import { createNet, createNeighbors, DOG_RANGE } from './neighbors.js';
 import { createGrill, createCooker, RECIPES, COOKED_FOOD, FUEL, STOVES, grillSpot } from './cook.js';
 import { createRanch, pastureSpots, inPasture, RANCH_FEED, feedFor } from './ranch.js';
@@ -94,7 +96,7 @@ const inShopArea = (x, z, m = 0) => SHOP_SPOTS.some((s, i) => Math.hypot(s.x - x
 // 牛、羊的牧场：自家空地后面（被挡住就换到菜园对面那边），入口朝空地
 // 用户说：牛圈和商店重叠了 —— 离商店远一点（商店房子 10×8 米，再留 3 米）
 const PASTURES = pastureSpots(homePlot, gardenSide, (x, z) => onPath(x, z, 1) || onPlot(x, z, .5) || inGarden(homePlot, gardenSide, x, z, 1) || inShopArea(x, z, 3.5));
-const blocked = (x, z, m = .4) => onPath(x, z, m) || onPlot(x, z, m) || inGarden(homePlot, gardenSide, x, z, m) || inShopArea(x, z, m) || inPasture(homePlot, PASTURES, x, z, m);
+const blocked = (x, z, m = .4) => byStream(x, z, m + 1.2) || onPath(x, z, m) || onPlot(x, z, m) || inGarden(homePlot, gardenSide, x, z, m) || inShopArea(x, z, m) || inPasture(homePlot, PASTURES, x, z, m);
 const WR = L.worldR;
 
 // ---------- 渲染器 / 相机 / 灯光 ----------
@@ -189,6 +191,8 @@ for (let k = 0; k < 16; k++) {   // 放射状石板缝
   flat(new THREE.CircleGeometry(3.85, 48), flatMat(0x6b4a2e, 6)).position.y = .18;
   addPropCollider(0, 0, 4.4);
 }
+
+const updateStream = createStream(scene);
 
 // ---------- 空地块：浅一点的草坪 + 一圈木栅栏（用户说：一竖一竖的木桩改成一整圈栅栏，门口有大栅栏门，能用钥匙锁） ----------
 const plotLawn = flatMat(0xa3db74, 2), plotBorder = flatMat(0x8cc462, 1);
@@ -411,6 +415,61 @@ const garden = createGarden({ scene, plot: homePlot, side: gardenSide, daylight:
 const house = createHouse({ scene, plot: homePlot, side: gardenSide, speed: () => garden.speed, darkness: () => darkness(), wallet: garden.wallet, notify: m => toast(m) });
 garden.addContainer('cabinet', house.cabinet, () => house.persist());
 garden.addContainer('safe', house.safe, () => house.persist());
+
+// 储水桶在自家菜园入口旁，开关和补水都只影响当前选中的装置。
+const tankX = garden.rect.xn - gardenSide * 1.35, tankZ = garden.rect.gz - 3.4;
+const tankGroup = new THREE.Group();
+const [tankWorldX, tankWorldZ] = plotToWorld(homePlot, tankX, tankZ);
+tankGroup.position.set(tankWorldX, 0, tankWorldZ);
+scene.add(tankGroup);
+const tankModels = Object.fromEntries(Object.entries(IRRIGATORS).map(([key, spec]) => {
+  const model = new THREE.Group(), radius = spec.radius, height = 1.45 + radius * .35;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * .84, height, 18, 1, true),
+    mat(spec.color, { side: THREE.DoubleSide }));
+  body.position.y = height / 2 + .12;
+  model.add(body);
+  const metal = mat(0xd4ad69);
+  for (const y of [.26, height * .56, height + .12]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius * (.84 + .16 * (y / height)), .048, 7, 20), metal);
+    ring.position.y = y;
+    ring.rotation.x = -Math.PI / 2;
+    model.add(ring);
+  }
+  const surface = new THREE.Mesh(new THREE.CircleGeometry(radius * .91, 18), mat(0x44abcb, { roughness: .25 }));
+  surface.rotation.x = -Math.PI / 2;
+  model.add(surface);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(radius * 2 + .3, .14, radius * 2 + .3), mat(0x969c88));
+  base.position.y = .07;
+  model.add(base);
+  model.visible = false;
+  tankGroup.add(model);
+  return [key, { model, surface, height }];
+}));
+function showTank() {
+  const active = garden.water.active;
+  for (const [key, entry] of Object.entries(tankModels)) {
+    entry.model.visible = active === key;
+    if (active === key) {
+      entry.surface.visible = garden.water.stored > 0;
+      entry.surface.position.y = .18 + .91 * entry.height * garden.water.stored / tankCapacity(key);
+    }
+  }
+}
+function waterAmount(value) { return Math.round(value * 10) / 10; }
+function nearTank() {
+  return garden.water.active && Math.hypot(player.pos.x - tankGroup.position.x, player.pos.z - tankGroup.position.z) < 2.8;
+}
+function waterAction() {
+  if (selItem() !== 'can') return false;
+  if (byStream(player.pos.x, player.pos.z, 1.5) && player.pos.y < 1.5) {
+    garden.water.refill(); renderBag(); toast('🪣 从小溪装满了水'); return true;
+  }
+  if (!nearTank()) return false;
+  const amount = garden.water.pour();
+  const message = amount > 0 ? `倒入 ${waterAmount(amount)} 份水，装置开始自动浇水。`
+    : garden.water.stored >= tankCapacity(garden.water.active) ? '储水桶已满。' : '水桶空了，去小溪装水。';
+  renderBag(); showTank(); toast(message); return true;
+}
 const stamina = createStamina();
 // 🐶 宠物狗（用户定的：要非常可爱呆萌；饿了自己去狗盆吃；不饿自己玩；忠诚度高帮你看菜园）
 const dog = createDog({ scene, isNight: () => darkness() > .55, groundAt: p => house.groundAt(p), collide: p => { house.collide(p, .35); garden.collide(p, .35); plotFenceCollide(p, .35); dog.collideYard(p, .3); },
@@ -553,13 +612,14 @@ $('jumpBtn').addEventListener('pointerdown', e => { keys.Space = true; $('jumpBt
 // ---------- 菜园操作：快捷栏选东西（按 1~9、0 或者点格子），走到田边按 E（触屏点按钮） ----------
 // 快捷栏：第 1 格水壶、第 2 格手套（一直都有），后面是背包里的种子和菜
 let nearBed = null, toastT = 0, sel = 0;
-const TOOLS = [{ key: 'can', icon: '🪣', name: '水壶（浇水）' }, { key: 'glove', icon: '🧤', name: '手套（抓虫子、收菜）' }];
+const TOOLS = [{ key: 'can', icon: '🪣', name: '浇水桶' }, { key: 'glove', icon: '🧤', name: '手套（抓虫子、收菜）' }];
 const hotbarLen = () => TOOLS.length + garden.bag.cap;
 function selItem() { if (sel < TOOLS.length) return TOOLS[sel].key; const sl = garden.bag.slots[sel - TOOLS.length]; return sl ? sl.key : null; }
 function select(i) { if (i < 0 || i >= hotbarLen()) return; sel = i; renderBag(); const it = selItem(); toast(it ? (sel < TOOLS.length ? TOOLS[sel].name : itemInfo(it).name) : '空格子'); }
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2000); }
 function doAction() {
   if (sleeping) return wakeUp();
+  if (!shopOpen && !chestOpen && waterAction()) return;
   if (!chestOpen && !shopOpen && dog.lostNear(player.pos) >= 0) {
     if (dog.recover(player.pos,garden.bag)) { garden.saveVisit(); renderBag(); toast('🥏 找回飞盘了！'); }
     else toast('背包满了，腾出位置再捡。');
@@ -602,7 +662,7 @@ const foodLook = k => COOKED_FOOD[k] ? ' cooked' : RECIPES[k] ? ' raw' : '';
 function renderBag() {
   const b = garden.bag, cells = [];
   const num = i => `<u>${i + 1}</u>`;
-  TOOLS.forEach((t, i) => cells.push(`<div class="slot tool${sel === i ? ' on' : ''}" data-i="${i}" title="${t.name}">${num(i)}<span class="veg">${t.icon}</span></div>`));
+  TOOLS.forEach((t, i) => cells.push(`<div class="slot tool${sel === i ? ' on' : ''}" data-i="${i}" title="${t.name}">${num(i)}<span class="veg">${t.icon}</span>${t.key === 'can' ? `<i>${waterAmount(garden.water.bucket)}/${BUCKET_CAPACITY}</i>` : ''}</div>`));
   for (let k = 0; k < b.cap; k++) { const i = k + TOOLS.length, sl = b.slots[k], on = sel === i ? ' on' : '';
     if (!sl) { cells.push(`<div class="slot${on}" data-i="${i}">${num(i)}</div>`); continue; }
     const it = itemInfo(sl.key); cells.push(it.seed
@@ -699,7 +759,7 @@ function ranchAction() {
         if (!(killT > performance.now() && killB === b)) { killT = performance.now() + 3000; killB = b; toast('⚠️ 3 秒内再按一次 E 确定杀掉'); return true; }
         killT = 0; const n = r.kill(b); let got = 0; for (let i = 0; i < n; i++) if (garden.bag.add(K.meat, 1) || garden.chest.add(K.meat, 1)) got++;
         toast(`${itemInfo(K.meat).icon} 得到 ${got} 块${MEAT_NAME[K.meat]}`); stamina.use('work'); return true; }
-      if (r.kind === 'pig' && it === 'can' && r.dirt(b) > .15) { r.wash(b); toast(`🚿 给${b.baby ? K.baby : K.name}洗干净了！哼哼～`); stamina.use('work'); return true; }
+      if (r.kind === 'pig' && it === 'can' && r.dirt(b) > .15) { if (!garden.water.spend()) { toast('🪣 水桶空了，去小溪装水。'); return true; } r.wash(b); toast(`🚿 给${b.baby ? K.baby : K.name}洗干净了！哼哼～`); stamina.use('work'); return true; }
       if (a && a.ready && (r.kind !== 'sheep' || it === 'shears')) { const n = r.harvest(b), [prod, verb, unit] = PRODUCT[r.kind]; let got = 0; for (let i = 0; i < n; i++) if (garden.bag.add(prod, 1) || garden.chest.add(prod, 1)) got++;
         toast(`${r.look.prod} ${verb}：得到 ${got} ${unit}`); stamina.use('work'); return true; }
       if (a && a.ready) return false;
@@ -856,7 +916,7 @@ $('mayorChat').onsubmit = async event => {
   sendingChat = true;
   $('mayorSend').disabled = true;
   const messages = [
-    { role: 'system', content: '你是儿童农场游戏菜鸟家园的村长。用亲切简短的中文直接回应玩家刚打的字，记住近期对话。可以聊生活、虚构故事和种菜。种菜时在快捷栏选种子，到空田按 E 播种，选水壶按 E 浇水，小萝卜水分充足时约五分钟成熟。不要编造施肥、翻地等游戏没有的操作，土湿时不用浇水，西北角的萌宠小屋能洗澡治病。礼物要玩家通过赠礼按钮实际交付。不要索取个人信息，不要声称已经发放物品或修改游戏。' },
+    { role: 'system', content: '你是儿童农场游戏菜鸟家园的村长。用亲切简短的中文直接回应玩家刚打的字，记住近期对话。可以聊生活、虚构故事和种菜。种菜时在快捷栏选种子，到空田按 E 播种，选浇水桶按 E 浇水，空桶可以去地图西边的小溪装满，小萝卜水分充足时约五分钟成熟。不要编造施肥、翻地等游戏没有的操作，土湿时不用浇水，西北角的萌宠小屋能洗澡治病。礼物要玩家通过赠礼按钮实际交付。不要索取个人信息，不要声称已经发放物品或修改游戏。' },
     ...mayorHistory.slice(-10), { role: 'user', content: message },
   ];
   logMayorLine('user', message);
@@ -1002,7 +1062,7 @@ function stealAction() {
     return true;
   }
   if (it === 'glove' && b.bugs > 0) { h.garden.helpShoo(i); neighbors.hold(h.uid); net.send(h.uid, 'shoo', i); toast(`👍 帮${h.name}抓走了一只虫子`); return true; }
-  if (it === 'can') { h.garden.helpWater(i); neighbors.hold(h.uid); net.send(h.uid, 'water', i); toast(`💧 帮${h.name}浇了水`); return true; }
+  if (it === 'can') { if (!garden.water.spend()) { toast('🪣 水桶空了，去小溪装水。'); return true; } h.garden.helpWater(i); neighbors.hold(h.uid); net.send(h.uid, 'water', i); toast(`💧 帮${h.name}浇了水`); renderBag(); return true; }
   return false;
 }
 // 跑着撞别人家菜园的栅栏门（用户说：撞的是门；按撞了几下来算；门越高级要撞越多下；撞开 1 分钟后自己关上）
@@ -1059,6 +1119,7 @@ function mapLabel(text, bg, fg, w = 64) {
 const meMark = mapLabel('📍 你在这里', '#e8473e', '#ffffff', 80);
 const meRing = new THREE.Mesh(new THREE.RingGeometry(5, 8, 32), new THREE.MeshBasicMaterial({ color: 0xe8473e, depthTest: false, transparent: true }));
 meRing.rotation.x = -Math.PI / 2; meRing.renderOrder = 19; mapMarks.add(meRing);
+mapLabel('💧 西边小溪', '#d8f5f3', '#164752', 48).position.set(streamAccess.x, 26, streamAccess.z);
 const homeMark = mapLabel('🏡 我的空地', '#f5b800', '#3a2a00', 80); homeMark.position.set(homePlot.x, 50, homePlot.z);
 { const g = new THREE.Group(); g.position.set(homePlot.x, 1.5, homePlot.z); g.rotation.y = homePlot.rot; mapMarks.add(g);
   const m = new THREE.MeshBasicMaterial({ color: 0xf5b800, depthTest: false }), S = homePlot.size, T = 3.5;
@@ -1469,7 +1530,14 @@ function renderShop() {
   $('careReceipt').hidden = shopTab !== 'care' || !$('careReceipt').textContent;
   document.querySelectorAll('#shopUI .tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === shopTab));
   if (shopTab === 'buy') {
-    $('shopList').innerHTML = SHOP_ITEMS.map((it, i) => { if (shopOf(it) !== curShop) return ''; const info = itemInfo(it.key), lock = false, poor = garden.wallet.get() < it.price;
+    $('shopList').innerHTML = SHOP_ITEMS.map((it, i) => { if (shopOf(it) !== curShop) return '';
+      if (Object.hasOwn(IRRIGATORS, it.key)) {
+        const owned = garden.water.owns(it.key), selected = garden.water.active === it.key;
+        return `<div class="row"><span class="ic">🚿</span><span class="nm">${itemInfo(it.key).name}<small>${it.note}</small></span>
+          <span class="pr">${owned ? '已购买' : '🥕 ' + it.price}</span><button data-i="${i}" data-n="1"
+          ${selected || (!owned && garden.wallet.get() < it.price) ? 'disabled' : ''}>${selected ? '使用中' : owned ? '切换' : '购买'}</button></div>`;
+      }
+      const info = itemInfo(it.key), lock = false, poor = garden.wallet.get() < it.price;
       return `<div class="row${lock ? ' lock' : ''}"><span class="ic">${info.seed ? `<span class="pk"><b>${info.sub}</b></span>` : info.icon}</span>
         <span class="nm">${info.name}<small>${lock ? `菜园 ${it.lv} 级才能买` : it.note || ''}</small></span><span class="pr">🥕 ${it.price}</span>
         <button data-i="${i}" data-n="1" ${lock || poor ? 'disabled' : ''}>买 1 个</button>${it.once ? '' : `<button data-i="${i}" data-n="5" ${lock || garden.wallet.get() < it.price * 5 ? 'disabled' : ''}>买 5 个</button>`}</div>`; }).join('');
@@ -1548,6 +1616,10 @@ $('shopList').addEventListener('click', e => {
   }
   if (shopTab === 'buy') {
     const it = SHOP_ITEMS[+b.dataset.i], n = +b.dataset.n, cost = it.price * n;
+    if (Object.hasOwn(IRRIGATORS, it.key)) {
+      if (garden.water.equip(it.key)) toast(itemInfo(it.key).name + '已装在自家菜园入口旁。');
+      showTank(); renderShop(); renderMoney(); return;
+    }
     if (it.key === 'knife' && (garden.bag.count('knife') || garden.chest.count('knife'))) { toast('🔪 你已经有菜刀了'); return; }
     if (it.key === 'leash' && (dog.chained || garden.bag.count('leash') || garden.chest.count('leash'))) { toast('⛓️ 你已经有狗链了'); return; }
     if (it.key === 'kennel' && (dog.kennel || garden.bag.count('kennel') || garden.chest.count('kennel'))) { toast('🛖 你已经有一个狗屋了'); return; }
@@ -1828,6 +1900,8 @@ renderer.setAnimationLoop(() => {
   clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 560) c.position.x = -560; });
   sky.update(dt);
   garden.update(dt);
+  updateStream(t, player.pos, overview);
+  showTank();
   house.update(dt, player.pos, firstPerson && !overview);
   renderSta();
   shops.forEach(s => s.update(dt, player.pos));
@@ -1864,7 +1938,18 @@ renderer.setAnimationLoop(() => {
   const pr = $('prompt');
   const dogP = !overview && !sleeping && !chestOpen && !shopOpen ? dogPrompt(selItem()) : null;
   const coopP = (!overview && !sleeping && !chestOpen && !shopOpen ? mayorPrompt() || stealPrompt(selItem()) || cookPrompt(selItem()) : null) || (!gateFirst && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? birdPrompt(selItem()) || loosePrompt(selItem()) : null) || (!gateFirst && !dogP && !nearBed && !overview && !sleeping && !chestOpen && !shopOpen ? coopPrompt(selItem()) || ranchPrompt(selItem()) || pondPrompt(selItem()) || fencePrompt(selItem()) : null);
-  if (dog.lostNear(player.pos) >= 0 && !shopOpen && !chestOpen && !sleeping) {
+  const waterSite = !overview && !sleeping && !shopOpen && !chestOpen && selItem() === 'can'
+    ? (byStream(player.pos.x, player.pos.z, 1.5) && player.pos.y < 1.5 ? 'stream' : nearTank() ? 'tank' : null)
+    : null;
+  if (waterSite) {
+    const atStream = waterSite === 'stream';
+    const label = atStream ? '从小溪装水' : '往储水桶倒水';
+    const detail = atStream ? `水桶 ${waterAmount(garden.water.bucket)}/${BUCKET_CAPACITY}`
+      : `储水 ${waterAmount(garden.water.stored)}/${tankCapacity(garden.water.active)} 份 · ${garden.water.stored ? '正在自动浇水' : '待加水'}`;
+    pr.innerHTML = `<b>${isTouch ? '点按钮' : 'E'} · ${label}</b><span>${detail}</span>`;
+    pr.classList.remove('dim'); pr.classList.add('show');
+    $('actBtn').textContent = label; $('actBtn').classList.add('show');
+  } else if (dog.lostNear(player.pos) >= 0 && !shopOpen && !chestOpen && !sleeping) {
     pr.textContent = '🥏 找到飞盘 · 按 E 或点操作拾取'; pr.classList.add('show');
     $('actBtn').textContent = '捡起飞盘'; $('actBtn').classList.add('show');
   } else if (nearShop?.kind === 'pet' && !shopOpen && !chestOpen) {

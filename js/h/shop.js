@@ -2,10 +2,15 @@
 // 卖：种子、树苗、蜡烛、杀虫剂、狗用的东西；收：背包里除了钥匙的所有东西（换菜币）。价格以后后台可改。
 import * as THREE from 'three';
 import { CROPS } from './garden.js';
+import { IRRIGATORS } from './irrigation.js';
 
 // 种子 / 树苗的价格（菜币）
 const SEED_PRICE = { radish: 3, lettuce: 4, carrot: 5, potato: 6, tomato: 10, corn: 12, strawberry: 14, pumpkin: 30, watermelon: 50, apple: 40, orange: 50, peach: 70, cherry: 90 };
 export const SHOP_ITEMS = [
+  ...Object.entries(IRRIGATORS).map(([key, spec]) => ({
+    key, price: spec.price, lv: 1, once: true,
+    note: `独立购买，送到自家菜园。加满水可自动浇水约 ${spec.days} 个现实日。`,
+  })),
   { key: 'spray', price: 15, lv: 1, note: '一次喷 9 块田（周围 3×3）：虫子全赶走，2 小时不来虫' },
   { key: 'candle', price: 5, lv: 1, note: '点在烛台上，能烧半小时' },
   // 动物小铺（用户说：卖动物的店，比如买鸡）
