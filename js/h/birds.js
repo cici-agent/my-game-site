@@ -20,6 +20,10 @@ export const BIRD_KINDS = [
   { name: '小白鸽', body: 0xf2f2f2, belly: 0xffffff, wing: 0xc9d0da },
 ];
 const LOVE_HOME = 50, LOVE_BRAVE = 60, LOVE_FULL = 100, LOVE_BUG = 80;
+export function bugVisitDelay(love, random = Math.random) {
+  const trust = Math.max(0, Math.min(1, (love - LOVE_BUG) / (LOVE_FULL - LOVE_BUG)));
+  return (48 - 36 * trust) * (.8 + .4 * random());
+}
 const BIRD_GROW = 10 * 60 * 1000;          // 小鸟宝宝 10 分钟长大
 const EGG_EVERY = 12 * 60 * 1000;          // 鸟屋里两只好感高的小鸟：12 分钟下一个蛋
 const HATCH = 8 * 60 * 1000;               // 蛋放 8 分钟没收：60% 孵出小鸟
@@ -119,7 +123,7 @@ export function createBirds({ scene, plot, side, garden, isNight = () => false, 
   const isAdult = d => Date.now() - d.born >= BIRD_GROW;
   function spawn(d, at) {
     const m = buildBird(d.kind); scene.add(m.root);
-    const b = { d, m, p: (at || groundSpot()).clone(), state: 'ground', t: rnd(1, 4), fly: null, ph: Math.random() * 10, face: Math.random() * 6.28, bugT: rnd(40, 120), hop: 0 };
+    const b = { d, m, p: (at || groundSpot()).clone(), state: 'ground', t: rnd(1, 4), fly: null, ph: Math.random() * 10, face: Math.random() * 6.28, bugT: bugVisitDelay(d.love), hop: 0 };
     live.push(b); return b;
   }
   function despawn(b) { scene.remove(b.m.root); live.splice(live.indexOf(b), 1); }
@@ -189,6 +193,7 @@ export function createBirds({ scene, plot, side, garden, isNight = () => false, 
     for (const b of [...live]) {
       const r = b.m.root, d = b.d; b.ph += dt; b.t -= dt;
       r.scale.setScalar(isAdult(d) ? 1.9 : 1 + .9 * (Date.now() - d.born) / BIRD_GROW);
+      if (!night && d.love >= LOVE_BUG) b.bugT -= dt;
       const dp = Math.hypot(b.p.x - ppos.x, b.p.z - ppos.z);
       // 天黑：住鸟屋的回鸟屋，别的飞走；天亮再回来
       if (night && b.state !== 'sleep' && !(b.state === 'fly' && b.fly.then === 'sleep')) flyTo(b, resident(d) ? holePos() : farSpot(), 'sleep');
@@ -231,9 +236,10 @@ export function createBirds({ scene, plot, side, garden, isNight = () => false, 
           else b.t = rnd(2, 5);
         }
         // 好感满的小鸟：时不时去菜园找虫子吃
-        if (d.love >= LOVE_BUG && !night && (b.state === 'ground' || b.state === 'perch') && (b.bugT -= dt) <= 0) {
-          b.bugT = rnd(60, 150);
-          const list = garden.bugBeds ? garden.bugBeds() : [];
+        if (d.love >= LOVE_BUG && !night && (b.state === 'ground' || b.state === 'perch') && b.bugT <= 0) {
+          const busy = new Set(live.flatMap(other => other.state === 'bug' ? [other.bed] : other.fly?.then === 'bug' ? [other.fly.bed] : []));
+          const list = garden.bugBeds().filter(bed => !busy.has(bed.i));
+          b.bugT = list.length ? bugVisitDelay(d.love) : 4;
           if (list.length) { const bd = list[Math.floor(Math.random() * list.length)]; flyTo(b, new THREE.Vector3(bd.x + rnd(-.6, .6), 0, bd.z + rnd(-.6, .6)), 'bug', { bed: bd.i }); }
         }
       }

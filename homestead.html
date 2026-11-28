@@ -142,7 +142,10 @@
   #dogHud { position: fixed; left: 16px; top: calc(var(--top-h) + 198px); z-index: 9; background: rgba(120,70,20,.72); color: #fff; padding: 5px 12px; border-radius: 999px; font-size: 13px; }
   #dogHud.hungry { background: rgba(200,60,40,.85); animation: staBlink 1.2s infinite; }
   body.touch #dogHud { top: calc(var(--top-h) + 244px); }
-  #dogHud { cursor: pointer; }
+  #dogHud { cursor: pointer; border: 0; }
+  #dogPanel { position: fixed; z-index: 11; right: 12px; bottom: 64px; width: min(270px, 86vw); max-height: 52vh; overflow: auto; background: #fff5df; color: #53391e; border-radius: 14px; padding: 12px; box-shadow: 0 4px 18px #38231144; }
+  #dogPanel button { background: #fffaf1; border: 1px solid #be9870; border-radius: 8px; padding: 7px; margin: 2px; cursor: pointer; }
+  #dogPanel #dogClose { float: right; }
   #nameUI { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.35); }
   #nameUI.show { display: flex; }
   #nameUI .box { background: #fff7e8; border-radius: 20px; padding: 22px 24px; width: min(340px, 86vw); display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
@@ -233,7 +236,13 @@
 </nav>
 <div id="mapTip">📍 红色的是你现在在的地方 · <b style="color:#f5b800">黄框</b>是你的空地 · 按 T 传送回家 · 按 G 去广场 · 按 P 去萌宠小屋 · 再按 M 回去</div>
 <div id="tpFlash"></div>
-<div id="dogHud" style="display: none" title="点一下给狗改名"></div>
+<button id="dogHud" style="display:none" aria-controls="dogPanel" aria-expanded="false" title="点击打开小狗训练和护理"></button>
+<section id="dogPanel" aria-label="小狗互动" hidden>
+  <button id="dogClose" aria-label="收起小狗互动">收起</button><b id="dogTitle"></b>
+  <p id="dogFeedback" role="status"></p>
+  <div id="dogCommands"><button data-command="sit">坐下</button><button data-command="stand">站起来</button><button data-command="paw">握手</button></div>
+  <button id="dogReward">用狗粮奖励</button><button id="dogLead">牵狗</button><button id="dogCall" hidden>让它跑回来</button><button id="dogRename">改名</button>
+</section>
 <div id="nameUI"><div class="box">
   <div id="nameTitle">🐶 给小狗取个名字吧</div>
   <input id="nameInput" maxlength="8" autocomplete="off" aria-label="小狗的名字">

@@ -38,10 +38,10 @@ export const SHOP_ITEMS = [
   // 萌宠小屋（用户说：宠物店，现在只有小狗，以后有更多）
   { key: 'puppy', price: 80, lv: 1, note: '只能养一只。记得备粮和洗澡，长期断粮可能饿死', once: true, shop: 'pet' },
   { shop: 'pet', key: 'kennel', price: 30, lv: 1, note: '小狗窝：先放进背包，选中按 E 放在地上（放好就不能再挪了）；狗晚上回去睡觉；在狗屋前按 E 能升级', once: true },
-  { shop: 'pet', key: 'leash', price: 8, lv: 1, note: '把狗拴在狗屋门口（或者地上的小木桩）上，它就不会乱跑；不会用完', once: true },
+  { shop: 'pet', key: 'leash', price: 8, lv: 1, note: '选中狗链，在狗旁按 E 牵狗；再按 E 拴到桩上', once: true },
   { shop: 'pet', key: 'bowl', price: 10, lv: 1, note: '放在地上，往里面加狗粮，狗饿了自己去吃' },
   { shop: 'pet', key: 'dogfood', price: 3, lv: 1, note: '一份狗粮：放进狗盆，或者直接喂给狗' },
-  { shop: 'pet', key: 'frisbee', price: 12, lv: 1, note: '扔出去，狗会去捡回来（不会用完）' },
+  { shop: 'pet', key: 'frisbee', price: 12, lv: 1, note: '小狗练得越多越会捡；丢失的飞盘可以到落点拾回' },
   { key: 'knife', price: 6, lv: 1, note: '选中菜刀走到鸡旁边，按两次 E 杀鸡，得到鸡肉（不会用完）', once: true },
   { key: 'wood', price: 2, lv: 1, note: '一块木头：烧火做饭用（算 1 份柴）' },
   { key: 'coal', price: 5, lv: 1, note: '一块煤：烧火做饭用（算 3 份柴，更耐烧）' },
@@ -195,5 +195,5 @@ export function createStore({ scene, x, z, face, buildAvatar, kind, decor = null
     const ins = ppos && inside(ppos); fade += ((ins ? .08 : 1) - fade) * Math.min(1, dt * 5); roof.visible = fade > .1;
     roof.traverse(o => { if (o.isMesh) { o.material.opacity = fade; o.castShadow = fade > .5; } });
   }
-  return { kind, name: S.name, near, collide, update, inside, front: () => world(0, -.4), door: () => world(0, D + 2) };
+  return { kind, name: S.name, near, collide, update, inside, tub: kind === 'pet' ? world(W - 2, 2.4) : null, front: () => world(0, -.4), door: () => world(0, D + 2) };
 }
