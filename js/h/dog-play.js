@@ -7,6 +7,23 @@ export function practice(skills, key, random = Math.random) {
   return level === MASTERY && key !== 'fetch' || random() < chance;
 }
 
+export function commandPose(command, elapsed, startSit, startPaw) {
+  const ease = (seconds, duration) => {
+    const t = Math.max(0, Math.min(1, seconds / duration));
+    return t * t * (3 - 2 * t);
+  };
+  if (command === 'stand') {
+    // 已经四脚着地时也先略屈身，再撑直四腿。
+    const sit = startSit > .2 ? startSit * (1 - ease(elapsed, .65))
+      : startSit + .32 * ease(elapsed, .22) - (startSit + .32) * ease(elapsed - .22, .48);
+    return { sit, paw: startPaw * (1 - ease(elapsed, .24)) };
+  }
+  const sit = startSit + (1 - startSit) * ease(elapsed, .55);
+  const paw = command === 'paw' ? startPaw + (1 - startPaw) * ease(elapsed - .42, .32)
+    : startPaw * (1 - ease(elapsed, .22));
+  return { sit, paw };
+}
+
 // 带侧倾的滑翔：先升高，滑行减速，最后向低翼一侧弯落。
 export function launchDisc(from, yaw, velocity, random = Math.random) {
   const speed = Math.min(12, Math.hypot(velocity.x, velocity.z));
