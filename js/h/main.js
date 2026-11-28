@@ -15,7 +15,7 @@ import { createPond, inPond, CRITTER } from './pond.js';
 import { createBirds, createButterflies } from './birds.js';
 import { createLoose } from './loose.js';
 import { BUCKET_CAPACITY, IRRIGATORS, tankCapacity } from './irrigation.js';
-import { byStream, streamAccess, createStream } from './stream.js';
+import { byStream, streamAccess, createStream, streamBobber } from './stream.js';
 import { createNet, createNeighbors, DOG_RANGE } from './neighbors.js';
 import { createGrill, createCooker, RECIPES, COOKED_FOOD, FUEL, STOVES, grillSpot } from './cook.js';
 import { createRanch, pastureSpots, inPasture, RANCH_FEED, feedFor } from './ranch.js';
@@ -620,6 +620,7 @@ function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.
 function doAction() {
   if (sleeping) return wakeUp();
   if (!shopOpen && !chestOpen && waterAction()) return;
+  if (!shopOpen && !chestOpen && selItem() === 'rod' && streamBobber(player.pos)) return fishAction('stream');
   if (!chestOpen && !shopOpen && dog.lostNear(player.pos) >= 0) {
     if (dog.recover(player.pos,garden.bag)) { garden.saveVisit(); renderBag(); toast('🥏 找回飞盘了！'); }
     else toast('背包满了，腾出位置再捡。');
@@ -1255,23 +1256,27 @@ const bobber = new THREE.Group(); bobber.visible = false; scene.add(bobber);
 const fishLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
 const fishLine = new THREE.Line(fishLineGeo, new THREE.LineBasicMaterial({ color: 0xeeeeee })); fishLine.frustumCulled = false; fishLine.visible = false; scene.add(fishLine);
 const rodMesh = new THREE.Mesh(new THREE.CylinderGeometry(.015, .03, 2.2, 6), mat(0x8a5a2b)); rodMesh.visible = false; scene.add(rodMesh);
-function fishAction() {
-  if (inWater) { toast('🎣 走到岸上再钓'); return true; }
-  if (!fishing) {
-    const [bx, bz] = pond.bobberSpot(player.pos), kinds = pond.grownKinds();
-    fishing = { phase: 'wait', t: 0, biteT: 3 + Math.random() * 5, bx, bz, at: { x: player.pos.x, z: player.pos.z }, none: !Object.keys(kinds).length };
+function fishAction(source = 'pond') {
+  const stream = source === 'stream';
+  if (stream ? byStream(player.pos.x, player.pos.z, -.05) : inWater) { toast('🎣 走到岸上再钓'); return true; }
+  if (!fishing || fishing.source !== source) {
+    const spot = stream ? streamBobber(player.pos) : pond.bobberSpot(player.pos);
+    if (!spot) return false;
+    const [bx, bz] = spot;
+    fishing = { source, phase: 'wait', t: 0, biteT: 3 + Math.random() * 5, bx, bz, at: { x: player.pos.x, z: player.pos.z }, none: !stream && !Object.keys(pond.grownKinds()).length };
     if (fishing.none) fishing.biteT = 999;
     player.face = Math.atan2(bx - player.pos.x, bz - player.pos.z); toast('🎣 甩竿！等浮漂动……'); return true; }
   if (fishing.phase === 'wait') { fishing = null; toast('🎣 收早了，什么也没钓到'); return true; }
   // 咬钩了：按种类挑一只（螃蟹概率小）
-  const kinds = pond.grownKinds(), W = { fish: 1, shrimp: 1, crab: .3 }; let tot = 0; for (const k in kinds) tot += W[k] * kinds[k];
+  const kinds = stream ? { fish: 8, shrimp: 2 } : pond.grownKinds(), W = { fish: 1, shrimp: 1, crab: .3 }; let tot = 0; for (const k in kinds) tot += W[k] * kinds[k];
   let r = Math.random() * tot, pick = null; for (const k in kinds) { r -= W[k] * kinds[k]; if (r <= 0) { pick = k; break; } }
-  fishing = null; const item = pick && pond.catchKind(pick);
+  fishing = null; const item = pick && (stream ? CRITTER[pick].item : pond.catchKind(pick));
   if (!item) { toast('🎣 跑掉了……'); return true; }
   if (!garden.bag.add(item, 1)) garden.chest.add(item, 1); toast(`🎣 钓到一只${itemInfo(item).name}！${item === 'goldfish' ? ' ✨' : ''}`); stamina.use('work'); return true;
 }
 function updateFishing(dt) {
-  const on = !!fishing && selItem() === 'rod' && Math.hypot(player.pos.x - fishing.at.x, player.pos.z - fishing.at.z) < 2.5;
+  const on = !!fishing && selItem() === 'rod' && Math.hypot(player.pos.x - fishing.at.x, player.pos.z - fishing.at.z) < 2.5
+    && !(fishing.source === 'stream' && byStream(player.pos.x, player.pos.z, -.05));
   if (fishing && !on) { fishing = null; }
   bobber.visible = fishLine.visible = rodMesh.visible = !!fishing; if (!fishing) return;
   fishing.t += dt;
@@ -1941,7 +1946,16 @@ renderer.setAnimationLoop(() => {
   const waterSite = !overview && !sleeping && !shopOpen && !chestOpen && selItem() === 'can'
     ? (byStream(player.pos.x, player.pos.z, 1.5) && player.pos.y < 1.5 ? 'stream' : nearTank() ? 'tank' : null)
     : null;
-  if (waterSite) {
+  const streamFishing = !overview && !sleeping && !shopOpen && !chestOpen && selItem() === 'rod' && streamBobber(player.pos);
+  if (streamFishing) {
+    const onBank = !byStream(player.pos.x, player.pos.z, -.05);
+    const current = fishing?.source === 'stream' ? fishing : null;
+    const label = current?.phase === 'bite' ? '浮漂动了，收杆！' : current ? '等鱼上钩…' : '在小溪钓鱼';
+    const hint = current?.phase === 'bite' ? '现在收杆' : '甩竿后等浮漂下沉，再收杆';
+    pr.innerHTML = onBank ? `<b>${isTouch ? '点按钮' : 'E'} · ${label}</b><span>${hint}</span>` : '<b>🎣 走到溪岸上再钓</b>';
+    pr.classList.toggle('dim', !onBank); pr.classList.add('show');
+    $('actBtn').textContent = label; $('actBtn').classList.toggle('show', onBank);
+  } else if (waterSite) {
     const atStream = waterSite === 'stream';
     const label = atStream ? '从小溪装水' : '往储水桶倒水';
     const detail = atStream ? `水桶 ${waterAmount(garden.water.bucket)}/${BUCKET_CAPACITY}`

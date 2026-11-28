@@ -31,7 +31,7 @@ export const SHOP_ITEMS = [
   { key: 'crabling', price: 12, lv: 1, note: '小螃蟹：要 2 级鱼塘（有石头）才能养，30 分钟长大', once: true, shop: 'animal', animal: true },
   { key: 'fishfood', price: 2, lv: 1, note: '一把鱼食：在鱼塘边按 E 撒进去', shop: 'animal' },
   { key: 'net', price: 12, lv: 1, note: '渔网：要走进水里才能用，按 E 捞一只长大的（不会用完）', once: true, shop: 'animal' },
-  { key: 'rod', price: 15, lv: 1, note: '鱼竿：站在岸边甩竿，浮漂动了赶紧按 E 收杆（不会用完）', once: true, shop: 'animal' },
+  { key: 'rod', price: 15, lv: 1, note: '在小溪或鱼塘岸边按 E 甩竿，浮漂动了再收杆', once: true, shop: 'animal' },
   // 小鸟和蝴蝶（用户说的）
   { key: 'birdseed', price: 2, lv: 1, note: '一把鸟食：选中按 E 撒在地上，站着别动，小鸟会飞过来吃，好感变高', shop: 'animal' },
   { key: 'cage', price: 20, lv: 1, note: '鸟笼：走到小鸟旁边按 E 关进去，拿着到处走、看它；关在笼子里的鸟才能卖', shop: 'animal' },
