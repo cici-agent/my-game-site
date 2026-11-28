@@ -40,7 +40,7 @@ export function advanceCare(st, seconds) {
 
 export function advanceAway(st, seconds) {
   const bowl = st.bowl;
-  const reachable = bowl && (!st.chain || Math.hypot(bowl.x - st.chain.x, bowl.z - st.chain.z) <= 4.1);
+  const reachable = !st.boarding && bowl && (!st.chain || Math.hypot(bowl.x - st.chain.x, bowl.z - st.chain.z) <= 4.1);
   while (st.has && seconds > 0 && reachable && bowl.food > 0) {
     const untilMeal = Math.max(0, (st.full - HUNGRY) / HUNGER_RATE);
     if (seconds < untilMeal) break;
@@ -53,8 +53,39 @@ export function advanceAway(st, seconds) {
   advanceCare(st, seconds);
 }
 
+export const BOARDING_PRICE = 6;
+export const BOARDING_MAX_DAYS = 7;
+
+export function settleBoarding(st, from, to) {
+  const until = st.boarding?.until || 0;
+  const covered = Math.max(0, Math.min(to, until) - from) / 1000;
+  if (covered > 0) {
+    // 店员会补满狗粮、按时清洁，并在发现疾病后治疗。
+    const eaten = covered * HUNGER_RATE;
+    const remaining = st.full - eaten;
+    const mealInterval = 100 - HUNGRY;
+    st.full = remaining > HUNGRY ? remaining : 100 - ((HUNGRY - remaining) % mealInterval);
+    st.care.starving = 0;
+    st.care.sinceBath = (st.care.sinceBath + covered) % DIRTY_AFTER;
+    if (st.care.sick) services.treat.apply(st);
+  }
+  return Math.max(0, to - from) / 1000 - covered;
+}
+
+export function bookBoarding(st, days, now, wallet) {
+  if (!st.has || !Number.isInteger(days) || days < 1 || days > BOARDING_MAX_DAYS) return false;
+  const until = Math.max(now, st.boarding?.until || 0) + days * 86400000;
+  if (until - now > BOARDING_MAX_DAYS * 86400000 || !wallet.spend(days * BOARDING_PRICE)) return false;
+  st.boarding = { until };
+  st.full = 100;
+  st.care.starving = 0;
+  services.bath.apply(st);
+  if (st.care.sick) services.treat.apply(st);
+  return true;
+}
+
 export const services = {
-  bath: { price: 0, name: '自助洗澡', icon: '🛁', available: st => st.has,
+  bath: { price: 5, name: '自助洗澡', icon: '🛁', available: st => st.has,
     apply(st) { st.care.sinceBath = 0; } },
   treat: { price: 12, name: '看病', icon: '🩺', available: st => st.has && st.care.sick,
     apply(st) { st.care.sick = false; st.care.riskLeft = illnessThreshold(Math.random); } },

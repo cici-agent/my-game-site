@@ -7,7 +7,7 @@ import { buildKennel, KENNEL } from './kennel.js';
 import { commands, practice, MASTERY, launchDisc, discAt } from './dog-play.js';
 import { createGate } from './gate.js';
 
-import { advanceCare, advanceAway, freshCare, careLabel, services, DIRTY_AFTER, MEAL, HUNGRY } from './dog-care.js';
+import { advanceCare, advanceAway, settleBoarding, bookBoarding, freshCare, careLabel, services, DIRTY_AFTER, MEAL, HUNGRY } from './dog-care.js';
 
 const KEY = 'xcn_dog_v1';
 const LEASH = 3.5;   // 狗链长度（米）：拴上以后只能在这一圈里走
@@ -86,15 +86,15 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
   let st = null;
   try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   st ||= { has: false };
-  let pos, placed = false;
+  let pos, placed = false, lastFrame = Date.now();
   st.skills ??= {};
   st.lost ??= [];
-  const save = () => { if (placed && st.has) st.location = { x: pos.x, y: pos.y, z: pos.z }; st.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
+  const save = () => { if (placed && st.has) st.location = { x: pos.x, y: pos.y, z: pos.z }; st.t = lastFrame; try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
   // 离线这段时间：肚子饿了会自己去吃狗盆里的
   if (st.has) {
     const upgrading = !st.care;
     st.care ??= freshCare();
-    const away = Math.max(0, (Date.now() - (st.t || Date.now())) / 1000);
+    const away = settleBoarding(st, st.t || lastFrame, lastFrame);
     if (upgrading) {
       // 旧存档先结算已有的饥饿和狗盆，新规则从首次进入开始。
       advanceAway(st, Math.min(away, 24 * 3600));
@@ -179,7 +179,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
   const circ = new THREE.Vector3(); let entering = false, napT = 0, zzT = 0, fetchT = 0, circA = 0, air = false, vy = 0, jumpCd = 0, mode = 'idle', timer = 0, target = new THREE.Vector3(), emoteT = 0, t0 = 0, petCd = 0, moving = 0, whineT = 0, tilt = 0;
   const say = (e, dur = 2) => {};   // 用户说：动物、宠物头上不要显示状态（比如睡觉、开心、饿了）
   function spawnNear(p) { pos.set(p.x + 1.5, 0, p.z + 1.5); }
-  function adopt(name) { if (st.has) return false; Object.assign(st, { has: true, name: name || DOG_NAMES[Math.floor(Math.random() * DOG_NAMES.length)], full: 80, loyal: 10, care: freshCare(), skills: {}, bath: null, returning: false, leading: false, chain: null, location: null, died: false, bowl: st.bowl || null }); placed = false; save(); D.root.visible = true; mode = 'idle'; showKennel(); say('❤️', 3); return true; }
+  function adopt(name) { if (st.has) return false; Object.assign(st, { has: true, name: name || DOG_NAMES[Math.floor(Math.random() * DOG_NAMES.length)], full: 80, loyal: 10, care: freshCare(), skills: {}, bath: null, boarding: null, returning: false, leading: false, chain: null, location: null, died: false, bowl: st.bowl || null }); placed = false; lastFrame = Date.now(); save(); D.root.visible = true; mode = 'idle'; showKennel(); say('❤️', 3); return true; }
 
   const dist2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
   function pick(ppos) {
@@ -224,10 +224,9 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     return d;
   }
 
-  let lastFrame = Date.now();
   function update(dt, ppos, pface) {
     const now = Date.now();
-    const elapsed = (now - lastFrame) / 1000;
+    const elapsed = settleBoarding(st, lastFrame, now);
     lastFrame = now;
     if (!st.has) { D.root.visible = false; return; }
     if (!placed) {
@@ -241,7 +240,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     if (elapsed > 5) {
       advanceAway(st, elapsed);
       showBowl(); save();
-    } else advanceCare(st, dt);
+    } else advanceCare(st, elapsed);
     if (!st.has) {
       if (frisState) dropDisc();
       D.root.visible = fris.visible = chainLine.visible = stake.visible = false;
@@ -265,7 +264,15 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     if (frisState) st.activeDisc = { x: fris.position.x, z: fris.position.z };
     const dP = dist2(pos, ppos);
     if (frisState) mode = frisState === 'mouth' ? 'return' : 'fetch';
-    else if (st.bath) mode = 'bath';
+    else if (st.boarding) {
+      mode = 'sit';
+      timer = 1;
+      if (now >= st.boarding.until && !st.boarding.reminded) {
+        st.boarding.reminded = true;
+        save();
+        notify('🐾 寄养到期了，记得去萌宠小屋接小狗。');
+      }
+    } else if (st.bath) mode = 'bath';
     else if (st.returning) mode = 'called';
     else if (st.leading && !['sitCommand','standCommand','pawCommand'].includes(mode)) mode = 'led';
     timer -= dt;
@@ -400,6 +407,22 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
 
   // ---------- 主人跟它互动 ----------
   const api = {
+    get boarding() { return st.has && st.boarding; },
+    board(owner, days, wallet) {
+      if (!st.boarding && (!st.leading || !api.near(owner))) return false;
+      if (st.bath || st.returning || frisState || !bookBoarding(st, days, Date.now(), wallet)) return false;
+      st.leading = false;
+      rewardCommand = null;
+      save();
+      return true;
+    },
+    pickUpBoarding(owner) {
+      if (!st.has || !st.boarding || dist2(owner,pos) > 3) return false;
+      st.boarding = null;
+      mode = 'idle';
+      save();
+      return true;
+    },
     get bath() { return st.has && st.bath; }, get leading() { return !!st.leading; },
     get canReward() { return !!rewardCommand && Date.now() <= rewardUntil; },
     get skills() { return st.skills; }, get returning() { return !!st.returning; },
@@ -408,8 +431,8 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
       st.leading = true; save(); return true;
     },
     releaseLead() { if (st.leading) { st.leading = false; mode = 'idle'; save(); } },
-    startBath(owner, tub) {
-      if (!st.has || !st.leading || st.bath || dist2(owner,tub) > 3 || dist2(pos,tub) > 4) return false;
+    startBath(owner, tub, wallet) {
+      if (!st.has || !st.leading || st.boarding || st.bath || dist2(owner,tub) > 3 || dist2(pos,tub) > 4 || !wallet.spend(services.bath.price)) return false;
       st.leading = false; st.bath = { ...tub, stage: 'entering' }; save(); return true;
     },
     collect(owner) {
@@ -442,12 +465,11 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     },
     get has() { return st.has; }, get died() { return st.died; },
     get condition() { return careLabel(st); },
-    canCare(key) { return services[key].available(st); },
+    canCare(key) { return !st.boarding && services[key].available(st); },
     receiveCare(key, wallet) {
       const service = services[key];
-      if (key === 'bath' || !service.available(st) || (service.price > 0 && !wallet.spend(service.price))) return false;
+      if (key !== 'treat' || !api.canCare(key) || (service.price > 0 && !wallet.spend(service.price))) return false;
       service.apply(st);
-      if (key === 'bath') D.fur.color.setHex(0xf1c27d);
       save(); return true;
     }, get name() { return st.name; }, get full() { return st.full; }, get loyal() { return st.loyal; }, get mode() { return mode; }, get pos() { return pos; },
     get bowl() { return st.bowl; }, get frisbeeOut() { return !!frisState; },
@@ -475,7 +497,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
       if (ex < ez) lx = Math.sign(lx || 1) * hw; else lz = Math.sign(lz || 1) * hd;
       p.x = k.x + lx * c + lz * s; p.z = k.z - lx * s + lz * c;
     },
-    near(p) { return st.has && D.root.visible && dist2(pos, p) < 2.2; },
+    near(p) { return st.has && !st.boarding && D.root.visible && dist2(pos, p) < 2.2; },
     nearBowl(p) { return st.bowl && dist2(st.bowl, p) < 1.6; },
     status() { return `饱 ${Math.round(st.full)}% · 忠诚 ${Math.round(st.loyal)}${st.loyal >= 70 ? ' ❤️' : ''}`; },
     moodText() {
@@ -507,7 +529,7 @@ export function createDog({ scene, isNight = () => false, groundAt = () => 0, co
     },
     untie() { st.chain = null; save(); say('😆', 2); mode = 'circle'; timer = 2; circ.set(pos.x - .9, 0, pos.z); circA = 0; },
     throwFrisbee(from, yaw, velocity, bag) {
-      if (!st.has || st.bath || st.returning || frisState || st.chain || st.leading || !bag.take('frisbee',1)) return false;
+      if (!st.has || st.boarding || st.bath || st.returning || frisState || st.chain || st.leading || !bag.take('frisbee',1)) return false;
       flight = launchDisc(from,yaw,velocity);
       fris.position.set(flight.x, flight.y, flight.z);
       fris.rotation.set(.025, yaw, discAt(flight, 0).bank, 'YXZ');

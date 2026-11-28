@@ -7,7 +7,7 @@ import { visitMayor } from './mayor.js';
 import { createGarden, CROPS, LEVELS, itemInfo, chooseSide, inGarden, plotToWorld, worldToPlot } from './garden.js';
 import { createHouse, inHouse, HOUSE_NAMES } from './house.js';
 import { createGate, fenceMaterial, PEN_FENCE } from './gate.js';
-import { services as petServices } from './dog-care.js';
+import { BOARDING_PRICE, BOARDING_MAX_DAYS, services as petServices } from './dog-care.js';
 import { commands, MASTERY } from './dog-play.js';
 import { createDog } from './dog.js';
 import { createCoop, inCoop, COOP } from './coop.js';
@@ -1216,7 +1216,7 @@ const DOG_ITEMS = ['dogfood', 'frisbee', 'bowl', 'kennel', 'leash'];
 const KENNEL_UP = lv => dog.KENNEL[lv + 1];
 function frontOf(d = 1.4) { return [player.pos.x + Math.sin(player.face) * d, player.pos.z + Math.cos(player.face) * d]; }
 function dogPrompt(it) {
-  if (dog.bath || dog.returning) return null;
+  if (dog.boarding || dog.bath || dog.returning) return null;
   if (it === 'leash' && !dog.leading && !dog.chained && dog.near(player.pos))
     return { label: '牵住小狗', sub: '牵到萌宠小屋右边的澡盆旁，可以帮它洗澡', can: true };
   const nm = dog.name;
@@ -1244,7 +1244,7 @@ function dogPrompt(it) {
 }
 function dogAction() {
   const it = selItem();
-  if (dog.bath || dog.returning) return false;
+  if (dog.boarding || dog.bath || dog.returning) return false;
   if (nearBed && !DOG_ITEMS.includes(it)) return false;
   if (it === 'leash' && !dog.leading && dog.lead(player.pos)) { toast('牵好了，带小狗走到澡盆旁吧。'); return true; }
   if (dog.chained && dog.nearAnchor(player.pos) && !it) { dog.untie(); if (!garden.bag.add('leash', 1)) garden.chest.add('leash', 1); toast(`⛓️ 解开了，${dog.name}好开心（狗链回到背包里了）`); return true; }
@@ -1285,6 +1285,37 @@ function askDogName(isNew) {
 }
 const [bathX, bathZ] = petStore.tub;
 const tub = { x: bathX, z: bathZ };
+const attendant = buildAvatar('chef');
+attendant.root.visible = false;
+scene.add(attendant.root);
+function updateAttendant(dt, t) {
+  const visible = !!dog.boarding && dog.boarding.until > Date.now();
+  if (visible && !attendant.root.visible) {
+    const [x, z] = petStore.front();
+    attendant.root.position.set(x, 0, z);
+  }
+  attendant.root.visible = visible;
+  if (!visible) return;
+  const dx = dog.pos.x - attendant.root.position.x;
+  const dz = dog.pos.z - attendant.root.position.z;
+  const distance = Math.hypot(dx, dz);
+  const step = Math.min(dt * 2, Math.max(0, distance - 1.15));
+  if (step > 0) {
+    attendant.root.position.x += dx / distance * step;
+    attendant.root.position.z += dz / distance * step;
+  }
+  if (distance > .05) attendant.root.rotation.y = Math.atan2(dx, dz);
+  attendant.animate(dt, step > 0 ? .6 : 0, false, false);
+  if (!step) attendant.rig.armR.rotation.x = -.65 - Math.sin(t * 3) * .22;
+}
+
+function boardingStatus() {
+  if (dog.boarding.until <= Date.now()) return '寄养已到期，来萌宠小屋接狗或续费。';
+  const end = new Date(dog.boarding.until).toLocaleString('zh-CN', {
+    month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+  return '店员照料中，到 ' + end + ' 结束。';
+}
 function bathHint() {
   if (!dog.has) return '先去买一只小狗。';
   if (dog.bath?.stage === 'ready') return '洗好了，可以在盆旁领狗。';
@@ -1303,7 +1334,7 @@ $('dogHud').onclick = () => {
   if (!dog.has) return;
   $('dogPanel').hidden = !$('dogPanel').hidden;
   $('dogHud').setAttribute('aria-expanded', String(!$('dogPanel').hidden));
-  $('dogFeedback').textContent = dog.bath ? bathHint() : '靠近小狗发口令，做对后可以喂一份狗粮。';
+  $('dogFeedback').textContent = dog.boarding ? boardingStatus() : dog.bath ? bathHint() : '靠近小狗发口令，做对后可以喂一份狗粮。';
   renderDogHud(true);
 };
 $('dogClose').onclick = () => {
@@ -1330,7 +1361,8 @@ function renderDogHud(now) {
   const el = $('dogHud'); el.style.display = dog.has || dog.died ? '' : 'none';
   if (!dog.has) { $('dogPanel').hidden = true; el.textContent = dog.died ? dog.name + '因长期挨饿去世了' : ''; return; }
   el.textContent = `🐶 ${dog.name} 🍖 ${Math.round(dog.full)}% · ❤️ ${Math.round(dog.loyal)} · ${dog.condition}`;
-  if (dog.bath) el.textContent = dog.bath.stage === 'ready' ? '🛁 洗好了 · 接狗或让它跑回来' : '🛁 ' + bathHint();
+  if (dog.boarding) el.textContent = '🐾 ' + dog.name + ' · ' + boardingStatus();
+  else if (dog.bath) el.textContent = dog.bath.stage === 'ready' ? '🛁 洗好了 · 接狗或让它跑回来' : '🛁 ' + bathHint();
   else if (dog.returning) el.textContent = '🐾 小狗正在跑回来';
   else el.textContent += dog.leading ? ' · 已牵住 · 训练小狗' : ' · 训练小狗';
   $('dogCall').hidden = dog.bath?.stage !== 'ready';
@@ -1371,6 +1403,7 @@ function renderSta() {
 }
 // ---------- 小卖部：买种子、树苗、蜡烛、杀虫剂；把菜卖掉换菜币 ----------
 function renderMoney() { $('money').innerHTML = `<b>🥕 ${garden.wallet.get()}</b> 菜币`; }
+let boardingDays = 1;
 function renderShop() {
   $('shopMoney').textContent = garden.wallet.get();
   $('shopUI').querySelector('[data-t="care"]').hidden = curShop !== 'pet';
@@ -1385,11 +1418,23 @@ function renderShop() {
     $('shopList').innerHTML = Object.entries(petServices).map(([key, service]) => {
       let detail = key === 'bath' ? bathHint() : '为生病的小狗治疗';
       if (!dog.has) detail = '先去「买东西」买一只小狗';
-      else if (!dog.canCare(key)) detail = '小狗目前很健康';
-      else if (garden.wallet.get() < service.price) detail = '菜币不足';
-      const disabled = key === 'bath' ? !dog.has || (dog.bath && dog.bath.stage !== 'ready') : !dog.canCare(key) || garden.wallet.get() < service.price;
-      return `<div class="row"><span class="ic">${service.icon}</span><span class="nm">${service.name}<small>${detail}</small></span><span class="pr">${service.price ? '🥕 ' + service.price : '免费'}</span><button data-care="${key}" ${disabled ? 'disabled' : ''}>${key === 'bath' ? (dog.bath?.stage === 'ready' ? '领回小狗' : '把狗放进澡盆') : '治疗'}</button></div>`;
+      else if (dog.boarding) detail = '寄养照料已包括洗澡和治疗';
+      else if (key === 'treat' && !dog.canCare(key)) detail = '小狗目前很健康';
+      else if (!(key === 'bath' && dog.bath?.stage === 'ready') && garden.wallet.get() < service.price) detail = '菜币不足';
+      const disabled = key === 'bath' ? !dog.has || dog.boarding || (dog.bath ? dog.bath.stage !== 'ready' : garden.wallet.get() < service.price) : !dog.canCare(key) || garden.wallet.get() < service.price;
+      return `<div class="row"><span class="ic">${service.icon}</span><span class="nm">${service.name}<small>${detail}</small></span><span class="pr">${key === 'bath' && dog.bath?.stage === 'ready' ? '已付款' : '🥕 ' + service.price}</span><button data-care="${key}" ${disabled ? 'disabled' : ''}>${key === 'bath' ? (dog.bath?.stage === 'ready' ? '领回小狗' : '把狗放进澡盆') : '治疗'}</button></div>`;
     }).join('');
+    const choices = Array.from({ length: BOARDING_MAX_DAYS }, (_, i) => {
+      const days = i + 1;
+      return `<option value="${days}" ${days === boardingDays ? 'selected' : ''}>${days} 天 · ${days * BOARDING_PRICE} 菜币</option>`;
+    }).join('');
+    $('shopList').insertAdjacentHTML('beforeend', `<div class="row boarding">
+      <span class="ic">🐾</span><span class="nm">预约寄养<small>${dog.boarding ? boardingStatus() : '先牵狗到店。按现实时间计费，店员包喂食、洗澡和治疗。'}</small></span>
+      <select id="boardingDays" aria-label="寄养天数">${choices}</select>
+      <button data-care="board" ${dog.has ? '' : 'disabled'}>${dog.boarding ? '续费' : '确认寄养'}</button>
+      ${dog.boarding ? '<button data-care="pickup">接小狗</button>' : ''}
+    </div>`);
+
   } else {
     const rows = []; const seen = new Set();
     garden.bag.slots.forEach(sl => { if (!sl || seen.has(sl.key) || !sellPrice(sl.key)) return; seen.add(sl.key);
@@ -1399,17 +1444,30 @@ function renderShop() {
     $('shopList').innerHTML = (rows.join('') || '<div class="empty">背包里没有能卖的东西。去菜园收一些菜吧！</div>') + '<div class="empty">🔑 钥匙不能卖 · 从小卖部买的东西按一半的价钱收</div>';
   }
 }
+$('shopList').addEventListener('change', e => {
+  if (e.target.id === 'boardingDays') boardingDays = Number(e.target.value);
+});
 $('shopList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   if (shopTab === 'care' && curShop === 'pet') {
     const key = b.dataset.care;
+    if (key === 'board' || key === 'pickup') {
+      let message;
+      if (!petStore.inside(player.pos) || !petStore.inside(dog.pos)) message = '请牵狗到萌宠小屋里办理。';
+      else if (key === 'pickup') message = dog.pickUpBoarding(player.pos) ? '接到小狗了！' : '走到小狗旁边来接它。';
+      else if (garden.wallet.get() < boardingDays * BOARDING_PRICE) message = '菜币不足，可以少选几天。';
+      else if (dog.board(player.pos, boardingDays, garden.wallet)) message = '店员已经接手照料。' + boardingStatus();
+      else message = dog.boarding ? '续费后剩余寄养时间最多为 7 天。' : '先用狗链牵住小狗，让它跟到你身边。';
+      $('careReceipt').textContent = message;
+      renderShop(); renderMoney(); renderDogHud(true); return;
+    }
     if (key === 'bath') {
       let message = bathHint();
       if (nearTub() && dog.bath?.stage === 'ready' && dog.collect(player.pos)) message = '接到小狗了！';
-      else if (nearTub() && petStore.inside(dog.pos) && dog.startBath(player.pos,tub)) {
-        message = '小狗正在进盆，洗澡约一分钟。你可以先去忙。';
+      else if (nearTub() && petStore.inside(dog.pos) && dog.startBath(player.pos, tub, garden.wallet)) {
+        message = `已支付 ${petServices.bath.price} 菜币。小狗正在进盆，洗澡约一分钟。`;
       } else if (dog.bath?.stage === 'ready') message = '走到澡盆旁来领小狗。';
-      $('careReceipt').textContent = message; renderShop(); renderDogHud(true); return;
+      $('careReceipt').textContent = message; renderShop(); renderMoney(); renderDogHud(true); return;
     }
     if (key !== 'treat' || !dog.receiveCare(key, garden.wallet)) return renderShop();
     $('careReceipt').textContent = `🩺 ${dog.name}康复啦！`;
@@ -1702,9 +1760,16 @@ renderer.setAnimationLoop(() => {
   shops.forEach(s => s.update(dt, player.pos));
   if (dog.leading && !garden.bag.count('leash')) dog.releaseLead();
   const bathStage = dog.bath?.stage;
+  const boardingReminded = dog.boarding?.reminded;
   dog.update(dt, player.pos, player.face);
-  if (bathStage !== dog.bath?.stage && shopOpen && curShop === 'pet') {
-    $('careReceipt').textContent = bathHint(); renderShop();
+  updateAttendant(dt, t);
+  if (shopOpen && curShop === 'pet') {
+    if (bathStage !== dog.bath?.stage) {
+      $('careReceipt').textContent = bathHint(); renderShop();
+    }
+    if (dog.boarding?.reminded && !boardingReminded) {
+      $('careReceipt').textContent = boardingStatus(); renderShop();
+    }
   }
   kennelSiteMark.visible = !dog.kennel;
   coop.update(dt);
